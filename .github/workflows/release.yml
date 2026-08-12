@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label for the artifact (e.g. v0.1.0-dev). Used when run manually; tag pushes use the tag name.'
+        required: true
+        default: 'v0.0.0-dev'
+
+permissions:
+  contents: write   # required for softprops/action-gh-release to create the GitHub Release
+
+jobs:
+  release-windows:
+    # Every half of every game targets Windows: the pipelines are x64 and the
+    # proxies are Win32 DLLs injected into 32-bit game processes.  Pinned to
+    # windows-2022 (MSVC v194) rather than windows-latest, whose VS2026 /
+    # MSVC v195 breaks Conan's from-source dependency builds.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Conan 2
+        run: pip install "conan>=2.0"
+
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      # Every game resolves its own dependencies, and the games overlap heavily
+      # (Boost and gtest everywhere), so one cache serves them all.  Keyed on
+      # every shipped conanfile so a dependency bump invalidates it.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-${{ runner.os }}-${{ hashFiles('*/*/conanfile.py') }}
+          restore-keys: conan-${{ runner.os }}-
+
+      - name: Conan profile detect
+        run: conan profile detect --force
+
+      # Builds every game .gitignore does not exclude and stages each under
+      # install/<game>/ -- binaries, the translation, and the runtime table
+      # beside the proxy.  Tests are deliberately NOT run here: some suites
+      # shell out to TOOLS/, which is not in the repository.  The test gate is
+      # local -- run `python build.py --test --install` before you tag.
+      - name: Build every shipped game and stage install/
+        run: python build.py --install
+
+      # A release without the translation is a toolchain, not a patch: the
+      # download would need the user's own API budget before the game speaks
+      # English.  Fail rather than ship that silently.
+      - name: Verify every staged game carries its translation
+        run: |
+          $games = Get-ChildItem -Directory install
+          if ($games.Count -eq 0) { throw "install/ is empty" }
+          foreach ($g in $games) {
+            $t = Join-Path $g.FullName 'script_output\translated_text.json'
+            if (-not (Test-Path $t)) { throw "$($g.Name): no translated_text.json staged" }
+            $mb = [math]::Round((Get-Item $t).Length / 1MB, 1)
+            Write-Host "$($g.Name): translation $mb MB"
+          }
+        shell: pwsh
+
+      - name: Resolve version label
+        id: ver
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            echo "VERSION=${{ github.event.inputs.version }}" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "VERSION=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+          }
+        shell: pwsh
+
+      - name: Zip install/
+        run: |
+          Compress-Archive `
+            -Path install\* `
+            -DestinationPath vn-translate-${{ steps.ver.outputs.VERSION }}-windows.zip
+        shell: pwsh
+
+      - name: Upload install artifact (always — visible on the Actions run page even when no Release is cut)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vn-translate-${{ steps.ver.outputs.VERSION }}-windows
+          path: vn-translate-${{ steps.ver.outputs.VERSION }}-windows.zip
+          if-no-files-found: error
+
+      # Tag pushes only, so a manual dev build produces the artifact without
+      # cluttering the Releases tab.  GitHub attaches the source archives to
+      # every release on its own; this adds the built binaries beside them.
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: vn-translate-${{ steps.ver.outputs.VERSION }}-windows.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}   # v0.1.0-rc1 → prerelease, v0.1.0 → stable

@@ -1,0 +1,336 @@
+[
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_op05_5",
+    "confidence": 0.97,
+    "description": "A scene/chapter title card overlaid on a sky background reading '19××年12月24日' (December 24, 19××), indicating a date title card marking the start of a story scene.",
+    "regions": [
+      {
+        "text_jp": "19××年12月24日",
+        "text_en": "December 24, 19××",
+        "bbox": [
+          270,
+          288,
+          530,
+          318
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_op05_5.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_op05_5.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_054c_g",
+    "confidence": 0.85,
+    "description": "UI toggle button in the top-right corner reads 'グロテスク表現OFF' which means 'Grotesque Expression OFF' — a content settings toggle relevant to player experience.",
+    "regions": [
+      {
+        "text_jp": "グロテスク表現OFF",
+        "text_en": "Grotesque Content: OFF",
+        "bbox": [
+          624,
+          8,
+          792,
+          28
+        ],
+        "text_color": "#e8e0d0",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_054c_g.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_054c_g.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_op05_4",
+    "confidence": 0.99,
+    "description": "Three lines of poetic/narrative prose overlaid on a black background: 'The sound of my sister's lively chatter I heard from behind.' / 'Mother's gentle voice calling out to us.' / 'Father watching over us with a soft smile on his face.'",
+    "regions": [
+      {
+        "text_jp": "背中で聞いた妹のはしゃぎ声を。",
+        "text_en": "My little sister's laughter, heard from behind.",
+        "bbox": [
+          215,
+          230,
+          585,
+          265
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "僕らを呼ぶ母さんの優しい声を。",
+        "text_en": "My mother's gentle voice, calling out to us.",
+        "bbox": [
+          215,
+          285,
+          585,
+          320
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "微笑みを浮かべて僕らを見守る父さんを。",
+        "text_en": "My father, watching over us with a quiet smile.",
+        "bbox": [
+          155,
+          340,
+          645,
+          375
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_op05_4.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_op05_4.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_op05_6",
+    "confidence": 0.99,
+    "description": "A dramatic narrative title card with white text on black background reading '──　その日僕は、神を捨てた。' which translates to 'That day, I abandoned God.' — a story-relevant scene/chapter title card.",
+    "regions": [
+      {
+        "text_jp": "──　その日僕は、神を捨てた。",
+        "text_en": "── On that day, I cast aside God.",
+        "bbox": [
+          120,
+          285,
+          615,
+          325
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_op05_6.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_op05_6.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_op05_1",
+    "confidence": 0.99,
+    "description": "A narrative prose passage in white text on a black background: '──僕は思い出す。あの夏の日、光り輝く緑の丘を。' which translates to 'I remember — that summer day, the radiant green hill.'",
+    "regions": [
+      {
+        "text_jp": "──僕は思い出す。あの夏の日、光り輝く緑の丘を。",
+        "text_en": "——I remember it still. That summer day, and the brilliantly glowing green hill.",
+        "bbox": [
+          97,
+          278,
+          703,
+          322
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_op05_1.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_op05_1.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_016c_1_g",
+    "confidence": 0.85,
+    "description": "UI button label 'グロテスク表現OFF' (Grotesque Expression OFF) visible in the top-right corner — this is a content toggle/settings button that players would benefit from seeing in English.",
+    "regions": [
+      {
+        "text_jp": "グロテスク表現OFF",
+        "text_en": "Grotesque Content: OFF",
+        "bbox": [
+          700,
+          8,
+          792,
+          28
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_016c_1_g.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_016c_1_g.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_op05_2",
+    "confidence": 0.97,
+    "description": "White Japanese text on black background reading '背中で聞いた妹のはしゃぎ声を。' — a narrative prose fragment meaning roughly 'The sound of my little sister's laughter that I heard from behind (my back).'",
+    "regions": [
+      {
+        "text_jp": "背中で聞いた妹のはしゃぎ声を。",
+        "text_en": "The sound of my little sister's laughter, heard from behind.",
+        "bbox": [
+          213,
+          230,
+          591,
+          265
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_op05_2.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_op05_2.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "complete2",
+    "confidence": 0.92,
+    "description": "Large pink stylized text reads 'コンプリートおめでとう！' which translates to 'Congratulations on completing [the game]!' — this is a story/game completion congratulations message overlaid on the artwork, not ambient scenery.",
+    "regions": [
+      {
+        "text_jp": "コンプリートおめでとう！",
+        "text_en": "Congratulations on completing!",
+        "bbox": [
+          10,
+          55,
+          480,
+          145
+        ],
+        "text_color": "#ff69b4",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "地獄の湯",
+        "text_en": "Hell's Hot Spring",
+        "bbox": [
+          690,
+          55,
+          775,
+          80
+        ],
+        "text_color": "#2a1a0e",
+        "bg_tone": "light"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\complete2.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\complete2.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_005c_1_g",
+    "confidence": 0.85,
+    "description": "UI button label in the top-right corner reads 'グロテスク表現OFF' which translates to 'Grotesque Expression OFF' — a toggle setting for graphic content visibility.",
+    "regions": [
+      {
+        "text_jp": "グロテスク表現OFF",
+        "text_en": "Gore: Off",
+        "bbox": [
+          697,
+          8,
+          795,
+          28
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_005c_1_g.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_005c_1_g.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_010c_g",
+    "confidence": 0.85,
+    "description": "UI label in top-right corner reads 'グロテスク表現OFF' which is a content toggle button meaning 'Grotesque Expression OFF' — a settings/toggle control relevant to gameplay.",
+    "regions": [
+      {
+        "text_jp": "グロテスク表現OFF",
+        "text_en": "Gore: Off",
+        "bbox": [
+          628,
+          8,
+          792,
+          32
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_010c_g.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_010c_g.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_054a_1_g",
+    "confidence": 0.85,
+    "description": "UI toggle button in the top-right corner reading 'グロテスク表現OFF' (Grotesque Expression OFF), which is a content filter setting/button label relevant to the player's experience.",
+    "regions": [
+      {
+        "text_jp": "グロテスク表現OFF",
+        "text_en": "Gore: Off",
+        "bbox": [
+          634,
+          8,
+          796,
+          32
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_054a_1_g.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_054a_1_g.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_018c_g",
+    "confidence": 0.85,
+    "description": "UI button label in the top-right corner reads 'グロテスク表現OFF' (Grotesque Expression OFF), which is a toggle setting/content filter button relevant to gameplay options.",
+    "regions": [
+      {
+        "text_jp": "グロテスク表現OFF",
+        "text_en": "Gore: Off",
+        "bbox": [
+          624,
+          8,
+          792,
+          32
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_018c_g.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_018c_g.bmp"
+  },
+  {
+    "arc": "sin_cgev.dat",
+    "entry": "bg_op05_3",
+    "confidence": 0.99,
+    "description": "Two lines of narrative prose overlaid on a black background: '背中で聞いた妹のはしゃぎ声を。' (The sound of my little sister's laughter I heard from behind.) and '僕らを呼ぶ母さんの優しい声を。' (The gentle voice of our mother calling us.)",
+    "regions": [
+      {
+        "text_jp": "背中で聞いた妹のはしゃぎ声を。",
+        "text_en": "My little sister's laughter, heard from behind my back.",
+        "bbox": [
+          218,
+          218,
+          582,
+          258
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "僕らを呼ぶ母さんの優しい声を。",
+        "text_en": "And my mother's gentle voice, calling out to us.",
+        "bbox": [
+          218,
+          268,
+          598,
+          308
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\shingakkou\\narrative_extracted\\sin_cgev\\bg_op05_3.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\shingakkou\\narrative_patched\\bg_op05_3.bmp"
+  }
+]

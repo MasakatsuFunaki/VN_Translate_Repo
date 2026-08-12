@@ -1,0 +1,68 @@
+[
+  {
+    "arc": "sys.cpk",
+    "entry": "00004",
+    "confidence": 0.97,
+    "description": "The screen displays 'OPTION -オプション-' as a menu/UI header label at the top left, indicating this is an options/settings screen in a visual novel. The Japanese text 'オプション' means 'Options' and is a translate-worthy UI label.",
+    "regions": [
+      {
+        "text_jp": "OPTION -オプション-",
+        "text_en": "Options",
+        "bbox": [
+          54,
+          25,
+          460,
+          75
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\CROSS_CHANNEL\\narrative_extracted\\sys\\00004.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\CROSS_CHANNEL\\narrative_patched\\00004.bmp"
+  },
+  {
+    "arc": "sys.cpk",
+    "entry": "00008",
+    "confidence": 0.97,
+    "description": "UI header text reading 'PLAYING LOG -プレイングログ-' which is a backlog/message history menu label in a visual novel interface. The log content area appears empty.",
+    "regions": [
+      {
+        "text_jp": "PLAYING LOG -プレイングログ-",
+        "text_en": "Log",
+        "bbox": [
+          54,
+          25,
+          620,
+          75
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\CROSS_CHANNEL\\narrative_extracted\\sys\\00008.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\CROSS_CHANNEL\\narrative_patched\\00008.bmp"
+  },
+  {
+    "arc": "sys.cpk",
+    "entry": "00010",
+    "confidence": 0.95,
+    "description": "The screen shows a gallery/diary menu titled 'DIARY -思い出の記録-' (DIARY - Record of Memories) in the top-left corner. This is a UI screen from a visual novel displaying unlocked CG images in a grid layout.",
+    "regions": [
+      {
+        "text_jp": "DIARY -思い出の記録-",
+        "text_en": "DIARY -Record of Memories-",
+        "bbox": [
+          47,
+          18,
+          420,
+          58
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "bmp_path": "d:\\VN_TRANSLATE\\CROSS_CHANNEL\\narrative_extracted\\sys\\00010.bmp",
+    "patched_bmp": "D:\\VN_TRANSLATE\\CROSS_CHANNEL\\narrative_patched\\00010.bmp"
+  }
+]

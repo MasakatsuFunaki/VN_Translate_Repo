@@ -1,0 +1,1313 @@
+{
+  "batch_size": 50,
+  "context_window": 10,
+  "model": "claude-sonnet-4-6",
+  "total_translated": 150,
+  "batches": [
+    {
+      "batch_num": 1,
+      "num_lines": 50,
+      "context_size": 0,
+      "context_window_used": 0,
+      "context_entries": []
+    },
+    {
+      "batch_num": 2,
+      "num_lines": 50,
+      "context_size": 20,
+      "context_window_used": 10,
+      "context_entries": [
+        {
+          "speaker": "NARRATION",
+          "text": "There's a half-eaten piece of bread on the table. I toss it into my mouth without a second thought.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "This is -- the same morning as always --.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "My name is Rengo.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "I make my home in a grimy warehouse deep in the forest, living day to day however I please.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "I don't have any particular trade, but I do whatever work I can manage.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "Fortunately, I have clients, so I've never gone hungry.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "Though in exchange, my life tends to come with more than its share of trouble.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "But if I don't take on work like this, there's nowhere else for someone like me to live.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "After all, I was born into a clan of Bug wielders -- the \"Bug Users.\"|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "Unfortunate as it is, they're a hopelessly anachronistic lot, still living quietly out of sight in the forest to this da"
+        }
+      ]
+    },
+    {
+      "batch_num": 3,
+      "num_lines": 50,
+      "context_size": 20,
+      "context_window_used": 10,
+      "context_entries": [
+        {
+          "speaker": "NARRATION",
+          "text": "A mouth that spread wide in a circle, lined with dozens of fangs.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "They interlocked and ground against each other in a complex motion, and the insect was broken down piece by piece.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "It couldn't have taken more than ten seconds, but the sound of a living creature being crushed during that time was, as "
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "A shiver ran down my spine as I simply watched in silence while the Bug finished its meal.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "As if I myself were devouring 'something' in the same way -- savoring that strange, inexplicable sensation...|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "The job went the same as it always did.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "The method of contact, the nature of the request, the deadline, and so on--------|"
+        },
+        {
+          "speaker": "Rengo",
+          "text": "Rengo|\"Hey, sorry about that.| I'm just a tiny bit late.\"|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "When I arrived at the meeting spot, the person I'd expected was there waiting for me.|"
+        },
+        {
+          "speaker": "NARRATION",
+          "text": "A woman who didn't so much as change her expression at the sight of me -- at least thirty minutes late.|"
+        }
+      ]
+    }
+  ],
+  "translations": [
+    {
+      "script": "01.spt",
+      "line_idx": 0,
+      "type": "dialogue",
+      "speaker": "Girl",
+      "japanese": "少女\r\n「わあぁ…………」\r\n",
+      "translated": "Girl\r\n\"Wow...\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 1,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "頭上に広がる茜色の空を見上げて、少女は思わず感嘆\r\nの声を漏らした。\r\n",
+      "translated": "Looking up at the crimson sky spreading above her, the girl let out an involuntary gasp of wonder.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 2,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "今までに見たこともないほどの真っ赤な夕焼けが、\r\n柔らかく少女に降り注いでいる。\r\n",
+      "translated": "A blazing red sunset unlike anything she had ever seen\r\nwas washing over her in soft waves of light.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 3,
+      "type": "dialogue",
+      "speaker": "Girl",
+      "japanese": "少女\r\n「綺麗だねぇ……」\r\n",
+      "translated": "Girl\r\n\"It's beautiful...\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 4,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "それは、素直な言葉。\r\n",
+      "translated": "Simple, honest words.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 5,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "昼と夜の隙間だけに許されたこの瞬間を、少女は心か\r\nら綺麗だと感じた。\r\n",
+      "translated": "This fleeting moment -- permitted only in the gap between day and night -- the girl felt from the bottom of her heart was truly beautiful.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 6,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "恐怖と苦痛にとらわれていた時間は終わり、得られた\r\nものは、なにものにも縛られることのない自由。\r\n",
+      "translated": "The time spent trapped in fear and pain had ended, and what she had gained in its place was a freedom bound by nothing.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 7,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "目の前に続くのは一本の道。\r\n",
+      "translated": "Before her stretched a single road.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 8,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "少女が夕焼けを見つめていると、まるで少女を導くか\r\nのように、風が頬を撫でた。\r\n",
+      "translated": "As the girl gazed at the sunset, the wind brushed her cheek -- as if guiding her forward.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 9,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "だから――歩き出す――――。\r\n",
+      "translated": "And so -- she began to walk --.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 10,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "胸に染み込んでくるような赤い輝きを見つめながら、\r\n少女は確かな足取りで歩き出す。\r\n",
+      "translated": "Her eyes fixed on the red radiance that seemed to seep into her very chest, the girl set off with steady, certain steps.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 11,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "その先に何があるのかは分からなかったが、少なくと\r\nも希望を胸に抱くことができた。\r\n",
+      "translated": "She did not know what lay ahead, but at the very least, she could hold hope within her heart.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 12,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "以前とは全く違う赤い輝きに、希望を持つことができ\r\nたのだった。\r\n",
+      "translated": "In a red radiance utterly unlike what she had known before, she had found the strength to hope.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 13,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "そう――――――\r\n",
+      "translated": "Yes --\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 14,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "以前とは――違う――――――――――\r\n",
+      "translated": "Unlike before -- different --\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 15,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "赤い――――――――――――――――――――\r\n",
+      "translated": "Red --\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 16,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "赤い炎が――立っていた――――。\r\n",
+      "translated": "Red flames -- were standing there --.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 17,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "一切のものを呑み込むほどの勢いで、真っ赤な炎が\r\n狂ったように猛っていた。\r\n",
+      "translated": "With a ferocity that swallowed everything whole, the crimson flames raged as if gone mad.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 18,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "それが、悪夢の始まり。\r\n",
+      "translated": "That was the beginning of the nightmare.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 19,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "これから少女が体験する、苦痛と恐怖の幕開け。\r\n",
+      "translated": "The opening curtain of pain and terror the girl was about to endure.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 20,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "肌を焼くような熱から伝わってきたものは、捻じ曲げ\r\nられた運命への嘲笑のように感じられた。\r\n",
+      "translated": "What reached her through the skin-scorching heat felt like mockery -- a sneer aimed at a fate twisted beyond recognition.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 21,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "全てが失われていく。\r\n",
+      "translated": "Everything was being lost.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 22,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "幸せだった平穏な生活が、全て灰と化していく。\r\n",
+      "translated": "The peaceful, happy life she had known was turning to ash, every last piece of it.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 23,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "少女にできるのは、ただ見つめることだけ。\r\n",
+      "translated": "All the girl could do was watch.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 24,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "炎が全てを焼き尽くすのを、ただ見つめることだけ\r\nだった。\r\n",
+      "translated": "All she could do was watch as the flames consumed everything.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 25,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "やがて、失ったものの代わりに与えられたのは、おぞ\r\nましき苦痛の中から産まれ出た――――\r\n",
+      "translated": "In time, what was given to her in place of all she had lost -- born from within unspeakable agony --\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 26,
+      "type": "dialogue",
+      "speaker": "???",
+      "japanese": "？？？\r\n「ぅ…………………………………………ッ」\r\n",
+      "translated": "???\r\n\"Ugh...\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 27,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "薄汚れた倉庫の部屋で、呻くような声を漏らす。\r\n",
+      "translated": "In a grimy warehouse room, a low groan escapes.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 28,
+      "type": "dialogue",
+      "speaker": "???",
+      "japanese": "？？？\r\n「くっ…………」\r\n",
+      "translated": "???\r\n\"Tch...\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 29,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "埃まみれのソファーに寝転がって、そのままの体勢で\r\n大きく伸びをする。\r\n",
+      "translated": "Sprawled out on a dust-caked sofa, I stretch out without bothering to move from that position.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 30,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "周囲に白い粉のようなものが舞ったが、今更そんな\r\nもんを気にするような神経は持っちゃいない。\r\n",
+      "translated": "A cloud of something like white powder drifts up around me, but I stopped caring about that kind of thing a long time ago.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 31,
+      "type": "dialogue",
+      "speaker": "???",
+      "japanese": "？？？\r\n「なんだ、もう朝か？」\r\n",
+      "translated": "???\r\n\"What, morning already?\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 32,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "寝起きのせいか、ガラガラの声が出る。\r\n",
+      "translated": "My voice comes out raspy -- probably from just waking up.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 33,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "首だけを動かして辺りを窺ったあと、オレは気だるげ\r\nに溜息を漏らした。\r\n",
+      "translated": "After scanning the room with just my eyes, I let out a sluggish sigh.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 34,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "いつも通りの倉庫の部屋。\r\n",
+      "translated": "Same old warehouse room.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 35,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "多少、汚いのは認めるが、オレにとっちゃそれなりに\r\n快適な隠れ家だ。\r\n",
+      "translated": "I'll admit it's a bit of a dump, but for me it's a reasonably comfortable hideout.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 36,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "壁や床には、動物や昆虫じゃない生き物――――\r\n",
+      "translated": "Crawling across the walls and floor are creatures that are neither animals nor insects --\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 37,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "――『蟲』が動き回っていて、忙しないと言えば忙し\r\nない雰囲気が漂っている。\r\n",
+      "translated": "-- \"Bugs\" -- scurrying about, giving the place a restless, busy sort of atmosphere.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 38,
+      "type": "dialogue",
+      "speaker": "???",
+      "japanese": "？？？\r\n「……ったく、あんま寝た気がしねーな」\r\n",
+      "translated": "???\r\n\"...Damn, doesn't feel like I slept much.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 39,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "ソファーから起き上がって、ボキボキと首を鳴らす。\r\n",
+      "translated": "I haul myself off the sofa and crack my neck.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 40,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "テーブルの上には食べかけのパンがあって、それを\r\n無造作に口の中に放り込んだ。\r\n",
+      "translated": "There's a half-eaten piece of bread on the table. I toss it into my mouth without a second thought.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 41,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "これが――いつも通りの朝――――。\r\n",
+      "translated": "This is -- the same morning as always --.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 42,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "オレの名は煉悟。\r\n",
+      "translated": "My name is Rengo.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 43,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "森の中にある薄汚い倉庫を住処として、気ままにその\r\n日暮らしをしている。\r\n",
+      "translated": "I make my home in a grimy warehouse deep in the forest, living day to day however I please.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 44,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "仕事はこれといって決めてないが、まあやれる事はや\r\nるって感じだ。\r\n",
+      "translated": "I don't have any particular trade, but I do whatever work I can manage.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 45,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "幸いにして依頼者もいるため、食う物に困ったことは\r\nない。\r\n",
+      "translated": "Fortunately, I have clients, so I've never gone hungry.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 46,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "……もっとも、その代わりに面倒事が多い生活だった\r\nりもするんだが。\r\n",
+      "translated": "Though in exchange, my life tends to come with more than its share of trouble.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 47,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "だが、そんな仕事でも請けて行かなければ、オレみた\r\nいな奴が生きてく場所は他にない。\r\n",
+      "translated": "But if I don't take on work like this, there's nowhere else for someone like me to live.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 48,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "何しろオレは蟲を使う一族――『蟲使い』の生まれだ\r\nからだ。\r\n",
+      "translated": "After all, I was born into a clan of Bug wielders -- the \"Bug Users.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 49,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "不幸なことに、これがとんでもなく時代錯誤な連中で、\r\n今でも人知れずひっそりと森の中に住んでいる。\r\n",
+      "translated": "Unfortunate as it is, they're a hopelessly anachronistic lot, still living quietly out of sight in the forest to this day.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 50,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "ガキの頃から違和感はあったんだが、大人になるにつ\r\nれ、それがどんどん大きくなっていった。\r\n",
+      "translated": "I'd felt something was off since I was a kid, but as I got older,\r\nthat feeling only kept growing.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 51,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "なんでこんな生活をしなきゃならないのか。\r\n",
+      "translated": "Why did I have to live like this?\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 52,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "もっと楽に暮らす方法があるんじゃないのか。\r\n",
+      "translated": "Wasn't there some easier way to get by?\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 53,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "そんな事を考えているうちに、周りの連中が馬鹿みた\r\nいに思えてきて、オレは一族を抜けた。\r\n",
+      "translated": "Thinking along those lines, the people around me started to look like fools, and I left the clan.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 54,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "掟を破って一族を抜けて、それで今に至ってるってわ\r\nけだ。\r\n",
+      "translated": "I broke the code, walked out on the clan, and that's how I ended up where I am today.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 55,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「そういや、今日は仕事があるんだったな」\r\n",
+      "translated": "Rengo\r\n\"Come to think of it, I've got work today.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 56,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "窓から差し込む陽の高さを見て、うっすらと目を細め\r\nる。\r\n",
+      "translated": "I squint slightly as I gauge the height of the sun streaming through the window.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 57,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "仕事と言っても大したもんじゃないが、確か待ち合わ\r\nせの時間があったはずだ。\r\n",
+      "translated": "It's nothing major as far as jobs go, but I'm pretty sure there was a set meeting time.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 58,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "もうそろそろ出ないと間に合わない――――\r\n",
+      "translated": "I need to leave soon or I won't make it--------\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 59,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "――いや、今から行ってもアウトな気はするが、とに\r\nかく出かける準備をしなければならなかった。\r\n",
+      "translated": "----No, I have a feeling I'm already too late even if I leave now, but either way, I had to get ready to head out.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 60,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「いや、待てよ。\r\n　蟲どもに餌を喰わせるんじゃなかったか？」\r\n",
+      "translated": "Rengo\r\n\"Wait, hold on.\r\n Wasn't I supposed to feed the Bugs?\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 61,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "身支度を整えながら、ふともう一つの用事を思い出す。\r\n",
+      "translated": "While getting myself ready, I suddenly remember another errand.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 62,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "どっちかって言えばこっちのほうが重要で、飼ってる\r\n蟲どもに餌を食わせるため、近くの森に寄る予定だっ\r\nたのだ。\r\n",
+      "translated": "If anything, this one's more important -- I'd planned to stop by the nearby forest to feed the Bugs I keep.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 63,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "一族を抜けたと言っても、蟲を使わなくなったわけ\r\nじゃない。\r\n",
+      "translated": "Just because I left the clan doesn't mean I stopped using Bugs.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 64,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "むしろ、数少ない蟲を維持するために、それなりに\r\n世話をしながら暮らしていた。\r\n",
+      "translated": "If anything, I was living with the effort of maintaining the few Bugs I had, taking care of them as best I could.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 65,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "急いで仕事に向かうか、それとも蟲どもに餌を食わせ\r\nるか。\r\n",
+      "translated": "Rush off to work, or feed the Bugs first.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 66,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "オレは、行きながら考える事にした……。\r\n",
+      "translated": "I decided I'd figure it out on the way...\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 67,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "やって来たのは、倉庫からそう遠くない場所にある森\r\nだった。\r\n",
+      "translated": "I ended up at a forest not far from the warehouse.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 68,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "餌場は幾つかあるが、距離の関係でここに来る事が\r\n一番多い。\r\n",
+      "translated": "There are several feeding grounds, but this one is the closest, so I come here most often.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 69,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "蟲どもを解放して、自分達で餌を獲らせることにした。\r\n",
+      "translated": "I released the Bugs and let them hunt for their own food.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 70,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「オォラ、行って来ォい！」\r\n",
+      "translated": "Rengo\r\n\"Go on, get out there!\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 71,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "オレの服の内側から、拳程度の大きさのダンゴムシの\r\nような蟲がのそのそと這い出てくる。\r\n",
+      "translated": "From inside my clothes, Bugs the size of fists -- shaped like pill bugs -- come crawling out one by one.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 72,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "その数、ざっと二十匹。\r\n",
+      "translated": "About twenty of them in all.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 73,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "蟲使いが蟲を仕込む方法は幾つかあるが、オレはだい\r\nたい着衣の内側に隠すことにしていた。\r\n",
+      "translated": "There are several ways Bug Users conceal their Bugs, but I generally keep mine hidden inside my clothing.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 74,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「ま、一時間くらいでいっかァ？」\r\n",
+      "translated": "Rengo\r\n\"Eh, an hour or so should do it?\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 75,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "木陰に移動して、その根元に腰を下ろす。\r\n",
+      "translated": "I move into the shade of a tree and settle down at its base.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 76,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "休むための理由もあるが、基本的には身を隠すのが\r\n目的だ。\r\n",
+      "translated": "There's a reason to rest, but the main purpose is to stay out of sight.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 77,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "何しろ蟲を放している時の蟲使いは、完全な無防備と\r\n言っていい。\r\n",
+      "translated": "After all, a Bug User who has released their Bugs is completely defenseless -- no two ways about it.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 78,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "今、敵に襲われでもすると、何かと厄介な事になる。\r\n",
+      "translated": "If an enemy were to attack me right now, things could get very messy.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 79,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "あまり隠れたり逃げたりするのは趣味ではないが、こ\r\nればっかりは仕方なかった。\r\n",
+      "translated": "Hiding and running aren't really my style, but in this case, there's no helping it.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 80,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「そォろそろ頃合か」\r\n",
+      "translated": "Rengo\r\n\"About time, I'd say.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 81,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "ひゅうっ、と口笛を吹いて、森の中にいる蟲達に合図\r\nを送る。\r\n",
+      "translated": "I let out a sharp whistle, signaling to the Bugs scattered through the forest.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 82,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "すると暫くして、ゴソゴソと地面を這うようにしなが\r\nら、蟲達がオレの足元に戻ってきた。\r\n",
+      "translated": "A little while later, they came crawling back across the ground to my feet, rustling as they moved.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 83,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "一応数も確認してみるが、しっかり揃っていた。\r\n",
+      "translated": "I do a quick headcount -- all present and accounted for.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 84,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "蟲達はオレの脚を躊躇いもなく這い上がり、上着の\r\n内側へとその姿を消した。\r\n",
+      "translated": "The Bugs crawled up my legs without a moment's hesitation and disappeared inside my jacket.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 85,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "――と、その中の一匹が途中で動きを止め、口から\r\n赤い触手をひゅんっと飛ばした。\r\n",
+      "translated": "-- Then one of them stopped mid-climb and shot a red tendril from its mouth with a sharp snap.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 86,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "その矢のようなスピードは、とても外見からは想像で\r\nきない速さだ。\r\n",
+      "translated": "The arrow-like speed was something you'd never expect from its appearance.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 87,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "触手は茂みの中に隠れていた昆虫の胴体を串刺しにし、\r\nそのまま本体のところまで引き寄せてくる。\r\n",
+      "translated": "The tendril skewered an insect hiding in the undergrowth straight through the body and dragged it back to the Bug.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 88,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "蟲は、昆虫が口元まで来たのを確認すると――――\r\n",
+      "translated": "Once the Bug confirmed the insect had been pulled up to its mouth--------\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 89,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「クヒッ、意地汚い奴め」\r\n",
+      "translated": "Rengo\r\n\"Khih -- greedy little bastard.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 90,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "大きく円形に広がった口と、その中に生えている何十\r\nという牙。\r\n",
+      "translated": "A mouth that spread wide in a circle, lined with dozens of fangs.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 91,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "それらが複雑に絡み合い、擦り合うようにして、昆虫\r\nはその体を分解されていった。\r\n",
+      "translated": "They interlocked and ground against each other in a complex motion, and the insect was broken down piece by piece.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 92,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "時間にして十秒もなかっただろうが、その間に聞こえ\r\nていた『生き物が潰れる音』は、やはりとても心地良\r\nい。\r\n",
+      "translated": "It couldn't have taken more than ten seconds, but the sound of a living creature being crushed during that time was, as always, deeply satisfying.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 93,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "背筋にぞわりとするものを感じながら、オレはただ\r\nじっと蟲が食事を終えるのを見守っていた。\r\n",
+      "translated": "A shiver ran down my spine as I simply watched in silence while the Bug finished its meal.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 94,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "まるでオレ自身も、『何か』を同じように食っている\r\nような、そんな不思議な感覚を味わいながら……。\r\n",
+      "translated": "As if I myself were devouring 'something' in the same way -- savoring that strange, inexplicable sensation...\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 95,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "仕事は、いつも通りと言えばいつも通りだった。\r\n",
+      "translated": "The job went the same as it always did.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 96,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "接触方法、依頼内容、期限等々――――。\r\n",
+      "translated": "The method of contact, the nature of the request, the deadline, and so on--------\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 97,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「よぅ、悪いなァ。\r\n　ちぃ～～っとばっかし遅れちまったぜぇ」\r\n",
+      "translated": "Rengo\r\n\"Hey, sorry about that.\r\n I'm just a tiny bit late.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 98,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "待ち合わせ場所に行ってみると、予想した通りの人物\r\nがオレを待っていた。\r\n",
+      "translated": "When I arrived at the meeting spot, the person I'd expected was there waiting for me.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 99,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "少なくとも三十分以上遅刻したオレを見ても、表情\r\n一つ変えない女。\r\n",
+      "translated": "A woman who didn't so much as change her expression at the sight of me -- at least thirty minutes late.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 100,
+      "type": "dialogue",
+      "speaker": "Yuria",
+      "japanese": "ユーリア\r\n「前回の報酬です」\r\n",
+      "translated": "Yuria\r\n\"This is your payment for the last job.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 101,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "女はまず、封筒に包まれた札束を手渡しでよこしてき\r\nた。\r\n",
+      "translated": "The woman handed over an envelope stuffed with bills.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 102,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "これがいつものパターンで、だいたい前回の仕事の報\r\n酬と、次の仕事の依頼内容を同時に聞くことにしてい\r\nる。\r\n",
+      "translated": "This was the usual pattern -- I'd collect payment for the previous job and hear the details of the next one at the same time.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 103,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "もろちん、最初の頃はもっと段階を踏んでやり取りを\r\nしていたんだが、オレの飽きっぽい性格もあって、今\r\nの形に落ち着いたってわけだ。\r\n",
+      "translated": "Of course, in the early days we went through more steps when exchanging information, but given my restless nature, things eventually settled into this arrangement.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 104,
+      "type": "dialogue",
+      "speaker": "Yuria",
+      "japanese": "ユーリア\r\n「こちらが、次の依頼書になります」\r\n",
+      "translated": "Yuria\r\n\"This is the request form for your next job.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 105,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「あいよ」\r\n",
+      "translated": "Rengo\r\n\"Sure thing.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 106,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "女の手から、同じ封筒がもうひとつ手渡される。\r\n",
+      "translated": "Another envelope, identical to the first, was passed from the woman's hand to mine.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 107,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "依頼書と言っているが、実際はそんないいもんじゃな\r\nい。\r\n",
+      "translated": "She called it a request form, but in reality it was nothing so fancy.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 108,
+      "type": "dialogue",
+      "speaker": "Yuria",
+      "japanese": "ユーリア\r\n「それと、今日はサンプルをいただく日ですので」\r\n",
+      "translated": "Yuria\r\n\"Also, today is the day I collect the sample.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 109,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "淡々とした様子で、女が話を進めていく。\r\n",
+      "translated": "The woman continued speaking in her usual detached manner.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 110,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "その間、オレはロクに喋ってないのだが、そのあたり\r\nは全く気にしてないらしい。\r\n",
+      "translated": "I had barely said a word this whole time, but she didn't seem to mind in the slightest.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 111,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "代わりに、今まで一度としてオレのほうを見ようとも\r\nしなかった女の視線が、本当に一瞬だけちらりと向け\r\nられる。\r\n",
+      "translated": "In place of that, the woman's gaze -- which had not once turned in my direction until now -- flicked toward me for just a brief instant.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 112,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "そして、そこから流れるように自分が右肩から提げて\r\nいたハンドバッグに移すと、それで話は終わりだと言\r\nわんばかりに顔を反対に向けた。\r\n",
+      "translated": "Then, in one fluid motion, it shifted to the handbag hanging from her right shoulder, and she turned her face the other way as if to say the conversation was over.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 113,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "まあ、何をしろと言われているのかは、ちゃんと伝わ\r\nるんだけどよ……。\r\n",
+      "translated": "Well, I could tell well enough what she was asking me to do...\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 114,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「クヒヒッ！　せいぜい奴の役に立ってやれよ」\r\n",
+      "translated": "Rengo\r\n\"Kuhihi! Make yourself useful to the guy, you hear me.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 115,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "オレは、衣服の内側にいる蟲を一匹摘み出すと、素早\r\nくハンドバッグの中に落とした。\r\n",
+      "translated": "I reached inside my clothing, pinched out one of the Bugs, and dropped it swiftly into the handbag.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 116,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "その重さを確認してか、女がちらりとハンドバッグの\r\nほうに視線を送る。\r\n",
+      "translated": "Perhaps confirming its weight, the woman cast a brief glance toward the handbag.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 117,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "中身は見えていないだろうが、ゴソゴソと蠢く感覚は\r\n伝わっているはずだ。\r\n",
+      "translated": "She probably couldn't see what was inside, but she must have felt the rustling, squirming sensation.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 118,
+      "type": "dialogue",
+      "speaker": "Yuria",
+      "japanese": "ユーリア\r\n「では……」\r\n",
+      "translated": "Yuria\r\n\"Well then...\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 119,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "そう言って会釈をして、女は人ごみの中へと消えて\r\nいった。\r\n",
+      "translated": "With those words and a small bow, the woman disappeared into the crowd.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 120,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "これで、今日の仕事は終わりだった……。\r\n",
+      "translated": "And with that, the day's work was done...\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 121,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「……ったく、ふざけた事ばっかりゴチャゴチャぬか\r\n　しやがってよォ」\r\n",
+      "translated": "Rengo\r\n\"...Damn, what a load of nonsense to dump on me all at once.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 122,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "倉庫に戻って依頼書を開いて、オレは盛大な溜息とと\r\nもに不満を漏らしていた。\r\n",
+      "translated": "Back at the warehouse, I opened the request form and let out a long, heavy sigh as I grumbled my complaints.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 123,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "封筒の中には便箋が一枚と、ビタミン剤のようなもの\r\nが三錠。\r\n",
+      "translated": "Inside the envelope was a single sheet of writing paper and three tablets that looked like vitamin pills.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 124,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "便箋には汚らしい、読むのも一苦労するような字で、\r\n錠剤を蟲の食事として与えろと書かれていた。\r\n",
+      "translated": "The writing paper bore a messy scrawl -- the kind that took real effort just to read -- instructing me to give the tablets to the Bug as food.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 125,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "ちなみに、錠剤を与えるまで二十四時間は何も食わせ\r\nるなとのこと……。\r\n",
+      "translated": "It also noted that the Bug was to be given nothing to eat for twenty-four hours before administering the tablets...\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 126,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「そういうのは先に言っとけってんだ、糞野郎ッ！」\r\n",
+      "translated": "Rengo\r\n\"Tell me that kind of thing in advance, you piece of shit!\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 127,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "便箋を床に投げ捨てて、オレは古びたソファーに\r\nどっかと座り込んだ。\r\n",
+      "translated": "I flung the letter to the floor and dropped heavily onto the worn-out sofa.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 128,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "スプリングがイカれてるのか、最近はあまり座り心地\r\nが良くない。\r\n",
+      "translated": "The springs must have been shot, because it hadn't been very comfortable to sit on lately.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 129,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "まあ、それは別にいいんだが、とにかく今日はもう\r\n食事を与えてしまった。\r\n",
+      "translated": "Well, that was beside the point -- the real problem was that I'd already fed the Bug today.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 130,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "この錠剤を使うのは、少なくとも明日以降という事に\r\nなる。\r\n",
+      "translated": "Using these tablets would have to wait until tomorrow at the earliest.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 131,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「忘れてなきゃ飲ますか」\r\n",
+      "translated": "Rengo\r\n\"I'll give 'em to it if I don't forget.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 132,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "錠剤の入った小さなビニール袋を、テーブルの上に\r\nぽとりと落とす。\r\n",
+      "translated": "I let the small plastic bag containing the tablets fall onto the table with a soft thud.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 133,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "こういった依頼は、オレとしてはあまり好ましい類の\r\n仕事じゃない。\r\n",
+      "translated": "This kind of job wasn't really to my liking.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 134,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "もう少し肉体労働――と言えば聞こえはいいが、要す\r\nるに暴れられる仕事のほうが喜んでやれるタイプだ。\r\n",
+      "translated": "Something with a bit more physical labor -- \"manual work\" sounds respectable enough, but what I mean is I'd much rather have a job where I get to cut loose.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 135,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "ただ、今のところ収入源はこの依頼主からが唯一で、\r\nその金額も決して悪いものではない。\r\n",
+      "translated": "That said, this client was currently my only source of income, and the pay was far from bad.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 136,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "引っ越しなどが面倒臭くてこの場所に住んではいるが、\r\nこのソファーの下には札束の入った鞄が三つか四つは\r\nあるはずだ。\r\n",
+      "translated": "Moving was too much of a hassle, so I stayed in this place -- but under this sofa there should have been three or four bags stuffed with cash.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 137,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "もっとも、ロクに使うアテもないので、いったい幾ら\r\n持っているのか、自分で把握していないのだが……。\r\n",
+      "translated": "Not that I had much use for it, so I didn't even have a clear grasp of exactly how much I had...\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 138,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「ん……？」\r\n",
+      "translated": "Rengo\r\n\"Hm...?\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 139,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "テーブルの上に置いていた携帯電話が、ボリュームを\r\n最大にして着信音を鳴らす。\r\n",
+      "translated": "The cell phone sitting on the table blared its ringtone at full volume.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 140,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「オイ、今度は何のクスリだ？」\r\n",
+      "translated": "Rengo\r\n\"Hey, what kind of drug is it this time?\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 141,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "通話ボタンを押すなり、オレは目の前にいる奴に話し\r\nかけるように口を開いた。\r\n",
+      "translated": "The moment I hit the answer button, I opened my mouth as if talking to someone right in front of me.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 142,
+      "type": "narrative",
+      "speaker": "NARRATION",
+      "japanese": "オレに電話を掛けてくる奴など、この世に一人しかい\r\nないのだから、「もしもし？」などと言うだけ無駄だ。\r\n",
+      "translated": "There was only one person in this world who ever called me, so saying \"hello?\" would have been a complete waste of breath.\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 143,
+      "type": "dialogue",
+      "speaker": "???",
+      "japanese": "？？？\r\n「例の物は飲ませたかね？」\r\n",
+      "translated": "???\r\n\"Have you administered the item in question?\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 144,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「残念だったなァ。\r\n　今日はもう餌食わせちまったからアウトだ」\r\n",
+      "translated": "Rengo\r\n\"Too bad for you.\r\nAlready fed it today, so that's a no-go.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 145,
+      "type": "dialogue",
+      "speaker": "???",
+      "japanese": "？？？\r\n「おや、それは残念だ」\r\n",
+      "translated": "???\r\n\"Oh my, that is unfortunate.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 146,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「……って言うかな、このクスリは二十四時間以上\r\n　待たなきゃならねぇのか？」\r\n",
+      "translated": "Rengo\r\n\"...Actually, hold on -- does this stuff really need a twenty-four hour wait beforehand?\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 147,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「オレとしては、食わせるならさっさと食わせたほう\r\n　が楽なんだがなァ？」\r\n",
+      "translated": "Rengo\r\n\"Personally, if I'm going to give it something, I'd rather just get it over with.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 148,
+      "type": "dialogue",
+      "speaker": "???",
+      "japanese": "？？？\r\n「その場合、こちらの実験では九割の蟲が一時間以内\r\n　に死亡しているが、それでも君が良いと言うのなら\r\n　私としては別に構わんよ」\r\n",
+      "translated": "???\r\n\"In that case, our experiments show that nine out of ten Bugs die within an hour under those conditions -- but if you say you're fine with that, I have no particular objection.\"\r\n"
+    },
+    {
+      "script": "01.spt",
+      "line_idx": 149,
+      "type": "dialogue",
+      "speaker": "Rengo",
+      "japanese": "煉悟\r\n「ふっざけんなッ！\r\n　それで、『はい分かりました』って蟲に食わせると\r\n　でも思ってんのかッ！！」\r\n",
+      "translated": "Rengo\r\n\"The hell I will!\r\nDo you really think I'm just going to say 'sure, understood' and feed it to the Bug?!\"\r\n"
+    }
+  ]
+}

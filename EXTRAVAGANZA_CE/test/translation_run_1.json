@@ -1,0 +1,402 @@
+[
+  {
+    "script": "01.spt",
+    "line_idx": 16445,
+    "type": "dialogue",
+    "speaker": "Girl",
+    "japanese": "少女\r\n「わあぁ…………」\r\n",
+    "translated": "Girl\r\n\"Wow...\"\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16446,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "頭上に広がる茜色の空を見上げて、少女は思わず感嘆\r\nの声を漏らした。\r\n",
+    "translated": "Looking up at the crimson sky spreading overhead, the girl let out an involuntary gasp of wonder.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16447,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "今までに見たこともないほどの真っ赤な夕焼けが、\r\n柔らかく少女に降り注いでいる。\r\n",
+    "translated": "A blazing red sunset unlike anything she had ever seen\r\nwas washing over her in soft waves of light.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16448,
+    "type": "dialogue",
+    "speaker": "Girl",
+    "japanese": "少女\r\n「綺麗だねぇ……」\r\n",
+    "translated": "Girl\r\n\"It's so beautiful...\"\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16449,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "それは、素直な言葉。\r\n",
+    "translated": "Simple, honest words.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16450,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "昼と夜の隙間だけに許されたこの瞬間を、少女は心か\r\nら綺麗だと感じた。\r\n",
+    "translated": "This fleeting moment permitted only in the gap between day and night -- the girl felt it was truly beautiful, from the bottom of her heart.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16451,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "恐怖と苦痛にとらわれていた時間は終わり、得られた\r\nものは、なにものにも縛られることのない自由。\r\n",
+    "translated": "The time spent in the grip of fear and pain had ended, and what she had gained in its place was a freedom bound by nothing.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16452,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "目の前に続くのは一本の道。\r\n",
+    "translated": "Before her stretched a single road.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16453,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "少女が夕焼けを見つめていると、まるで少女を導くか\r\nのように、風が頬を撫でた。\r\n",
+    "translated": "As the girl gazed at the sunset, the wind brushed her cheek, as if guiding her forward.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16454,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "だから――歩き出す――――。\r\n",
+    "translated": "And so -- she began to walk --.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16455,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "胸に染み込んでくるような赤い輝きを見つめながら、\r\n少女は確かな足取りで歩き出す。\r\n",
+    "translated": "Her eyes fixed on the red radiance that seemed to seep into her very chest, the girl set off with steady steps.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16456,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "その先に何があるのかは分からなかったが、少なくと\r\nも希望を胸に抱くことができた。\r\n",
+    "translated": "She did not know what lay ahead, but at the very least, she was able to carry hope in her heart.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16457,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "以前とは全く違う赤い輝きに、希望を持つことができ\r\nたのだった。\r\n",
+    "translated": "In that red radiance -- so different from before -- she had found something to hope for.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16458,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "そう――――――\r\n",
+    "translated": "Yes --\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16459,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "以前とは――違う――――――――――\r\n",
+    "translated": "Different -- from before --\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16460,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "赤い――――――――――――――――――――\r\n",
+    "translated": "Red --\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16461,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "赤い炎が――立っていた――――。\r\n",
+    "translated": "Red flames -- were standing there --.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16462,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "一切のものを呑み込むほどの勢いで、真っ赤な炎が\r\n狂ったように猛っていた。\r\n",
+    "translated": "With a ferocity that swallowed everything in its path, the crimson flames raged as if gone mad.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16463,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "それが、悪夢の始まり。\r\n",
+    "translated": "That was the beginning of the nightmare.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16464,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "これから少女が体験する、苦痛と恐怖の幕開け。\r\n",
+    "translated": "The opening curtain of pain and terror the girl was about to experience.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16465,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "肌を焼くような熱から伝わってきたものは、捻じ曲げ\r\nられた運命への嘲笑のように感じられた。\r\n",
+    "translated": "What reached her through the skin-scorching heat felt like mockery -- a sneer aimed at a fate twisted beyond recognition.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16466,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "全てが失われていく。\r\n",
+    "translated": "Everything was being lost.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16467,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "幸せだった平穏な生活が、全て灰と化していく。\r\n",
+    "translated": "The peaceful, happy life she had known was turning to ash, every last piece of it.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16468,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "少女にできるのは、ただ見つめることだけ。\r\n",
+    "translated": "All the girl could do was watch.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16469,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "炎が全てを焼き尽くすのを、ただ見つめることだけ\r\nだった。\r\n",
+    "translated": "All she could do was watch as the flames consumed everything.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16470,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "やがて、失ったものの代わりに与えられたのは、おぞ\r\nましき苦痛の中から産まれ出た――――\r\n",
+    "translated": "In time, what was given to her in place of all she had lost -- born from within unspeakable agony --\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16471,
+    "type": "dialogue",
+    "speaker": "???",
+    "japanese": "？？？\r\n「ぅ…………………………………………ッ」\r\n",
+    "translated": "???\r\n\"Ugh...\"\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16472,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "薄汚れた倉庫の部屋で、呻くような声を漏らす。\r\n",
+    "translated": "A low, groaning sound escapes from within a grimy warehouse room.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16473,
+    "type": "dialogue",
+    "speaker": "???",
+    "japanese": "？？？\r\n「くっ…………」\r\n",
+    "translated": "???\r\n\"Tch...\"\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16474,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "埃まみれのソファーに寝転がって、そのままの体勢で\r\n大きく伸びをする。\r\n",
+    "translated": "I roll over on a dust-caked sofa and stretch out fully without changing position.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16475,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "周囲に白い粉のようなものが舞ったが、今更そんな\r\nもんを気にするような神経は持っちゃいない。\r\n",
+    "translated": "Something like white powder drifts through the air around me, but I stopped caring about that kind of thing a long time ago.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16476,
+    "type": "dialogue",
+    "speaker": "???",
+    "japanese": "？？？\r\n「なんだ、もう朝か？」\r\n",
+    "translated": "???\r\n\"What, morning already?\"\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16477,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "寝起きのせいか、ガラガラの声が出る。\r\n",
+    "translated": "My voice comes out in a raspy croak -- probably from just waking up.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16478,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "首だけを動かして辺りを窺ったあと、オレは気だるげ\r\nに溜息を漏らした。\r\n",
+    "translated": "I move only my neck to survey the room, then let out a sluggish sigh.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16479,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "いつも通りの倉庫の部屋。\r\n",
+    "translated": "Same warehouse room as always.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16480,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "多少、汚いのは認めるが、オレにとっちゃそれなりに\r\n快適な隠れ家だ。\r\n",
+    "translated": "I'll admit it's a bit of a dump, but for me it's a reasonably comfortable hideout.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16481,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "壁や床には、動物や昆虫じゃない生き物――――\r\n",
+    "translated": "Crawling across the walls and floor are creatures that are neither animals nor insects --\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16482,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "――『蟲』が動き回っていて、忙しないと言えば忙し\r\nない雰囲気が漂っている。\r\n",
+    "translated": "-- Bugs -- filling the space with a restless, busy sort of atmosphere.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16483,
+    "type": "dialogue",
+    "speaker": "???",
+    "japanese": "？？？\r\n「……ったく、あんま寝た気がしねーな」\r\n",
+    "translated": "???\r\n\"...Damn, doesn't feel like I slept much at all.\"\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16484,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "ソファーから起き上がって、ボキボキと首を鳴らす。\r\n",
+    "translated": "I haul myself up off the sofa and crack my neck.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16485,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "テーブルの上には食べかけのパンがあって、それを\r\n無造作に口の中に放り込んだ。\r\n",
+    "translated": "There's a half-eaten piece of bread on the table, and I toss it into my mouth without a second thought.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16486,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "これが――いつも通りの朝――――。\r\n",
+    "translated": "This is -- my usual morning --.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16487,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "オレの名は煉悟。\r\n",
+    "translated": "My name is Rengo.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16488,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "森の中にある薄汚い倉庫を住処として、気ままにその\r\n日暮らしをしている。\r\n",
+    "translated": "I make my home in a grimy warehouse deep in the forest, living day to day however I please.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16489,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "仕事はこれといって決めてないが、まあやれる事はや\r\nるって感じだ。\r\n",
+    "translated": "I don't have any particular trade, but I do whatever work comes my way.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16490,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "幸いにして依頼者もいるため、食う物に困ったことは\r\nない。\r\n",
+    "translated": "Fortunately, I have clients, so I've never had to worry about going hungry.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16491,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "……もっとも、その代わりに面倒事が多い生活だった\r\nりもするんだが。\r\n",
+    "translated": "Though in exchange, my life tends to come with no shortage of trouble.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16492,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "だが、そんな仕事でも請けて行かなければ、オレみた\r\nいな奴が生きてく場所は他にない。\r\n",
+    "translated": "But if I don't take on work like this, there's nowhere else for someone like me to live.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16493,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "何しろオレは蟲を使う一族――『蟲使い』の生まれだ\r\nからだ。\r\n",
+    "translated": "After all, I was born into a clan of Bug wielders -- the Bug Users.\r\n"
+  },
+  {
+    "script": "01.spt",
+    "line_idx": 16494,
+    "type": "narrative",
+    "speaker": "NARRATION",
+    "japanese": "不幸なことに、これがとんでもなく時代錯誤な連中で、\r\n今でも人知れずひっそりと森の中に住んでいる。\r\n",
+    "translated": "Unfortunate as it is, they're a hopelessly anachronistic lot, still living quietly out of sight, deep in the forest, even now.\r\n"
+  }
+]

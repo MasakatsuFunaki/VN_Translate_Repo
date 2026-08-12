@@ -1,0 +1,3 @@
+# Normalize line endings across Windows and Linux. Repo standard is LF.
+# Git auto-detects text vs binary; binaries are left alone.
+* text=auto eol=lf

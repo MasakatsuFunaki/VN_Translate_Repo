@@ -1,0 +1,5938 @@
+[
+  {
+    "arc": "ev0.gpk",
+    "entry": "ev_dkcom02",
+    "confidence": 0.97,
+    "description": "Handwritten Japanese message signed 'Denky' that reads: 'After a long time, teaming up with Back Cyc's Ueda Metafa really got me pumped!!! I got so into it that the song's outro ended up getting long, but I put everything from all of Denky's past work × Back Cyc into it, so please listen to every last bit of it!!' — appears to be a liner note or artist message card.",
+    "regions": [
+      {
+        "text_jp": "久しぶりのBack Cyc.上田メタフさんとのタッグ、超テンション上がりました！！！あまりにも気合が入りすぎて曲のBtも長くなってしまいましたが、今までのデンカレ×かけるBlack Cycの全てをつぎ込んだので余すことなく聴いて下さいね！！\nDenky",
+        "text_en": "It's been a while since a Back Cyc. collab — teaming up with Ueda Metaf again got me absolutely hyped!!! I got so into it that the song's BPM ended up going long, but I poured everything from all the Denkare × Kakeru × Black Cyc work into this, so please listen to every last bit of it!!\nDenky",
+        "bbox": [
+          130,
+          30,
+          1230,
+          660
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ev0\\ev_dkcom02.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ev_dkcom02.png"
+  },
+  {
+    "arc": "ev0.gpk",
+    "entry": "ev_dkcom03",
+    "confidence": 0.97,
+    "description": "Handwritten Japanese message (likely from a voice actor/artist named Ravens) that reads: 'I'm glad to be working with MetaYo-san again. I read through the scenario carefully and wrote the lyrics. During recording, I got so emotional I almost cried. This is my best work! Please listen to it!!'",
+    "regions": [
+      {
+        "text_jp": "またメタヲさんとご一緒出来て嬉しいです。",
+        "text_en": "I'm so happy to be working with Metao-san again.",
+        "bbox": [
+          130,
+          30,
+          1130,
+          110
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "シナリオを読み込んで",
+        "text_en": "I read through the scenario thoroughly,",
+        "bbox": [
+          130,
+          115,
+          720,
+          185
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "詞を書かせて頂きました。",
+        "text_en": "and wrote the lyrics with great care.",
+        "bbox": [
+          130,
+          195,
+          660,
+          265
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "レコーディングの時、感情が",
+        "text_en": "During the recording session, I got so emotionally invested",
+        "bbox": [
+          130,
+          300,
+          780,
+          370
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "入りすぎて泣きそうに",
+        "text_en": "that I almost cried.",
+        "bbox": [
+          130,
+          375,
+          620,
+          445
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "なりました。自信作です！",
+        "text_en": "This is a work I'm truly proud of!",
+        "bbox": [
+          130,
+          450,
+          720,
+          520
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "是非聞いて下さい!!",
+        "text_en": "Please give it a listen!!",
+        "bbox": [
+          130,
+          535,
+          600,
+          610
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Ravens",
+        "text_en": "Ravens",
+        "bbox": [
+          830,
+          480,
+          1060,
+          570
+        ],
+        "text_color": "#1a1a1a",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ev0\\ev_dkcom03.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ev_dkcom03.png"
+  },
+  {
+    "arc": "ev0.gpk",
+    "entry": "ev_metcom04",
+    "confidence": 0.92,
+    "description": "Yellow pixelated/stylized Japanese text visible on the right side of the image, appearing to be a chapter or scene title card reading '巨乳の国へ帰れ' (roughly translates to 'Go back to the land of big breasts' or similar), overlaid on sketch-style anime artwork",
+    "regions": [
+      {
+        "text_jp": "巨乳の国へ帰れ",
+        "text_en": "Go Back to Your Land of Big Boobs",
+        "bbox": [
+          820,
+          320,
+          1010,
+          520
+        ],
+        "text_color": "#e8d800",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ev0\\ev_metcom04.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ev_metcom04.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taev04com1",
+    "confidence": 0.95,
+    "description": "Yellow pixel-style text on black background reading '巨乳の国へ帰れ' (Return to the Land of Big Breasts), displayed diagonally - appears to be a chapter/scene title card",
+    "regions": [
+      {
+        "text_jp": "巨乳の国へ帰れ",
+        "text_en": "Return to the Land of Big Breasts",
+        "bbox": [
+          10,
+          30,
+          215,
+          210
+        ],
+        "text_color": "#ffff00",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taev04com1.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taev04com1.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taev04com3",
+    "confidence": 0.95,
+    "description": "Multiple overlaid Japanese text fragments expressing emotional reactions, including phrases like 'イメージと俺の腹筋が爆裂した' (My image and abs exploded), '溢れるコレジャナイ感' (Overflowing 'this isn't it' feeling), '髪色だけで選んだか' (Did you choose just by hair color?), '誰得' (Who benefits from this?), 'こんなだらしない体じゃないし' (My body isn't this slovenly), '責任者でてこい' (Bring out the person in charge), '方向性が違いすぎる' (The direction is too far off), and an emoticon 'ψ——(ˊᗜˋ)——' suggesting exasperation. These appear to be narrative/reactive text overlaid on artwork.",
+    "regions": [
+      {
+        "text_jp": "邦画にまた一つ8墓証",
+        "text_en": "Another entry in the \"Eight Graves\" style of Japanese film",
+        "bbox": [
+          620,
+          30,
+          870,
+          130
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "髪色だけで選んだか",
+        "text_en": "Did you pick her just for her hair color?",
+        "bbox": [
+          560,
+          150,
+          790,
+          250
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "イメージと俺の腹筋が爆裂した",
+        "text_en": "My image of her — and my abs — both exploded",
+        "bbox": [
+          240,
+          310,
+          570,
+          430
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "溢れるコレジャナイ感",
+        "text_en": "Overwhelmed by a \"this isn't it\" feeling",
+        "bbox": [
+          470,
+          390,
+          720,
+          480
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ｻｰ――(ﾟдﾟ)――――",
+        "text_en": "Whooooosh (blank stare of despair)",
+        "bbox": [
+          620,
+          460,
+          870,
+          540
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "誰得",
+        "text_en": "Who asked for this?",
+        "bbox": [
+          20,
+          800,
+          100,
+          850
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "こんなたらしない体じゃないし",
+        "text_en": "She doesn't even have a body like that",
+        "bbox": [
+          130,
+          810,
+          400,
+          880
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "責任者でてこい",
+        "text_en": "Get me the person in charge!",
+        "bbox": [
+          330,
+          890,
+          560,
+          960
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "方向性が違いすぎる",
+        "text_en": "The direction is completely off",
+        "bbox": [
+          130,
+          1140,
+          380,
+          1220
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taev04com3.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taev04com3.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taev04com4",
+    "confidence": 0.95,
+    "description": "Multiple diagonal Japanese text phrases overlaid on a black background, appearing to be critical/negative comments such as 'もういいから' (That's enough already), 'BBAムリすんな' (Old hag, don't force it), 'どんな気持ちでミース力をはいたのか' (What were you thinking wearing those tights), '枕何個詰んだ?' (How many pillows did you stuff?), 'キャスティングの奴、この作品キライだろ' (The casting person must hate this work), '無理ありすぎだろ' (This is way too forced). These appear to be harassment/hate comments displayed as narrative overlay text in a visual novel scene.",
+    "regions": [
+      {
+        "text_jp": "もういいから",
+        "text_en": "Just forget it.",
+        "bbox": [
+          800,
+          20,
+          910,
+          160
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "BBAムリすんな",
+        "text_en": "Old hag, don't push yourself.",
+        "bbox": [
+          155,
+          470,
+          290,
+          590
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "どんな気持ちでミース力をはいたのか",
+        "text_en": "What were you thinking, putting on those knee-highs?",
+        "bbox": [
+          390,
+          350,
+          530,
+          650
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "枕何個詰んだ？",
+        "text_en": "How many pillows did you stuff in there?",
+        "bbox": [
+          560,
+          400,
+          700,
+          510
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "キャスティングの奴、この作品キライだろ",
+        "text_en": "The casting director must hate this production.",
+        "bbox": [
+          620,
+          290,
+          905,
+          600
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "無理ありすぎだろ",
+        "text_en": "That's way too much of a stretch.",
+        "bbox": [
+          30,
+          1130,
+          215,
+          1275
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taev04com4.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taev04com4.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taw_cyl_baseconfig_p3",
+    "confidence": 0.97,
+    "description": "Settings/config menu screen with header '―環境設定―' (Environment/Settings) and a slider option '◇メッセージウィンドウ透明度' (Message Window Transparency) ranging from 0% to 100%",
+    "regions": [
+      {
+        "text_jp": "－環境設定－",
+        "text_en": "Settings",
+        "bbox": [
+          44,
+          28,
+          220,
+          65
+        ],
+        "text_color": "#e0e8ff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "◇メッセージウィンドウ透明度",
+        "text_en": "Message Window Opacity",
+        "bbox": [
+          32,
+          158,
+          420,
+          205
+        ],
+        "text_color": "#e0e8ff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "0%",
+        "text_en": "0%",
+        "bbox": [
+          585,
+          162,
+          625,
+          188
+        ],
+        "text_color": "#e0e8ff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "100%",
+        "text_en": "100%",
+        "bbox": [
+          1195,
+          175,
+          1248,
+          200
+        ],
+        "text_color": "#e0e8ff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taw_cyl_baseconfig_p3.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_baseconfig_p3.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taw_mkri_baseconfig_p1_a",
+    "confidence": 0.97,
+    "description": "Settings/config menu (環境設定) with UI labels including: 音楽 BGM (Music BGM), 効果音 SE (Sound Effects SE), 音声 VOICE (Voice), 音声効果音 SOUND VOICE (Voice Sound Effects), 総合音量 (Master Volume), プレイ画面サイズ (Play Screen Size), メッセージスピード (Message Speed), メッセージスキップ (Message Skip), メッセージ送り設定 (Message Advance Settings), メッセージ自動送りスピード (Auto Message Speed), and page indicator 'Page 01/02'",
+    "regions": [
+      {
+        "text_jp": "環境設定",
+        "text_en": "Options",
+        "bbox": [
+          55,
+          30,
+          175,
+          58
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽 BGM",
+        "text_en": "Music (BGM)",
+        "bbox": [
+          160,
+          138,
+          280,
+          162
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "効果音 SE",
+        "text_en": "Sound Effects (SE)",
+        "bbox": [
+          160,
+          218,
+          280,
+          242
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音声 VOICE",
+        "text_en": "Voice",
+        "bbox": [
+          160,
+          298,
+          285,
+          322
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音声効果音 SOUND VOICE",
+        "text_en": "Voice Effects (Sound Voice)",
+        "bbox": [
+          160,
+          378,
+          390,
+          402
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "総合音量（音楽 効果音 音声 音声効果音）",
+        "text_en": "Master Volume (Music / SFX / Voice / Voice FX)",
+        "bbox": [
+          160,
+          458,
+          480,
+          482
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "プレイ画面サイズ",
+        "text_en": "Screen Size",
+        "bbox": [
+          720,
+          138,
+          900,
+          162
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージスピード",
+        "text_en": "Message Speed",
+        "bbox": [
+          720,
+          218,
+          910,
+          242
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          720,
+          298,
+          905,
+          322
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ送り設定",
+        "text_en": "Message Advance Setting",
+        "bbox": [
+          720,
+          378,
+          905,
+          402
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ自動送りスピード",
+        "text_en": "Auto Message Speed",
+        "bbox": [
+          720,
+          458,
+          960,
+          482
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Page 01/02",
+        "text_en": "Page 01/02",
+        "bbox": [
+          55,
+          662,
+          200,
+          686
+        ],
+        "text_color": "#5fb8b0",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taw_mkri_baseconfig_p1_a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_baseconfig_p1_a.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taw_mkri_baseconfig_p2",
+    "confidence": 0.85,
+    "description": "Settings/configuration menu screen showing '環境設定' (Environment/System Settings) as header, 'Character Voice Customize' as a submenu label, and 'Page 02/02' as pagination indicator at the bottom. There also appears to be a row of partially visible Japanese text labels in the lower middle section, likely menu option labels.",
+    "regions": [
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          63,
+          30,
+          175,
+          60
+        ],
+        "text_color": "#a0c8c0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Character Voice Customize",
+        "text_en": "Character Voice Customize",
+        "bbox": [
+          130,
+          95,
+          355,
+          115
+        ],
+        "text_color": "#a0b8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Page 02/02",
+        "text_en": "Page 02/02",
+        "bbox": [
+          63,
+          665,
+          200,
+          688
+        ],
+        "text_color": "#40c8a0",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taw_mkri_baseconfig_p2.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_baseconfig_p2.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taw_mkri_basegallery_cg",
+    "confidence": 0.85,
+    "description": "UI labels visible: 'CG鑑賞' (CG Gallery/Viewer) in the top-left corner, and 'Page' at the bottom-left, indicating this is a CG gallery menu screen in a visual novel.",
+    "regions": [
+      {
+        "text_jp": "CG鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          78,
+          30,
+          160,
+          58
+        ],
+        "text_color": "#a0b8b0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Page",
+        "text_en": "Page",
+        "bbox": [
+          75,
+          660,
+          125,
+          688
+        ],
+        "text_color": "#4a9090",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taw_mkri_basegallery_cg.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_basegallery_cg.png"
+  },
+  {
+    "arc": "ta0.gpk",
+    "entry": "taw_mkri_staff_2",
+    "confidence": 0.95,
+    "description": "A cast/credits screen showing character names paired with voice actor names (キャスト = Cast), followed by theme song information (主題歌) titled '青き蠱独' from 'EXTRAVAGANZA～蠱狂編～', with lyrics/song credits listing composer (作詞), singer (歌), arranger (作曲/編曲) attributed to 華憐 and 電気.",
+    "regions": [],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\ta0\\taw_mkri_staff_2.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio112_on",
+    "confidence": 0.95,
+    "description": "Four button labels all reading 'ウィンドウ' (Window), appearing to be UI menu buttons in a visual novel settings or options menu",
+    "regions": [
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          30,
+          8,
+          170,
+          38
+        ],
+        "text_color": "#1a1a6e",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          30,
+          55,
+          170,
+          85
+        ],
+        "text_color": "#1a1a6e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          30,
+          105,
+          170,
+          135
+        ],
+        "text_color": "#1a1a6e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          30,
+          155,
+          170,
+          185
+        ],
+        "text_color": "#1a1a6e",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio112_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio112_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio121_off",
+    "confidence": 0.98,
+    "description": "Four button labels all reading 'フルスクリーン' (Full Screen) in different color styles (gray, blue, cyan, red) — a UI settings button for toggling fullscreen mode.",
+    "regions": [
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Full Screen",
+        "bbox": [
+          30,
+          5,
+          175,
+          45
+        ],
+        "text_color": "#2a6080",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Full Screen",
+        "bbox": [
+          30,
+          55,
+          175,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Full Screen",
+        "bbox": [
+          30,
+          105,
+          175,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Full Screen",
+        "bbox": [
+          30,
+          155,
+          175,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio121_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio121_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio211_off",
+    "confidence": 0.98,
+    "description": "Four buttons each labeled '既読のみ' (read only / already-read only), displayed in different color styles (gray, blue, bright blue, dark red). This appears to be a UI filter button for displaying only previously-read content.",
+    "regions": [
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          30,
+          5,
+          170,
+          45
+        ],
+        "text_color": "#1a1a2e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          30,
+          53,
+          170,
+          93
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          30,
+          101,
+          170,
+          141
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          30,
+          149,
+          170,
+          189
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio211_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio211_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio212_on",
+    "confidence": 0.97,
+    "description": "Four buttons each labeled '既読のみ' (Kidoku nomi), meaning 'Already read only' or 'Read only' — a UI filter option typically used in visual novels to skip or display only previously read text.",
+    "regions": [
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          45,
+          8,
+          165,
+          38
+        ],
+        "text_color": "#1a1a6e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          45,
+          55,
+          165,
+          85
+        ],
+        "text_color": "#2a1a0e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          45,
+          105,
+          165,
+          135
+        ],
+        "text_color": "#2a1a0e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          45,
+          155,
+          165,
+          185
+        ],
+        "text_color": "#1a1a6e",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio212_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio212_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio311_off",
+    "confidence": 0.97,
+    "description": "Four buttons each labeled '手動送り' (Manual Advance/Manual Forward) in different styles/colors (gray, blue, light blue, red). This is a UI button label for manually advancing text in a visual novel.",
+    "regions": [
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          5,
+          170,
+          35
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          55,
+          170,
+          85
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          105,
+          170,
+          135
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          155,
+          170,
+          185
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio311_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio311_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio312_on",
+    "confidence": 0.97,
+    "description": "Four buttons each labeled '手動送り' (Manual Advance/Manual Forward), which is a UI control in visual novels that allows the player to manually advance text rather than using auto mode.",
+    "regions": [
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          8,
+          170,
+          38
+        ],
+        "text_color": "#1a1a2e",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          55,
+          170,
+          85
+        ],
+        "text_color": "#2a1a00",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          105,
+          170,
+          135
+        ],
+        "text_color": "#2a1a00",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          30,
+          155,
+          170,
+          185
+        ],
+        "text_color": "#2a1a00",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio312_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio312_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio321_off",
+    "confidence": 0.98,
+    "description": "Four buttons labeled '自動送り' (Auto-forward/Auto-play) in different color styles (gray, blue, light blue, and dark red). This is a UI button label used in visual novels to enable automatic text advancement.",
+    "regions": [
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          40,
+          5,
+          165,
+          45
+        ],
+        "text_color": "#2a2a2a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          40,
+          55,
+          165,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          40,
+          105,
+          165,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          40,
+          155,
+          165,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio321_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio321_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_cfg_radio322_on",
+    "confidence": 0.99,
+    "description": "Four buttons each labeled '自動送り' (Auto-forward/Auto-advance), which is a common visual novel UI control that automatically advances dialogue without player input.",
+    "regions": [
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          50,
+          5,
+          175,
+          35
+        ],
+        "text_color": "#2a1a0e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          50,
+          53,
+          175,
+          83
+        ],
+        "text_color": "#2a1a0e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          50,
+          103,
+          175,
+          133
+        ],
+        "text_color": "#2a1a0e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          50,
+          153,
+          175,
+          183
+        ],
+        "text_color": "#2a1a0e",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_cfg_radio322_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_cfg_radio322_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_dialog_quit",
+    "confidence": 0.97,
+    "description": "A confirmation dialog box with the message 'ゲームを終了してタイトルに戻りますよろしいですか？' meaning 'Are you sure you want to quit the game and return to the title screen?' — a standard UI quit/exit confirmation prompt.",
+    "regions": [
+      {
+        "text_jp": "ゲームを終了してタイトルに戻ります",
+        "text_en": "Quit to title screen?",
+        "bbox": [
+          40,
+          70,
+          380,
+          105
+        ],
+        "text_color": "#2a6070",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "よろしいですか？",
+        "text_en": "Are you sure?",
+        "bbox": [
+          100,
+          110,
+          320,
+          145
+        ],
+        "text_color": "#2a6070",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_dialog_quit.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_dialog_quit.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_dialog_save",
+    "confidence": 0.97,
+    "description": "A confirmation dialog box with the text 'セーブデータを上書き保存します / よろしいですか？' meaning 'Overwrite save data. Are you sure?' — a UI save confirmation prompt.",
+    "regions": [
+      {
+        "text_jp": "セーブデータを上書き保存します",
+        "text_en": "Overwrite save data?",
+        "bbox": [
+          45,
+          65,
+          375,
+          100
+        ],
+        "text_color": "#2a6070",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "よろしいですか？",
+        "text_en": "Are you sure?",
+        "bbox": [
+          100,
+          105,
+          320,
+          140
+        ],
+        "text_color": "#2a6070",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_dialog_save.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_dialog_save.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_gallery01a",
+    "confidence": 0.97,
+    "description": "Four button labels all reading 'ＣＧ鑑賞' (CG Kanshou), meaning 'CG Gallery' or 'View CG', displayed in different color styles (gray, blue, blue, dark red) — likely UI menu buttons for accessing a CG/artwork gallery.",
+    "regions": [
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          30,
+          5,
+          170,
+          45
+        ],
+        "text_color": "#003399",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          30,
+          55,
+          170,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          30,
+          105,
+          170,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          30,
+          155,
+          170,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_gallery01a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_gallery01a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_gallery02a",
+    "confidence": 0.98,
+    "description": "Four buttons labeled 'シーン鑑賞' (Scene Viewing/Scene Gallery) in different styles - gray, blue, bright blue, and dark red variants, likely UI buttons for a scene viewer or gallery menu.",
+    "regions": [
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          20,
+          5,
+          180,
+          45
+        ],
+        "text_color": "#333333",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          20,
+          55,
+          180,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          20,
+          105,
+          180,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          20,
+          155,
+          180,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_gallery02a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_gallery02a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_gallery03a",
+    "confidence": 0.97,
+    "description": "Four button labels all reading '音楽鑑賞' (Music Appreciation/Listening to Music), displayed in different color styles (gray, blue, cyan, dark red). These appear to be UI menu buttons.",
+    "regions": [
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          5,
+          170,
+          45
+        ],
+        "text_color": "#1a1a2e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          55,
+          170,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          105,
+          170,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          155,
+          170,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_gallery03a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_gallery03a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn01",
+    "confidence": 0.99,
+    "description": "Four save button UI elements with Japanese text 'データセーブ' (Data Save) and English label 'Save' on the left side, with keyboard shortcut '[S]' on the right. The buttons appear in different states (active/inactive), with the bottom one in a grayed-out/disabled state.",
+    "regions": [
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          60,
+          2,
+          240,
+          38
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          60,
+          42,
+          240,
+          78
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          60,
+          82,
+          240,
+          118
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          60,
+          122,
+          240,
+          158
+        ],
+        "text_color": "#4a4a4a",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn01.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn01.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn02",
+    "confidence": 0.97,
+    "description": "Four load/save menu buttons each containing 'Load' label on the left, 'データ ロード' (Data Load) as the button text in the center, and '[L]' shortcut indicator on the right. The bottom button appears greyed out/disabled. These are UI save slot buttons from a visual novel menu.",
+    "regions": [
+      {
+        "text_jp": "データ ロード",
+        "text_en": "Load Data",
+        "bbox": [
+          60,
+          2,
+          230,
+          38
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          4,
+          8,
+          50,
+          30
+        ],
+        "text_color": "#2a4a6a",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          258,
+          8,
+          292,
+          30
+        ],
+        "text_color": "#2a4a6a",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "データ ロード",
+        "text_en": "Load Data",
+        "bbox": [
+          60,
+          42,
+          230,
+          78
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          4,
+          48,
+          50,
+          70
+        ],
+        "text_color": "#2a4a6a",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          258,
+          48,
+          292,
+          70
+        ],
+        "text_color": "#2a4a6a",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "データ ロード",
+        "text_en": "Load Data",
+        "bbox": [
+          60,
+          82,
+          230,
+          118
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          4,
+          88,
+          50,
+          110
+        ],
+        "text_color": "#2a4a6a",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          258,
+          88,
+          292,
+          110
+        ],
+        "text_color": "#2a4a6a",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "データ ロード",
+        "text_en": "Load Data",
+        "bbox": [
+          60,
+          122,
+          230,
+          158
+        ],
+        "text_color": "#3a3a3a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          4,
+          128,
+          50,
+          150
+        ],
+        "text_color": "#4a4a4a",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          258,
+          128,
+          292,
+          150
+        ],
+        "text_color": "#4a4a4a",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn02.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn02.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn03",
+    "confidence": 0.97,
+    "description": "UI config/settings buttons showing '環境設定' (Environment Settings/Config) with 'Config' label on the left and '[C]' shortcut key on the right, displayed in four different visual styles (likely representing button states: normal, hover, active, disabled)",
+    "regions": [
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          2,
+          220,
+          38
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          5,
+          8,
+          55,
+          32
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          248,
+          8,
+          292,
+          32
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          42,
+          220,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          5,
+          48,
+          55,
+          72
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          248,
+          48,
+          292,
+          72
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          82,
+          220,
+          118
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          5,
+          88,
+          55,
+          112
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          248,
+          88,
+          292,
+          112
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          122,
+          220,
+          158
+        ],
+        "text_color": "#4a4a4a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          5,
+          128,
+          55,
+          152
+        ],
+        "text_color": "#4a4a4a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          248,
+          128,
+          292,
+          152
+        ],
+        "text_color": "#4a4a4a",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn03.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn03.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn05",
+    "confidence": 0.98,
+    "description": "Four button labels showing UI controls: 'Skip' (left side), 'メッセージスキップ' (Message Skip, center), and '[Shift]' (right side), repeated in four variations with different color/style states (active blue, lighter blue, light gray, dark gray) likely representing different button states (normal, hover, disabled, etc.)",
+    "regions": [
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          60,
+          2,
+          240,
+          22
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Skip",
+        "text_en": "Skip",
+        "bbox": [
+          10,
+          5,
+          45,
+          20
+        ],
+        "text_color": "#004488",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[Shift]",
+        "text_en": "[Shift]",
+        "bbox": [
+          248,
+          5,
+          295,
+          20
+        ],
+        "text_color": "#004488",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          60,
+          42,
+          240,
+          62
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Skip",
+        "text_en": "Skip",
+        "bbox": [
+          10,
+          45,
+          45,
+          60
+        ],
+        "text_color": "#004488",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[Shift]",
+        "text_en": "[Shift]",
+        "bbox": [
+          248,
+          45,
+          295,
+          60
+        ],
+        "text_color": "#004488",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          60,
+          82,
+          240,
+          102
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Skip",
+        "text_en": "Skip",
+        "bbox": [
+          10,
+          85,
+          45,
+          100
+        ],
+        "text_color": "#004488",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[Shift]",
+        "text_en": "[Shift]",
+        "bbox": [
+          248,
+          85,
+          295,
+          100
+        ],
+        "text_color": "#004488",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          60,
+          122,
+          240,
+          142
+        ],
+        "text_color": "#888888",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Skip",
+        "text_en": "Skip",
+        "bbox": [
+          10,
+          125,
+          45,
+          140
+        ],
+        "text_color": "#888888",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[Shift]",
+        "text_en": "[Shift]",
+        "bbox": [
+          248,
+          125,
+          295,
+          140
+        ],
+        "text_color": "#888888",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn05.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn05.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn06",
+    "confidence": 0.97,
+    "description": "UI buttons showing 'Backlog' (already in English) and '回想' (Recollection/Memories) labels, along with '↑' navigation arrows. These appear to be menu/UI buttons from a visual novel interface, likely for accessing a scene recollection or memory gallery feature. The buttons are shown in different states (active/hover/disabled).",
+    "regions": [
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          100,
+          2,
+          200,
+          38
+        ],
+        "text_color": "#1a6a8a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          100,
+          42,
+          200,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          100,
+          82,
+          200,
+          118
+        ],
+        "text_color": "#1a6a8a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          100,
+          122,
+          200,
+          158
+        ],
+        "text_color": "#555555",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn06.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn06.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn08",
+    "confidence": 0.99,
+    "description": "Four UI button variants all displaying 'メニューを閉じる' (Close Menu) with 'Closed' label on the left and '[R·Click]' hint on the right — standard menu/UI close buttons in a visual novel interface.",
+    "regions": [
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          60,
+          2,
+          220,
+          22
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          60,
+          42,
+          220,
+          62
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          60,
+          82,
+          220,
+          102
+        ],
+        "text_color": "#000000",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          60,
+          122,
+          220,
+          142
+        ],
+        "text_color": "#333333",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn08.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn08.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn09",
+    "confidence": 0.97,
+    "description": "Four buttons with 'Quit' labels on the left and 'ゲーム終了' (Game End/Quit Game) text, displayed in different color/style variants (likely hover/selected states of a quit button)",
+    "regions": [
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          80,
+          2,
+          260,
+          38
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          80,
+          42,
+          260,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          80,
+          82,
+          260,
+          118
+        ],
+        "text_color": "#c8e8f8",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          80,
+          122,
+          260,
+          158
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn09.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn09.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_sysmenubtn09s",
+    "confidence": 0.98,
+    "description": "Four button variants showing UI button labeled 'Exit' and 'シーン選択へ戻る' (Return to Scene Selection), displayed in different visual states (active, hover, disabled, etc.)",
+    "regions": [
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          60,
+          2,
+          290,
+          38
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          60,
+          42,
+          290,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          60,
+          82,
+          290,
+          118
+        ],
+        "text_color": "#c8e8f8",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          60,
+          122,
+          290,
+          158
+        ],
+        "text_color": "#888888",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_sysmenubtn09s.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_sysmenubtn09s.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_backbutton02",
+    "confidence": 0.97,
+    "description": "Four buttons each labeled '決定' (meaning 'Confirm' or 'OK/Enter'), alternating between blue and orange/red colors, typical UI confirmation buttons in a visual novel or game menu.",
+    "regions": [
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          60,
+          5,
+          240,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          60,
+          60,
+          240,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          60,
+          115,
+          240,
+          155
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          60,
+          175,
+          240,
+          215
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_backbutton02.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_backbutton02.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio112_on",
+    "confidence": 0.97,
+    "description": "Four colored button/menu items each labeled 'ウィンドウ' (Window) with checkmark icons — these are UI labels for a window mode setting option in a visual novel config/settings menu.",
+    "regions": [
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          80,
+          2,
+          280,
+          48
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          80,
+          52,
+          280,
+          98
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          80,
+          102,
+          280,
+          148
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ウィンドウ",
+        "text_en": "Window",
+        "bbox": [
+          80,
+          152,
+          280,
+          198
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio112_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio112_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio121_off",
+    "confidence": 0.97,
+    "description": "Four button labels all reading 'フルスクリーン' (Fullscreen) in different colors (cyan, red, pink, gray) — likely UI/settings buttons for toggling fullscreen mode.",
+    "regions": [
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          82,
+          2,
+          298,
+          42
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          82,
+          52,
+          298,
+          92
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          82,
+          102,
+          298,
+          142
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          82,
+          152,
+          298,
+          192
+        ],
+        "text_color": "#e0e0e0",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio121_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio121_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio122_on",
+    "confidence": 0.97,
+    "description": "Four colored buttons (cyan, red, pink, gray) each labeled 'フルスクリーン' meaning 'Full Screen' — a UI/settings toggle button repeated in different color variants",
+    "regions": [
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          78,
+          5,
+          290,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          78,
+          53,
+          290,
+          93
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          78,
+          101,
+          290,
+          141
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "フルスクリーン",
+        "text_en": "Fullscreen",
+        "bbox": [
+          78,
+          149,
+          290,
+          189
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio122_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio122_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio211_off",
+    "confidence": 0.97,
+    "description": "Four button labels each reading '既読のみ' (kisoku nomi), meaning 'Read only' or 'Already read only' — a UI filter option typically used in message log or backlog screens to show only previously read text.",
+    "regions": [
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          5,
+          270,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          55,
+          270,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          105,
+          270,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          155,
+          270,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio211_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio211_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio212_on",
+    "confidence": 0.98,
+    "description": "Four colored button labels (cyan, red, pink, gray) each reading '既読のみ' meaning 'Read only' — a UI filter option in visual novel log/backlog menus to show only previously read text",
+    "regions": [
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          2,
+          290,
+          48
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          52,
+          290,
+          98
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          102,
+          290,
+          148
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          60,
+          152,
+          290,
+          198
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio212_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio212_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio311_off",
+    "confidence": 0.97,
+    "description": "Four colored button labels (cyan, red, pink, gray) each reading '手動送り' meaning 'Manual Advance' — a UI control for manually advancing text/dialogue in a visual novel.",
+    "regions": [
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          60,
+          2,
+          280,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          60,
+          52,
+          280,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          60,
+          102,
+          280,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          60,
+          152,
+          280,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio311_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio311_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio312_on",
+    "confidence": 0.97,
+    "description": "Four colored buttons (cyan, red, pink, gray) each labeled '手動送り' meaning 'Manual Advance' — a UI control for manually advancing text/dialogue in a visual novel.",
+    "regions": [
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          85,
+          2,
+          280,
+          48
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          85,
+          52,
+          280,
+          98
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          85,
+          102,
+          280,
+          148
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          85,
+          152,
+          280,
+          198
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio312_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio312_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio321_off",
+    "confidence": 0.99,
+    "description": "Four UI buttons each labeled '自動送り' (Auto-advance/Auto mode) in different colors (cyan, red, pink, gray), likely representing selectable auto-play speed or mode options in a visual novel interface.",
+    "regions": [
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          80,
+          5,
+          280,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          80,
+          55,
+          280,
+          95
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          80,
+          105,
+          280,
+          145
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          80,
+          155,
+          280,
+          195
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio321_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio321_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_cfg_radio322_on",
+    "confidence": 0.98,
+    "description": "Four colored buttons (cyan, red, pink, gray) each labeled '自動送り' meaning 'Auto-advance' or 'Auto-scroll' — a UI control for automatically advancing text in a visual novel.",
+    "regions": [
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          85,
+          2,
+          290,
+          48
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          85,
+          52,
+          290,
+          98
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          85,
+          102,
+          290,
+          148
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          85,
+          152,
+          290,
+          198
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_cfg_radio322_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_cfg_radio322_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_dialog_no",
+    "confidence": 0.99,
+    "description": "Four button labels each displaying 'いいえ' (No) in Japanese, appearing to be UI buttons in a visual novel menu or dialog box",
+    "regions": [
+      {
+        "text_jp": "いいえ",
+        "text_en": "No",
+        "bbox": [
+          60,
+          8,
+          240,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "いいえ",
+        "text_en": "No",
+        "bbox": [
+          60,
+          63,
+          240,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "いいえ",
+        "text_en": "No",
+        "bbox": [
+          60,
+          123,
+          240,
+          160
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "いいえ",
+        "text_en": "No",
+        "bbox": [
+          60,
+          183,
+          240,
+          220
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_dialog_no.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_dialog_no.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_dialog_quit",
+    "confidence": 0.98,
+    "description": "Dialog confirmation box with text: 'ゲームを終了してタイトルに戻ります' (End the game and return to title) and 'よろしいですか？' (Are you sure?). This is a UI confirmation prompt asking the player to confirm quitting to the title screen.",
+    "regions": [
+      {
+        "text_jp": "ゲームを終了してタイトルに戻ります",
+        "text_en": "Quit to Title",
+        "bbox": [
+          60,
+          30,
+          720,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "よろしいですか？",
+        "text_en": "Are you sure?",
+        "bbox": [
+          200,
+          110,
+          580,
+          175
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_dialog_quit.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_dialog_quit.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_dialog_save",
+    "confidence": 0.98,
+    "description": "A confirmation dialog box asking 'Do you want to overwrite the save data?' (セーブデータを上書き保存します よろしいですか？) — this is a UI save confirmation prompt.",
+    "regions": [
+      {
+        "text_jp": "セーブデータを上書き保存します",
+        "text_en": "Overwrite save data?",
+        "bbox": [
+          85,
+          45,
+          695,
+          110
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "よろしいですか？",
+        "text_en": "Are you sure?",
+        "bbox": [
+          185,
+          125,
+          595,
+          185
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_dialog_save.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_dialog_save.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_gallery01a",
+    "confidence": 0.97,
+    "description": "Four button labels each reading 'ＣＧ鑑賞' (CG Gallery/CG Viewer) — a common visual novel menu option for viewing collected CG artwork.",
+    "regions": [
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          8,
+          240,
+          48
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          65,
+          240,
+          105
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          125,
+          240,
+          165
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ＣＧ鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          185,
+          240,
+          225
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_gallery01a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_gallery01a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_gallery02a",
+    "confidence": 0.98,
+    "description": "Four identical button labels reading 'シーン鑑賞' (Scene Viewing/Scene Gallery) - a UI menu option for replaying or viewing scenes in a visual novel",
+    "regions": [
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          60,
+          5,
+          240,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          60,
+          60,
+          240,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          60,
+          115,
+          240,
+          155
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          60,
+          170,
+          240,
+          210
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_gallery02a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_gallery02a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_gallery03a",
+    "confidence": 0.97,
+    "description": "Four button/menu labels all reading '音楽鑑賞' (Music Appreciation/Listening to Music), displayed in alternating blue and orange styled buttons, likely a UI menu or selection screen.",
+    "regions": [
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          8,
+          270,
+          48
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          65,
+          270,
+          105
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          128,
+          270,
+          168
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          190,
+          270,
+          230
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_gallery03a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_gallery03a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_notice_quick",
+    "confidence": 0.97,
+    "description": "Two UI notification messages in Japanese: 'クイックロードしました' (Quick load completed) and 'クイックセーブしました' (Quick save completed) — system feedback messages for quick load and quick save actions.",
+    "regions": [
+      {
+        "text_jp": "クイックロードしました",
+        "text_en": "Quick Load",
+        "bbox": [
+          0,
+          0,
+          210,
+          40
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "クイックセーブしました",
+        "text_en": "Quick Save",
+        "bbox": [
+          0,
+          40,
+          210,
+          80
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_notice_quick.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_notice_quick.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_q_save",
+    "confidence": 0.97,
+    "description": "Multiple save slot labels reading 'クイックセーブ' (Quick Save) repeated across several save file entries in what appears to be a save/load menu screen",
+    "regions": [
+      {
+        "text_jp": "クイックセーブ",
+        "text_en": "Quick Save",
+        "bbox": [
+          44,
+          58,
+          148,
+          74
+        ],
+        "text_color": "#000000",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "クイックセーブ",
+        "text_en": "Quick Save",
+        "bbox": [
+          36,
+          108,
+          148,
+          124
+        ],
+        "text_color": "#000000",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "クイックセーブ",
+        "text_en": "Quick Save",
+        "bbox": [
+          28,
+          158,
+          148,
+          174
+        ],
+        "text_color": "#000000",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "クイックセーブ",
+        "text_en": "Quick Save",
+        "bbox": [
+          20,
+          208,
+          148,
+          224
+        ],
+        "text_color": "#000000",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "クイックセーブ",
+        "text_en": "Quick Save",
+        "bbox": [
+          10,
+          258,
+          148,
+          274
+        ],
+        "text_color": "#000000",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "クイックセーブ",
+        "text_en": "Quick Save",
+        "bbox": [
+          2,
+          308,
+          148,
+          326
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_q_save.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_q_save.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn",
+    "confidence": 0.95,
+    "description": "Repeated 'システムメニュー' (System Menu) labels with arrow buttons visible multiple times in what appears to be a UI/menu demonstration or settings screen. The text 'システムメニュー' translates to 'System Menu' and appears 6 times at varying sizes, likely showing a menu navigation element.",
+    "regions": [
+      {
+        "text_jp": "システムメニュー",
+        "text_en": "Menu",
+        "bbox": [
+          30,
+          68,
+          140,
+          85
+        ],
+        "text_color": "#003366",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "システムメニュー",
+        "text_en": "Menu",
+        "bbox": [
+          30,
+          118,
+          140,
+          135
+        ],
+        "text_color": "#003366",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "システムメニュー",
+        "text_en": "Menu",
+        "bbox": [
+          25,
+          168,
+          145,
+          185
+        ],
+        "text_color": "#003366",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "システムメニュー",
+        "text_en": "Menu",
+        "bbox": [
+          20,
+          218,
+          150,
+          235
+        ],
+        "text_color": "#003366",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "システムメニュー",
+        "text_en": "Menu",
+        "bbox": [
+          15,
+          268,
+          155,
+          285
+        ],
+        "text_color": "#003366",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "システムメニュー",
+        "text_en": "Menu",
+        "bbox": [
+          5,
+          318,
+          160,
+          338
+        ],
+        "text_color": "#003366",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn01",
+    "confidence": 0.98,
+    "description": "Four save slot buttons with Japanese text 'データセーブ' (Data Save) and English labels 'Save' and '[S]' shortcut key indicators. These are UI menu labels for save game slots in a visual novel.",
+    "regions": [
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          130,
+          2,
+          390,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Save",
+        "text_en": "Save",
+        "bbox": [
+          60,
+          5,
+          115,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[S]",
+        "text_en": "[S]",
+        "bbox": [
+          400,
+          5,
+          460,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          130,
+          44,
+          390,
+          80
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Save",
+        "text_en": "Save",
+        "bbox": [
+          60,
+          47,
+          115,
+          77
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[S]",
+        "text_en": "[S]",
+        "bbox": [
+          400,
+          47,
+          460,
+          77
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          130,
+          86,
+          390,
+          122
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Save",
+        "text_en": "Save",
+        "bbox": [
+          60,
+          89,
+          115,
+          119
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[S]",
+        "text_en": "[S]",
+        "bbox": [
+          400,
+          89,
+          460,
+          119
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "データセーブ",
+        "text_en": "Save",
+        "bbox": [
+          130,
+          128,
+          390,
+          164
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn01.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn01.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn02",
+    "confidence": 0.98,
+    "description": "Save/load menu UI showing four save slot entries. Each row contains 'Load' button label on the left and 'データロード' (Data Load) as the slot label, with '[L]' shortcut key indicators on the right. This is a save data loading screen with repeated UI labels.",
+    "regions": [
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          18,
+          2,
+          75,
+          20
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "データロード",
+        "text_en": "Load Data",
+        "bbox": [
+          120,
+          0,
+          390,
+          28
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          415,
+          2,
+          480,
+          20
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          18,
+          42,
+          75,
+          60
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "データロード",
+        "text_en": "Load Data",
+        "bbox": [
+          120,
+          38,
+          390,
+          68
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          415,
+          42,
+          480,
+          60
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          18,
+          82,
+          75,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "データロード",
+        "text_en": "Load Data",
+        "bbox": [
+          120,
+          78,
+          390,
+          108
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          415,
+          82,
+          480,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Load",
+        "text_en": "Load",
+        "bbox": [
+          18,
+          122,
+          75,
+          140
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "データロード",
+        "text_en": "Load Data",
+        "bbox": [
+          120,
+          118,
+          390,
+          148
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[L]",
+        "text_en": "[L]",
+        "bbox": [
+          415,
+          122,
+          480,
+          140
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn02.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn02.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn03",
+    "confidence": 0.98,
+    "description": "UI/menu button labels showing '環境設定' (Configuration/Settings) with 'Config' and '[C]' keyboard shortcut indicators, displayed in four color variants (blue and orange/red styles)",
+    "regions": [
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          150,
+          2,
+          380,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          10,
+          5,
+          90,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          415,
+          5,
+          480,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          150,
+          44,
+          380,
+          80
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          10,
+          47,
+          90,
+          77
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          415,
+          47,
+          480,
+          77
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          150,
+          86,
+          380,
+          122
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          10,
+          89,
+          90,
+          119
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          415,
+          89,
+          480,
+          119
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          150,
+          128,
+          380,
+          164
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Config",
+        "text_en": "Config",
+        "bbox": [
+          10,
+          131,
+          90,
+          161
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          415,
+          131,
+          480,
+          161
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn03.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn03.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn04",
+    "confidence": 0.97,
+    "description": "Four UI button/label bars showing 'メッセージ非表示' (Hide Message) with 'Erase' on the left and '[Space]' keyboard shortcut on the right. These are UI control labels for hiding the message/dialog box in a visual novel, shown in varying sizes or states.",
+    "regions": [
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          120,
+          2,
+          380,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          120,
+          42,
+          380,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          120,
+          84,
+          380,
+          120
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          120,
+          126,
+          380,
+          162
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn04.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn04.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn05",
+    "confidence": 0.98,
+    "description": "Four identical UI buttons labeled 'メッセージスキップ' (Message Skip) with 'Skip' on the left side and '[Shift]' keyboard shortcut on the right side. These are menu/UI labels for skipping messages in a visual novel.",
+    "regions": [
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          120,
+          2,
+          420,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          120,
+          44,
+          420,
+          80
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          120,
+          86,
+          420,
+          122
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージスキップ",
+        "text_en": "Skip",
+        "bbox": [
+          120,
+          128,
+          420,
+          164
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn05.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn05.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn06",
+    "confidence": 0.97,
+    "description": "UI menu/backlog screen showing repeated rows with 'Backlog' label on the left, '回想' (Recollection/Memory) as the center label, and '[↑]' navigation buttons on the right. These are menu/UI labels for a recollection or scene replay feature.",
+    "regions": [
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          170,
+          2,
+          340,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          170,
+          44,
+          340,
+          80
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          170,
+          86,
+          340,
+          122
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          170,
+          128,
+          340,
+          164
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn06.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn06.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn07",
+    "confidence": 0.97,
+    "description": "Four identical UI button labels reading 'メッセージ自動送り' (Auto message advance / Auto-forward messages), with 'Auto' on the left and '[A]' on the right — a standard visual novel auto-play toggle button shown in multiple states (normal and highlighted).",
+    "regions": [
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          120,
+          2,
+          390,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          120,
+          44,
+          390,
+          80
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          120,
+          86,
+          390,
+          122
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          120,
+          128,
+          390,
+          164
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn07.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn07.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn08",
+    "confidence": 0.98,
+    "description": "Four UI button labels all reading 'メニューを閉じる' (Close Menu) with 'Closed' and '[R-Click]' annotations, repeated in slightly different color variations (blue/orange). These are menu/UI close buttons.",
+    "regions": [
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          100,
+          2,
+          390,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          100,
+          42,
+          390,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          100,
+          84,
+          390,
+          120
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メニューを閉じる",
+        "text_en": "Close Menu",
+        "bbox": [
+          100,
+          126,
+          390,
+          162
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn08.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn08.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn09",
+    "confidence": 0.98,
+    "description": "Four identical button/UI elements each containing 'ゲーム終了' (Game Over/End Game) with a 'Quit' label on the left side. These are menu UI buttons for quitting/ending the game, shown in multiple states (normal, hover, pressed, disabled).",
+    "regions": [
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          150,
+          2,
+          480,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Quit",
+        "text_en": "Quit",
+        "bbox": [
+          30,
+          2,
+          100,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          150,
+          42,
+          480,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Quit",
+        "text_en": "Quit",
+        "bbox": [
+          30,
+          42,
+          100,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          150,
+          84,
+          480,
+          120
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Quit",
+        "text_en": "Quit",
+        "bbox": [
+          30,
+          84,
+          100,
+          120
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          150,
+          126,
+          480,
+          162
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "Quit",
+        "text_en": "Quit",
+        "bbox": [
+          30,
+          126,
+          100,
+          162
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn09.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn09.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_sysmenubtn09s",
+    "confidence": 0.99,
+    "description": "Four identical menu buttons labeled 'Exit' and 'シーン選択へ戻る' (Return to Scene Selection), shown in different visual states (normal, hover, pressed, disabled)",
+    "regions": [
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          85,
+          2,
+          430,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          85,
+          42,
+          430,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          85,
+          84,
+          430,
+          120
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "シーン選択へ戻る",
+        "text_en": "Back to Scene Select",
+        "bbox": [
+          85,
+          126,
+          430,
+          162
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_sysmenubtn09s.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_sysmenubtn09s.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_title01a",
+    "confidence": 0.98,
+    "description": "Four identical button labels reading 'はじめから' (Hajime kara), which means 'Start from the beginning' or 'New Game' — a common visual novel menu UI button.",
+    "regions": [
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          60,
+          8,
+          230,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          60,
+          65,
+          230,
+          102
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          60,
+          122,
+          230,
+          159
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          60,
+          179,
+          230,
+          216
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_title01a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_title01a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_title02a",
+    "confidence": 0.97,
+    "description": "Four stacked button labels each reading 'つづきから' (Tsuzuki kara), which means 'Continue from' or 'Resume' — a common UI button in visual novels used to continue a saved game.",
+    "regions": [
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          8,
+          220,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          65,
+          220,
+          102
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          122,
+          220,
+          159
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          179,
+          220,
+          216
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_title02a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_title02a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_title03a",
+    "confidence": 0.98,
+    "description": "Four button labels all reading '環境設定' (Kankyō Settei), which translates to 'Settings' or 'Configuration/Preferences' — a UI settings menu button shown in four different visual styles.",
+    "regions": [
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          5,
+          245,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          60,
+          245,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          120,
+          245,
+          160
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          60,
+          180,
+          245,
+          220
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_title03a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_title03a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_title04a",
+    "confidence": 0.98,
+    "description": "Four button labels each reading 'ギャラリー' (Gallery) in Japanese, styled as UI navigation buttons with blue and orange color schemes.",
+    "regions": [
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          60,
+          5,
+          255,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          60,
+          60,
+          255,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          60,
+          115,
+          255,
+          155
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          60,
+          170,
+          255,
+          210
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_title04a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_title04a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_title05a",
+    "confidence": 0.98,
+    "description": "Four stacked button labels each reading '終了' (Shūryō), which means 'Exit' or 'End/Quit' in English — a UI button label.",
+    "regions": [
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          60,
+          5,
+          240,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          60,
+          60,
+          240,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          60,
+          115,
+          240,
+          155
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          60,
+          170,
+          240,
+          210
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_title05a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_title05a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_cfg_radio211_off",
+    "confidence": 0.95,
+    "description": "Four UI buttons/labels each containing the Japanese text '既読のみ' (meaning 'Read only' or 'Already read only'), displayed in different color/style variants, likely a filter or toggle option in a visual novel menu.",
+    "regions": [
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          0,
+          0,
+          200,
+          30
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          0,
+          30,
+          200,
+          60
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          0,
+          60,
+          200,
+          90
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          0,
+          90,
+          200,
+          120
+        ],
+        "text_color": "#cccccc",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_cfg_radio211_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_cfg_radio211_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_cfg_radio212_on",
+    "confidence": 0.95,
+    "description": "Four button/tab labels each reading '既読のみ' (kidoku nomi), meaning 'Read only' or 'Already read only' — a UI filter option likely used in a log/backlog menu to show only previously read text.",
+    "regions": [
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          10,
+          2,
+          190,
+          28
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          10,
+          32,
+          190,
+          58
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          10,
+          62,
+          190,
+          88
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "既読のみ",
+        "text_en": "Read Only",
+        "bbox": [
+          10,
+          92,
+          190,
+          118
+        ],
+        "text_color": "#aaaaaa",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_cfg_radio212_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_cfg_radio212_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_cfg_radio311_off",
+    "confidence": 0.95,
+    "description": "Four UI button labels all reading '手動送り' (Manual Advance/Manual Forward) displayed in different color states (likely representing different button states: normal, hover, active, disabled)",
+    "regions": [
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          0,
+          0,
+          200,
+          30
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          0,
+          30,
+          200,
+          60
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          0,
+          60,
+          200,
+          90
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          0,
+          90,
+          200,
+          120
+        ],
+        "text_color": "#cccccc",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_cfg_radio311_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_cfg_radio311_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_cfg_radio312_on",
+    "confidence": 0.95,
+    "description": "Four button/menu items all labeled '手動送り' (Manual Advance/Manual Forward), appearing to be UI options in different states (active/selected shown in green/teal, and inactive shown in dark gray). This is a settings or configuration menu option for controlling text advancement mode.",
+    "regions": [
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          20,
+          2,
+          190,
+          28
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          20,
+          32,
+          190,
+          58
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          20,
+          62,
+          190,
+          88
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "手動送り",
+        "text_en": "Manual",
+        "bbox": [
+          20,
+          92,
+          190,
+          118
+        ],
+        "text_color": "#aaaaaa",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_cfg_radio312_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_cfg_radio312_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_cfg_radio321_off",
+    "confidence": 0.98,
+    "description": "Four UI button labels all reading '自動送り' (Auto-advance/Auto-scroll), displayed in different states/colors representing the auto-play feature toggle button in various states (active, inactive, hover, etc.)",
+    "regions": [
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          0,
+          0,
+          200,
+          30
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          0,
+          30,
+          200,
+          60
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          0,
+          60,
+          200,
+          90
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          0,
+          90,
+          200,
+          120
+        ],
+        "text_color": "#cccccc",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_cfg_radio321_off.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_cfg_radio321_off.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_cfg_radio322_on",
+    "confidence": 0.97,
+    "description": "Four UI buttons labeled '自動送り' (Auto-forward/Auto mode) in different states (active/highlighted, hover, disabled/inactive). These are standard visual novel auto-play toggle buttons.",
+    "regions": [
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          20,
+          2,
+          180,
+          28
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          20,
+          32,
+          180,
+          58
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          20,
+          62,
+          180,
+          88
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          20,
+          92,
+          180,
+          118
+        ],
+        "text_color": "#888888",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_cfg_radio322_on.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_cfg_radio322_on.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_dialog_quit",
+    "confidence": 0.97,
+    "description": "Dialog box with confirmation message: 'ゲームを終了してタイトルへ戻ります。よろしいですか？' meaning 'End the game and return to the title screen. Are you sure?' — a UI confirmation prompt",
+    "regions": [
+      {
+        "text_jp": "ゲームを終了してタイトルへ戻ります。",
+        "text_en": "Quit to title?",
+        "bbox": [
+          55,
+          75,
+          345,
+          105
+        ],
+        "text_color": "#a8d8d8",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "よろしいですか？",
+        "text_en": "Are you sure?",
+        "bbox": [
+          110,
+          110,
+          285,
+          140
+        ],
+        "text_color": "#a8d8d8",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_dialog_quit.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_dialog_quit.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_dialog_save",
+    "confidence": 0.97,
+    "description": "Dialog box asking 'Overwrite and save the save data. Are you sure?' — a save confirmation prompt with UI text the player needs to understand to proceed.",
+    "regions": [
+      {
+        "text_jp": "セーブデータを上書き保存します。",
+        "text_en": "Overwrite save data?",
+        "bbox": [
+          60,
+          75,
+          340,
+          105
+        ],
+        "text_color": "#a8e0d8",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "よろしいですか？",
+        "text_en": "Are you sure?",
+        "bbox": [
+          100,
+          110,
+          280,
+          140
+        ],
+        "text_color": "#a8e0d8",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_dialog_save.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_dialog_save.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_gallery01a",
+    "confidence": 0.97,
+    "description": "Four button labels each reading 'CG鑑賞' (CG Gallery/CG Viewing), displayed in different color styles (teal, gold/brown, darker gold, gray), likely menu UI buttons for accessing a CG gallery feature.",
+    "regions": [
+      {
+        "text_jp": "CG鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          5,
+          145,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "CG鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          45,
+          145,
+          75
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "CG鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          85,
+          145,
+          115
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "CG鑑賞",
+        "text_en": "CG Gallery",
+        "bbox": [
+          60,
+          125,
+          145,
+          155
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_gallery01a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_gallery01a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_gallery02a",
+    "confidence": 0.97,
+    "description": "Four button labels each reading 'シーン鑑賞' (Scene Viewing/Scene Gallery) in different color styles (teal, gold/brown, dark gold, gray), likely UI menu buttons for a scene replay/gallery feature",
+    "regions": [
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          30,
+          2,
+          170,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          30,
+          42,
+          170,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          30,
+          82,
+          170,
+          118
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "シーン鑑賞",
+        "text_en": "Scene Viewer",
+        "bbox": [
+          30,
+          122,
+          170,
+          158
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_gallery02a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_gallery02a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_gallery03a",
+    "confidence": 0.95,
+    "description": "Four button/menu labels all reading '音楽鑑賞' (Music Appreciation/Listening to Music) in different color styles (teal, gold/orange, dark gold, gray), likely representing UI button states (normal, hover, active, disabled)",
+    "regions": [
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          2,
+          170,
+          32
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          42,
+          170,
+          72
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          82,
+          170,
+          112
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "音楽鑑賞",
+        "text_en": "Music",
+        "bbox": [
+          30,
+          122,
+          170,
+          152
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_gallery03a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_gallery03a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_sysmenubtn03",
+    "confidence": 0.98,
+    "description": "Four UI button/label variants showing '環境設定' (Settings/Configuration) with '[C]' keyboard shortcut indicator, displayed in different color states (likely normal, hover, active, disabled states)",
+    "regions": [
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          8,
+          4,
+          200,
+          34
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          220,
+          4,
+          262,
+          34
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          8,
+          43,
+          200,
+          73
+        ],
+        "text_color": "#8a8a6a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          220,
+          43,
+          262,
+          73
+        ],
+        "text_color": "#8a8a6a",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          8,
+          83,
+          200,
+          113
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          220,
+          83,
+          262,
+          113
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          8,
+          123,
+          200,
+          153
+        ],
+        "text_color": "#aaaaaa",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[C]",
+        "text_en": "[C]",
+        "bbox": [
+          220,
+          123,
+          262,
+          153
+        ],
+        "text_color": "#aaaaaa",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_sysmenubtn03.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_sysmenubtn03.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_sysmenubtn04",
+    "confidence": 0.95,
+    "description": "Four UI button labels showing 'メッセージ非表示' (Hide Message/Hide Text) with '[Space]' keyboard shortcut indicators, displayed in different color themes (teal, orange/tan, brown, dark gray). This is a menu/UI label for toggling the message window visibility.",
+    "regions": [
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          10,
+          5,
+          185,
+          35
+        ],
+        "text_color": "#e8f0e8",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[ Space ]",
+        "text_en": "[ Space ]",
+        "bbox": [
+          185,
+          5,
+          260,
+          35
+        ],
+        "text_color": "#e8f0e8",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          10,
+          45,
+          185,
+          75
+        ],
+        "text_color": "#5a3a10",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[ Space ]",
+        "text_en": "[ Space ]",
+        "bbox": [
+          185,
+          45,
+          260,
+          75
+        ],
+        "text_color": "#5a3a10",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          10,
+          85,
+          185,
+          115
+        ],
+        "text_color": "#f5e8d0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[ Space ]",
+        "text_en": "[ Space ]",
+        "bbox": [
+          185,
+          85,
+          260,
+          115
+        ],
+        "text_color": "#f5e8d0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ非表示",
+        "text_en": "Hide Text",
+        "bbox": [
+          10,
+          125,
+          185,
+          155
+        ],
+        "text_color": "#d0ccc0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[ Space ]",
+        "text_en": "[ Space ]",
+        "bbox": [
+          185,
+          125,
+          260,
+          155
+        ],
+        "text_color": "#d0ccc0",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_sysmenubtn04.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_sysmenubtn04.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_sysmenubtn06",
+    "confidence": 0.97,
+    "description": "Four colored button variants all labeled '回想' (Recollection/Memory gallery) with '[↑]' indicators, representing a UI menu button in different visual states (active, default, highlighted, disabled)",
+    "regions": [
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          0,
+          0,
+          270,
+          40
+        ],
+        "text_color": "#e8f4f0",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          0,
+          40,
+          270,
+          80
+        ],
+        "text_color": "#c8a84b",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          0,
+          80,
+          270,
+          120
+        ],
+        "text_color": "#3a2a0e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "回想",
+        "text_en": "Log",
+        "bbox": [
+          0,
+          120,
+          270,
+          160
+        ],
+        "text_color": "#d0cfc8",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_sysmenubtn06.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_sysmenubtn06.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_sysmenubtn07",
+    "confidence": 0.98,
+    "description": "UI button labels showing 'メッセージ自動送り' (Message Auto-advance/Auto mode) with '[A]' keyboard shortcut indicator, displayed in four different visual states (normal, active/highlighted, hover, disabled)",
+    "regions": [
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          10,
+          5,
+          200,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[A]",
+        "text_en": "[A]",
+        "bbox": [
+          220,
+          5,
+          260,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          10,
+          43,
+          200,
+          73
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[A]",
+        "text_en": "[A]",
+        "bbox": [
+          220,
+          43,
+          260,
+          73
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          10,
+          83,
+          200,
+          113
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "[A]",
+        "text_en": "[A]",
+        "bbox": [
+          220,
+          83,
+          260,
+          113
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "メッセージ自動送り",
+        "text_en": "Auto",
+        "bbox": [
+          10,
+          123,
+          200,
+          153
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "[A]",
+        "text_en": "[A]",
+        "bbox": [
+          220,
+          123,
+          260,
+          153
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_sysmenubtn07.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_sysmenubtn07.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_sysmenubtn09",
+    "confidence": 0.98,
+    "description": "Four buttons/labels each reading 'ゲーム終了' (Game Over / Exit Game), displayed in different color styles (teal, outlined teal, brown/gold, dark gray). This is a UI menu label for quitting/ending the game.",
+    "regions": [
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          0,
+          0,
+          270,
+          40
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          0,
+          40,
+          270,
+          80
+        ],
+        "text_color": "#d4a843",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          0,
+          80,
+          270,
+          120
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ゲーム終了",
+        "text_en": "Quit",
+        "bbox": [
+          0,
+          120,
+          270,
+          160
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_sysmenubtn09.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_sysmenubtn09.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_title03a",
+    "confidence": 0.98,
+    "description": "Four button variants showing '環境設定' (Settings/Configuration) in different color styles (teal, gold/brown, dark olive, gray) — likely UI button design samples for a settings menu",
+    "regions": [
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          20,
+          2,
+          180,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          20,
+          42,
+          180,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          20,
+          82,
+          180,
+          118
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "環境設定",
+        "text_en": "Settings",
+        "bbox": [
+          20,
+          122,
+          180,
+          158
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_title03a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_title03a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_title01a",
+    "confidence": 1.0,
+    "description": "Title-screen New Game button (はじめから) — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          20,
+          2,
+          180,
+          32
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          20,
+          42,
+          180,
+          72
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          20,
+          82,
+          180,
+          112
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "はじめから",
+        "text_en": "New Game",
+        "bbox": [
+          20,
+          122,
+          180,
+          152
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_title01a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_title01a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_title02a",
+    "confidence": 1.0,
+    "description": "Title-screen Continue button (つづきから) — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          2,
+          170,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          42,
+          170,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          82,
+          170,
+          118
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "つづきから",
+        "text_en": "Continue",
+        "bbox": [
+          30,
+          122,
+          170,
+          158
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_title02a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_title02a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_title04a",
+    "confidence": 1.0,
+    "description": "Title-screen Gallery button (ギャラリー) — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          40,
+          2,
+          160,
+          38
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          40,
+          42,
+          160,
+          78
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          40,
+          82,
+          160,
+          118
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "ギャラリー",
+        "text_en": "Gallery",
+        "bbox": [
+          40,
+          122,
+          160,
+          158
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_title04a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_title04a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_title05a",
+    "confidence": 1.0,
+    "description": "Title-screen Exit button (終了) — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          50,
+          2,
+          150,
+          32
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          50,
+          42,
+          150,
+          72
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          50,
+          82,
+          150,
+          112
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "終了",
+        "text_en": "Quit",
+        "bbox": [
+          50,
+          122,
+          150,
+          152
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_title05a.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_title05a.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_mkri_backbutton01",
+    "confidence": 1.0,
+    "description": "Gallery/menu Back button (戻る) — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "Back",
+        "text_en": "Back",
+        "bbox": [
+          100,
+          5,
+          155,
+          35
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Back",
+        "text_en": "Back",
+        "bbox": [
+          100,
+          45,
+          155,
+          75
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Back",
+        "text_en": "Back",
+        "bbox": [
+          100,
+          85,
+          155,
+          115
+        ],
+        "text_color": "#f5d020",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "Back",
+        "text_en": "Back",
+        "bbox": [
+          100,
+          125,
+          155,
+          155
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_mkri_backbutton01.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_mkri_backbutton01.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_backbutton01",
+    "confidence": 1.0,
+    "description": "Back button cyl variant — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          25,
+          5,
+          105,
+          55
+        ],
+        "text_color": "#1a3a6e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          25,
+          65,
+          105,
+          115
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          25,
+          125,
+          105,
+          175
+        ],
+        "text_color": "#1a3a6e",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          25,
+          185,
+          105,
+          235
+        ],
+        "text_color": "#4a0000",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_backbutton01.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_backbutton01.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "taw_cyl_backbutton01",
+    "confidence": 1.0,
+    "description": "Gallery submenu Back button (戻る) shared cyl variant — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          60,
+          5,
+          240,
+          45
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          60,
+          60,
+          240,
+          100
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          60,
+          120,
+          240,
+          160
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "戻る",
+        "text_en": "Back",
+        "bbox": [
+          60,
+          185,
+          240,
+          225
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "light"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\taw_cyl_backbutton01.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\taw_cyl_backbutton01.png"
+  },
+  {
+    "arc": "sys0.gpk",
+    "entry": "ta_cyl_backbutton02",
+    "confidence": 1.0,
+    "description": "OK/Confirm button (決定) — OCR-bypass injection",
+    "regions": [
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          30,
+          5,
+          100,
+          50
+        ],
+        "text_color": "#1a3a5c",
+        "bg_tone": "light"
+      },
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          30,
+          63,
+          100,
+          108
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          30,
+          123,
+          100,
+          168
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      },
+      {
+        "text_jp": "決定",
+        "text_en": "Confirm",
+        "bbox": [
+          30,
+          183,
+          100,
+          228
+        ],
+        "text_color": "#ffffff",
+        "bg_tone": "dark"
+      }
+    ],
+    "img_path": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_extracted\\sys0\\ta_cyl_backbutton02.png",
+    "patched_img": "D:\\VN_TRANSLATE\\mushigurui_HD10\\narrative_patched\\ta_cyl_backbutton02.png"
+  }
+]

@@ -1,0 +1,236 @@
+CROSS†CHANNEL Choice/Option Lines
+Total: 124 entries across 54 menus
+(Detection: byte signature "ff ff XX YY 00 00 <text> 00" in decompressed sn.bin)
+
+--- Menu 1 (offset 0xb81a4 = 754084) ---
+  [  754084] ミニ電マを使用する               ->  Use the mini massager
+  [  754113] 使用しない                   ->  Don't use it
+
+--- Menu 2 (offset 0xba5bc = 763324) ---
+  [  763324] 冬子と話す                   ->  Talk to Touko.
+  [  763345] 屋上に行く                   ->  Go to the rooftop.
+
+--- Menu 3 (offset 0xbdc6d = 777325) ---
+  [  777325] ミニ電マを使用する               ->  Use the mini massager
+  [  777354] 使用しない                   ->  Don't use it
+
+--- Menu 4 (offset 0xbf4f0 = 783600) ---
+  [  783600] ミニ電マがな！                 ->  A mini massage wand, that is!
+  [  783625] 緑茶女帝が                   ->  To the Green Tea Empress--
+
+--- Menu 5 (offset 0xc3158 = 799064) ---
+  [  799064] 食堂へ行く                   ->  Go to the cafeteria
+  [  799085] 部室へ行く                   ->  Go to the clubroom
+
+--- Menu 6 (offset 0xcd645 = 841285) ---
+  [  841285] お礼にミニ電マ                 ->  Repay her with a mini massager
+  [  841310] それはない                   ->  No way
+
+--- Menu 7 (offset 0xce78d = 845709) ---
+  [  845709] 美希に話を聞く                 ->  Talk to Miki
+  [  845734] 霧に話を聞く                  ->  Talk to Kiri
+  [  845757] 冬子に話を聞く                 ->  Talk to Touko
+  [  845782] 見里に話を聞く                 ->  Talk to Misato
+  [  845807] 屋上へ行く                   ->  Go to the rooftop
+
+--- Menu 8 (offset 0xceb5e = 846686) ---
+  [  846686] 美希に話を聞く                 ->  Talk to Miki
+  [  846711] 霧に話を聞く                  ->  Talk to Kiri
+  [  846734] 冬子に話を聞く                 ->  Talk to Touko
+  [  846759] 見里に話を聞く                 ->  Talk to Misato
+  [  846784] 屋上へ行く                   ->  Go to the rooftop
+
+--- Menu 9 (offset 0x106bd9 = 1076185) ---
+  [ 1076185] ラバに話を聞く                 ->  Ask Raba about it.
+  [ 1076210] 屋上に行く                   ->  Go to the rooftop.
+
+--- Menu 10 (offset 0x1502b4 = 1376948) ---
+  [ 1376948] カレーパンで我慢する              ->  Make do with curry bread
+  [ 1376979] パンツパンをちょっと……            ->  Try a bit of the pantsu bread...
+  [ 1377014] しゅーるすとれみんぐパンに挑戦する       ->  Take on the challenge of the surstromming bread
+
+--- Menu 11 (offset 0x187870 = 1603696) ---
+  [ 1603696] 校門で霧待ちする                ->  Waiting for Kiri at the school gate
+  [ 1603723] 廊下で掃除する                 ->  Cleaning in the hallway
+
+--- Menu 12 (offset 0x1dc1d8 = 1950168) ---
+  [ 1950168] 屋上に行く                   ->  Go to the rooftop.
+  [ 1950189] 冬子と話す                   ->  Talk to Touko.
+
+--- Menu 13 (offset 0x1e121f = 1970719) ---
+  [ 1970719] 突っ込む                    ->  Retort.
+  [ 1970738] はり倒す                    ->  Smack her down.
+  [ 1970757] 贖罪させる                   ->  Make her atone.
+
+--- Menu 14 (offset 0x1ea8c6 = 2009286) ---
+  [ 2009286] 掃除を手伝う                  ->  Help with the cleaning
+  [ 2009309] ついうっかり不可抗力で偶然胸に手が伸びる    ->  By sheer accident, through unavoidable circumstance, a hand happens to reach for her chest
+
+--- Menu 15 (offset 0x1f1e29 = 2039337) ---
+  [ 2039337] 手伝う                     ->  Help out
+  [ 2039354] 帰る                      ->  Go home
+
+--- Menu 16 (offset 0x1fe949 = 2091337) ---
+  [ 2091337] 話しかける                   ->  Keep talking to her
+  [ 2091358] 部活に行く                   ->  Head to the club
+
+--- Menu 17 (offset 0x20e574 = 2155892) ---
+  [ 2155892] 手当する                    ->  Treat her
+  [ 2155911] しない                     ->  Don't treat her
+
+--- Menu 18 (offset 0x22cfc1 = 2281409) ---
+  [ 2281409] 迫る                      ->  Move closer
+  [ 2281424] ボケる                     ->  Crack a joke
+
+--- Menu 19 (offset 0x22d4f1 = 2282737) ---
+  [ 2282737] さらに迫る                   ->  Move even closer
+  [ 2282758] ボケる                     ->  Crack a joke
+
+--- Menu 20 (offset 0x22dfc9 = 2285513) ---
+  [ 2285513] 迫る                      ->  Move closer
+  [ 2285528] ボケる                     ->  Crack a joke
+
+--- Menu 21 (offset 0x2691cd = 2527693) ---
+  [ 2527693] 屋上に行く                   ->  Go to the rooftop.
+  [ 2527714] 冬子と話す                   ->  Talk to Touko.
+
+--- Menu 22 (offset 0x278568 = 2590056) ---
+  [ 2590056] パンツ見る                   ->  Look at panties
+  [ 2590077] パンツ見る                   ->  Look at panties
+  [ 2590098] パンツ見る                   ->  Look at panties
+
+--- Menu 23 (offset 0x27ab9f = 2599839) ---
+  [ 2599839] 掃除を手伝う                  ->  Help with the cleaning
+  [ 2599862] 不可抗力により偶然スカートがめくれてしまう   ->  By unavoidable accident, her skirt happens to flip up.
+
+--- Menu 24 (offset 0x27f036 = 2617398) ---
+  [ 2617398] 教室に行く                   ->  I head to the classroom.
+  [ 2617419] 屋上に行く                   ->  Go to the rooftop.
+
+--- Menu 25 (offset 0x27fd2d = 2620717) ---
+  [ 2620717] 話しかける                   ->  Keep talking to her
+  [ 2620738] 部活に行く                   ->  Head to the club
+
+--- Menu 26 (offset 0x2890b1 = 2658481) ---
+  [ 2658481] 話しかける                   ->  Keep talking to her
+  [ 2658502] 部活に行く                   ->  Head to the club
+
+--- Menu 27 (offset 0x2a3264 = 2765412) ---
+  [ 2765412] 手伝う                     ->  Help out
+  [ 2765429] 帰る                      ->  Go home
+
+--- Menu 28 (offset 0x2b2b3d = 2829117) ---
+  [ 2829117] 手当する                    ->  Treat her
+  [ 2829136] しない                     ->  Don't treat her
+
+--- Menu 29 (offset 0x2c50d1 = 2904273) ---
+  [ 2904273] 迫る                      ->  Move closer
+  [ 2904288] ボケる                     ->  Crack a joke
+
+--- Menu 30 (offset 0x2c5601 = 2905601) ---
+  [ 2905601] さらに迫る                   ->  Move even closer
+  [ 2905622] ボケる                     ->  Crack a joke
+
+--- Menu 31 (offset 0x2c60d9 = 2908377) ---
+  [ 2908377] 迫る                      ->  Move closer
+  [ 2908392] ボケる                     ->  Crack a joke
+
+--- Menu 32 (offset 0x2e5e89 = 3038857) ---
+  [ 3038857] 桜庭を誘う                   ->  Invite Sakuraba
+  [ 3038878] 友貴を誘う                   ->  Invite Tomoki
+
+--- Menu 33 (offset 0x3278f4 = 3307764) ---
+  [ 3307764] 一人で食う                   ->  Eat them alone
+  [ 3307785] 誰か他の人と食う                ->  Eat them with someone else
+
+--- Menu 34 (offset 0x3323bf = 3351487) ---
+  [ 3351487] 祠に行ってみる                 ->  Try going to the shrine
+  [ 3351512] 学校に行く                   ->  Go to school
+
+--- Menu 35 (offset 0x3325df = 3352031) ---
+  [ 3352031] 祠に行ってみる                 ->  Try going to the shrine
+  [ 3352056] 学校に行く                   ->  Go to school
+  [ 3352077] 田崎食料に行く                 ->  Go to Tasaki Groceries
+
+--- Menu 36 (offset 0x339d6f = 3382639) ---
+  [ 3382639] 部室                      ->  Clubroom
+  [ 3382654] 一年教室                    ->  First-year classroom
+
+--- Menu 37 (offset 0x33bc14 = 3390484) ---
+  [ 3390484] 接近する                    ->  Approach.
+  [ 3390503] 声をかける                   ->  Call out to her.
+
+--- Menu 38 (offset 0x348fcf = 3444687) ---
+  [ 3444687] セクハラ ＆ サイン              ->  Sexual Harassment & Sign
+  [ 3444716] デッド or アライブ             ->  Dead or Alive
+
+--- Menu 39 (offset 0x34d2d6 = 3461846) ---
+  [ 3461846] サンドイッチあげる               ->  Give her a sandwich
+  [ 3461875] あげない                    ->  Don't give it
+
+--- Menu 40 (offset 0x35a8d8 = 3516632) ---
+  [ 3516632] 二年教室に行ってみる              ->  Go to the second-year classroom
+  [ 3516663] 部室に行ってみる                ->  Go to the clubroom
+
+--- Menu 41 (offset 0x35b6ac = 3520172) ---
+  [ 3520172] 一年教室に行ってみる              ->  Go to the first-year classroom
+  [ 3520203] 保健室に行ってみる               ->  Go to the infirmary
+
+--- Menu 42 (offset 0x3608a5 = 3541157) ---
+  [ 3541157] 食べさせる                   ->  Feed her.
+  [ 3541178] 食べる                     ->  Eat.
+
+--- Menu 43 (offset 0x39960e = 3773966) ---
+  [ 3773966] 霧を追う                    ->  Follow Kiri
+  [ 3773985] 追わない                    ->  Don't follow
+
+--- Menu 44 (offset 0x3d206a = 4005994) ---
+  [ 4005994] 受け入れる                   ->  Accept
+  [ 4006015] 受け入れない                  ->  Don't accept
+
+--- Menu 45 (offset 0x44e450 = 4514896) ---
+  [ 4514896] 部室                      ->  Clubroom
+  [ 4514911] 一年教室                    ->  First-year classroom
+  [ 4514930] 廊下                      ->  Hallway
+  [ 4514945] 二年教室                    ->  Second-year classroom
+  [ 4514964] 屋上                      ->  Rooftop
+
+--- Menu 46 (offset 0x458b01 = 4557569) ---
+  [ 4557569] 教室                      ->  Classroom
+  [ 4557584] 屋上                      ->  Rooftop
+  [ 4557599] 廊下                      ->  Hallway
+
+--- Menu 47 (offset 0x45cecb = 4574923) ---
+  [ 4574923] ためしに攻撃                  ->  Try attacking
+  [ 4574946] 降伏                      ->  Surrender
+
+--- Menu 48 (offset 0x45daa4 = 4577956) ---
+  [ 4577956] 美希                      ->  Miki
+
+--- Menu 49 (offset 0x460fa3 = 4591523) ---
+  [ 4591523] 屋上                      ->  Rooftop
+  [ 4591538] 冬子の家                    ->  Touko's house
+  [ 4591557] 一年教室                    ->  First-year classroom
+
+--- Menu 50 (offset 0x46dc13 = 4643859) ---
+  [ 4643859] ぶつける                    ->  Lash out
+  [ 4643878] 我慢する                    ->  Hold back
+
+--- Menu 51 (offset 0x47e475 = 4711541) ---
+  [ 4711541] 学校に行く                   ->  Go to school
+  [ 4711562] 田崎食料に行く                 ->  Go to Tasaki Groceries
+
+--- Menu 52 (offset 0x47e964 = 4712804) ---
+  [ 4712804] 一年教室                    ->  First-year classroom
+  [ 4712823] 二年教室                    ->  Second-year classroom
+  [ 4712842] 屋上                      ->  Rooftop
+  [ 4712857] 学食                      ->  School cafeteria.
+
+--- Menu 53 (offset 0x4d55c2 = 5068226) ---
+  [ 5068226] 接近する                    ->  Approach.
+  [ 5068245] 声をかける                   ->  Call out to her.
+
+--- Menu 54 (offset 0x5135dc = 5322204) ---
+  [ 5322204] デートに誘う                  ->  Invite her on a date
+  [ 5322227] 霧の家につきあう                ->  Go with her to Kiri's house
+
