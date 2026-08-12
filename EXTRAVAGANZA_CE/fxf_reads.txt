@@ -1,0 +1,80 @@
+=== FXF CONFIG READER CALLS IN PrintMessage CTOR ===
+
+Found 50 calls to FUN_005260c0
+
+  Key: "printX              " offset=0x0000 idx=0x0  NOP range: 0x0F89F2-0x0F8A0E (29 bytes)
+  Key: "printY              " offset=0x0000 idx=0x0  NOP range: 0x0F8A0F-0x0F8A2B (29 bytes)
+  Key: "nextX               " offset=0x0000 idx=0x0  NOP range: 0x0F8A2C-0x0F8A47 (28 bytes)
+  Key: "space               " offset=0x0000 idx=0x0  NOP range: 0x0F8A75-0x0F8A90 (28 bytes)
+  Key: "LPrintX             " offset=0x0000 idx=0x0  NOP range: 0x0F8AE1-0x0F8AFC (28 bytes)
+  Key: "LPrintY             " offset=0x0000 idx=0x0  NOP range: 0x0F8AFD-0x0F8B19 (29 bytes)
+  Key: "LNextX              " offset=0x0000 idx=0x0  NOP range: 0x0F8B1A-0x0F8B36 (29 bytes)
+  Key: "wheelDownIsClick    " offset=0x0000 idx=0x0  NOP range: 0x0F8B63-0x0F8B7F (29 bytes)
+  Key: "noVoiceIsDefaultWait" offset=0x0000 idx=0x0  NOP range: 0x0F8B90-0x0F8BAC (29 bytes)
+  Key: "colorCustomFlag     " offset=0x0000 idx=0x0  NOP range: 0x0F8C1C-0x0F8C38 (29 bytes)
+  Key: "autoNameWindowFlag  " offset=0x0000 idx=0x0  NOP range: 0x0F8C49-0x0F8C64 (28 bytes)
+  Key: "autoMessageWaitVoiceFlag" offset=0x0000 idx=0x0  NOP range: 0x0F8C75-0x0F8C91 (29 bytes)
+  Key: "colorR              " offset=0x0000 idx=0x0  NOP range: 0x0F8CA5-0x0F8CC1 (29 bytes)
+  Key: "colorG              " offset=0x0000 idx=0x0  NOP range: 0x0F8CC2-0x0F8CDE (29 bytes)
+  Key: "colorB              " offset=0x0000 idx=0x0  NOP range: 0x0F8CDF-0x0F8CFA (28 bytes)
+  Key: "shadeColorR         " offset=0x0000 idx=0x0  NOP range: 0x0F8D10-0x0F8D23 (20 bytes)
+  Key: "shadeColorG         " offset=0x0000 idx=0x0  NOP range: 0x0F8D24-0x0F8D37 (20 bytes)
+  Key: "shadeColorB         " offset=0x0000 idx=0x0  NOP range: 0x0F8D38-0x0F8D4B (20 bytes)
+  Key: "windowMessageNumber " offset=0x0000 idx=0x0  NOP range: 0x0F8DA4-0x0F8DBF (28 bytes)
+  Key: "fullMessageNumber   " offset=0x0000 idx=0x0  NOP range: 0x0F8DC0-0x0F8DDC (29 bytes)
+  Key: "nameFlag            " offset=0x0000 idx=0x0  NOP range: 0x0F8E35-0x0F8E51 (29 bytes)
+  Key: "nameX               " offset=0x0000 idx=0x0  NOP range: 0x0F8EE5-0x0F8F00 (28 bytes)
+  Key: "nameY               " offset=0x0000 idx=0x0  NOP range: 0x0F8F01-0x0F8F1D (29 bytes)
+  Key: "nameCenterFlag      " offset=0x0000 idx=0x0  NOP range: 0x0F8F1E-0x0F8F3A (29 bytes)
+  Key: "nameLengthMax       " offset=0x0000 idx=0x0  NOP range: 0x0F8F3B-0x0F8F56 (28 bytes)
+  Key: "nameFontSize        " offset=0x0000 idx=0x0  NOP range: 0x0F8F57-0x0F8F73 (29 bytes)
+  Key: "nameSpace           " offset=0x0000 idx=0x0  NOP range: 0x0F8F74-0x0F8F90 (29 bytes)
+  Key: "nameColorR          " offset=0x0000 idx=0x0  NOP range: 0x0F8FA4-0x0F8FC0 (29 bytes)
+  Key: "nameColorG          " offset=0x0000 idx=0x0  NOP range: 0x0F8FC1-0x0F8FDD (29 bytes)
+  Key: "nameColorB          " offset=0x0000 idx=0x0  NOP range: 0x0F8FDE-0x0F8FF9 (28 bytes)
+  Key: "nameShadeColorR     " offset=0x0000 idx=0x0  NOP range: 0x0F900F-0x0F9022 (20 bytes)
+  Key: "nameShadeColorG     " offset=0x0000 idx=0x0  NOP range: 0x0F9023-0x0F9036 (20 bytes)
+  Key: "nameShadeColorB     " offset=0x0000 idx=0x0  NOP range: 0x0F9037-0x0F904A (20 bytes)
+  Key: "blockX              " offset=0x0000 idx=0x0  NOP range: 0x0F90A8-0x0F90C4 (29 bytes)
+  Key: "blockY              " offset=0x0000 idx=0x0  NOP range: 0x0F90C5-0x0F90E0 (28 bytes)
+  Key: "LBlockX             " offset=0x0000 idx=0x0  NOP range: 0x0F90E1-0x0F90FD (29 bytes)
+  Key: "LBlockY             " offset=0x0000 idx=0x0  NOP range: 0x0F90FE-0x0F911A (29 bytes)
+  Key: "drawOverrapOptionFlag" offset=0x0000 idx=0x0  NOP range: 0x0F912B-0x0F9147 (29 bytes)
+  Key: "rightSkipOffIsClick " offset=0x0000 idx=0x0  NOP range: 0x0F9158-0x0F9173 (28 bytes)
+  Key: "noVoiceWait         " offset=0x0000 idx=0x0  NOP range: 0x0F9184-0x0F91A0 (29 bytes)
+  Key: "voiceLastWait       " offset=0x0000 idx=0x0  NOP range: 0x0F91B1-0x0F91CD (29 bytes)
+  Key: "autoMessageVoiceLastWait" offset=0x0000 idx=0x0  NOP range: 0x0F91E6-0x0F9202 (29 bytes)
+  Key: "noVoiceLastWait     " offset=0x0000 idx=0x0  NOP range: 0x0F9213-0x0F922F (29 bytes)
+  Key: "nameColorChangeFlag " offset=0x0000 idx=0x0  NOP range: 0x0F9250-0x0F926C (29 bytes)
+  Key: "customMessageSpeed  " offset=0x0000 idx=0x0  NOP range: 0x0F939F-0x0F93B2 (20 bytes)
+  Call at RVA 0x0F940B: could not find push string
+  Key: "cutinWindowBufferNumber" offset=0x0000 idx=0x0  NOP range: 0x0F94B0-0x0F94C6 (23 bytes)
+  Key: "cutinNamePrintFlag  " offset=0x0000 idx=0x0  NOP range: 0x0F9565-0x0F9581 (29 bytes)
+  Key: "autoMessageLastWait " offset=0x0000 idx=0x0  NOP range: 0x0F9592-0x0F95AE (29 bytes)
+  Key: "backlogSound        " offset=0x0000 idx=0x0  NOP range: 0x0F9815-0x0F9831 (29 bytes)
+
+
+=== REQUIRED PATCHES ===
+
+Patch 1: Change fontSize default 0x18 Å® 0x0E
+  Address: RVA 0x0F89B7 (VA 0x004F89B7)
+  Original: 0E
+  Pattern context: ffc782484600000e0000009090909090
+
+Patch 2: Change nextY addend 6 Å® 4 (so nextY = 14+4 = 18)
+  Address: RVA 0x0F89E5 (VA 0x004F89E5)
+  Original: 04
+  Pattern context: 8b914846000083c2048b8594feffff899058460000
+
+
+=== FXF READS OF LNextY ===
+  String at RVA 0x16FC10, NOT referenced in PrintMessage ctor
+
+
+=== fullMessageNumber CALCULATION ===
+  0x4668 at RVA 0x0F8ADD: ...000089906846000068f8fb56
+  0x4668 at RVA 0x0F8D91: ...ff99f7b96846000083e8018b
+  0x46D0 at RVA 0x0F8DA0: ...ffff8982d046000068c0fc56
+  0x46D0 at RVA 0x0F8DCD: ...ffff81c1d0460000518b8d94
+
+=== DONE ===

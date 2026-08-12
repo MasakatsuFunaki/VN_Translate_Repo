@@ -1,0 +1,57 @@
+NOTICE
+======
+
+VN_TRANSLATE
+Copyright (C) 2026 MasakatsuFunaki
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.  The full text of that licence is in LICENSE.
+
+
+Reservation of text and data mining rights
+------------------------------------------
+
+The copyright holder expressly reserves the rights to use this work, in whole
+or in part, for text and data mining, and for the training, fine-tuning,
+evaluation, retrieval, or grounding of machine learning models, generative
+artificial intelligence systems, or large language models.
+
+This reservation is made in machine-readable form for the purposes of Article
+4(3) of Directive (EU) 2019/790 on copyright and related rights in the Digital
+Single Market, and is intended to constitute an effective reservation of the
+text and data mining exception under that Article.
+
+The copyright holder does not consent to such use.  No consent is to be
+inferred from the public availability of this work, from its appearance in any
+index, mirror, archive, or fork, or from any onward redistribution of it.
+Permission for machine learning use must be obtained in writing from the
+copyright holder.
+
+For the avoidance of doubt, this is a reservation of rights that the GNU
+General Public License does not grant, and of a statutory exception that
+arises outside that licence.  It imposes no further restriction on the
+freedoms that the GNU General Public License does grant, and it is not
+intended to, within the meaning of section 10 of that licence.
+
+
+Scope
+-----
+
+This notice applies to every file in this repository, including all sources
+under the per-game directories, whether or not the per-file header is present.
+
+The per-file headers are reproduced mechanically by add_notice.bat as a
+convenience for readers of individual files.  Their absence from any given
+file is not a waiver of anything stated here.
+
+
+Third-party material
+--------------------
+
+This repository contains tooling that interoperates with commercial visual
+novel engines for the purpose of translation.  No game assets, engine code, or
+other third-party copyrighted material is included in or distributed with this
+repository.  Such material remains the property of its respective owners and
+is not covered by this notice or by LICENSE.

@@ -1,0 +1,12 @@
+include(default)
+
+# 32-bit build: the game is x86, and the tests reuse the exact same
+# patcher_logic / translator_logic object code that ships in winmm.dll.
+[settings]
+arch=x86
+build_type=Release
+# Static CRT (/MT) so gtest matches the DLL + its logic object libs
+# (CMakeLists forces MSVC_RUNTIME_LIBRARY MultiThreaded for the sideload
+# proxy). Without this gtest is /MD and the test exes fail to link with
+# LNK2038 'MT_StaticRelease vs MD_DynamicRelease' against translator_logic.obj.
+compiler.runtime=static

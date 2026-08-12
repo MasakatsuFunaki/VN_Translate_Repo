@@ -1,0 +1,25 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 23,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "windows-release",
+            "displayName": "EXTRAVAGANZA_CE Release (both architectures)",
+            "description": "Root build: drives pipeline_cpp (x64) and proxy_dll (Win32) into the single build/ tree and installs both into build/install.",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build",
+            "installDir": "${sourceDir}/build/install"
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-release",
+            "configurePreset": "windows-release",
+            "configuration": "Release"
+        }
+    ]
+}
