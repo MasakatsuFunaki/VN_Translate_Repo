@@ -72,5 +72,6 @@ amakano2pe/map_images/
 **/narrative_extracted/
 **/narrative_patched/
 **/_debug_title_originals/
+**/script_output/extracted_text.json
 # Restored on demand by mushigurui_HD10/analysys/retired_py.py
 mushigurui_HD10/analysys/_retired/
