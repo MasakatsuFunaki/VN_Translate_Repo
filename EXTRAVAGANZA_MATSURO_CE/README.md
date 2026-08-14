@@ -37,6 +37,8 @@ build\install\bin\00_run_all.exe
 
 Options: `--batch 50`, `--test` (1 batch), `--max-batches 4`, `--file mushi.spt`.
 
+`--game-dir <install>` is required: the game install path differs per machine.
+
 ## Proxy DLL
 
 10 patches (fontSize 24→14, spacing, line count via JE→JMP) + runtime text hook at the

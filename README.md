@@ -61,6 +61,7 @@ python build.py --deploy
 
 Every executable takes `--help`, `--dir <project>`, `--game-dir <install>`.
 `--dir` auto-discovers the project root from the executable's location.
+`--game-dir <install>` is required: the game install path differs per machine.
 API key: `ANTHROPIC_API_KEY` env var, or `primaryApiKey` in `~/.claude_vn/settings.json`.
 Model: set per game in `pipeline_cpp/src/translate/glossary.h`, currently Opus 4.7.
 

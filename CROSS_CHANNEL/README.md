@@ -35,7 +35,8 @@ set ANTHROPIC_API_KEY=sk-ant-...
 build\install\bin\00_run_all.exe
 ```
 
-Every app takes `--dir <project>`, `--game-dir <path>` (default `C:\Games\CROSS_CHANNEL`).
+Every app takes `--dir <project>` and `--game-dir <path>`.
+`--game-dir <install>` is required: the game install path differs per machine.
 
 ## Narrative CG (03)
 

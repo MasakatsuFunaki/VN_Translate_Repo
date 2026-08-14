@@ -49,8 +49,14 @@ std::string default_project_dir() {
     if (exe.empty()) return {};
     std::error_code ec;
     for (fs::path d = fs::u8path(exe); !d.empty(); d = d.parent_path()) {
+        // A checkout.
         if (fs::is_directory(d / "pipeline_cpp", ec) &&
             fs::is_regular_file(d / "build.py", ec))
+            return d.string();
+        // A staged install\<game>.  Second, so a run from the checkout's own
+        // build tree still resolves to the checkout.
+        if (fs::is_directory(d / "script_output", ec) &&
+            fs::is_directory(d / "bin", ec))
             return d.string();
         if (d == d.root_path()) break;  // parent_path() of a root is itself
     }

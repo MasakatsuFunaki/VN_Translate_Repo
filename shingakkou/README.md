@@ -7,6 +7,9 @@
 | **Model** | `claude-opus-4-7` with adaptive thinking |
 | **Delivery** | `winmm.dll` — runtime hook, swaps strings via `translation_table.tsv`. `sin_text.dat` is never modified. |
 
+In-game Config → フォント must be **UD デジタル 教科書体 N**. The glyph advance is a fixed
+8px tuned to that font, so any other one renders cramped. Stored per install in `Save/SYSTEM.SAV`.
+
 > **AGENT** — Ghidra is the ONLY allowed disassembly method.
 > Project: `D:\ghidra_projects\Shingakkou`. Write `.java` GhidraScripts, run via `analyzeHeadless.bat`.
 > NEVER write Python scripts that scan EXE bytes for x86 opcodes.
@@ -33,7 +36,8 @@ set ANTHROPIC_API_KEY=sk-ant-...
 build\pipeline\Release\00_run_all.exe
 ```
 
-Every app takes `--dir <project>` and `--game-dir <install>` (both auto-detected by default).
+Every app takes `--dir <project>` and `--game-dir <install>`.  `--dir` is auto-detected.
+`--game-dir <install>` is required: the game install path differs per machine.
 
 > `--test N` wipes the cache and re-translates from scratch but does **not** stop after N
 > batches — the batch counter is never incremented. Known, left alone.

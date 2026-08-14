@@ -9,7 +9,7 @@
 //
 // Every app derives its paths from the CROSS_CHANNEL project folder, found at
 // run time (see default_project_dir) and overridable with `--dir <path>`, plus
-// `--game-dir <path>` for the game installation (default C:\Games\CROSS_CHANNEL).
+// `--game-dir <path>` for the game installation.
 #pragma once
 
 #include <iostream>
@@ -26,16 +26,12 @@ namespace po = boost::program_options;
 std::string exe_dir();
 
 // The project folder: the nearest folder at or above this executable holding
-// both `pipeline_cpp` and `build.py`.  Empty when the executable was copied out
-// of the project tree, and `--dir` below then becomes required.
+// either `pipeline_cpp` and `build.py` (a checkout) or `bin` and `script_output`
+// (a staged install\<game>).  Empty when neither is found, and `--dir` below
+// then becomes required.
 //
-// Two sources are deliberately unused.  Not a compiled-in path: it would ship
-// one machine's directory layout inside every binary and go stale the moment
-// the tree moves.  And not the working directory: these apps are started from a
-// shell, from build.py and from each other, so the folder the caller happened to
-// be standing in says nothing about where the project is.  Both
-// build\pipeline\Release and build\install\bin sit under the project root, so
-// the walk finds it from either.
+// Not the working directory, and not a compiled-in path: neither survives the
+// tree moving.
 std::string default_project_dir();
 
 // --dir / --game-dir, bound to the caller's strings.
@@ -44,6 +40,8 @@ std::string default_project_dir();
 // 00_run_all passes the pair to all of its children, and unlike the
 // hand-rolled parser this replaced, Program_options treats an unregistered
 // option as an error rather than ignoring it.
+//
+// --game-dir has no default: the game install path differs per machine.
 inline po::options_description common_options(std::string& project_dir,
                                               std::string& game_dir) {
     // Found: it is the default.  Not found -- this executable is not in the
@@ -60,7 +58,7 @@ inline po::options_description common_options(std::string& project_dir,
     desc.add_options()
         ("help,h", "show this help and exit")
         ("dir", dir, "CROSS_CHANNEL project folder")
-        ("game-dir", po::value(&game_dir)->default_value("C:\\Games\\CROSS_CHANNEL"),
+        ("game-dir", po::value(&game_dir)->required(),
          "game installation folder");
     return desc;
 }

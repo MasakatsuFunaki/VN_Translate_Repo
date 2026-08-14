@@ -41,6 +41,8 @@ build\install\bin\00_run_all.exe
 Options: `--test` / `--test 4` (batch cap), `--batch 50`, `--clean` (delete cached JSON),
 `--retranslate`, `--file 01.spt`. Restore originals: `03_repack.exe --restore`.
 
+`--game-dir <install>` is required: the game install path differs per machine.
+
 ## Characters
 
 夢美=Yumemi, アゲハ=Ageha, ユーリア=Yuria, サユリ=Sayuri, 杏子=Kyouko, 美弥香=Miyaka,
