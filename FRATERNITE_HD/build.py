@@ -46,7 +46,7 @@ import subprocess
 ROOT = os.path.dirname(os.path.realpath(__file__))
 BUILD_DIR = os.path.join(ROOT, "build")
 INSTALL_DIR = os.path.join(BUILD_DIR, "install")
-GAME_DIR = r"C:\Games\my_downloadedGames\+new\Fraternite\FRATERNITE_HD_DL"
+GAME_DIR = r"D:\Kits\my_downloadedGames\Fraternite\FRATERNITE_HD_DL"
 CONFIG = "Release"
 PRESET = "windows-release"
 
