@@ -1,0 +1,108 @@
+cmake_minimum_required(VERSION 3.23)
+project(FraternitePipeline LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# MSVC defaults to interpreting source bytes as the system codepage, which
+# mangles the UTF-8 Japanese literals in the glossary.  /utf-8 is the standard
+# fix.  /bigobj: the 5 KB SYSTEM_PROMPT plus boost headers overflow the default
+# section limit.
+if(MSVC)
+    add_compile_options(/utf-8 /bigobj)
+endif()
+
+option(ENABLE_TESTS "Build the GoogleTest suite" ON)
+
+# No Boost.Regex: every pattern this pipeline needs is Unicode-sensitive in a
+# way a narrow-string regex engine gets wrong (negated codepoint classes, \s
+# matching U+3000, \d matching fullwidth digits), so all six are hand-rolled
+# over codepoint vectors instead.
+find_package(Boost REQUIRED COMPONENTS json program_options)
+find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
+
+# The tests -- and only the tests -- need an absolute anchor for the real
+# game-data fixtures.  The apps must NOT get one: a compiled-in path ships
+# this machine's directory layout inside every installed binary, so they find
+# the project by walking up from their own executable (src/apps/paths.cpp).
+get_filename_component(FRAT_PROJECT_DIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+
+# --------------------------------------------------------------------
+# frat_core: everything except the app mains, shared by apps and tests.
+# --------------------------------------------------------------------
+add_library(frat_core STATIC
+    src/common/util.cpp
+    src/common/util.h
+    src/yuris/ypf_archive.cpp
+    src/yuris/ypf_archive.h
+    src/yuris/cp932_scan.cpp
+    src/yuris/cp932_scan.h
+    src/extract/extractor.cpp
+    src/extract/extractor.h
+    src/build_tsv/build_tsv.cpp
+    src/build_tsv/build_tsv.h
+    src/build_tsv/name_fixups.cpp
+    src/build_tsv/name_fixups.h
+    src/translate/glossary.cpp
+    src/translate/glossary.h
+    src/translate/anthropic_client.cpp
+    src/translate/anthropic_client.h
+    src/translate/speaker_gate.cpp
+    src/translate/speaker_gate.h
+    src/translate/translate_core.cpp
+    src/translate/translate_core.h
+)
+target_include_directories(frat_core PUBLIC src)
+target_compile_definitions(frat_core PUBLIC
+    _CRT_SECURE_NO_WARNINGS
+    _WIN32_WINNT=0x0601
+)
+target_link_libraries(frat_core PUBLIC
+    Boost::json
+    # Beast/Asio only.  NOT the boost::boost aggregate -- that pulls in every
+    # compiled Boost lib, including test_exec_monitor, whose main() wants a
+    # test_main symbol the GoogleTest suites don't define.
+    Boost::headers
+    openssl::openssl
+    ZLIB::ZLIB
+    ws2_32
+    crypt32
+)
+
+# --------------------------------------------------------------------
+# Pipeline executables, numbered by the order they run in.
+#
+# 00_run_all performs 01 and 02 and then deploys; the numbered pair is the
+# manual path.  02 carries the speaker gate and the runtime-table build with
+# it, so there is no separate step to remember between translating and
+# playing.
+# --------------------------------------------------------------------
+# Only the app mains parse a command line (src/apps/paths.h), so
+# Program_options is scoped here rather than pushed through frat_core.
+function(frat_app target main)
+    add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
+    target_link_libraries(${target} PRIVATE frat_core Boost::program_options)
+endfunction()
+
+frat_app(00_run_all    src/apps/run_all_main.cpp)
+frat_app(01_extract    src/apps/extract_main.cpp)
+frat_app(02_translate  src/apps/translate_main.cpp)
+
+# --------------------------------------------------------------------
+# Install: the three executables a user runs, and nothing else.  frat_core
+# and the test binaries exist to produce these and stay in the build tree.
+# Every dependency is a static library, so there is no runtime to carry.
+# --------------------------------------------------------------------
+install(TARGETS 00_run_all 01_extract 02_translate
+        RUNTIME DESTINATION bin)
+
+# --------------------------------------------------------------------
+# Tests
+# --------------------------------------------------------------------
+if(ENABLE_TESTS)
+    find_package(GTest REQUIRED)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

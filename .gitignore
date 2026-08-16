@@ -8,7 +8,6 @@
 /Adieu/
 /docs/
 /FAVORITE/
-/FRATERNITE_HD/
 /kishin_hisho/
 /sakuranotoki/
 /SakuraNoUta/
@@ -60,7 +59,8 @@ mushigurui_HD10/build/
 **/helper_dll/build/
 # Conan rewrites this on every `conan install`
 **/CMakeUserPresets.json
-shingakkou/proxy_dll/_build_log.txt
+**/proxy_dll/_build_log.txt
+**/proxy_dll/build.log
 
 # Large binaries: process dumps, and what was carved out of them
 **/*_dumped.exe
@@ -74,3 +74,11 @@ amakano2pe/map_images/
 **/script_output/extracted_text.json
 # Restored on demand by mushigurui_HD10/analysys/retired_py.py
 mushigurui_HD10/analysys/_retired/
+
+# One-off model comparisons and alternate-model outputs.  A shipped game
+# publishes one translated document and its cache; these are the scratch that
+# chose the model, not the result.  The two comparison folders were deleted;
+# these rules keep a re-run from being committed by accident.
+**/test/model_compare/
+**/test/sonnet_medium_rolling/
+**/script_output/translated_text_opus.json
