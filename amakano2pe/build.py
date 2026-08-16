@@ -3,8 +3,8 @@
     python build.py                    # build everything, tests included
     python build.py --test             # build, then run all the tests
     python build.py --install          # build, then stage what the user runs
-    python build.py --deploy           # build, then ship the artifacts to the game
-    python build.py --test --deploy    # build, test, and ship only if the tests pass
+    python build.py --deploy --game-dir DIR    # build, then ship to the game
+    python build.py --test --deploy --game-dir DIR    # ship only if tests pass
     python build.py --clean            # delete the build tree
 
 Release only.  cs2.exe is a 32-bit binary, so the two halves are built for
@@ -28,11 +28,12 @@ deploy, so a regression is never shipped.
 Deploying copies `winmm.dll` into the game folder and nothing else: unlike the
 other games, `02_translate.exe` writes `translation_table.tsv` straight into
 the game directory, so the table never passes through this tree — the deploy
-only checks that it is there and warns if it is not.  The game folder defaults
-to the documented install path and is overridden by AMAKANO2PE_GAME_DIR (that
-path is full-width Japanese, which is also why stdout is put into replace mode
-below).  Set VN_DIST_BUILD to skip the deploy, because a distribution build
-stages the artifacts itself and may run where no game is installed.
+only checks that it is there and warns if it is not.  The game folder comes
+from `--game-dir`, which has no default because the install path differs per
+machine.  That path is full-width Japanese, which is why stdout is put into
+replace mode below.  Set VN_DIST_BUILD to skip the deploy, because a
+distribution build stages the artifacts itself and may run where no game is
+installed.
 
 This script builds; it never runs the pipeline executables.  Translating calls
 a paid API, so that stays an explicit, separate action.
@@ -55,10 +56,6 @@ PRESET = "windows-release"
 # deploy, so unencodable output degrades to '?' instead of raising.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(errors="replace")
-
-# Default install folder, same one the pipeline apps bake in as --game-dir.
-GAME_DIR = os.environ.get("AMAKANO2PE_GAME_DIR") or \
-    "C:\\あざらしそふと\\アマカノ2～Perfect Edition～"
 
 # The halves, for the steps CMake does not own.  ctest is per sub-build: each
 # half has its own binary dir and its own test preset, and a single ctest run
@@ -139,12 +136,12 @@ def install():
                 print(f"  {folder}/{name}")
 
 
-def deploy():
+def deploy(game_dir):
     if os.environ.get("VN_DIST_BUILD"):
         print("[DIST] VN_DIST_BUILD set — skipping deploy to the game folder.")
         return
 
-    print(f"\nDeploying to {GAME_DIR}...")
+    print(f"\nDeploying to {game_dir}...")
 
     # From the build tree, not the install tree: --deploy has to work whether
     # or not --install was asked for, and the build tree is always the fresher
@@ -152,21 +149,21 @@ def deploy():
     # The DLL is a hard failure: the usual cause is the game holding it open.
     dll = os.path.join(BUILD_DIR, "proxy", CONFIG, "winmm.dll")
     try:
-        shutil.copyfile(dll, os.path.join(GAME_DIR, "winmm.dll"))
+        shutil.copyfile(dll, os.path.join(game_dir, "winmm.dll"))
     except OSError as exc:
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it "
-              f"and retry, or point AMAKANO2PE_GAME_DIR at the install folder.")
+              f"and retry, or point --game-dir at the install folder.")
         sys.exit(1)
 
     # The table is a soft failure: 02_translate.exe writes it into the game
     # folder itself, so a missing one just means the translation pipeline has
     # not been run yet.  There is nothing here to copy.
-    tsv = os.path.join(GAME_DIR, "translation_table.tsv")
+    tsv = os.path.join(game_dir, "translation_table.tsv")
     if not os.path.exists(tsv):
         print("WARN: translation_table.tsv not found in the game folder — "
               "run 02_translate.exe first.")
 
-    print(f"\nDeployed to {GAME_DIR}.")
+    print(f"\nDeployed to {game_dir}.")
 
 
 def main():
@@ -178,6 +175,8 @@ def main():
                         help="stage the user-facing artifacts into build/install")
     parser.add_argument("--deploy", action="store_true",
                         help="copy winmm.dll to the game folder")
+    parser.add_argument("--game-dir",
+                        help="game folder to deploy into; required with --deploy")
     parser.add_argument("--clean", action="store_true",
                         help="delete the build tree and stop")
     args = parser.parse_args()
@@ -185,6 +184,11 @@ def main():
     if args.clean:
         clean()
         return
+
+    # Checked before the build, so a missing --game-dir fails in a second
+    # rather than after a full compile.
+    if args.deploy and not args.game_dir:
+        sys.exit("--deploy needs --game-dir: the install path differs per machine")
 
     build()
 
@@ -196,7 +200,7 @@ def main():
         install()
 
     if args.deploy:
-        deploy()
+        deploy(args.game_dir)
 
     print("\nDone.")
 

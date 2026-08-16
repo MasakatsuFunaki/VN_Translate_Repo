@@ -3,8 +3,8 @@
     python build.py                    # build everything, tests included
     python build.py --test             # build, then run all the tests
     python build.py --install          # build, then stage what the user runs
-    python build.py --deploy           # build, then ship the artifacts to the game
-    python build.py --test --deploy    # build, test, and ship only if the tests pass
+    python build.py --deploy --game-dir DIR    # build, then ship to the game
+    python build.py --test --deploy --game-dir DIR    # ship only if tests pass
     python build.py --clean            # delete the build tree
 
 Release only.  mushigurui_HD10.exe is a 32-bit BLACKCyc (nnn/BCmkri) binary,
@@ -26,7 +26,8 @@ runs them: the pipeline's `ut_*` suites and the DLL's UT/CT/SYSTEM tiers.
 When `--test` and `--deploy` are given together the tests gate the deploy, so
 a regression is never shipped.
 
-Deploying copies `winmm.dll` into C:\\Games\\mushigurui_HD10.  That is the
+Deploying copies `winmm.dll` into the game folder named by `--game-dir`, which
+has no default because the install path differs per machine.  That is the
 whole payload for this game: `translation_table.tsv` (and the translated XTX
 config files) are written straight into the game folder by the pipeline
 executables themselves, so there is nothing at the repo root to copy — the
@@ -47,7 +48,6 @@ import subprocess
 ROOT = os.path.dirname(os.path.realpath(__file__))
 BUILD_DIR = os.path.join(ROOT, "build")
 INSTALL_DIR = os.path.join(BUILD_DIR, "install")
-GAME_DIR = r"C:\Games\mushigurui_HD10"
 CONFIG = "Release"
 PRESET = "windows-release"
 
@@ -130,12 +130,12 @@ def install():
                 print(f"  {folder}/{name}")
 
 
-def deploy():
+def deploy(game_dir):
     if os.environ.get("VN_DIST_BUILD"):
         print("[DIST] VN_DIST_BUILD set — skipping deploy to the game folder.")
         return
 
-    print(f"\nDeploying to {GAME_DIR}...")
+    print(f"\nDeploying to {game_dir}...")
 
     # From the build tree, not the install tree: --deploy has to work whether
     # or not --install was asked for, and the build tree is always the fresher
@@ -143,7 +143,7 @@ def deploy():
     # The DLL is a hard failure: the usual cause is the game holding it open.
     dll = os.path.join(BUILD_DIR, "proxy", CONFIG, "winmm.dll")
     try:
-        shutil.copyfile(dll, os.path.join(GAME_DIR, "winmm.dll"))
+        shutil.copyfile(dll, os.path.join(game_dir, "winmm.dll"))
     except OSError as exc:
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
@@ -151,11 +151,11 @@ def deploy():
     # The table is a soft failure: 02_translate.exe writes it into the game
     # folder directly, so a missing one just means the translation pipeline
     # has not been run yet.
-    if not os.path.exists(os.path.join(GAME_DIR, "translation_table.tsv")):
+    if not os.path.exists(os.path.join(game_dir, "translation_table.tsv")):
         print("WARN: translation_table.tsv not in the game folder — "
               "run 02_translate.exe first.")
 
-    print(f"\nDeployed to {GAME_DIR}.")
+    print(f"\nDeployed to {game_dir}.")
 
 
 def main():
@@ -167,6 +167,8 @@ def main():
                         help="stage the user-facing artifacts into build/install")
     parser.add_argument("--deploy", action="store_true",
                         help="copy winmm.dll to the game folder")
+    parser.add_argument("--game-dir",
+                        help="game folder to deploy into; required with --deploy")
     parser.add_argument("--clean", action="store_true",
                         help="delete the build tree and stop")
     args = parser.parse_args()
@@ -174,6 +176,11 @@ def main():
     if args.clean:
         clean()
         return
+
+    # Checked before the build, so a missing --game-dir fails in a second
+    # rather than after a full compile.
+    if args.deploy and not args.game_dir:
+        sys.exit("--deploy needs --game-dir: the install path differs per machine")
 
     build()
 
@@ -185,7 +192,7 @@ def main():
         install()
 
     if args.deploy:
-        deploy()
+        deploy(args.game_dir)
 
     print("\nDone.")
 

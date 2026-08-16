@@ -3,8 +3,8 @@
     python build.py                    # build everything, tests included
     python build.py --test             # build, then run all the tests
     python build.py --install          # build, then stage what the user runs
-    python build.py --deploy           # build, then ship the artifacts to the game
-    python build.py --test --deploy    # build, test, and ship only if the tests pass
+    python build.py --deploy --game-dir DIR    # build, then ship to the game
+    python build.py --test --deploy --game-dir DIR    # ship only if tests pass
     python build.py --clean            # delete the build tree
 
 Release only.  cc.exe is a 32-bit WillPlus/AdvHD binary, so the two halves are
@@ -26,9 +26,11 @@ tiers of the DLL.  When `--test` and `--deploy` are given together the tests
 gate the deploy, so a regression is never shipped.
 
 Deploying copies `xinput1_3.dll` (the XInput proxy that sits next to cc.exe)
-and `translations.tsv` into the game folder; set VN_DIST_BUILD to skip that,
-because a distribution build stages the artifacts itself and may run where no
-game is installed.  Nothing else ships: 03_find_narrative_cg re-renders
+and `translations.tsv` into the game folder.  That folder comes from
+`--game-dir`, which has no default because the install path differs per
+machine.  Set VN_DIST_BUILD to skip the deploy, because a distribution build
+stages the artifacts itself and may run where no game is installed.
+Nothing else ships: 03_find_narrative_cg re-renders
 narrative CGs into script_output/narrative_patched/, but CPK repacking is not
 implemented, so those BMPs are inspection-only and never reach the game.
 
@@ -45,7 +47,6 @@ import subprocess
 ROOT = os.path.dirname(os.path.realpath(__file__))
 BUILD_DIR = os.path.join(ROOT, "build")
 INSTALL_DIR = os.path.join(BUILD_DIR, "install")
-GAME_DIR = r"C:\Games\CROSS_CHANNEL"
 CONFIG = "Release"
 PRESET = "windows-release"
 
@@ -137,12 +138,12 @@ def install():
                 print(f"  {folder}/{name}")
 
 
-def deploy():
+def deploy(game_dir):
     if os.environ.get("VN_DIST_BUILD"):
         print("[DIST] VN_DIST_BUILD set — skipping deploy to the game folder.")
         return
 
-    print(f"\nDeploying to {GAME_DIR}...")
+    print(f"\nDeploying to {game_dir}...")
 
     # From the build tree, not the install tree: --deploy has to work whether
     # or not --install was asked for, and the build tree is always the fresher
@@ -150,7 +151,7 @@ def deploy():
     # The DLL is a hard failure: the usual cause is the game holding it open.
     dll = os.path.join(BUILD_DIR, "proxy", CONFIG, "xinput1_3.dll")
     try:
-        shutil.copyfile(dll, os.path.join(GAME_DIR, "xinput1_3.dll"))
+        shutil.copyfile(dll, os.path.join(game_dir, "xinput1_3.dll"))
     except OSError as exc:
         print(f"COPY xinput1_3.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
@@ -160,14 +161,14 @@ def deploy():
     tsv = os.path.join(ROOT, "translations.tsv")
     if os.path.exists(tsv):
         try:
-            shutil.copyfile(tsv, os.path.join(GAME_DIR, "translations.tsv"))
+            shutil.copyfile(tsv, os.path.join(game_dir, "translations.tsv"))
         except OSError as exc:
             print(f"COPY translations.tsv FAILED ({exc})")
             sys.exit(1)
     else:
         print("WARN: translations.tsv not found — run 02_translate.exe first.")
 
-    print(f"\nDeployed to {GAME_DIR}.")
+    print(f"\nDeployed to {game_dir}.")
 
 
 def main():
@@ -179,6 +180,8 @@ def main():
                         help="stage the user-facing artifacts into build/install")
     parser.add_argument("--deploy", action="store_true",
                         help="copy xinput1_3.dll + translations.tsv to the game folder")
+    parser.add_argument("--game-dir",
+                        help="game folder to deploy into; required with --deploy")
     parser.add_argument("--clean", action="store_true",
                         help="delete the build tree and stop")
     args = parser.parse_args()
@@ -186,6 +189,11 @@ def main():
     if args.clean:
         clean()
         return
+
+    # Checked before the build, so a missing --game-dir fails in a second
+    # rather than after a full compile.
+    if args.deploy and not args.game_dir:
+        sys.exit("--deploy needs --game-dir: the install path differs per machine")
 
     build()
 
@@ -197,7 +205,7 @@ def main():
         install()
 
     if args.deploy:
-        deploy()
+        deploy(args.game_dir)
 
     print("\nDone.")
 
