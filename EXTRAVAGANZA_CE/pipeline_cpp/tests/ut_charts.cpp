@@ -151,3 +151,43 @@ TEST(Charts, wordwrap_fullwidth_caps_line_count) {
         if (wrapped.compare(i, 2, "\r\n") == 0) ++breaks;
     EXPECT_LE(breaks, 2u) << "max_lines=3 allows at most 2 breaks";
 }
+
+// The chart cache is a file of its own, so it carries a purge of its own.  It
+// takes out exactly the echoes -- the model handing back the Japanese it was
+// given -- and leaves everything else where it was, key order included; that
+// order is the cache file's key order.
+TEST(Charts, the_chart_purge_removes_echoes_and_keeps_the_rest) {
+    ch::Cache cache;
+    cache.set("\xE6\x9C\x9D\xE3\x81\x8C\xE6\x9D\xA5\xE3\x81\x9F\xE3\x80\x82",
+              "Morning came.");
+    cache.set("\xE3\x81\x93\xE3\x82\x93\xE3\x81\xAB\xE3\x81\xA1\xE3\x81\xAF",
+              "\xE3\x81\x93\xE3\x82\x93\xE3\x81\xAB\xE3\x81\xA1\xE3\x81\xAF");
+    cache.set("OK", "OK");
+    cache.set("bg152n", "bg152n");
+
+    EXPECT_EQ(ch::purge_failed_entries(cache), 1u);
+    EXPECT_EQ(cache.size(), 3u);
+    EXPECT_FALSE(cache.contains("\xE3\x81\x93\xE3\x82\x93\xE3\x81\xAB\xE3\x81\xA1\xE3\x81\xAF"));
+    // ASCII identity is a correct answer, not an echo.
+    EXPECT_TRUE(cache.contains("OK"));
+    EXPECT_TRUE(cache.contains("bg152n"));
+
+    const auto& items = cache.items();
+    ASSERT_EQ(items.size(), 3u);
+    EXPECT_EQ(items[0].first, "\xE6\x9C\x9D\xE3\x81\x8C\xE6\x9D\xA5\xE3\x81\x9F\xE3\x80\x82");
+    EXPECT_EQ(items[1].first, "OK");
+    EXPECT_EQ(items[2].first, "bg152n");
+
+    // Nothing left to remove on a second pass.
+    EXPECT_EQ(ch::purge_failed_entries(cache), 0u);
+    EXPECT_EQ(cache.size(), 3u);
+}
+
+// An empty cache purges nothing and stays empty.
+TEST(Charts, the_chart_purge_leaves_a_clean_cache_alone) {
+    ch::Cache cache;
+    EXPECT_EQ(ch::purge_failed_entries(cache), 0u);
+    cache.set("\xE6\x9C\x9D", "Morning");
+    EXPECT_EQ(ch::purge_failed_entries(cache), 0u);
+    EXPECT_EQ(cache.size(), 1u);
+}

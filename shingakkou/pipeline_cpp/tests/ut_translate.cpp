@@ -182,3 +182,77 @@ TEST(Translate, glossary_has_the_expected_shape) {
     EXPECT_EQ(tr::CONTEXT_WINDOW, 50);  // NOT the template's 10
     EXPECT_EQ(tr::name_translations().at("マイケル・ガビィ"), "Michael & Gabby");
 }
+
+// The guard refuses flags that would throw away a paid cache until
+// --discard-cache confirms the intent.
+TEST(Translate, a_flag_that_deletes_a_paid_cache_is_refused_until_it_is_meant) {
+    // An empty or nearly empty cache is what a from-scratch run was written for.
+    EXPECT_FALSE(tr::refuse_cache_discard(0, "--test", false).has_value());
+    EXPECT_FALSE(tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD, "--test",
+                                      false).has_value());
+
+    // One entry past the threshold, every flag is refused.
+    for (const char* flag : {"--test", "--retranslate", "--clean"}) {
+        auto why = tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD + 1, flag,
+                                        false);
+        ASSERT_TRUE(why.has_value()) << flag;
+        EXPECT_NE(why->find(flag), std::string::npos) << *why;
+        EXPECT_NE(why->find("--discard-cache"), std::string::npos) << *why;
+    }
+
+    // The count is in the message, because "some lines" is not a reason to
+    // stop and "56103 lines" is.
+    auto why = tr::refuse_cache_discard(56103, "--test", false);
+    ASSERT_TRUE(why.has_value());
+    EXPECT_NE(why->find("56103"), std::string::npos) << *why;
+
+    // --discard-cache is the caller saying they meant it.
+    EXPECT_FALSE(tr::refuse_cache_discard(56103, "--test", true).has_value());
+}
+
+// An echo -- the model handing back the line it was given -- is a failure only
+// when the line is Japanese.  An English string that survives translation
+// unchanged is a correct answer, so pure ASCII is never a failure.
+TEST(Translate, failed_entry_predicate_only_fires_on_japanese_identity) {
+    EXPECT_TRUE(tr::is_failed_entry("こんにちは", "こんにちは"));
+    EXPECT_TRUE(tr::is_failed_entry("……", "……"));  // non-ASCII, still an echo
+    // A resource name carrying one stray Japanese byte is an echo like any
+    // other: the run re-requests it and pays for it again.
+    EXPECT_TRUE(tr::is_failed_entry("Eスbg152n", "Eスbg152n"));
+
+    EXPECT_FALSE(tr::is_failed_entry("こんにちは", "Hello"));
+    EXPECT_FALSE(tr::is_failed_entry("朝が来た。", "Morning came."));
+    EXPECT_FALSE(tr::is_failed_entry("OK", "OK"));          // ASCII identity is right
+    EXPECT_FALSE(tr::is_failed_entry("bg152n", "bg152n"));  // ASCII identifier
+    EXPECT_FALSE(tr::is_failed_entry("", ""));
+}
+
+// The purge takes out exactly the echoes and leaves everything else where it
+// was, key order included -- that order is the cache file's key order.
+TEST(Translate, purge_removes_failed_entries_and_keeps_the_rest) {
+    tr::Cache cache;
+    cache.set("朝が来た。", "Morning came.");
+    cache.set("こんにちは", "こんにちは");
+    cache.set("OK", "OK");
+    cache.set("Eスbg152n", "Eスbg152n");
+    cache.set("bg152n", "bg152n");
+
+    EXPECT_EQ(tr::purge_failed_entries(cache), 2u);
+    EXPECT_EQ(cache.size(), 3u);
+    EXPECT_FALSE(cache.contains("こんにちは"));
+    EXPECT_FALSE(cache.contains("Eスbg152n"));
+    ASSERT_TRUE(cache.get("朝が来た。"));
+    EXPECT_EQ(*cache.get("朝が来た。"), "Morning came.");
+    EXPECT_TRUE(cache.contains("OK"));
+    EXPECT_TRUE(cache.contains("bg152n"));
+
+    const auto& items = cache.items();
+    ASSERT_EQ(items.size(), 3u);
+    EXPECT_EQ(items[0].first, "朝が来た。");
+    EXPECT_EQ(items[1].first, "OK");
+    EXPECT_EQ(items[2].first, "bg152n");
+
+    // Nothing left to remove on a second pass.
+    EXPECT_EQ(tr::purge_failed_entries(cache), 0u);
+    EXPECT_EQ(cache.size(), 3u);
+}

@@ -287,19 +287,12 @@ int run_replace_choice_text(const Options& opt) {
     const std::string cache_file = base + "\\_cache.json";
 
     anthropic::load_api_key();
-    const char* key = std::getenv("ANTHROPIC_API_KEY");
-    if (!key || !*key) {
-        std::fputs("ERROR: ANTHROPIC_API_KEY env var not set\n", stderr);
-        return 1;
-    }
 
     const std::string font_path = detail::resolve_font();
     if (font_path.empty()) {
         print_line("No bold font found; tried the FONT_CANDIDATES list");
         return 1;
     }
-
-    anthropic::Client client;
 
     bj::object cache;
     if (path_exists(cache_file)) {
@@ -348,6 +341,16 @@ int run_replace_choice_text(const Options& opt) {
                    joined);
     }
 
+    // Only a source the cache does not already hold is sent to Claude, so a
+    // fully cached re-render needs no key.  Resolved here rather than at the
+    // request itself: the per-image handler below catches everything, so a
+    // missing key would otherwise be reported once per image and the run would
+    // still end successfully.
+    anthropic::LazyClient client;
+    if (std::any_of(sources.begin(), sources.end(),
+                    [&](const std::string& n) { return !cache.if_contains(n); }))
+        client.get();
+
     for (const auto& name : sources) {
         try {
             const std::string src = base + "\\" + name;
@@ -371,7 +374,7 @@ int run_replace_choice_text(const Options& opt) {
                 print_line("\n" + name + ": using cached translations (re-rendering)");
             } else {
                 print_line("\n" + name + ": requesting translations from Claude…");
-                texts = get_translations(client, src);
+                texts = get_translations(client.get(), src);
                 bj::array arr;
                 for (const auto& t : texts) arr.push_back(bj::string(t));
                 cache[name] = std::move(arr);

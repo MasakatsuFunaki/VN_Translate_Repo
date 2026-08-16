@@ -22,14 +22,54 @@
 // BLACKCyc engine crashes on single-byte ASCII in FXF display fields.
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "common/util.h"
 
 namespace exc::charts {
+
+// jp -> en cache.  Insertion order is load-bearing: it is the key order of
+// chart_translation_cache.json, so a resumed run appends to the file instead
+// of reshuffling it.
+//
+// A separate file from the script cache in translate/, because the two hold
+// different material translated with different prompts: a chart title must not
+// pick up a script line's phrasing.
+class Cache {
+public:
+    bool contains(const std::string& k) const { return index_.count(k) != 0; }
+    const std::string* get(const std::string& k) const {
+        auto it = index_.find(k);
+        return it == index_.end() ? nullptr : &order_[it->second].second;
+    }
+    void set(const std::string& k, const std::string& v) {
+        auto it = index_.find(k);
+        if (it != index_.end()) order_[it->second].second = v;
+        else {
+            index_.emplace(k, order_.size());
+            order_.emplace_back(k, v);
+        }
+    }
+    std::size_t size() const { return order_.size(); }
+    const std::vector<std::pair<std::string, std::string>>& items() const { return order_; }
+
+private:
+    std::vector<std::pair<std::string, std::string>> order_;
+    std::unordered_map<std::string, std::size_t> index_;
+};
+
+Cache load_cache(const std::string& path);
+void save_cache(const Cache& cache, const std::string& path);
+
+// Remove the entries whose English is the Japanese itself, so those lines
+// re-queue.  Returns how many were removed.  Same predicate the script cache
+// uses, translate::is_failed_entry.
+std::size_t purge_failed_entries(Cache& cache);
 
 // XOR 0xFF, same both ways.
 Bytes encrypt_fxf(const Bytes& data);

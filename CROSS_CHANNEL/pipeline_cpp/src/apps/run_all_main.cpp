@@ -21,6 +21,7 @@
 // 03_find_narrative_cg is deliberately NOT part of the sequence: it spends
 // vision tokens per image and is run by hand, behind its own confirmation.
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -28,6 +29,7 @@
 
 #include "common/util.h"
 #include "translate/anthropic_client.h"
+#include "translate/translate_core.h"
 
 #include "apps/paths.h"
 #include "apps/pipeline_steps.h"
@@ -69,13 +71,19 @@ bool deploy(const std::string& project, const std::string& game) {
     // The whole game builds into one tree, so the DLL is in build/proxy; when
     // this executable is the staged copy under build/install/bin, the DLL is
     // in the sibling game/ folder instead.
+    // Asked for, not thrown, like the copies below: a status query that
+    // fails says nothing about whether the file is there, and the throwing
+    // overload would end the run from here with no diagnosis at all.
+    std::error_code ec;
     fs::path dll;
     for (const auto& candidate : {project + "\\build\\proxy\\Release\\xinput1_3.dll",
                                   apps::exe_dir() + "\\..\\game\\xinput1_3.dll"}) {
-        if (fs::exists(fs::u8path(candidate))) {
+        if (fs::exists(fs::u8path(candidate), ec)) {
             dll = fs::u8path(candidate);
             break;
         }
+        if (ec)
+            log_info("  WARN: cannot check " + candidate + ": " + ec.message());
     }
     if (dll.empty()) {
         log_info("[ERROR] xinput1_3.dll not found -- build the proxy half first "
@@ -83,7 +91,6 @@ bool deploy(const std::string& project, const std::string& game) {
         return false;
     }
 
-    std::error_code ec;
     fs::copy_file(dll, fs::u8path(game + "\\xinput1_3.dll"),
                   fs::copy_options::overwrite_existing, ec);
     if (ec) {
@@ -94,7 +101,13 @@ bool deploy(const std::string& project, const std::string& game) {
     log_info("  xinput1_3.dll -> " + game);
 
     const fs::path tsv = fs::u8path(apps::out_tsv(project));
-    if (!fs::exists(tsv)) {
+    const bool have_table = fs::exists(tsv, ec);
+    if (ec) {
+        log_info("  WARN: cannot check " + tsv.u8string() + ": " +
+                 ec.message());
+        return true;
+    }
+    if (!have_table) {
         log_info("  WARN: translations.tsv not found -- 02_translate produces it.");
         return true;
     }
@@ -116,13 +129,16 @@ int main(int argc, char** argv) {
 
     std::string project, game;
     int test_n = 0;
-    bool clean = false;
+    bool clean = false, discard_cache = false;
     po::options_description desc("00_run_all -- CROSS_CHANNEL translation pipeline");
     desc.add(apps::common_options(project, game));
     desc.add_options()
         ("test", po::value(&test_n)->implicit_value(1)->default_value(0),
          "run only N translation batches then stop (bare --test = 1)")
-        ("clean", po::bool_switch(&clean), "delete cached JSON files before running");
+        ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
+        ("discard-cache", po::bool_switch(&discard_cache),
+         "allow --test or --clean to delete a cache that already holds paid "
+         "work");
     po::variables_map vm;
     if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
 
@@ -132,6 +148,28 @@ int main(int argc, char** argv) {
     if (test_n < 0) {
         log_info("[ERROR] --test takes a positive batch count.");
         return 2;
+    }
+
+    // Both discard the cache; guard runs early so a refusal costs nothing.
+    const std::string out_dir = apps::output_dir(project);
+    const std::string cache_file = out_dir + "\\translation_cache_anthropic.json";
+    if (clean || test_n > 0) {
+        // Counting the cache parses it, and a cache that cannot be parsed
+        // throws.  Handled here because this guard runs before the banner: an
+        // escaping throw would end the run with no output at all.  A cache
+        // nobody could read is a refusal like any other, so nothing is
+        // deleted and the file is left as it is.
+        try {
+            if (auto why = translate::refuse_cache_discard(
+                    translate::cache_entry_count(cache_file),
+                    clean ? "--clean" : "--test", discard_cache)) {
+                log_info("[ERROR] " + *why);
+                return 2;
+            }
+        } catch (const std::exception& e) {
+            log_info(std::string("[ERROR] ") + e.what());
+            return 2;
+        }
     }
 
     // Children inherit explicit paths so a --dir override propagates.
@@ -144,23 +182,42 @@ int main(int argc, char** argv) {
     log_info(bar);
 
     anthropic::load_api_key();
-    if (const char* k = std::getenv("ANTHROPIC_API_KEY"); !k || !*k) {
-        log_info("[X] ANTHROPIC_API_KEY not set.");
-        return 1;
+
+    // --clean and --test discard the cache, and a run that discards it is
+    // certain to need the API.  Checked before the deletion: without this the
+    // cache would go and the translation step would then fail for the missing
+    // key, losing work that cannot be rebuilt.
+    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
+        log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
+                 "cache for a run that cannot translate.");
+        return 2;
     }
 
     if (clean) {
-        const std::string out_dir = apps::output_dir(project);
         // The CG state files are on this list too -- --clean forces a full
         // rescan of the narrative CGs as well as a retranslation.
         for (const char* f : {"extracted_text.json", "translated_text.json",
                               "translation_cache_anthropic.json", "narrative_candidates.json",
                               "narrative_scanned.json"}) {
+            // Reported, not thrown, at both steps: the throwing overloads
+            // would end the run with no diagnosis.  A delete fails when
+            // another process holds the file open without FILE_SHARE_DELETE,
+            // which scanners, indexers and sync clients routinely do.
             fs::path p = fs::u8path(out_dir + "\\" + f);
-            if (fs::exists(p)) {
-                fs::remove(p);
-                log_info(std::string("[clean] ") + f);
+            std::error_code ec;
+            const bool present = fs::exists(p, ec);
+            if (!ec && !present) continue;  // never written: nothing to clean
+            const bool removed = !ec && fs::remove(p, ec);
+            if (ec) {
+                log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
+                         ec.message() +
+                         " -- close whatever has it open, then retry.");
+                return 1;
             }
+            // A file that vanished between the two calls was
+            // not deleted here.
+            log_info(std::string("[clean] ") + f +
+                     (removed ? "" : " was already gone"));
         }
     }
 
@@ -175,10 +232,16 @@ int main(int argc, char** argv) {
     run_step(steps[0].name, {}, passthrough);
 
     banner(1);
-    run_step(steps[1].name,
-             test_n ? std::vector<std::string>{"--test", std::to_string(test_n)}
-                    : std::vector<std::string>{},
-             passthrough);
+    {
+        std::vector<std::string> args;
+        if (test_n) {
+            args.emplace_back("--test");
+            args.emplace_back(std::to_string(test_n));
+            // Propagate so the child's own guard does not re-block.
+            if (discard_cache) args.emplace_back("--discard-cache");
+        }
+        run_step(steps[1].name, args, passthrough);
+    }
 
     banner(2);
     if (!deploy(project, game)) return 1;

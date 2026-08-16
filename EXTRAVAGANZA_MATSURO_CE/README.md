@@ -37,6 +37,9 @@ build\install\bin\00_run_all.exe
 
 Options: `--batch 50`, `--test` (1 batch), `--max-batches 4`, `--file mushi.spt`.
 
+`--clean` and `--retranslate` refuse a cache that already holds paid work.
+Add `--discard-cache` to let them run.
+
 `--game-dir <install>` is required: the game install path differs per machine.
 
 ## Proxy DLL

@@ -23,6 +23,7 @@
 // 05_replace_choice_text) are deliberately not here: they touch the shipped
 // archives, the config files and the screenshots, not the script text.
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -73,13 +74,19 @@ bool deploy(const std::string& project, const std::string& game) {
     // The whole game builds into one tree, so the DLL is in build/proxy;
     // when this executable is the staged copy under build/install/bin, the
     // DLL is in the sibling game/ folder instead.
+    // Asked for, not thrown, like the copies below: a status query that
+    // fails says nothing about whether the file is there, and the throwing
+    // overload would end the run from here with no diagnosis at all.
+    std::error_code ec;
     fs::path dll;
     for (const auto& candidate : {project + "\\build\\proxy\\Release\\winmm.dll",
                                   apps::exe_dir() + "\\..\\game\\winmm.dll"}) {
-        if (fs::exists(fs::u8path(candidate))) {
+        if (fs::exists(fs::u8path(candidate), ec)) {
             dll = fs::u8path(candidate);
             break;
         }
+        if (ec)
+            log_info("  WARN: cannot check " + candidate + ": " + ec.message());
     }
     if (dll.empty()) {
         log_info("[ERROR] winmm.dll not found -- build the proxy half first "
@@ -87,7 +94,6 @@ bool deploy(const std::string& project, const std::string& game) {
         return false;
     }
 
-    std::error_code ec;
     fs::copy_file(dll, fs::u8path(game + "\\winmm.dll"),
                   fs::copy_options::overwrite_existing, ec);
     if (ec) {
@@ -97,7 +103,12 @@ bool deploy(const std::string& project, const std::string& game) {
     }
     log_info("  winmm.dll -> " + game);
 
-    if (!fs::exists(fs::u8path(game + "\\translation_table.tsv")))
+    const bool have_table =
+        fs::exists(fs::u8path(game + "\\translation_table.tsv"), ec);
+    if (ec)
+        log_info("  WARN: cannot check the game folder for "
+                 "translation_table.tsv: " + ec.message());
+    else if (!have_table)
         log_info("  WARN: translation_table.tsv not in the game folder -- "
                  "02_translate produces it.");
     return true;
@@ -111,7 +122,7 @@ int main(int argc, char** argv) {
 
     std::string project, game;
     int batch = 0, test_n = 0;
-    bool clean = false;
+    bool clean = false, discard_cache = false;
     po::options_description desc("00_run_all -- Mushigurui HD10 translation pipeline");
     desc.add(apps::common_options(project, game));
     desc.add_options()
@@ -119,7 +130,10 @@ int main(int argc, char** argv) {
          "lines per API request, passed to the translation step")
         ("test", po::value(&test_n)->implicit_value(1)->default_value(0),
          "run only N translation batches then stop (bare --test = 1)")
-        ("clean", po::bool_switch(&clean), "delete cached JSON files before running");
+        ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
+        ("discard-cache", po::bool_switch(&discard_cache),
+         "allow --clean to delete a cache that already holds paid "
+         "work");
     po::variables_map vm;
     if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
 
@@ -129,6 +143,28 @@ int main(int argc, char** argv) {
     if (auto why = translate::validate_options(batch, test_n)) {
         log_info("[ERROR] " + *why);
         return 2;
+    }
+
+    // --clean discards the cache; guard runs early so a refusal costs nothing.
+    const std::string out_dir = project + "\\script_output";
+    const std::string cache_file = out_dir + "\\translation_cache_anthropic.json";
+    if (clean) {
+        // Counting the cache parses it, and a cache that cannot be parsed
+        // throws.  Handled here because this guard runs before the banner: an
+        // escaping throw would end the run with no output at all.  A cache
+        // nobody could read is a refusal like any other, so nothing is
+        // deleted and the file is left as it is.
+        try {
+            if (auto why = translate::refuse_cache_discard(
+                    translate::cache_entry_count(cache_file),
+                    "--clean", discard_cache)) {
+                log_info("[ERROR] " + *why);
+                return 2;
+            }
+        } catch (const std::exception& e) {
+            log_info(std::string("[ERROR] ") + e.what());
+            return 2;
+        }
     }
 
     // Children inherit explicit paths so a --dir override propagates.
@@ -142,20 +178,45 @@ int main(int argc, char** argv) {
     log_info(bar);
 
     anthropic::load_api_key();
-    if (const char* k = std::getenv("ANTHROPIC_API_KEY"); !k || !*k) {
-        log_info("[X] ANTHROPIC_API_KEY not set.");
-        return 1;
+
+    // --clean deletes the cache and --test translates a capped number of
+    // batches, so either is certain to need the API.  Only --clean throws work
+    // away, and the two are reported apart because a message that names the
+    // wrong consequence sends the reader looking for a cache that is still
+    // there.  Checked before the deletion: without this the cache would go and
+    // the translation step would then fail for the missing key, losing work
+    // that cannot be rebuilt.
+    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
+        log_info(std::string("[ERROR] ANTHROPIC_API_KEY not set -- ") +
+                 (clean ? "refusing to discard the cache for a run that cannot "
+                          "translate."
+                        : "--test translates a capped number of batches and "
+                          "cannot run without the API."));
+        return 2;
     }
 
     if (clean) {
-        const std::string out_dir = project + "\\script_output";
         for (const char* f : {"extracted_text.json", "translated_text.json",
                               "translation_cache_anthropic.json"}) {
+            // Reported, not thrown, at both steps: the throwing overloads
+            // would end the run with no diagnosis.  A delete fails when
+            // another process holds the file open without FILE_SHARE_DELETE,
+            // which scanners, indexers and sync clients routinely do.
             fs::path p = fs::u8path(out_dir + "\\" + f);
-            if (fs::exists(p)) {
-                fs::remove(p);
-                log_info(std::string("[clean] ") + f);
+            std::error_code ec;
+            const bool present = fs::exists(p, ec);
+            if (!ec && !present) continue;  // never written: nothing to clean
+            const bool removed = !ec && fs::remove(p, ec);
+            if (ec) {
+                log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
+                         ec.message() +
+                         " -- close whatever has it open, then retry.");
+                return 1;
             }
+            // A file that vanished between the two calls was
+            // not deleted here.
+            log_info(std::string("[clean] ") + f +
+                     (removed ? "" : " was already gone"));
         }
     }
 

@@ -15,6 +15,7 @@
 //   02_translate --file main05
 //
 // There is no self-test pre-flight; the ctest "UT" suites cover it.
+#include <exception>
 #include <filesystem>
 #include <string>
 
@@ -32,7 +33,7 @@ int main(int argc, char** argv) {
 
     std::string project, game, only, out_tsv;
     int batch = 0, test_n = 0;
-    bool retranslate = false;
+    bool retranslate = false, discard_cache = false;
     po::options_description desc(
         "02_translate -- speaker gate, translate via Claude, build translation_table.tsv");
     desc.add(apps::common_options(project, game));
@@ -43,7 +44,10 @@ int main(int argc, char** argv) {
         ("test", po::value(&test_n)->implicit_value(1)->default_value(0),
          "run only N API batches then stop (bare --test = 1)")
         ("out", po::value(&out_tsv),
-         "translation table path (default <game-dir>\\translation_table.tsv)");
+         "translation table path (default <game-dir>\\translation_table.tsv)")
+        ("discard-cache", po::bool_switch(&discard_cache),
+         "allow --test or --retranslate to delete a cache that already "
+         "holds paid work");
     po::variables_map vm;
     if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
 
@@ -57,11 +61,34 @@ int main(int argc, char** argv) {
     // Created before anything else runs, so a run into a fresh --dir does not
     // fail at the first save.
     const std::string out_dir = project + "\\script_output";
+    const std::string cache_file =
+        out_dir + "\\translation_cache_anthropic.json";
+
+    // Both discard the cache; guard runs early so a refusal costs nothing.
+    if (test_n > 0 || retranslate) {
+        // Counting the cache parses it, and a cache that cannot be parsed
+        // throws.  Handled here because this guard runs before the banner: an
+        // escaping throw would end the run with no output at all.  A cache
+        // nobody could read is a refusal like any other, so nothing is
+        // deleted and the file is left as it is.
+        try {
+            if (auto why = translate::refuse_cache_discard(
+                    translate::cache_entry_count(cache_file),
+                    test_n > 0 ? "--test" : "--retranslate", discard_cache)) {
+                log_info("[ERROR] " + *why);
+                return 2;
+            }
+        } catch (const std::exception& e) {
+            log_info(std::string("[ERROR] ") + e.what());
+            return 2;
+        }
+    }
+
     fs::create_directories(fs::u8path(out_dir));
 
     translate::TranslateOptions opt;
     opt.input_file = out_dir + "\\extracted_text.json";
-    opt.cache_file = out_dir + "\\translation_cache_anthropic.json";
+    opt.cache_file = cache_file;
     opt.output_file = out_dir + "\\translated_text.json";
     // The table goes in the game ROOT, not Data\.  --out defaults off
     // --game-dir, so it cannot be a static default_value.

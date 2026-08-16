@@ -437,8 +437,13 @@ bool confirm_send_to_claude() {
     }
 }
 
-void save_scanned(const Paths& paths,
-                  const std::set<std::pair<std::string, std::string>>& done) {
+// One archive's entries that clear the size threshold, in scan order.
+struct ArcEntries {
+    std::string arc;
+    std::vector<std::pair<std::string, IndexEntry>> entries;
+};
+
+void save_scanned(const Paths& paths, const detail::ScanKeySet& done) {
     // The resume file is written sorted so a diff between two runs is
     // meaningful; std::set<std::pair<...>> already gives codepoint order,
     // because UTF-8 byte order preserves it.
@@ -447,10 +452,10 @@ void save_scanned(const Paths& paths,
     write_file_text(paths.scanned, json_pretty(bj::value(std::move(arr)), 2));
 }
 
-bj::array run_scan(const CgOptions& opt, anthropic::Client& client, bool resume) {
+bj::array run_scan(const CgOptions& opt, anthropic::LazyClient& client, bool resume) {
     const Paths paths = make_paths(opt);
     bj::array candidates;
-    std::set<std::pair<std::string, std::string>> done_keys;
+    detail::ScanKeySet done_keys;
 
     if (resume && path_exists(paths.candidates)) {
         candidates = json_parse_file(paths.candidates).get_array();
@@ -488,6 +493,10 @@ bj::array run_scan(const CgOptions& opt, anthropic::Client& client, bool resume)
         log_info("[manual] " + key.first + " / " + key.second);
     }
 
+    // Every archive is enumerated before anything is sent, so the coverage
+    // count and the scan below walk one and the same list.
+    std::vector<ArcEntries> arcs;
+    std::vector<detail::ScanKey> targets;
     for (const auto& arc_name : SCAN_ARCS) {
         if (!path_exists(paths.dwq_dir + "\\" + arc_name)) {
             log_info("[skip] " + arc_name + " — not found");
@@ -497,17 +506,33 @@ bj::array run_scan(const CgOptions& opt, anthropic::Client& client, bool resume)
         log_info("\n=== " + arc_name + " — extracting... ===");
         const ArchiveIndex index = extract_archive(opt, arc_name);
 
-        std::vector<std::pair<std::string, IndexEntry>> entries;
+        ArcEntries ae;
+        ae.arc = arc_name;
         for (const auto& [name, info] : index)
             if (info.width >= MIN_WIDTH && info.height >= MIN_HEIGHT)
-                entries.emplace_back(name, info);
+                ae.entries.emplace_back(name, info);
         log_info("  " + std::to_string(index.size()) + " images total, " +
-                 std::to_string(entries.size()) + " meet size threshold");
+                 std::to_string(ae.entries.size()) + " meet size threshold");
+
+        for (const auto& [name, info] : ae.entries) targets.emplace_back(arc_name, name);
+        arcs.push_back(std::move(ae));
+    }
+
+    // The resume file can already cover every target, and then the loop below
+    // makes no request at all.  Resolved here rather than inside the loop: its
+    // handlers catch everything, so a missing key would be reported once per
+    // image and the run would still end successfully.
+    if (detail::count_left_to_scan(targets, done_keys)) client.get();
+
+    for (const auto& ae : arcs) {
+        const std::string& arc_name = ae.arc;
+        const std::vector<std::pair<std::string, IndexEntry>>& entries = ae.entries;
 
         for (std::size_t i = 0; i < entries.size(); ++i) {
             const std::string& name = entries[i].first;
             const IndexEntry& info = entries[i].second;
-            if (done_keys.count({arc_name, name})) continue;  // i still advances
+            // i still advances over an entry the resume set already covers.
+            if (!detail::needs_scan(done_keys, {arc_name, name})) continue;
 
             print_inline("  [" + std::to_string(i + 1) + "/" +
                          std::to_string(entries.size()) + "] " + name + " (" +
@@ -527,7 +552,7 @@ bj::array run_scan(const CgOptions& opt, anthropic::Client& client, bool resume)
                 log_info("no japanese (ocr)");
             } else {
                 print_inline("ocr: \"" + ocr_snippet + "\" → ");
-                const DetectResult det = detect_narrative(client, *img);
+                const DetectResult det = detect_narrative(client.get(), *img);
                 if (!det.has_text) {
                     log_info("no narrative text");
                 } else {
@@ -558,7 +583,7 @@ bj::array run_scan(const CgOptions& opt, anthropic::Client& client, bool resume)
     return candidates;
 }
 
-void run_translate(const CgOptions& opt, anthropic::Client& client,
+void run_translate(const CgOptions& opt, anthropic::LazyClient& client,
                    bj::array& candidates) {
     const Paths paths = make_paths(opt);
     fs::create_directories(fs::u8path(paths.out_dir));
@@ -568,11 +593,7 @@ void run_translate(const CgOptions& opt, anthropic::Client& client,
         const std::string arc(c.at("arc").get_string());
         const std::string entry(c.at("entry").get_string());
 
-        const bool has_regions = c.if_contains("regions") && !c.at("regions").is_null();
-        std::string patched_path;
-        if (auto* p = c.if_contains("patched_img"))
-            if (p->is_string()) patched_path = std::string(p->get_string());
-        if (has_regions && !patched_path.empty() && path_exists(patched_path)) {
+        if (!detail::needs_translation(c, paths.out_dir)) {
             log_info("  " + entry + ": already translated, skip");
             continue;
         }
@@ -614,7 +635,11 @@ void run_translate(const CgOptions& opt, anthropic::Client& client,
             c["regions"] = *override_->regions;
         } else {
             log_info(" [auto]");
-            const bj::array regions = extract_and_translate(client, *img);
+            // Already resolved by the caller, which counted the same
+            // candidates this branch admits.  Reaching it is what would prove
+            // the two had drifted, and it throws rather than letting the run
+            // continue.
+            const bj::array regions = extract_and_translate(client.get(), *img);
             if (regions.empty()) {
                 // Record the empty region list but do NOT rewrite
                 // candidates.json here -- the change only lands if a later
@@ -676,7 +701,11 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
         std::string p;
         if (auto* v = c.if_contains("patched_img"))
             if (v->is_string()) p = std::string(v->get_string());
-        if (p.empty() || !path_exists(p)) continue;
+        // The path the image was actually found at, which is what the replacement
+        // is read from: a recorded path from before the project folder moved no
+        // longer names a readable file.
+        p = detail::resolve_patched_path(p, paths.out_dir);
+        if (p.empty()) continue;
         auto& entry_map = arc_slot(std::string(c.at("arc").get_string()));
         const std::string entry(c.at("entry").get_string());
         auto it = std::find_if(entry_map.begin(), entry_map.end(),
@@ -745,6 +774,55 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
 // ---------------------------------------------------------------------------
 
 namespace detail {
+
+bool needs_scan(const ScanKeySet& done, const ScanKey& key) {
+    return done.find(key) == done.end();
+}
+
+std::size_t count_left_to_scan(const std::vector<ScanKey>& targets, const ScanKeySet& done) {
+    std::size_t left = 0;
+    for (const auto& key : targets)
+        if (needs_scan(done, key)) ++left;
+    return left;
+}
+
+std::string resolve_patched_path(const std::string& recorded,
+                                 const std::string& patched_dir) {
+    if (recorded.empty()) return {};
+    if (path_exists(recorded)) return recorded;
+    if (patched_dir.empty()) return {};
+    const std::string name = fs::u8path(recorded).filename().u8string();
+    if (name.empty()) return {};
+    const std::string here = patched_dir + "\\" + name;
+    return path_exists(here) ? here : std::string();
+}
+
+bool needs_translation(const bj::object& candidate, const std::string& patched_dir) {
+    const bool has_regions =
+        candidate.if_contains("regions") && !candidate.at("regions").is_null();
+    std::string patched_path;
+    if (auto* p = candidate.if_contains("patched_img"))
+        if (p->is_string()) patched_path = std::string(p->get_string());
+    return !(has_regions &&
+             !resolve_patched_path(patched_path, patched_dir).empty());
+}
+
+std::size_t count_left_to_translate(const bj::array& candidates,
+                                    const std::string& patched_dir) {
+    std::size_t left = 0;
+    for (const auto& cv : candidates) {
+        const bj::object& c = cv.get_object();
+        if (!needs_translation(c, patched_dir)) continue;
+        // The pass paints a hand-tuned entry from the override table itself,
+        // so those entries cost no request.  The table is empty here, so the
+        // test always falls through today.
+        const ManualOverride* ov = find_override(std::string(c.at("arc").get_string()),
+                                                 std::string(c.at("entry").get_string()));
+        if (ov && (ov->fn || ov->regions)) continue;
+        ++left;
+    }
+    return left;
+}
 
 std::string safe_name(const std::string& name) {
     // A byte scan is safe here even though names are UTF-8: every member of
@@ -1175,12 +1253,6 @@ int run_find_narrative_cg(const CgOptions& opt) {
         const bj::array candidates = json_parse_file(paths.candidates).get_array();
         run_repack(opt, candidates);
     } else {
-        const char* key = std::getenv("ANTHROPIC_API_KEY");
-        if (!key || !*key) {
-            log_info("ERROR: ANTHROPIC_API_KEY not set.");
-            return 1;
-        }
-
         // Phase 1: extract everything locally -- no Claude calls yet.
         extract_all_assets(opt);
         // Phase 2: explicit user confirmation before any Claude API call.
@@ -1188,11 +1260,19 @@ int run_find_narrative_cg(const CgOptions& opt) {
             log_info("Aborted by user. No Claude API calls made.");
             return 0;  // note: no "\nDone."
         }
-        // Phase 3: scan + translate + repack.  The client is built here so the
-        // --repack path never needs a key at all.
-        anthropic::Client client;
+        // Phase 3: scan + translate + repack.  Nothing below builds a client
+        // until it has a request to make, so --repack, an abort at the prompt
+        // and a scan the resume file already covers all run without a key.
+        anthropic::LazyClient client;
         bj::array candidates = run_scan(opt, client, /*resume=*/!opt.no_resume);
         if (!opt.scan_only && !candidates.empty()) {
+            // The pass sends a request only for a candidate it has not already
+            // painted and no override table entry covers, so a candidates file
+            // whose entries all carry a patched image leaves it nothing to
+            // send.  Resolved here rather than inside the pass, so a run that
+            // cannot proceed stops before it opens an image or rewrites the
+            // candidates file.
+            if (detail::count_left_to_translate(candidates, paths.out_dir)) client.get();
             run_translate(opt, client, candidates);
             run_repack(opt, candidates);
         }

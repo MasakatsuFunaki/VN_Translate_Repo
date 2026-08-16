@@ -27,6 +27,10 @@
 > crashes when those config fields contain single-byte ASCII. Only the character-name plate
 > table is applied, in full-width romaji.
 
+`05_translate_charts` keeps a cache of its own, `script_output\chart_translation_cache.json`,
+and its `--retranslate` refuses a cache that already holds paid work.
+Add `--discard-cache` to let it run.
+
 ## Build
 
 ```bat
@@ -40,6 +44,9 @@ build\install\bin\00_run_all.exe
 
 Options: `--test` / `--test 4` (batch cap), `--batch 50`, `--clean` (delete cached JSON),
 `--retranslate`, `--file 01.spt`. Restore originals: `03_repack.exe --restore`.
+
+`--clean` and `--retranslate` refuse a cache that already holds paid work.
+Add `--discard-cache` to let them run.
 
 `--game-dir <install>` is required: the game install path differs per machine.
 

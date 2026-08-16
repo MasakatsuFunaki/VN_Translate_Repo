@@ -42,6 +42,9 @@ Every app takes `--dir <project>` and `--game-dir <install>`.  `--dir` is auto-d
 > `--test N` wipes the cache and re-translates from scratch but does **not** stop after N
 > batches — the batch counter is never incremented. Known, left alone.
 
+`--clean`, `--test` and `--retranslate` refuse a cache that already holds paid work.
+Add `--discard-cache` to let them run.
+
 ## Narrative CGs (`03_find_narrative_cg`)
 
 Scans CG archives for images with JP text, translates via Claude vision, renders EN over the

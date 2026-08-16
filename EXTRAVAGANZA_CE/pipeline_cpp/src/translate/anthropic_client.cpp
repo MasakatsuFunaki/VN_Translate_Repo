@@ -84,6 +84,16 @@ std::string load_api_key() {
     }
 }
 
+Client& LazyClient::get() {
+    if (!client_) {
+        if (load_api_key().empty())
+            throw ApiError("ANTHROPIC_API_KEY not set -- this run has work "
+                           "left to do and needs the API");
+        client_.emplace();
+    }
+    return *client_;
+}
+
 Client::Client(std::string api_key) : api_key_(std::move(api_key)) {
     if (api_key_.empty())
         if (const char* env = std::getenv("ANTHROPIC_API_KEY"); env && *env)

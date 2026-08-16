@@ -83,6 +83,24 @@ std::string strip(const std::string& s);
 Cache load_cache(const std::string& cache_file);
 void save_cache(const Cache& cache, const std::string& cache_file);
 
+// Entries in the cache file, or 0 when there is no file.
+std::size_t cache_entry_count(const std::string& cache_file);
+
+// Cache-delete flags require --discard-cache above this line count.
+inline constexpr std::size_t CACHE_DISCARD_THRESHOLD = 100;
+
+// Guard against accidental cache deletion. Returns the refusal reason,
+// or nullopt when the caller may proceed.
+std::optional<std::string> refuse_cache_discard(std::size_t cache_entries,
+                                                const std::string& flag,
+                                                bool discard_cache);
+
+// True if en == jp and jp has non-ASCII bytes (a failed translation echo).
+bool is_failed_entry(const std::string& jp, const std::string& en);
+
+// Remove failed entries so they re-queue. Returns how many were removed.
+std::size_t purge_failed_entries(Cache& cache);
+
 // The user prompt sent per batch -- exposed for the gate and tests.
 std::string build_user_prompt(
     const std::vector<std::pair<std::string, std::string>>& batch_lines,

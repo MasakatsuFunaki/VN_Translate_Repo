@@ -16,6 +16,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <system_error>
+#include <stdexcept>
 #include <thread>
 
 #include <boost/regex.hpp>
@@ -170,16 +172,56 @@ Cache load_cache(const std::string& cache_file) {
     Cache cache;
     if (!fs::exists(fs::u8path(cache_file))) return cache;
     bj::value root = json_parse_file(cache_file);
+    // A cache is a JSON object of jp -> en.  get_object() rejects any other
+    // shape without saying which file it read, and the caller is often about
+    // to delete that file.
+    if (!root.is_object())
+        throw std::runtime_error("cannot parse " + cache_file +
+                                 ": a translation cache must be a JSON object");
     for (const auto& kv : root.get_object())
         if (kv.value().is_string())
             cache.set(std::string(kv.key()), std::string(kv.value().get_string()));
     return cache;
 }
 
+std::size_t cache_entry_count(const std::string& cache_file) {
+    return load_cache(cache_file).size();
+}
+
+std::optional<std::string> refuse_cache_discard(std::size_t cache_entries,
+                                                const std::string& flag,
+                                                bool discard_cache) {
+    if (discard_cache || cache_entries <= CACHE_DISCARD_THRESHOLD)
+        return std::nullopt;
+    return flag + " deletes the translation cache, which holds " +
+           std::to_string(cache_entries) +
+           " lines that were paid for. Nothing in this pipeline can rebuild "
+           "them.\n"
+           "        To delete them anyway, add --discard-cache.";
+}
+
 void save_cache(const Cache& cache, const std::string& cache_file) {
     bj::object o;
     for (const auto& [jp, en] : cache.items()) o[jp] = en;
     write_file_atomic_text(cache_file, json_pretty(bj::value(std::move(o)), 2));
+}
+
+bool is_failed_entry(const std::string& jp, const std::string& en) {
+    if (jp != en) return false;
+    for (char c : jp)
+        if (static_cast<unsigned char>(c) >= 0x80) return true;
+    return false;
+}
+
+std::size_t purge_failed_entries(Cache& cache) {
+    std::size_t removed = 0;
+    Cache kept;
+    for (const auto& [jp, en] : cache.items()) {
+        if (is_failed_entry(jp, en)) ++removed;
+        else kept.set(jp, en);
+    }
+    if (removed) cache = std::move(kept);
+    return removed;
 }
 
 // --------------------------------------------------------------------------- //
@@ -358,7 +400,7 @@ struct Pending {
 };
 
 // Returns (translated_count, stopped_early).
-std::pair<long long, bool> translate_file(anthropic::Client& client, const std::string& fname,
+std::pair<long long, bool> translate_file(anthropic::LazyClient& client, const std::string& fname,
                                           const bj::object& fdata, Cache& cache, int batch_size,
                                           const std::string& cache_file, int test_batches,
                                           bj::array* log_entries) {
@@ -393,6 +435,12 @@ std::pair<long long, bool> translate_file(anthropic::Client& client, const std::
         }
 
         if (needs_api.empty()) continue;
+
+        // The first batch the cache cannot cover is where a key becomes
+        // required.  Outside the try below on purpose: that handler catches
+        // every exception, so a missing key would be logged once per batch and
+        // the run would still finish, leaving a table full of Japanese.
+        anthropic::Client& api = client.get();
 
         ++api_batches_done;
         log_info("\n--- API batch #" + std::to_string(api_batches_done) + " (" +
@@ -439,7 +487,7 @@ std::pair<long long, bool> translate_file(anthropic::Client& client, const std::
         };
 
         try {
-            auto translations = call_anthropic(client, api_lines, previous_context);
+            auto translations = call_anthropic(api, api_lines, previous_context);
             if (translations.size() < needs_api.size())
                 log_info("    WARNING: got " + std::to_string(translations.size()) + "/" +
                          std::to_string(needs_api.size()) + " translations");
@@ -448,7 +496,7 @@ std::pair<long long, bool> translate_file(anthropic::Client& client, const std::
             log_info("    Rate limited, waiting 60s...");
             std::this_thread::sleep_for(std::chrono::seconds(60));
             try {
-                apply(call_anthropic(client, api_lines, previous_context), /*verbose=*/false);
+                apply(call_anthropic(api, api_lines, previous_context), /*verbose=*/false);
             } catch (const std::exception& e2) {
                 log_info(std::string("    Retry failed: ") + e2.what() + ", keeping originals");
                 for (const auto& p : needs_api) previous_context.emplace_back(p.speaker, p.text);
@@ -506,20 +554,46 @@ int translate_all(const TranslateOptions& opt) {
     // go, so every batch is translated from scratch.  A full run keeps both so
     // progress survives a crash or a Ctrl+C.  It happens after the gate for the
     // same reason the gate comes first.
-    if (opt.test_batches) {
-        for (const std::string& p : {opt.cache_file, opt.output_file})
-            if (fs::exists(fs::u8path(p))) {
-                fs::remove(fs::u8path(p));
-                log_info("--test " + std::to_string(opt.test_batches) + ": removed " + p);
-            }
+    // A run that discards the cache is certain to call the API, so the key is
+    // required before anything is deleted rather than at the first batch.
+    if (opt.test_batches && anthropic::load_api_key().empty()) {
+        log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
+                 "cache for a run that cannot translate.");
+        return 1;
     }
 
-    anthropic::load_api_key();
-    anthropic::Client client;
+    if (opt.test_batches) {
+        const std::string what = "--test " + std::to_string(opt.test_batches);
+        for (const std::string& p : {opt.cache_file, opt.output_file}) {
+            // Reported, not thrown, at both steps: the throwing overloads name
+            // no file, and this run is about to translate from scratch.  A
+            // delete fails when another process holds the file open without
+            // FILE_SHARE_DELETE, which scanners, indexers and sync clients
+            // routinely do.
+            const fs::path path = fs::u8path(p);
+            std::error_code ec;
+            const bool present = fs::exists(path, ec);
+            if (!ec && !present) continue;  // never written: nothing to remove
+            const bool removed = !ec && fs::remove(path, ec);
+            if (ec) {
+                log_info("[ERROR] cannot delete " + p + ": " + ec.message() +
+                         " -- close whatever has it open, then retry.");
+                return 1;
+            }
+            // A file that vanished between the two calls was not removed here.
+            log_info(removed ? what + ": removed " + p
+                             : what + ": " + p + " was already gone");
+        }
+    }
+
+    anthropic::LazyClient client;
 
     log_info("Loading translation cache...");
     Cache cache = load_cache(opt.cache_file);
     log_info("  Cache has " + std::to_string(cache.size()) + " entries");
+    std::size_t purged = purge_failed_entries(cache);
+    log_info("  Failed entries purged: " + std::to_string(purged) +
+             (purged ? "  (those lines re-queue)" : ""));
 
     // Pre-populate name translations (unconditional set: the glossary wins).
     for (const auto& [jp, en] : name_translations_ordered()) cache.set(jp, en);

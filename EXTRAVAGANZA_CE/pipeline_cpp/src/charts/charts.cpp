@@ -18,6 +18,7 @@
 #include <boost/regex.hpp>
 
 #include "translate/anthropic_client.h"
+#include "translate/translate_core.h"
 
 namespace exc::charts {
 
@@ -324,48 +325,6 @@ std::map<int, std::string> call_anthropic(anthropic::Client& client,
     return translations;
 }
 
-// jp -> en cache.  Insertion order is load-bearing: it is the key order of
-// chart_translation_cache.json, so a resumed run appends to the file instead
-// of reshuffling it.
-class Cache {
-public:
-    bool contains(const std::string& k) const { return index_.count(k) != 0; }
-    const std::string* get(const std::string& k) const {
-        auto it = index_.find(k);
-        return it == index_.end() ? nullptr : &order_[it->second].second;
-    }
-    void set(const std::string& k, const std::string& v) {
-        auto it = index_.find(k);
-        if (it != index_.end()) order_[it->second].second = v;
-        else {
-            index_.emplace(k, order_.size());
-            order_.emplace_back(k, v);
-        }
-    }
-    std::size_t size() const { return order_.size(); }
-    const std::vector<std::pair<std::string, std::string>>& items() const { return order_; }
-
-private:
-    std::vector<std::pair<std::string, std::string>> order_;
-    std::unordered_map<std::string, std::size_t> index_;
-};
-
-Cache load_cache(const std::string& path) {
-    Cache c;
-    if (!fs::exists(fs::u8path(path))) return c;
-    bj::value root = json_parse_file(path);
-    for (const auto& kv : root.get_object())
-        if (kv.value().is_string())
-            c.set(std::string(kv.key()), std::string(kv.value().get_string()));
-    return c;
-}
-
-void save_cache(const Cache& c, const std::string& path) {
-    bj::object o;
-    for (const auto& [k, v] : c.items()) o[k] = v;
-    write_file_text(path, json_pretty(bj::value(std::move(o)), 1));
-}
-
 std::vector<std::string> chart_files(const std::string& chart_dir) {
     std::vector<std::string> out;
     for (const auto& e : fs::directory_iterator(fs::u8path(chart_dir))) {
@@ -385,6 +344,38 @@ std::string decode_chart(const std::string& path) {
 
 }  // namespace
 
+Cache load_cache(const std::string& path) {
+    Cache c;
+    if (!fs::exists(fs::u8path(path))) return c;
+    bj::value root = json_parse_file(path);
+    // A cache is a JSON object of jp -> en.  get_object() rejects any other
+    // shape without saying which file it read.
+    if (!root.is_object())
+        throw std::runtime_error("cannot parse " + path +
+                                 ": a translation cache must be a JSON object");
+    for (const auto& kv : root.get_object())
+        if (kv.value().is_string())
+            c.set(std::string(kv.key()), std::string(kv.value().get_string()));
+    return c;
+}
+
+void save_cache(const Cache& c, const std::string& path) {
+    bj::object o;
+    for (const auto& [k, v] : c.items()) o[k] = v;
+    write_file_text(path, json_pretty(bj::value(std::move(o)), 1));
+}
+
+std::size_t purge_failed_entries(Cache& cache) {
+    std::size_t removed = 0;
+    Cache kept;
+    for (const auto& [jp, en] : cache.items()) {
+        if (translate::is_failed_entry(jp, en)) ++removed;
+        else kept.set(jp, en);
+    }
+    if (removed) cache = std::move(kept);
+    return removed;
+}
+
 int run_translate_charts(const ChartOptions& opt) {
     log_info(std::string("Model: ") + MODEL);
     log_info("Chart directory: " + opt.chart_dir);
@@ -395,6 +386,9 @@ int run_translate_charts(const ChartOptions& opt) {
     } else {
         cache = load_cache(opt.cache_file);
         log_info("Cache has " + std::to_string(cache.size()) + " entries");
+        const std::size_t purged = purge_failed_entries(cache);
+        log_info("Failed entries purged: " + std::to_string(purged) +
+                 (purged ? "  (those lines re-queue)" : ""));
     }
 
     fs::create_directories(fs::u8path(opt.backup_dir));

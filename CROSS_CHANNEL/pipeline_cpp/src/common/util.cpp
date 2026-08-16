@@ -459,8 +459,14 @@ std::string json_dump(const boost::json::value& v) {
 
 boost::json::value json_parse_file(const std::string& path) {
     Bytes raw = read_file(path);
-    return boost::json::parse(boost::json::string_view(
-        reinterpret_cast<const char*>(raw.data()), raw.size()));
+    try {
+        return boost::json::parse(boost::json::string_view(
+            reinterpret_cast<const char*>(raw.data()), raw.size()));
+    } catch (const std::exception& e) {
+        // Boost names the offset and its own header, never the file.  A run
+        // reads several JSON files, so the diagnosis says which one is bad.
+        throw std::runtime_error("cannot parse " + path + ": " + e.what());
+    }
 }
 
 }  // namespace crc

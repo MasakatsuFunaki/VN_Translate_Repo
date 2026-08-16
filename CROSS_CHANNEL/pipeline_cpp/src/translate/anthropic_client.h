@@ -11,6 +11,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <optional>
 
 #include <boost/json.hpp>
 
@@ -48,5 +49,22 @@ private:
 // and exports it to the environment so child processes inherit it.  Returns
 // the key or "".
 std::string load_api_key();
+
+// Builds the Client on first use, so a run whose cache already covers every
+// line makes no request and needs no key.
+class LazyClient {
+public:
+    // Throws ApiError when a request is finally required and no key is set.
+    Client& get();
+
+    // get() hands out a reference into client_, so copying would leave that
+    // reference pointing into the wrong object.
+    LazyClient() = default;
+    LazyClient(const LazyClient&) = delete;
+    LazyClient& operator=(const LazyClient&) = delete;
+
+private:
+    std::optional<Client> client_;
+};
 
 }  // namespace crc::anthropic

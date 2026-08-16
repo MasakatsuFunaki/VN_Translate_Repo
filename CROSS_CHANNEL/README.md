@@ -38,6 +38,9 @@ build\install\bin\00_run_all.exe
 Every app takes `--dir <project>` and `--game-dir <path>`.
 `--game-dir <install>` is required: the game install path differs per machine.
 
+`--clean` and `--test` refuse a cache that already holds paid work.
+Add `--discard-cache` to let them run.
+
 ## Narrative CG (03)
 
 Patched BMPs are inspection-only — CPK repacking is not implemented.
