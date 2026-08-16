@@ -1,0 +1,802 @@
+[
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 2,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「お……」",
+    "translated": "\"Oh...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 7,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "祖父母の家から帰る新幹線の中。",
+    "translated": "On the Shinkansen heading back from my grandparents' house."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 8,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n読んでいた小説から顔を上げ、窓の外を見る。",
+    "translated": "\\nI look up from the novel I was reading and gaze out the window."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 10,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "列車は次の駅へ止まるために、減速を始めたところだった。",
+    "translated": "The train was beginning to slow down to stop at the next station."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 11,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\nそのため、景色をはっきりと見ることができる。",
+    "translated": "\\nBecause of that, I could see the scenery clearly."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 21,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "赤。",
+    "translated": "Red."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 23,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "黄。",
+    "translated": "Yellow."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 25,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "橙。",
+    "translated": "Orange."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 27,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "暖色系に衣替えした山々。",
+    "translated": "Mountains dressed in warm autumn colors."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 28,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n今年は、いつもより色づくのが早いらしい。",
+    "translated": "\\nApparently, the leaves are turning earlier than usual this year."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 30,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "そのせいだろうか。シルバーウィークは終わったのに、",
+    "translated": "Maybe that's why. Even though Silver Week has ended,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 31,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n車内はほどほどに混んでいた。",
+    "translated": "\\nthe train car was moderately crowded."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 91,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "新幹線が止まると、新たに人が乗車してくる。",
+    "translated": "As the Shinkansen comes to a stop, new passengers board."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 92,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n降りるより、乗る人の方が多い。",
+    "translated": "\\nMore people are getting on than getting off."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 107,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「……んっ、しょ」",
+    "translated": "\"...Nn, sho.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 112,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "そんな中、同じ年頃ぐらいの少女が乗車してくる。",
+    "translated": "Among them, a girl about my age boards the train."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 113,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n大きなカートを引いてキョロキョロと席を探す。",
+    "translated": "\\nShe pulls a large cart and looks around for a seat."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 115,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "隣の席は空いていたから、なんとなく居住まいを正す。",
+    "translated": "The seat next to me was empty, so I straighten up a bit."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 117,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "切符の番号と席の番号を見比べた少女は、",
+    "translated": "The girl compares her ticket number with the seat numbers,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 118,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n予想通り俺の隣の席までやってくる。",
+    "translated": "\\nand sure enough, she comes to the seat next to me."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 133,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「ここ、いいですか？」",
+    "translated": "\"Is this seat okay?\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 137,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「どうぞ」",
+    "translated": "\"Go ahead.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 153,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「はい。荷物上にあげちゃい――\\@",
+    "translated": "\"Yes. I'll just put my luggage up――\\@"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 173,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "きゃっ」",
+    "translated": "Kyaa!\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 176,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "少女がカートを持ち上げようとしたところで、",
+    "translated": "Just as the girl tries to lift her cart,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 177,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n新幹線が動き出し、軽くバランスを崩す。",
+    "translated": "\\nthe Shinkansen starts moving, and she loses her balance slightly."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 179,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "すぐバランスを取り戻したが、大きなカート。",
+    "translated": "She quickly regains her footing, but the cart is large."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 180,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n持ち上げるのは難儀しそうだ。",
+    "translated": "\\nIt looks like it'll be difficult to lift."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 183,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「上げますよ。横に倒しても大丈夫ですか？」",
+    "translated": "\"Let me help you. Is it okay if I lay it on its side?\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 198,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「そんな――\\@",
+    "translated": "\"I couldn't――\\@"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 212,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "ええ、問題ありません」",
+    "translated": "Yes, no problem at all.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 215,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "少女は一瞬ためらったが、押し問答しても周りに",
+    "translated": "The girl hesitated for a moment, but probably thinking it would be"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 216,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n迷惑になると思ったのか、素直に任せてくれた。",
+    "translated": "\\na bother to others if we kept going back and forth, she let me handle it."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 231,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「ありがとうございます」",
+    "translated": "\"Thank you very much.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 235,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「いえいえ」",
+    "translated": "\"No problem.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 237,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "俺が荷物を上げると、少女が丁寧に一礼する。",
+    "translated": "Once I lift the luggage up, the girl gives a polite bow."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 238,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n長いポニーテールが動きに合わせて揺れた。",
+    "translated": "\\nHer long ponytail sways with the motion."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 240,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "少女が座ると、それ以上会話はない。",
+    "translated": "Once the girl sits down, there's no more conversation."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 242,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "別になんということもない。ただの隣り合った人として",
+    "translated": "Nothing particularly noteworthy. We're just two people sitting next to each other,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 243,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n各々車内での時間を過ごすのみ。",
+    "translated": "\\neach spending our time in the train car."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 280,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "――肩に重みを感じた。",
+    "translated": "――I feel weight on my shoulder."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 283,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「んん？」",
+    "translated": "\"Hm?\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 318,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「すぅ……すぅ……」",
+    "translated": "\"Suu... suu...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 320,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "整った顔が近い。",
+    "translated": "Her well-featured face is close."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 322,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "少女は完全に寝息を立てている。",
+    "translated": "The girl is completely asleep, breathing softly."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 342,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "どうしよう。",
+    "translated": "What do I do?"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 344,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "これだけしっかり寝ているのだから、疲れているのか。",
+    "translated": "She's sleeping so soundly, she must be tired."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 346,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "押しのけるのも悪い気がして、読んでいた小説に",
+    "translated": "It feels wrong to push her away, so I decide to go back to"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 347,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n戻ることにする。",
+    "translated": "\\nthe novel I was reading."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 352,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「くぅ……すぅ……」",
+    "translated": "\"Kuu... suu...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 354,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "戻る――ことに――",
+    "translated": "Go back――to――"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 358,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「すぅ……」",
+    "translated": "\"Suu...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 360,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "心音がドキリと一段高くなる。",
+    "translated": "My heartbeat skips a beat, racing faster."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 361,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\n心臓から吹き出された血液が、熱く身体に広がっていく。",
+    "translated": "\\nBlood pumped from my heart spreads warmly through my body."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 363,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "肩越しにどうしても感じる重みや、温もりに、",
+    "translated": "The weight and warmth I can't help but feel across my shoulder"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 364,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\nどうしたってドキドキしてしまう。",
+    "translated": "\\nmake my heart pound no matter what."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 366,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "文字を視線の端で追いながら、寝息を立てる少女を見る。",
+    "translated": "I follow the text with the corner of my eye while looking at the sleeping girl."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 367,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\nやはり俺と同じぐらいの年頃だろうか。",
+    "translated": "\\nShe's probably about the same age as me."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 369,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "とはいえ、寝顔はもっとあどけなく見えた。",
+    "translated": "Still, her sleeping face looks even more innocent."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 404,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「あ……」",
+    "translated": "\"Ah...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 406,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "新幹線が減速を始める。もうすぐ次の駅へ着くのだろう。",
+    "translated": "The Shinkansen begins to slow down. We must be approaching the next station soon."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 410,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「んんぅ……」",
+    "translated": "\"Nnn...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 412,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "そのわずかな変化で、浅く目覚めたのか、",
+    "translated": "At that slight change, she seems to have woken slightly,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 413,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\n少女が身じろぎする。",
+    "translated": "\\nand the girl stirs."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 426,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「んぅ……やぁ……」\\@",
+    "translated": "\"Nuu... yaa...\"\\@"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 432,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "寝ぼけているのか、いやいやをするように、",
+    "translated": "Still drowsy, she shakes her head as if saying no,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 433,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\nおでこを俺の肩にグリグリと擦りつけてくる。",
+    "translated": "\\nand rubs her forehead against my shoulder with a grinding motion."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 436,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「ちょ、ちょっと」",
+    "translated": "\"W-wait, hold on.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 438,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "艷やかな黒い前髪が揺れ、甘い香りがする。",
+    "translated": "Her glossy black bangs sway, and a sweet scent drifts up."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 440,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "待った。",
+    "translated": "Hold on."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 441,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n流石に困る。色々。",
+    "translated": "\\nThis is honestly difficult. In many ways."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 454,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「……くぅ」",
+    "translated": "\"...Kuu.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 456,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "あ、また寄りかかって寝た。",
+    "translated": "Ah, she's leaning against me and sleeping again."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 458,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "……やっぱり、どうしよう。",
+    "translated": "What do I do about this?"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 460,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "この状況はやはり問題が出てきそうだし、",
+    "translated": "This situation seems like it's going to cause problems,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 461,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\n寄りかかる頭をせめて別の場所に移せれば――",
+    "translated": "\\nand if I could at least move her head to somewhere else――"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 464,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "――電車が、止まった。",
+    "translated": "――The train stopped."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 479,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「……んぅ？」",
+    "translated": "\"...Nuu?\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 482,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「駅、着きましたけど、大丈夫ですか？」",
+    "translated": "\"We've arrived at the station. Are you okay?\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 484,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "努めて平静な声を出す。",
+    "translated": "I try to keep my voice calm."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 488,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「終点だから……」",
+    "translated": "\"Since it's the final stop...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 490,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "まだ寝ぼけ眼で、ボソッと言った少女だったが、",
+    "translated": "The girl mumbles this while still half-asleep,"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 491,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\n次第に目覚めてきたのか、瞳を二三度しばたかせて俺を見る。",
+    "translated": "\\nbut gradually waking up, she blinks her eyes a few times and looks at me."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 504,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「あ……」",
+    "translated": "\"Ah...\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 506,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "顔を見ていたと思われたくないので目をそらす。",
+    "translated": "Not wanting her to think I was looking at her face, I avert my eyes."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 507,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\nとはいえ、少女は肩に寄りかかったまま。",
+    "translated": "\\nStill, the girl remains leaning against my shoulder."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 511,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「ご、ごめんなさい！」",
+    "translated": "\"I-I'm so sorry!\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 524,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "慌てて少女が顔を起こすと口元を拭う。",
+    "translated": "The girl hurriedly lifts her head and wipes her mouth."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 539,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「あ、セーフ」",
+    "translated": "\"Ah, safe.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 561,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「あはは……失礼しました」",
+    "translated": "\"Ahaha... my apologies.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 564,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "「いえ」",
+    "translated": "\"No, it's fine.\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 566,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "それ以上言う言葉もなく、俺は窓の外を見る。",
+    "translated": "With nothing more to say, I look out the window."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 567,
+    "type": "MESSAGE",
+    "speaker": "NARRATION",
+    "japanese": "\\n気配から察するに、おそらく少女は居住まいを正している。",
+    "translated": "\\nFrom the atmosphere, I can tell the girl is probably straightening herself up."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 582,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "なんとなく、視線を感じる気がする。",
+    "translated": "I feel like I sense her gaze on me."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 583,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\n俺も、背筋を伸ばしてしまう。",
+    "translated": "\\nI also straighten my posture."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 587,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「あ、あの……すみませんっ」",
+    "translated": "\"Um, um... I'm sorry!\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 589,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "少女の声に思わず視線を向ければ、車内販売のお姉さんに",
+    "translated": "At the girl's voice, I instinctively turn my gaze, and it seems she's"
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 590,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "\\n声をかけたらしい。",
+    "translated": "\\ncalled out to the train attendant."
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 594,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "「ホットコーヒー、いただけますか？」",
+    "translated": "\"Could I get a hot coffee, please?\""
+  },
+  {
+    "script": "01_TGHGDD_01_k.Hqo",
+    "line_idx": 596,
+    "type": "MESSAGE",
+    "speaker": "Yuuhi (Girl)",
+    "japanese": "言った後で、俺にも視線を向けてくる。",
+    "translated": "After saying that, she looks toward me as well."
+  }
+]
