@@ -143,7 +143,10 @@ int main(int argc, char** argv) {
     log_info("English Translation Pipeline (Anthropic)");
     log_info(bar);
 
-    anthropic::load_api_key();
+    // No unconditional load here: a run whose cache already covers the script
+    // never calls the API, and must not ask the user for a key to do nothing.
+    // The two places that need one load it themselves -- the guard below, and
+    // the client when a batch is actually sent.
 
     // Check before deletion: losing the cache without a key loses paid work.
     if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {

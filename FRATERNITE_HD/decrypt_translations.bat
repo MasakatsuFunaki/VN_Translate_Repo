@@ -52,8 +52,18 @@ function Expand-Bytes([byte[]]$data) {
     return ,$r
 }
 
+# The staged install sits under build\, and the copy of this script shipped
+# inside it runs with $here already there -- so the test is on the path BELOW
+# $here, not the full path.  From the game root that skips the build tree;
+# from a staged install there is no build\ segment left to match.
+function Skip-Path($full) {
+    $rel = $full.Substring($here.Length)
+    return ($rel -like '\build\*') -or ($rel -like '*\.git\*')
+}
+
 $files = @(Get-ChildItem -Path $here -Recurse -File -Filter '*.json.enc' `
-               -ErrorAction SilentlyContinue)
+               -ErrorAction SilentlyContinue |
+           Where-Object { -not (Skip-Path $_.FullName) })
 if ($files.Count -eq 0) {
     Write-Host "Nothing to do: no .json.enc under $here." -ForegroundColor Yellow
     exit 0

@@ -24,6 +24,19 @@
 **/analysys/
 **/analysis/
 
+# ...except FRATERNITE_HD's YBN samples, which are test fixtures rather than
+# scratch: ut_ypf_archive and ut_extract build a synthetic bn.ypf out of them
+# and cannot run without them.  Ignoring the whole folder lost them once, and
+# nothing in git could bring them back.  The rules re-include the folder, then
+# exclude everything in it again, so only the .ybn files are tracked and the
+# probes and dumps beside them stay out.
+# analysys/rebuild_ybn_samples.py regenerates them from a game install.
+!FRATERNITE_HD/analysys/
+FRATERNITE_HD/analysys/*
+!FRATERNITE_HD/analysys/ybn_samples/
+FRATERNITE_HD/analysys/ybn_samples/*
+!FRATERNITE_HD/analysys/ybn_samples/*.ybn
+
 # Python
 venv/
 __pycache__/

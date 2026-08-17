@@ -33,6 +33,26 @@ TEST(Translate, NeedsTranslation_Threshold2NotThree) {
     EXPECT_TRUE(needs_translation("カタカナ"));
 }
 
+// yst00028.ybn holds a kana table whose 21 cells the CP932 scan reads as text.
+// None is a message.  The model romanised 14 of them and echoed the other 7,
+// and an echo is never cached, so those 7 re-open the API on every run.
+TEST(Translate, NeedsTranslation_RejectsSmallKanaFragments) {
+    for (const char* frag : {"ょ", "ゎ", "ャ", "ュ", "ョ", "ヮ", "ヶ"})
+        EXPECT_FALSE(needs_translation(frag)) << "fragment: " << frag;
+
+    EXPECT_FALSE(needs_translation("ャュョ"));   // a run of them is still a table
+    EXPECT_FALSE(needs_translation("  ょ  "));   // padding does not make it text
+}
+
+// The rule is whole-string: a small kana INSIDE a word must not disqualify it.
+TEST(Translate, NeedsTranslation_KeepsWordsContainingSmallKana) {
+    EXPECT_TRUE(needs_translation("一ヶ月"));     // ヶ as a counter
+    EXPECT_TRUE(needs_translation("ちょっと"));   // ょ inside a word
+    EXPECT_TRUE(needs_translation("がっこう"));   // っ inside a word
+    EXPECT_TRUE(needs_translation("シャツ"));     // ャ inside a word
+    EXPECT_TRUE(needs_translation("ょう"));       // trailing full kana still counts
+}
+
 TEST(Translate, TranslatableIndices_IncludesNameType) {
     boost::json::object fdata;
     boost::json::array strings;

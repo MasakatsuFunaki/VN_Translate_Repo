@@ -63,6 +63,35 @@ std::string nums_repr(const std::vector<long long>& v) {
     return out + "]";
 }
 
+bool is_small_kana(char32_t cp) {
+    switch (cp) {
+        case 0x3041: case 0x3043: case 0x3045: case 0x3047: case 0x3049:  // ぁぃぅぇぉ
+        case 0x3063: case 0x3083: case 0x3085: case 0x3087: case 0x308E:  // っゃゅょゎ
+        case 0x3095: case 0x3096:                                         // ゕゖ
+        case 0x30A1: case 0x30A3: case 0x30A5: case 0x30A7: case 0x30A9:  // ァィゥェォ
+        case 0x30C3: case 0x30E3: case 0x30E5: case 0x30E7: case 0x30EE:  // ッャュョヮ
+        case 0x30F5: case 0x30F6:                                         // ヵヶ
+            return true;
+        default:
+            return false;
+    }
+}
+
+// A small kana never stands alone as a word, so a string of nothing but small
+// kana is a cell of a character table rather than a message.  Whether the
+// model romanises such a cell or echoes it back is arbitrary, and an echo can
+// never be cached -- the JP-in-EN guard rejects it -- so an echoed cell is
+// re-sent on every run and keeps the API open for a script already translated.
+bool is_small_kana_only(const std::string& text) {
+    std::size_t i = 0;
+    bool any = false;
+    while (i < text.size()) {
+        if (!is_small_kana(utf8_next(text, i))) return false;
+        any = true;
+    }
+    return any;
+}
+
 }  // namespace
 
 // Defined here because glossary.cpp is a generated table dump.
@@ -93,7 +122,7 @@ bool has_real_japanese(const std::string& text) { return jp_char_count(text) > 0
 
 bool needs_translation(const std::string& text) {
     if (text.empty() || trim(text).empty()) return false;
-    if (char_len(text) <= 2 && !has_real_japanese(text)) return false;
+    if (is_small_kana_only(trim(text))) return false;
     return has_real_japanese(text);
 }
 
