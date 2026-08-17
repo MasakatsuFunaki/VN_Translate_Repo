@@ -5,13 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// The pipeline, in the order it runs.
-//
-// One list, read by the orchestrator for its banners and by the README for its
-// table, so the sequence a person is told about and the sequence that executes
-// cannot drift apart.  Each step is a command someone can also run by hand;
-// the last one copies rather than launching anything, which is why its name is
-// not an executable.
+// Pipeline step sequence — single source of truth for banners and the README.
 #pragma once
 
 #include <array>

@@ -9,10 +9,6 @@
 | **Characters** | Ren (レン), Miyaka (美弥香), Ayaka (綾佳), Yuria (ユーリア), Shio (シオ), Kyou (キョウ) |
 | **Delivery** | `winmm.dll` — runtime text hook via `translation_table.tsv`. SPTs never modified. |
 
-> **AGENT** — Ghidra is the ONLY allowed disassembly method.
-> Project: `D:\ghidra_projects\mushigurui_HD10`. Write `.java` GhidraScripts, run via `analyzeHeadless.bat`.
-> NEVER write scripts that scan EXE bytes for x86 opcodes.
-
 ## Pipeline
 
 ```

@@ -1,16 +1,9 @@
-"""Step-1 parity: run the RETIRED 01_extract.py and 01_extract.exe over the
-same synthetic archive and compare.
+"""Step-1 parity: compare retired 01_extract.py against 01_extract.exe.
 
-The game is not installed on this machine, so the reference corpus is the
-seven-entry bn.ypf make_ypf.py builds out of analysys/ybn_samples.  The Python
-script is gone from the working tree; it is read back out of git at the
-migration baseline, the same way the other games' step-1 runners do it.
-
-Usage:
     python tools/run01.py [--rev REV]
 
-Exit 0 = both sides produced a byte-identical extracted_text.json and the same
-stdout (timestamps and the output path aside).
+Reads the Python script from git at the baseline rev, runs both over the
+synthetic archive, exits 0 when extracted_text.json and stdout match.
 """
 import argparse
 import hashlib

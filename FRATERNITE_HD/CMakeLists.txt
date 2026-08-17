@@ -1,20 +1,6 @@
-# FRATERNITE_HD -- root build for the whole game.
-#
-# The game is built from two halves that CANNOT share one CMake configure:
-# `pipeline_cpp` is x64 (the tools that read the YPF archives and call the
-# API), `proxy_dll` is Win32 because it is injected into a 32-bit MFC140 game
-# process.  A CMake project has exactly one toolchain, so this project
-# compiles nothing itself.  It drives each half as an ExternalProject with its
-# own Conan profile, its own toolchain file and its own binary directory under
-# build/, and it owns the aggregate install that collects both halves into
-# build/install.
-#
-#   cmake --preset windows-release
-#   cmake --build   --preset windows-release
-#   cmake --install build --config Release
-#
-# `build.py` is the supported front end and wraps exactly those three
-# commands.
+# FRATERNITE_HD -- root build.
+# Two halves (pipeline_cpp x64, proxy_dll Win32) need separate toolchains,
+# so this project drives each as an ExternalProject.  Use build.py.
 
 cmake_minimum_required(VERSION 3.23)
 project(FraterniteHD LANGUAGES NONE)
@@ -23,38 +9,20 @@ include(ExternalProject)
 
 set(FRAT_CONFIG Release CACHE STRING "Configuration both halves are built in")
 
-# Conan runs inside each half's configure step.  Resolving it now turns a
-# missing Conan into a configure error instead of a failure halfway through
-# a build.
+# Fail at configure time, not mid-build, if Conan is missing.
 find_program(FRAT_CONAN NAMES conan REQUIRED)
 
-# --------------------------------------------------------------------
 # frat_half(<name> SOURCE <dir> PRESET <preset> PROFILE <conan profile>)
-#
-# Adds one architecture half.  Its binary directory is build/<name>, so the
-# whole game has a single build folder with one subtree per architecture.
-#
-# The configure step runs Conan first -- it writes the toolchain the preset
-# points at -- and then configures through the half's own CMakePresets.json.
-# Going through the preset is deliberate: the preset a human types and the
-# configure this project performs are then the same one, and cannot drift.
-# The wrapper's `cd /d` into the half's source directory is needed because
-# `cmake --preset` reads the preset files from the current working directory.
-# --------------------------------------------------------------------
+# Runs Conan then configures through the half's own preset, so the human
+# preset and the automated one cannot drift.
 function(frat_half name)
     cmake_parse_arguments(H "" "SOURCE;PRESET;PROFILE" "" ${ARGN})
 
     set(src ${CMAKE_CURRENT_SOURCE_DIR}/${H_SOURCE})
     set(bin ${CMAKE_BINARY_DIR}/${name})
 
-    # Ninja takes its target architecture from the compiler environment rather
-    # than from CMake -- there is no equivalent of the Visual Studio
-    # generator's `architecture` field -- so each half must configure and build
-    # inside the vcvars environment its own Conan profile selects: x64 for the
-    # pipeline, x86 for the proxy.  Conan writes that environment as
-    # conanvcvars.bat beside the toolchain during the install step below.
-    # It has to be applied through a wrapper script because a batch file cannot
-    # export its environment back into the calling process.
+    # Ninja picks arch from the compiler env, not from CMake, so each half
+    # must build inside the vcvars environment its Conan profile selects.
     file(TO_NATIVE_PATH ${bin}/generators/conanvcvars.bat vcvars_bat)
     file(TO_NATIVE_PATH ${src} src_win)
     file(TO_NATIVE_PATH ${bin} bin_win)
@@ -78,9 +46,7 @@ cmake --build \"${bin_win}\" --config ${FRAT_CONFIG}\r
     ExternalProject_Add(${name}
         SOURCE_DIR      ${src}
         BINARY_DIR      ${bin}
-        # Keep ExternalProject's bookkeeping inside the half's own folder;
-        # the defaults would scatter <name>-prefix/ directories through
-        # build/.
+        # Keep EP bookkeeping inside the half's own folder.
         PREFIX          ${bin}
         TMP_DIR         ${bin}/_ep
         STAMP_DIR       ${bin}/_ep
@@ -94,10 +60,9 @@ cmake --build \"${bin_win}\" --config ${FRAT_CONFIG}\r
             ${configure_bat}
         BUILD_COMMAND
             ${build_bat}
-        # Sources change far more often than the configure does; let the
-        # inner build decide what is out of date.
+        # Let the inner build decide what is out of date.
         BUILD_ALWAYS    ON
-        # The aggregate install below owns this half's install step.
+        # Aggregate install below owns this step.
         INSTALL_COMMAND ""
         USES_TERMINAL_CONFIGURE ON
         USES_TERMINAL_BUILD     ON
@@ -109,22 +74,13 @@ frat_half(pipeline
     PRESET  conan-windows-x64-release
     PROFILE default)
 
-# The profile path is absolute on purpose: a relative one resolves against the
-# working directory, and ExternalProject runs its steps from the binary dir.
+# Absolute path: a relative one resolves against the EP binary dir.
 frat_half(proxy
     SOURCE  proxy_dll
     PRESET  conan-windows-x86-release
     PROFILE ${CMAKE_CURRENT_SOURCE_DIR}/proxy_dll/profiles/x86)
 
-# --------------------------------------------------------------------
-# Aggregate install.
-#
-# `cmake --install build --config Release` runs each half's own install
-# script into this project's prefix, so the artifacts of both architectures
-# land in one tree.  Each half decides what is user-facing; this file only
-# decides where the halves meet: bin/ is what the user runs, game/ is what
-# gets copied into the game folder.
-# --------------------------------------------------------------------
+# Aggregate install: both halves land in one prefix (bin/ + game/).
 foreach(half IN ITEMS pipeline proxy)
     install(CODE "
         message(STATUS \"Installing ${half} -> \${CMAKE_INSTALL_PREFIX}\")

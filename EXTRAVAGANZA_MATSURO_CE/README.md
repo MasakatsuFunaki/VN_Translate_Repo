@@ -9,10 +9,6 @@
 | **Characters** | Miyaka (美弥香), Ayaka (綾佳), Rengoku (煉獄), Shirou (史郎), Collector, Announcer |
 | **Delivery** | `winmm.dll` — runtime text hook via `translation_table.tsv`. SPTs are NOT modified (repack caused save/load crashes). |
 
-> **AGENT** — Ghidra is the ONLY allowed disassembly method.
-> Project: `D:\ghidra_projects\EXTRAVAGANZA_MATSURO_CE`. Write `.java` GhidraScripts, run via `analyzeHeadless.bat`.
-> NEVER write scripts that scan EXE bytes for x86 opcodes.
-
 ## Pipeline
 
 ```
@@ -42,8 +38,4 @@ Add `--discard-cache` to let them run.
 
 `--game-dir <install>` is required: the game install path differs per machine.
 
-## Proxy DLL
-
-10 patches (fontSize 24→14, spacing, line count via JE→JMP) + runtime text hook at the
-text splitter function. Word wrapping at `MAX_LINE_CHARS=60`. Check `proxy_log.txt` for
-diagnostics.
+Diagnostics: check `proxy_log.txt` in the game dir.

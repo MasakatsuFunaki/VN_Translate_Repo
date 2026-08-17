@@ -6,9 +6,6 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 01_extract -- extract all Japanese text from bn.ypf.
-//
-// This app runs no self-tests: the component tests for the extractor live in
-// the ctest "UT" label instead.
 #include <filesystem>
 
 #include "common/util.h"

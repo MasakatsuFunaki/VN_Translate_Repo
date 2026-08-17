@@ -53,7 +53,6 @@ std::string to_crlf(const std::string& s) {
     std::string out;
     out.reserve(s.size() + s.size() / 16);
     for (std::size_t i = 0; i < s.size(); ++i) {
-        // Never double up an existing CRLF.
         if (s[i] == '\n' && (i == 0 || s[i - 1] != '\r')) out += '\r';
         out += s[i];
     }
@@ -73,14 +72,7 @@ void write_file_atomic_text(const std::string& path, const std::string& content)
 
 namespace {
 
-// CP932 byte structure: single bytes 0x00-0x7F and 0xA1-0xDF (halfwidth
-// katakana); lead bytes 0x81-0x9F and 0xE0-0xFC with trail 0x40-0x7E /
-// 0x80-0xFC.
-// CP932 ALSO decodes these five single bytes, which a naive "structurally
-// valid Shift-JIS" test rejects:
-//   0x80 -> U+0080, 0xA0 -> U+F8F0, 0xFD -> U+F8F1, 0xFE -> U+F8F2, 0xFF -> U+F8F3
-// MultiByteToWideChar(932) does NOT agree on all of them, so they are mapped
-// here rather than handed to the OS codec.
+// Five single bytes CP932 maps but MultiByteToWideChar(932) does not.
 bool cp932_special_single(std::uint8_t b, char32_t* cp) {
     switch (b) {
     case 0x80: *cp = 0x0080; return true;
@@ -92,14 +84,11 @@ bool cp932_special_single(std::uint8_t b, char32_t* cp) {
     }
 }
 
-// True when `b` starts a single-byte cp932 character.
 bool cp932_is_single(std::uint8_t b) {
     char32_t ignored;
     return b <= 0x7F || (b >= 0xA1 && b <= 0xDF) || cp932_special_single(b, &ignored);
 }
 
-// Byte length of the character at p[i], or 0 when the sequence is invalid.
-// Lead bytes 0x81-0x9F / 0xE0-0xFC take a trail of 0x40-0x7E or 0x80-0xFC.
 std::size_t cp932_char_len(const std::uint8_t* p, std::size_t n, std::size_t i) {
     const std::uint8_t b = p[i];
     if (cp932_is_single(b)) return 1;
@@ -148,9 +137,7 @@ std::wstring utf8_to_wide(const std::string& s) {
 
 std::optional<std::string> cp932_to_utf8_strict(const std::uint8_t* p, std::size_t n) {
     if (n == 0) return std::string();
-    // The buffer is split into maximal runs the OS codec gets right, separated
-    // by the five special singles above, which are emitted directly.
-    // Converting a whole run per call keeps this cheap on multi-MB scripts.
+    // Split into runs the OS codec handles, with special singles emitted directly.
     std::string out;
     std::size_t i = 0;
     while (i < n) {
@@ -184,8 +171,6 @@ std::optional<std::string> cp932_to_utf8_strict(const std::uint8_t* p, std::size
 }
 
 std::string cp932_to_utf8_replace(const std::uint8_t* p, std::size_t n) {
-    // Walk the byte stream emitting one U+FFFD per undecodable byte: decode
-    // valid runs strictly, slide a single byte on failure.
     std::string out;
     std::size_t i = 0;
     while (i < n) {
@@ -207,11 +192,8 @@ std::string cp932_to_utf8_replace(const std::uint8_t* p, std::size_t n) {
 
 namespace {
 
-// UTF-16 code unit -> CP932 sequence, built by INVERTING the strict decoder in
-// ascending byte order (first byte sequence to claim a codepoint wins), which
-// is how the canonical CP932 encoding table resolves its duplicate glyphs.
-// 0xFFFF marks an unmapped codepoint; values below 0x100 are one-byte
-// encodings.
+// Built by inverting the strict decoder; first byte sequence to claim wins.
+// 0xFFFF = unmapped, < 0x100 = one-byte encoding.
 const std::vector<std::uint16_t>& cp932_encode_table() {
     static const std::vector<std::uint16_t> table = [] {
         std::vector<std::uint16_t> t(0x10000, 0xFFFF);
@@ -236,11 +218,7 @@ const std::vector<std::uint16_t>& cp932_encode_table() {
                       static_cast<std::uint16_t>((pair[0] << 8) | pair[1]));
             }
         }
-        // Codepoints the inversion cannot reach because a lower byte sequence
-        // already claimed the same glyph; CP932 encodes them as the higher
-        // sequence listed here.
-        // The four PUA entries are already produced by the single-byte pass;
-        // they are repeated so the whole fixup set reads as one list.
+        // Codepoints the inversion misses because a lower sequence already claimed.
         const std::pair<char32_t, std::uint16_t> fixups[] = {
             {0x00A2, 0x8191}, {0x00A3, 0x8192}, {0x00AC, 0x81CA}, {0x2016, 0x8161},
             {0x2212, 0x817C}, {0x301C, 0x8160}, {0xF8F0, 0x00A0}, {0xF8F1, 0x00FD},
@@ -380,9 +358,7 @@ int jp_char_count(const std::string& utf8) {
 }
 
 bool is_unicode_space(char32_t cp) {
-    // Unicode category Zs plus the bidi WS/B/S controls.  U+200B ZERO WIDTH
-    // SPACE is deliberately absent: it has no width to trim and stripping it
-    // would change a TSV key the engine really does emit.
+    // Zs + bidi controls. U+200B excluded: stripping it changes TSV keys.
     switch (cp) {
     case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D:
     case 0x1C: case 0x1D: case 0x1E: case 0x1F:
@@ -397,9 +373,7 @@ bool is_unicode_space(char32_t cp) {
 
 namespace {
 
-// Byte range [begin, end) of `utf8` with whitespace trimmed off the requested
-// sides.  Codepoint start offsets are collected up front so the tail scan can
-// walk backwards without re-synchronising on UTF-8 continuation bytes.
+// Codepoint offsets collected so the tail scan avoids UTF-8 resync.
 void trim_range(const std::string& utf8, bool left, bool right,
                    std::size_t& begin, std::size_t& end) {
     std::vector<std::size_t> starts;
@@ -441,9 +415,7 @@ std::string trim_right(const std::string& utf8) {
 
 std::string quote_repr(const std::string& utf8) {
     const std::vector<char32_t> cps = utf8_decode(utf8);
-    // Single quotes by default; switch to double quotes only when the string
-    // contains an apostrophe and no double quote, so "Yuka's Mother" reads
-    // without an escape.
+    // Double-quote when the string has apostrophes but no double quotes.
     bool has_sq = false, has_dq = false;
     for (char32_t cp : cps) {
         if (cp == '\'') has_sq = true;
@@ -464,8 +436,6 @@ std::string quote_repr(const std::string& utf8) {
         } else if (cp < 0x20 || cp == 0x7F || cp == 0x85 || cp == 0xA0 || cp == 0x1680 ||
                    (cp >= 0x2000 && cp <= 0x200A) || cp == 0x2028 || cp == 0x2029 ||
                    cp == 0x202F || cp == 0x205F || cp == 0x3000) {
-            // Non-printable: the ASCII controls and every separator other than
-            // plain ' ' -- escaped so they are visible in the gate's report.
             char buf[16];
             if (cp < 0x100) std::snprintf(buf, sizeof(buf), "\\x%02x", static_cast<unsigned>(cp));
             else std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(cp));
@@ -635,8 +605,7 @@ boost::json::value json_parse_file(const std::string& path) {
         return boost::json::parse(boost::json::string_view(
             reinterpret_cast<const char*>(raw.data()), raw.size()));
     } catch (const std::exception& e) {
-        // Boost names the offset and its own header, never the file.  A run
-        // reads several JSON files, so the diagnosis says which one is bad.
+        // Boost error never names the file.
         throw std::runtime_error("cannot parse " + path + ": " + e.what());
     }
 }

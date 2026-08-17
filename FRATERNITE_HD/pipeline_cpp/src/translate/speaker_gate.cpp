@@ -24,18 +24,14 @@ namespace bj = boost::json;
 
 namespace {
 
-// The translator iterates dialogue+narrative+name+menu; the gate deliberately
-// scans only the two prose types, the only ones that can carry a speaker.
+// Only prose types can carry a speaker.
 const std::set<std::string> TRANSLATABLE_TYPES = {"dialogue", "narrative"};
 constexpr std::size_t SAMPLE_SCAN = 5000;    // entries scanned for check 1
 constexpr std::size_t SAMPLE_PROMPT = 50;    // entries used for check 3
 constexpr std::size_t MIN_SPEAKERS_FOUND = 10;
 constexpr int HIGH_FREQ_THRESHOLD = 3;
-// How many entries of a failing list are worth printing.  The list exists to
-// be pasted into the glossary, and beyond this it is a wall.
 constexpr std::size_t MAX_LISTED = 30;
 
-// Renders a list of strings as "['Ai', 'Akira']".
 std::string list_repr(const std::vector<std::string>& v) {
     std::string out = "[";
     for (std::size_t i = 0; i < v.size(); ++i) {
@@ -85,8 +81,7 @@ std::string build_gate_prompt(const std::vector<std::string>& entries) {
     return prompt;
 }
 
-// Raw (untranslated) JP speaker for the coverage scan -- NOT gated on
-// NAME_TRANSLATIONS membership.  MUST mirror translate::extract_speaker.
+// Must mirror translate::extract_speaker.
 std::string raw_jp_speaker(const std::string& text) {
     const std::size_t crlf = text.find("\r\n");
     if (crlf != std::string::npos) {

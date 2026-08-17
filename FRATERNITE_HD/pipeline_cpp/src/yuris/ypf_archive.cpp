@@ -45,8 +45,6 @@ std::vector<YpfEntry> parse_ypf_index_bytes(const Bytes& file, const std::string
     const std::uint32_t file_count = rd_u32(file, 8);
     const std::uint32_t idx_size = rd_u32(file, 12);
 
-    // Clamp the index slice at EOF, so a truncated archive yields a short
-    // index rather than an exception.
     const std::size_t idx_begin = 32;
     const std::size_t idx_end = std::min<std::size_t>(file.size(), idx_begin + idx_size);
     const Bytes idx(file.begin() + static_cast<std::ptrdiff_t>(idx_begin),
@@ -60,9 +58,7 @@ std::vector<YpfEntry> parse_ypf_index_bytes(const Bytes& file, const std::string
         const std::uint8_t name_size_raw = idx[off];
         ++off;
 
-        // Auto-detect the real name length by probing for a valid footer.  A
-        // name byte XOR 0xFF is 0x81-0xDF for any printable ASCII, i.e. always
-        // > 20, so the `t > 20` guard can never stop inside a name.
+        // Probe for a valid footer: XOR'd printable ASCII is always > 20.
         const int hinted = name_size_raw ^ YPF_NAME_XOR_KEY;
         const long long room = static_cast<long long>(idx.size()) -
                                static_cast<long long>(off) - 22;
@@ -88,8 +84,6 @@ std::vector<YpfEntry> parse_ypf_index_bytes(const Bytes& file, const std::string
             }
         }
         if (name_len == 0) name_len = hinted;
-        // The hinted fallback is unvalidated, so it can point past the end of
-        // the index; stop rather than read a footer out of bounds.
         if (off + static_cast<std::size_t>(name_len) + 22 > idx.size()) break;
 
         Bytes name_bytes(static_cast<std::size_t>(name_len));
@@ -150,8 +144,7 @@ Bytes decrypt_ystb(const Bytes& blob) {
 
 namespace {
 
-// Entry bodies are a zlib STREAM (2-byte header), not raw deflate.
-// raw_size is the index's claim, so grow instead of trusting it blindly.
+// raw_size is the index's claim; grow the buffer if it lies.
 Bytes zlib_inflate(const Bytes& in, std::uint32_t hint) {
     Bytes out(std::max<std::size_t>(hint, in.size() * 4 + 64));
     for (;;) {

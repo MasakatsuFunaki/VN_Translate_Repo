@@ -6,12 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #pragma once
-// FRATERNITE_HD runtime translator.
-//
-// IAT-hooks GDI32!TextOutA. Each call peeks the engine's buf38 (via the
-// YU-RIS state struct at RVA 0x4095F0) and, when a new CP932 message
-// is detected, builds an EN render plan and substitutes each per-glyph
-// TextOutA call with the matching ASCII chunk in a narrower font.
+// IAT-hooks GDI32!TextOutA to substitute EN render-plan chunks.
 
 #include <windows.h>
 

@@ -8,10 +8,6 @@
 | **Speakers** | 75 (太一, 見里, 美希, 霧, 冬子, 友貴, 桜庭, 曜子, 七香 …) |
 | **Delivery** | `xinput1_3.dll` — hooks LZSS decompressor, patches buffer in memory. `sn.bin` is never modified. |
 
-> **AGENT** — Ghidra is the ONLY allowed disassembly method.
-> Project: `D:\ghidra_projects\CROSS_CHANNEL`. Write `.java` GhidraScripts, run via `analyzeHeadless.bat`.
-> NEVER write Python scripts that scan EXE bytes for x86 opcodes.
-
 ## Pipeline
 
 ```

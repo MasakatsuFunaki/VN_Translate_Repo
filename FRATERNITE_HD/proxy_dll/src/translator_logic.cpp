@@ -15,7 +15,7 @@
 
 namespace translator_logic {
 
-// --- Low-level CP932 helpers --------------------------------------------
+// --- CP932 helpers ---------------------------------------------------------
 
 bool IsCp932LeadByte(unsigned char b)
 {
@@ -32,25 +32,19 @@ bool HasJPLeadByte(const std::string& s)
 
 bool IsCp932Terminator(unsigned char a, unsigned char b)
 {
-    // 0x81 0x42 = 。  fullwidth period
-    // 0x81 0x48 = ？  fullwidth question mark
-    // 0x81 0x49 = ！  fullwidth exclamation
-    // 0x81 0x76 = 」  close corner bracket (quote end)
-    // 0x81 0x63 = …  ellipsis (horizontal)
+    // 。 ？ ！ 」 …
     return a == 0x81 &&
            (b == 0x42 || b == 0x48 || b == 0x49 || b == 0x76 || b == 0x63);
 }
 
 bool IsCp932EntryStart(unsigned char a, unsigned char b)
 {
-    // 0x81 0x75 = 「  open corner bracket (speaker -> quote transition)
-    // 0x81 0x40 = 　  fullwidth space (entry separator in compound buf38)
-    if (a == 0x81 && (b == 0x75 || b == 0x40)) return true;
+    if (a == 0x81 && (b == 0x75 || b == 0x40)) return true;  // 「 or fullwidth space
     if (a == '\n') { (void)b; return true; }
     return false;
 }
 
-// --- String helpers ------------------------------------------------------
+// --- String helpers --------------------------------------------------------
 
 void UnescapeInPlace(std::string& s)
 {
@@ -82,7 +76,7 @@ bool IsPrefix(const std::string& needle, const std::string& haystack)
            std::memcmp(needle.data(), haystack.data(), needle.size()) == 0;
 }
 
-// --- TSV loading ---------------------------------------------------------
+// --- TSV loading -----------------------------------------------------------
 
 int ParseTsvBuffer(const char* data, size_t len, TranslationMap& out)
 {
@@ -128,7 +122,7 @@ bool LoadTsvFile(const std::string& path, TranslationMap& out)
     return added > 0;
 }
 
-// --- Speaker/quote split -------------------------------------------------
+// --- Speaker/quote split ---------------------------------------------------
 
 int SplitSpeakerQuote(TranslationMap& map)
 {
@@ -176,14 +170,12 @@ std::vector<Segment> SegmentMessage(const std::string& msg,
         size_t hitLen = 0;
         const std::string* hitEn = nullptr;
 
-        // Scan from longest remaining length down to 2 bytes in 2-byte
-        // steps (CP932 glyphs are 2 bytes).
+        // Longest match first, in 2-byte steps.
         for (size_t len = msg.size() - pos; len >= 2; len -= 2) {
             auto it = map.find(msg.substr(pos, len));
             if (it == map.end()) continue;
 
-            // BOUNDARY GATE: the match must represent a complete YSTB
-            // entry. See translator_logic.h for the full rationale.
+            // Boundary gate: match must align with a YSTB entry boundary.
             bool consumesRest = (pos + len == msg.size());
             bool endsAtTerminator =
                 IsCp932Terminator(static_cast<unsigned char>(msg[pos + len - 2]),
@@ -192,11 +184,7 @@ std::vector<Segment> SegmentMessage(const std::string& msg,
                 (pos + len + 2 <= msg.size()) &&
                 IsCp932EntryStart(static_cast<unsigned char>(msg[pos + len]),
                                   static_cast<unsigned char>(msg[pos + len + 1]));
-            // ALSO accept matches that are followed by a terminator
-            // (sentence end / close-bracket). Without this, an entry
-            // like "芽生、ご苦労様" (no trailing 」 in the TSV key) would
-            // be rejected when buf38 has it followed by 」 — even though
-            // 」 IS a clean entry boundary.
+            // Also accept when followed by a terminator (clean boundary).
             bool followedByTerminator =
                 (pos + len + 2 <= msg.size()) &&
                 IsCp932Terminator(static_cast<unsigned char>(msg[pos + len]),
@@ -220,7 +208,7 @@ std::vector<Segment> SegmentMessage(const std::string& msg,
     return out;
 }
 
-// --- buf38 reconstruction ------------------------------------------------
+// --- buf38 reconstruction --------------------------------------------------
 
 std::string ReconstructJpFromBuffers(const char* buf38, size_t buf38_cap,
                                      const char* buf3c, size_t buf3c_cap,
@@ -242,23 +230,16 @@ std::string ReconstructJpFromBuffers(const char* buf38, size_t buf38_cap,
             jp.push_back(buf38[byte_pos + 1]);
             byte_pos += 2;
         }
-        // 0x43 / 0x45 / 0x50 / 0x52 / 0x70 / 0x72 — non-text opcodes.
-        // The engine's renderer does NOT advance the text cursor for
-        // these, so we don't either; otherwise our reconstructed
-        // string would have stray bytes that don't match the TSV key
-        // the JP-extractor recorded.
+        // Non-text opcodes: skip to match the extractor's keys.
     }
     return jp;
 }
 
-// --- Rendering pipeline (per-glyph-slot chunk plan) ---------------------
+// --- Render plan -----------------------------------------------------------
 
 int CountCp932Glyphs(const std::string& s)
 {
-    // Counts only CP932 (2-byte) glyphs. ASCII bytes don't drive the
-    // hooked TextOutA path (the hook returns early for `c != 2`), so
-    // they don't consume plan chunks and shouldn't contribute to the
-    // glyph count the plan length is checked against.
+    // Only 2-byte glyphs — ASCII bytes don't drive the c=2 hook path.
     int n = 0;
     for (size_t i = 0; i + 1 < s.size(); ) {
         unsigned char a = (unsigned char)s[i];
@@ -335,17 +316,14 @@ void ResplitSpeakerQuote(std::vector<Segment>& segs,
         auto sit = map.find(speaker_jp);
         auto qit = map.find(quote_jp);
 
-        // Best case: both pieces are standalone keys.
+        // Both pieces are standalone keys.
         if (sit != map.end() && qit != map.end()) {
             out.push_back({speaker_jp, sit->second});
             out.push_back({quote_jp,   qit->second});
             continue;
         }
 
-        // Fallback A: speaker is a key but quote isn't (extraction may
-        // have dropped the closing close-kakko, so quote_jp isn't a TSV
-        // key). Use speaker's known EN, treat the rest of the combined
-        // EN as the quote EN.
+        // Fallback A: speaker found, quote not in TSV.
         if (sit != map.end()) {
             const std::string& speaker_en = sit->second;
             size_t en_pos = seg.en.find(speaker_en);
@@ -359,7 +337,7 @@ void ResplitSpeakerQuote(std::vector<Segment>& segs,
             }
         }
 
-        // Fallback B: split combined EN at first open-kakko or ASCII ".
+        // Fallback B: split EN at first open-kakko or ".
         size_t en_split = seg.en.find(kaku_open);
         if (en_split == std::string::npos) en_split = seg.en.find('"');
         if (en_split != std::string::npos && en_split > 0) {
@@ -368,16 +346,13 @@ void ResplitSpeakerQuote(std::vector<Segment>& segs,
             continue;
         }
 
-        // No split possible — keep combined.
+        // No split possible.
         out.push_back(std::move(seg));
     }
     segs = std::move(out);
 }
 
-// Internal: walk JP glyph-by-glyph and label every CP932 slot with
-// which segment owns it (or -1 for gap). Returns regions plus the
-// per-segment [start, own_end) ranges. ASCII bytes don't fire the
-// c=2 TextOutA hook and so don't produce a slot.
+// Label every CP932 slot with its owning segment index (-1 = gap).
 namespace {
 struct Region {
     int  seg_idx;     // -1 for gap
@@ -441,8 +416,7 @@ Layout LayOutSegments(const std::string& jp,
     return L;
 }
 
-// Extended slot count for segment `s`: own slots plus trailing gap
-// slots, until the next segment. Returns 0 if the seg has no slots.
+// Own slots plus trailing gap slots until the next segment.
 size_t ExtendedSlotsForSeg(const Layout& L, size_t s)
 {
     if (L.seg_start[s] == SIZE_MAX) return 0;
@@ -454,22 +428,8 @@ size_t ExtendedSlotsForSeg(const Layout& L, size_t s)
 }
 }  // namespace
 
-// Pack-tight planner. Walks visible segments left-to-right, deciding
-// where each segment's EN should land in the chunk array.
-//
-// Default rule: pack tight. The next segment starts at the slot
-// immediately after the previous one ended (with a leading separator
-// space prepended so consecutive sentences don't visually butt
-// together; trailing whitespace gets trimmed first so we don't
-// produce fully-blank end chunks).
-//
-// Speaker→quote exception: when the FIRST visible segment is itself
-// a TSV key (a known character name like 美桜→Mio) AND the SECOND
-// visible segment's JP starts with open-kakko `「`, the engine renders
-// the speaker as a separate label above the dialog body. Packing the
-// body into the speaker slots would land dialog bytes on top of the
-// speaker label. In that case the body segment starts at its natural
-// JP slot (the `「` position), without the separator-space prefix.
+// Pack-tight planner. The speaker->quote boundary breaks the pack so
+// the body doesn't land on the speaker label area.
 namespace {
 std::vector<PlacedSeg> ComputePackPlanInternal(
     const std::vector<Segment>& segs,
@@ -564,14 +524,7 @@ void BuildRenderPlan(const std::string& jp, const TranslationMap& map,
         return;
     }
 
-    // Doesn't fit pack-tight at this cps: fall back to the original
-    // per-segment layout — each segment renders at its own JP slot
-    // start with overflow allowed into the trailing gap (but stopped
-    // at the next segment's slot). Some content will truncate, but
-    // every segment retains its visual position so the user can at
-    // least tell which segment got cut. The auto-fit logic should
-    // narrow chars_per_slot until pack-tight fits, so this fallback
-    // only fires for genuinely-too-long messages at the max cps.
+    // Fallback: per-segment layout at natural JP positions.
     for (size_t s = 0; s < segs.size(); s++) {
         if (L.seg_start[s] == SIZE_MAX) continue;
         size_t start = L.seg_start[s];
@@ -597,15 +550,13 @@ DetectOverflows(const std::string& jp, const TranslationMap& map,
 
     Layout L = LayOutSegments(jp, segs);
 
-    // Mirror BuildRenderPlan's pack-tight test: if the planner can
-    // place every visible segment within total slots, nothing overflows.
+    // If pack-tight fits, nothing overflows.
     auto plan = ComputePackPlanInternal(segs, L, map, chars_per_slot);
     if (PlanFits(plan, L.regions.size())) {
         return out;
     }
 
-    // Fallback layout: per-segment with spillover into trailing gap.
-    // Report any segment whose EN exceeds its extended budget.
+    // Report segments whose EN exceeds the available slot budget.
     for (size_t s = 0; s < segs.size(); s++) {
         if (L.seg_start[s] == SIZE_MAX) continue;
         if (L.regions[L.seg_start[s]].is_hidden) continue;
@@ -626,20 +577,16 @@ int ComputeAutoFitCharsPerSlot(const std::string& jp,
                                int min_cps, int max_cps)
 {
     if (max_cps < min_cps) return min_cps;
-    // Smallest cps in [min, max] for which DetectOverflows is empty.
-    // DetectOverflows uses the same pack-tight model BuildRenderPlan
-    // does, so picking on it guarantees the chosen cps renders without
-    // truncation AND without inter-segment gaps.
+    // Smallest cps that fits without truncation.
     for (int cps = min_cps; cps <= max_cps; cps++) {
         if (DetectOverflows(jp, map, cps).empty()) return cps;
     }
     return max_cps;
 }
 
-// --- Full-line English reconstruction (overlay renderer) -----------------
+// --- Full-line English (overlay) --------------------------------------------
 
 namespace {
-// Trim leading/trailing spaces and collapse internal runs to one space.
 std::string CollapseSpaces(const std::string& s)
 {
     std::string out;
@@ -663,9 +610,7 @@ EnglishLine ReconstructEnglish(const std::string& jp, const TranslationMap& map)
     ResplitSpeakerQuote(segs, map);
     if (segs.empty()) return out;  // valid stays false -> caller falls through
 
-    // Leading speaker label: first segment is itself a known TSV key
-    // (a character name) AND the next segment's JP starts with open-kakko.
-    // Same shape ComputePackPlanInternal uses for its speaker exception.
+    // Detect a leading speaker label (same rule as the pack planner).
     size_t body_start = 0;
     if (segs.size() >= 2
         && map.find(segs[0].jp) != map.end()

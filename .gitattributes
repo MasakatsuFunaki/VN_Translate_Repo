@@ -1,3 +1,13 @@
 # Normalize line endings across Windows and Linux. Repo standard is LF.
 # Git auto-detects text vs binary; binaries are left alone.
 * text=auto eol=lf
+
+# cmd.exe re-seeks the script by byte offset after each command, so an LF-only
+# batch file can resume in the middle of a line and run the fragment. It
+# depends on the byte layout, which is why some of these files work and some
+# print stray errors. These two are checked out CRLF for that reason.
+#
+# The other .bat files in this tree are still LF and carry the same latent
+# fault; `*.bat text eol=crlf` would settle it for all of them.
+FRATERNITE_HD/encrypt_translations.bat text eol=crlf
+FRATERNITE_HD/decrypt_translations.bat text eol=crlf

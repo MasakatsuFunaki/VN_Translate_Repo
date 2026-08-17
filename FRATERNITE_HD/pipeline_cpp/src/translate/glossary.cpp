@@ -5,8 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// GENERATED table dump -- do not hand-edit the tables below.  They are
-// character-exact; a single wrong kanji breaks a speaker lookup silently.
+// GENERATED -- do not hand-edit. A wrong kanji silently breaks speaker lookups.
 #include "glossary.h"
 
 namespace frat::translate {

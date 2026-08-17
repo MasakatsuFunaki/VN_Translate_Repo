@@ -1,11 +1,6 @@
-# SYSTEM -- End-to-end black-box test for the FRATERNITE_HD proxy DLL.
-#
-# Two binaries:
-#   fraternite_hd_driver -- tiny fake host EXE; LoadLibrary's the proxy
-#                            so DllMain runs in a real process (writes
-#                            the banner to proxy_log.txt).
-#   fraternite_hd_dll    -- the gtest. Spawns the driver, waits, reads
-#                            the log, asserts the banner substring.
+# SYSTEM -- black-box DLL test.
+# fraternite_hd_driver: fake host that LoadLibrary's the proxy.
+# fraternite_hd_dll: gtest that spawns the driver and checks the log.
 
 include(GoogleTest)
 
@@ -24,9 +19,7 @@ target_compile_definitions(fraternite_hd_dll PRIVATE
     PROXY_DLL_PATH="$<TARGET_FILE:proxy>"
     DRIVER_EXE_PATH="$<TARGET_FILE:fraternite_hd_driver>"
     LOG_FILE_PATH="proxy_log.txt"
-    # NOTE: substring of "=== FRATERNITE_HD (YU-RIS) Proxy DLL loaded
-    # ===". Parens break MSBuild quote escaping for /D, so match the
-    # unique prefix only.
+    # Parens break MSBuild /D escaping, so match the prefix only.
     EXPECTED_BANNER="=== FRATERNITE_HD "
 )
 add_dependencies(fraternite_hd_dll proxy fraternite_hd_driver)

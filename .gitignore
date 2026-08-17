@@ -28,7 +28,9 @@
 venv/
 __pycache__/
 
-# AES passphrase for encrypt_translations.bat — never leaves this PC
+# The AES passphrase is FRATERNITE_HD/translations_key.txt, which is committed
+# and public on purpose.  The rule below is kept so that a stray key.txt — from
+# an older checkout, or from another tool — is never committed by accident.
 key.txt
 
 # Claude Code local config.  CLAUDE.md is instructions for the agent working
@@ -75,10 +77,16 @@ amakano2pe/map_images/
 # Restored on demand by mushigurui_HD10/analysys/retired_py.py
 mushigurui_HD10/analysys/_retired/
 
-# One-off model comparisons and alternate-model outputs.  A shipped game
-# publishes one translated document and its cache; these are the scratch that
-# chose the model, not the result.  The two comparison folders were deleted;
-# these rules keep a re-run from being committed by accident.
+# One-off model comparisons.  A shipped game publishes one translated document
+# and its cache; these are the scratch that chose the model, not the result.
+# The comparison folders were deleted; these rules keep a re-run from being
+# committed by accident.
 **/test/model_compare/
 **/test/sonnet_medium_rolling/
-**/script_output/translated_text_opus.json
+
+# The paid script of FRATERNITE_HD is tracked only as .enc, so no plain text of
+# it is pushed. encrypt_translations.bat --encrypt --game FRATERNITE_HD writes
+# the .enc; the JSON stays on disk for the pipeline to use.
+# The other games still track their JSON in the clear.
+FRATERNITE_HD/script_output/translated_text.json
+FRATERNITE_HD/script_output/translation_cache_anthropic.json

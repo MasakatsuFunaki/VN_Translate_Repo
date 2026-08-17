@@ -5,20 +5,8 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// The speaker gate: five checks that prove a speaker name still reaches the
-// API prompt, run before a single token is spent.
-//
-// Fraternite is "Pattern B-inline": YU-RIS writes the speaker into the line
-// itself as `Name「...」`, so extract_speaker parses the raw text with
-// inline_speaker_match.  This gate catches the regression where that parse
-// stops recognising the prefix and every dialogue line becomes NARRATION --
-// the model then has no character context and pronouns, formality and voice
-// all break, fluently and plausibly.  The run is one-shot and the cache is
-// never edited, so that damage is permanent -- which is why the checks gate
-// the translation step itself rather than sitting beside it as something to
-// remember.
-//
-// Spends ZERO API tokens: the user prompt is reconstructed locally.
+// Pre-translation gate: five checks that speaker names reach the API prompt.
+// Spends zero tokens — the user prompt is reconstructed locally.
 #pragma once
 
 #include <cstddef>
@@ -39,9 +27,6 @@ struct SpeakerCheckReport {
     std::size_t glossary_entries = 0;  // rows in the speaker table
 };
 
-// Run the checks over an extracted document and print the report as it goes.
-// Every line goes through print_line rather than log_info: the report IS the
-// gate's output, meant to be read and diffed as-is, so no timestamps.
 SpeakerCheckReport run_speaker_checks(const boost::json::object& extracted);
 
 }  // namespace frat::translate

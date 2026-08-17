@@ -54,7 +54,6 @@ std::string json_str(const bj::object& o, const char* key) {
     return {};
 }
 
-// Renders a list of ints as "[1, 2, 4]" for the malformed-response warning.
 std::string nums_repr(const std::vector<long long>& v) {
     std::string out = "[";
     for (std::size_t i = 0; i < v.size(); ++i) {
@@ -66,13 +65,11 @@ std::string nums_repr(const std::vector<long long>& v) {
 
 }  // namespace
 
-// Declared in glossary.h but defined here: glossary.cpp is generated and must
-// stay a verbatim table dump with no logic in it.
+// Defined here because glossary.cpp is a generated table dump.
 const std::vector<std::pair<std::string, std::string>>& names_by_len_desc() {
     static const std::vector<std::pair<std::string, std::string>> data = [] {
         std::vector<std::pair<std::string, std::string>> v = name_translations_ordered();
-        // STABLE sort: equal-length JP keys must keep their declaration order,
-        // or which of two same-length names wins a substitution flips.
+        // Stable: equal-length keys keep declaration order.
         std::stable_sort(v.begin(), v.end(), [](const auto& a, const auto& b) {
             return char_len(a.first) > char_len(b.first);
         });
@@ -86,8 +83,6 @@ std::optional<std::string> validate_options(int batch_size, int test_n, int max_
         return "--batch must be at least 1 (got " + std::to_string(batch_size) + ")";
     if (test_n < 0)
         return "--test cannot be negative (got " + std::to_string(test_n) + ")";
-    // A negative cap reads as "no limit" further down and would start an
-    // unbounded run -- the opposite of what the flag is for.
     if (max_batches < 0)
         return "--max-batches cannot be negative (got " + std::to_string(max_batches) +
                "); use 0 for no limit";
@@ -119,8 +114,7 @@ std::vector<std::size_t> translatable_indices(const bj::object& fdata) {
 }
 
 std::optional<std::string> inline_speaker_match(const std::string& text) {
-    // Allowed = the complement of [　-〿「『（()0-9a-zA-Z\s].  「 and 『 sit
-    // inside U+3000-303F, so they are already excluded by the range.
+    // Complement of [　-〿「『（()0-9a-zA-Z\s].
     const auto allowed = [](char32_t cp) {
         if (cp >= 0x3000 && cp <= 0x303F) return false;
         if (cp == 0xFF08 || cp == '(' || cp == ')') return false;
@@ -132,8 +126,6 @@ std::optional<std::string> inline_speaker_match(const std::string& text) {
     const std::vector<char32_t> cps = utf8_decode(text);
     std::size_t n = 0;
     while (n < cps.size() && allowed(cps[n])) ++n;
-    // Every shorter prefix is followed by an Allowed char, which can never be
-    // 「 or 『, so the greedy {1,12} can only succeed at exactly n.
     if (n == 0 || n > 12 || n >= cps.size()) return std::nullopt;
     if (cps[n] != kOpenBracket && cps[n] != kOpenDouble) return std::nullopt;
     return utf8_encode(std::vector<char32_t>(cps.begin(),
@@ -144,9 +136,7 @@ std::string extract_speaker(const std::string& text) {
     const std::size_t crlf = text.find("\r\n");
     if (crlf != std::string::npos) {
         const std::string name = trim(text.substr(0, crlf));
-        // Unlike the sibling games' pipelines, an unknown name falls back to
-        // the RAW JP name rather than NARRATION: the lookup defaults to its
-        // own key, so an off-glossary speaker still reads as a speaker.
+        // Unknown names fall back to raw JP, not NARRATION.
         if (!name.empty() && char_len(name) <= 20) {
             const auto& map = name_translations();
             auto it = map.find(name);
@@ -190,9 +180,7 @@ std::string postprocess(const std::string& original, const std::string& translat
     if (translated.empty() || translated == original) return translated;
     std::string t = sanitize_ascii(translated);
 
-    // Case A: Claude kept the brackets but left the JP name (男「Come on...」).
-    // Longest-first so 園田 doesn't eat into 園田Ｈ; the loop BREAKS on the
-    // first hit.
+    // Romanise a leading JP name. Longest-first so 園田 doesn't eat into 園田Ｈ.
     const std::string open = utf8_encode_cp(kOpenBracket);
     for (const auto& [jp_name, en_name] : names_by_len_desc()) {
         if (en_name.empty()) continue;
@@ -202,7 +190,7 @@ std::string postprocess(const std::string& original, const std::string& translat
             break;
         }
     }
-    // Case B: Claude dropped the brackets entirely.
+    // Re-attach dropped brackets.
     if (auto m = inline_speaker_match(original)) {
         if (t.find(open) == std::string::npos &&
             t.find(utf8_encode_cp(kOpenDouble)) == std::string::npos) {
@@ -223,9 +211,6 @@ Cache load_cache(const std::string& cache_file) {
     Cache cache;
     if (!fs::exists(fs::u8path(cache_file))) return cache;
     bj::value root = json_parse_file(cache_file);
-    // A cache is a JSON object of jp -> en.  get_object() rejects any other
-    // shape without saying which file it read, and the caller is often about
-    // to delete that file.
     if (!root.is_object())
         throw std::runtime_error("cannot parse " + cache_file +
                                  ": a translation cache must be a JSON object");
@@ -282,10 +267,7 @@ std::size_t purge_failed_entries(Cache& cache) {
 
 namespace {
 
-// Strip "^\[(?:NARRATION|[A-Za-z\s()'&?]+)\]\s*".  The NARRATION alternative is
-// subsumed by the character class, so one class-based scan covers both.
-// Note the '&' -- this game has speaker names like "R&B" that the sibling
-// games' classes do not have to accept.
+// Strip a leading [SPEAKER] tag. Accepts '&' for names like "R&B".
 std::string strip_speaker_tag(const std::string& line) {
     const std::vector<char32_t> cps = utf8_decode(line);
     if (cps.empty() || cps[0] != '[') return line;
@@ -302,9 +284,7 @@ std::string strip_speaker_tag(const std::string& line) {
                                              cps.end()));
 }
 
-// Matches "^(\d+)[.):\s]+\s*(.*)" where \d is the UNICODE digit set: the model
-// sometimes numbers a Japanese-heavy batch with fullwidth digits, so ASCII
-// plus U+FF10-FF19 is the accepted range.
+// Accepts ASCII and fullwidth digits (the model sometimes uses fullwidth).
 bool match_numbered(const std::string& line, long long& num, std::string& rest) {
     const std::vector<char32_t> cps = utf8_decode(line);
     const auto digit_val = [](char32_t cp) -> int {
@@ -328,10 +308,7 @@ bool match_numbered(const std::string& line, long long& num, std::string& rest) 
     while (j < cps.size() && sep_char(cps[j])) ++j;
     if (j == i) return false;  // [.):\s]+ needs at least one
     while (j < cps.size() && is_unicode_space(cps[j])) ++j;
-    // A number too large for long long can never equal any element of
-    // [0..expected_count], so the -1 sentinel makes the sequence check REJECT
-    // the whole batch instead of silently dropping the line and shifting the
-    // rest by one.
+    // Overflow -> -1 so the sequence check rejects the whole batch.
     num = overflow ? -1 : value;
     rest = utf8_encode(std::vector<char32_t>(cps.begin() + static_cast<std::ptrdiff_t>(j),
                                              cps.end()));
@@ -412,8 +389,7 @@ std::map<int, std::string> parse_translations(const std::string& response_text,
 
 namespace {
 
-// "a\r\nb" -> "a|b", truncated to `limit` CODEPOINTS (not bytes -- a byte cut
-// would split a kanji and emit mojibake).
+// Truncates at codepoints, not bytes, to avoid splitting kanji.
 std::string flatten_for_log(const std::string& txt, std::size_t limit) {
     return cp_substr(replace_all(txt, "\r\n", "|"), 0, limit);
 }
@@ -488,8 +464,6 @@ std::map<int, std::string> call_anthropic(
     body["messages"] = bj::array{std::move(msg)};
 
     if (MODEL == MODEL_SONNET) body["temperature"] = 0.3;
-    // Reasoning-budget knob (per Anthropic docs): Opus 4.7 takes adaptive
-    // thinking; Sonnet 4.6 / Opus 4.6 take output_config.effort.
     if (MODEL == MODEL_OPUS_47)
         body["thinking"] = bj::object{{"type", "adaptive"}};
     else if (MODEL == MODEL_SONNET || MODEL == MODEL_OPUS_46)
@@ -497,8 +471,7 @@ std::map<int, std::string> call_anthropic(
 
     bj::value response = client.messages(bj::value(std::move(body)));
 
-    // With adaptive thinking the first content block is thinking; the
-    // translations live in the first block whose type == "text".
+    // Adaptive thinking: skip thinking blocks, take the first text block.
     std::string response_text;
     if (auto* content = response.get_object().if_contains("content"))
         for (const auto& block : content->get_array())
@@ -570,8 +543,6 @@ std::pair<long long, bool> translate_file(anthropic::LazyClient& client, const s
             const std::size_t idx = translatable[k];
             const auto& s = strings[idx].get_object();
             const std::string text = json_str(s, "text");
-            // YU-RIS inlines `Name「...」` even inside lines tagged "narrative",
-            // so always probe rather than gating on type.
             const std::string speaker = extract_speaker(text);
             if (const std::string* en = cache.get(text)) {
                 previous_context.emplace_back(speaker, *en);
@@ -583,10 +554,7 @@ std::pair<long long, bool> translate_file(anthropic::LazyClient& client, const s
 
         if (needs_api.empty()) continue;
 
-        // The first batch the cache cannot cover is where a key becomes
-        // required.  Outside the try below on purpose: that handler catches
-        // every exception, so a missing key would be logged once per batch and
-        // the run would still finish, leaving a table full of Japanese.
+        // Outside the try: a missing key must not be swallowed per-batch.
         anthropic::Client& api = client.get();
 
         ++api_batches_done;
@@ -604,9 +572,7 @@ std::pair<long long, bool> translate_file(anthropic::LazyClient& client, const s
                 auto it = translations.find(static_cast<int>(i) + 1);
                 if (it != translations.end() && !it->second.empty()) {
                     const std::string tr = postprocess(p.text, it->second);
-                    // Reject outputs that still contain Japanese -- don't
-                    // pollute the cache; the JAPANESE goes into the context and
-                    // the line is neither cached nor counted.
+                    // Don't cache outputs that still contain Japanese.
                     if (en_has_japanese_content(tr)) {
                         log_info("    SKIP (JP in EN, not cached): " + cp_substr(tr, 0, 80));
                         previous_context.emplace_back(p.speaker, p.text);
@@ -689,9 +655,7 @@ int translate_all(const TranslateOptions& opt) {
     bj::value all_data_v = json_parse_file(opt.input_file);
     bj::object& all_data = all_data_v.get_object();
 
-    // The gate comes first, before an API key is read and before a file is
-    // removed: a run that cannot produce a correct answer must cost nothing
-    // and leave nothing behind.
+    // Gate runs before any key/file access: wrong answer = zero cost.
     log_info("\n--- Speaker gate (no tokens spent) ---");
     const SpeakerCheckReport gate = run_speaker_checks(all_data);
     if (!gate.passed) {
@@ -701,11 +665,7 @@ int translate_all(const TranslateOptions& opt) {
         return 2;
     }
 
-    // A fresh run drops what earlier runs left, so the table this run produces
-    // holds exactly what this run answered.  It happens after the gate for the
-    // same reason the gate comes first.
-    // A run that discards the cache is certain to call the API, so the key is
-    // required before anything is deleted rather than at the first batch.
+    // Require a key before deleting the cache.
     if (opt.fresh_run && anthropic::load_api_key().empty()) {
         log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
                  "cache for a run that cannot translate.");
@@ -714,22 +674,16 @@ int translate_all(const TranslateOptions& opt) {
 
     if (opt.fresh_run)
         for (const std::string& p : {opt.cache_file, opt.output_file}) {
-            // Reported, not thrown, at both steps: the throwing overloads name
-            // no file, and this run is about to translate from scratch.  A
-            // delete fails when another process holds the file open without
-            // FILE_SHARE_DELETE, which scanners, indexers and sync clients
-            // routinely do.
             const fs::path path = fs::u8path(p);
             std::error_code ec;
             const bool present = fs::exists(path, ec);
-            if (!ec && !present) continue;  // never written: nothing to remove
+            if (!ec && !present) continue;
             const bool removed = !ec && fs::remove(path, ec);
             if (ec) {
                 log_info("[ERROR] cannot delete " + p + ": " + ec.message() +
                          " -- close whatever has it open, then retry.");
                 return 1;
             }
-            // A file that vanished between the two calls was not removed here.
             log_info(removed ? "Fresh run: removed " + p
                              : "Fresh run: " + p + " was already gone");
         }
@@ -748,11 +702,9 @@ int translate_all(const TranslateOptions& opt) {
                  (purged ? "  (those lines re-queue)" : ""));
     }
 
-    // Pre-populate name translations (unconditional set: the glossary wins,
-    // and re-setting an existing key does NOT move it in the ordering).
+    // Glossary pre-population; re-setting an existing key does not move it.
     for (const auto& [jp, en] : name_translations_ordered()) cache.set(jp, en);
 
-    // Story order first, then anything else in extraction order.
     std::vector<std::string> file_order;
     for (const auto& f : story_order())
         if (all_data.if_contains(f)) file_order.push_back(f);
@@ -785,9 +737,7 @@ int translate_all(const TranslateOptions& opt) {
              " (cached: " + std::to_string(total_translatable - total_uncached) + ")");
 
     if (total_uncached == 0) {
-        // save_cache stays inside the else branch on purpose: with everything
-        // already cached the file must NOT be rewritten, even though the
-        // in-memory cache was mutated by the glossary pre-population.
+        // Don't rewrite the cache file just for glossary pre-population.
         log_info("  Everything is already cached!");
     } else {
         log_info("\n--- Translating in story order ---");
@@ -863,10 +813,6 @@ int translate_all(const TranslateOptions& opt) {
                       1024.0);
     log_info("Saved to " + opt.output_file + " (" + sz + ")");
 
-    // The runtime table is built here, in the same command that paid for the
-    // translations, so there is no step to remember between translating and
-    // playing.  Both paths above reach this line, including the one where
-    // everything was already cached.
     log_info("\n--- Building the runtime translation table ---");
     return build_tsv::run_build(opt.output_file, opt.tsv_file);
 }

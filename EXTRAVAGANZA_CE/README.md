@@ -7,10 +7,6 @@
 | **JP Strings** | 141,239 across 16 SPT files |
 | **Delivery** | Repacked SPT files + `winmm.dll` (runtime font patch) |
 
-> **AGENT** — Ghidra is the ONLY allowed disassembly method.
-> Project: `D:\ghidra_projects\EXTRAVAGANZA_CE_DUMP`. Write `.java` GhidraScripts, run via `analyzeHeadless.bat`.
-> NEVER write Python scripts that scan EXE bytes for x86 opcodes.
-
 ## Pipeline
 
 | Step | Executable | What |

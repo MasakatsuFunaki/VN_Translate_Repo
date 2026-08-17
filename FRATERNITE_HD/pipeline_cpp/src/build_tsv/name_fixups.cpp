@@ -5,8 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// GENERATED table dump -- do not hand-edit.  Every entry is character-exact;
-// a single wrong kanji silently changes which names clean_en() romanises.
+// GENERATED -- do not hand-edit. A wrong kanji silently breaks clean_en().
 #include "build_tsv/name_fixups.h"
 
 namespace frat::build_tsv {

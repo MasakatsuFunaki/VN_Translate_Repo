@@ -48,8 +48,7 @@ std::string replace_all(std::string s, const std::string& from, const std::strin
     }
 }
 
-// CP932 byte length with unencodable codepoints simply dropped -- they
-// contribute zero bytes rather than a substitute character.
+// CP932 byte length; unencodable codepoints contribute zero bytes.
 std::size_t cp932_len_ignore(const std::string& s) {
     std::size_t n = 0, i = 0;
     while (i < s.size()) {
@@ -64,12 +63,7 @@ std::string bytes_to_string(const Bytes& b) {
     return std::string(reinterpret_cast<const char*>(b.data()), b.size());
 }
 
-// Insertion-ordered set of JP variant keys.
-//
-// Insertion order is load-bearing: it decides the emission order of the
-// variants, and therefore the line order of translation_table.tsv.  A plain
-// hash set would reorder the table between runs for identical input, so the
-// output would never be reproducible or reviewable in a diff.
+// Insertion order is load-bearing: it decides TSV line order.
 class OrderedSet {
 public:
     bool insert(const std::string& v) {
@@ -87,8 +81,7 @@ private:
 
 }  // namespace
 
-// Declared in name_fixups.h; defined here because name_fixups.cpp is a
-// generated verbatim table dump and holds no logic.
+// Defined here because name_fixups.cpp is a generated table dump.
 const std::vector<std::pair<std::string, std::string>>& NameFixupsByLenDesc() {
     static const std::vector<std::pair<std::string, std::string>> data = [] {
         std::vector<std::pair<std::string, std::string>> v = NameFixups();
@@ -123,8 +116,7 @@ std::string cp932_safe(const std::string& s) {
         case 0x00A0: out += ' '; continue;
         default: break;
         }
-        // This is where the WideCharToMultiByte best-fit behaviour bites
-        // hardest: "Fraternite" with an acute accent must become '?', not 'e'.
+        // Best-fit would silently map accented Latin to ASCII; '?' is honest.
         out += cp932_encodable(cp) ? utf8_encode_cp(cp) : std::string("?");
     }
     return out;
@@ -220,17 +212,14 @@ std::vector<std::pair<std::string, std::string>> variants(const std::string& jp,
         if (!jp_v.empty() && seen.insert(jp_v)) out.emplace_back(jp_v, en_v);
     };
 
-    // 1. Base form as it came out of the translator.
     push(jp, en);
-    // 2. Ruby markers stripped to just the head word.
     const std::string jp_noruby = strip_ruby(jp);
     push(jp_noruby, en);
-    // 3. Leading ／ dropped -- a script directive the engine strips.
     const std::string slash = utf8_encode_cp(kRubySep);
     for (const std::string& base : {jp, jp_noruby})
         if (base.rfind(slash, 0) == 0) push(cp_substr(base, 1), en);
 
-    // 4. Missing-」 fixup, over a SNAPSHOT of the keys so far.
+    // Missing-」 fixup over a snapshot of current keys.
     {
         std::vector<std::string> extra;
         for (const auto& base : seen.items()) {
@@ -239,12 +228,9 @@ std::vector<std::pair<std::string, std::string>> variants(const std::string& jp,
         }
         for (const auto& c : extra) push(c, en);
     }
-    // 4b. Missing-。 fixup for lines not already terminated.
+    // Missing-。 fixup. U+301C is unreachable (CP932 0x8160 -> U+FF5E) but
+    // removing it would change the TSV.
     {
-        // U+301C WAVE DASH is listed but unreachable: CP932 0x8160 decodes to
-        // U+FF5E FULLWIDTH TILDE, so no extracted string ever ends in U+301C.
-        // Left as-is deliberately -- swapping it for U+FF5E would change which
-        // entries get the trailing 。 variant, and so the whole TSV.
         static const std::vector<char32_t> terminators = {0x3002, 0xFF01, 0xFF1F, 0x300D,
                                                           0x301C, 0x2026, '!', '?', '.'};
         std::vector<std::string> extra;
@@ -257,7 +243,7 @@ std::vector<std::pair<std::string, std::string>> variants(const std::string& jp,
         }
         for (const auto& c : extra) push(c, en);
     }
-    // 5. Mystery-speaker ？？？ variant for long enough quotes.
+    // ？？？ mystery-speaker variant for long enough quotes.
     std::string en_name, en_quote;
     if (speaker_match(trim(en), en_name, en_quote) && !en_quote.empty()) {
         const std::string mystery_prefix(3, '?');
@@ -279,9 +265,7 @@ std::vector<std::pair<std::string, std::string>> variants(const std::string& jp,
 
 namespace {
 
-// First usable value among `keys`.  An EMPTY string falls through to the next
-// key, not just a missing one -- entries carry "text": "" alongside a filled
-// "content".
+// First non-empty string value among `keys`.
 std::string or_str(const bj::object& o, std::initializer_list<const char*> keys) {
     for (const char* k : keys)
         if (auto* v = o.if_contains(k))
@@ -347,9 +331,7 @@ int run_build(const std::string& translated_file, const std::string& out_tsv) {
 
     Bytes out;
     for (const auto& [jp_b, en_b] : table) {
-        // Escaping happens AFTER the CP932 dedup -- two JP strings that differ
-        // only in an unmappable character must collide as one key -- so the
-        // bytes are round-tripped back through the codec to escape them.
+        // Escape AFTER dedup: unmappable-only differences must collide.
         const auto jp_e = to_cp932(escape_for_tsv(*cp932_to_utf8_strict(
             reinterpret_cast<const std::uint8_t*>(jp_b.data()), jp_b.size())));
         const auto en_e = to_cp932(escape_for_tsv(*cp932_to_utf8_strict(

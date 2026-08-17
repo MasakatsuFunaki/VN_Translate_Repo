@@ -1,12 +1,8 @@
-"""Emit the CP932 codec digests the ut_cp932 suite compares against.
-
-Python's cp932 codec is the parity reference for both directions.  The C++
-encoder is table-driven (it inverts the decoder) rather than a
-WideCharToMultiByte call, so it has to be pinned against the real thing --
-see hazard R-CP932-encode.  Run this whenever the digests in
-tests/ut_cp932.cpp need regenerating:
+"""Emit CP932 codec digests for ut_cp932.
 
     python tools/gen_cp932_digest.py
+
+Python's cp932 codec is the parity reference; the C++ encoder is table-driven.
 """
 import hashlib
 

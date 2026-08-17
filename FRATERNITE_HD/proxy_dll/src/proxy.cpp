@@ -8,15 +8,10 @@
 #include "proxy.h"
 #include "log.h"
 
-// ── Complete winmm.dll proxy ───────────────────────────────────────────────
-// Forwards ALL winmm.dll exports to the real System32 winmm.dll so that
-// NVIDIA drivers, codecs, and other system DLLs that import winmm functions
-// resolve correctly through our proxy.
+// Forwards all 181 winmm exports to the real System32 DLL.
 
 static HMODULE g_realWinmm = nullptr;
 
-// Function pointer table — one slot per forwarded winmm export.
-// Index matches the WINMM_FUNC enum below.
 #define WINMM_FUNC_COUNT 181
 
 static FARPROC g_procs[WINMM_FUNC_COUNT] = {0};
@@ -232,9 +227,7 @@ void ProxyShutdown() {
     }
 }
 
-// ── Naked forwarding stubs ─────────────────────────────────────────────────
-// Each stub just jumps through the corresponding function pointer.
-// __declspec(naked) avoids any prologue/epilogue so the call frame is preserved.
+// Naked stubs — jump through the function pointer, no prologue/epilogue.
 
 #define PROXY_STUB(name, idx) \
     extern "C" __declspec(naked) void __stdcall proxy_##name() { \

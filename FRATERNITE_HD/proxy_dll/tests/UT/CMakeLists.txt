@@ -1,7 +1,4 @@
-# UT — Unit Tests for FRATERNITE_HD.
-#
-# One executable per class/module. Naming: <classname>_ut.cpp →
-# target name <classname>_ut.
+# UT — Unit Tests.
 
 include(GoogleTest)
 

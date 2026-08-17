@@ -5,8 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Shared test helpers: SHA-256 (for the digest-pinned output cases), scratch
-// directories, and the synthetic bn.ypf builder.
+// Test helpers: SHA-256, scratch directories, synthetic YPF builder.
 #pragma once
 
 #include <cstdint>
@@ -37,7 +36,6 @@ inline std::string sha256_hex(const void* data, std::size_t size) {
 
 inline std::string sha256_hex(const std::string& s) { return sha256_hex(s.data(), s.size()); }
 
-// A unique scratch directory that removes itself.
 class ScratchDir {
 public:
     explicit ScratchDir(const std::string& tag) {
@@ -76,8 +74,6 @@ inline void put_u64(frat::Bytes& b, std::uint64_t v) {
     for (int i = 0; i < 8; ++i) b.push_back(static_cast<std::uint8_t>(v >> (8 * i)));
 }
 
-// Build a YPF v490 image from (name, plaintext-body) pairs, every entry
-// zlib-compressed -- the same layout the game's own archives use.
 inline frat::Bytes build_ypf(const std::vector<std::pair<std::string, frat::Bytes>>& files) {
     std::size_t index_size = 0;
     for (const auto& [name, body] : files) index_size += 27 + name.size();

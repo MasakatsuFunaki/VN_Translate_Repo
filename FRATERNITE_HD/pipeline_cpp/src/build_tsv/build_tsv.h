@@ -5,16 +5,8 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Runtime translation-table builder.
-//
-// Reads translated_text.json and writes translation_table.tsv next to
-// fraternite_hd.exe.  The proxy DLL keys on the engine's live buf38 contents
-// (raw CP932 bytes), so keys must be CP932-encodable, single-line, and
-// tab/backslash escaped:  <jp_cp932> TAB <en_cp932> LF
-//
-// Every JSON entry also produces the runtime-byte VARIANTS the engine may
-// actually render: ruby markers stripped, a leading ／ directive dropped, a
-// missing 」 closed, a missing 。 appended, and the ？？？ mystery-speaker form.
+// Runtime translation-table builder (translated_text.json -> translation_table.tsv).
+// Keys are CP932 buf38 byte strings; each line also emits variant forms.
 #pragma once
 
 #include <optional>
@@ -26,42 +18,31 @@
 
 namespace frat::build_tsv {
 
-// Only quotes at least this many CP932 bytes get a ？？？ variant -- short
-// utterances are said by everyone, so a mystery form would mislabel them.
+// Short quotes get no ？？？ variant — they are said by everyone.
 constexpr std::size_t MIN_MYSTERY_QUOTE_BYTES = 14;
 
-// Every newline form -> ' ', then a BARE strip -- U+3000 must go too, or the
-// key carries an ideographic space the engine's buffer does not.
+// Newlines -> ' ', then full-Unicode trim (U+3000 must go too).
 std::string flatten(const std::string& text);
 
-// Backslash doubled FIRST, then TAB.  No newline escape: flatten already
-// removed them.
 std::string escape_for_tsv(const std::string& text);
 
-// Substitute the handful of glyphs CP932 lacks, '?' for anything else that
-// will not encode.
+// Substitute glyphs CP932 lacks; '?' for anything unencodable.
 std::string cp932_safe(const std::string& s);
 
 std::optional<Bytes> to_cp932(const std::string& s);
 
-// Romanise raw JP names the LLM left inside the English.  Every table entry is
-// applied (no break), longest-first.
+// Romanise raw JP names the LLM left in the English, longest-first.
 std::string clean_en(const std::string& en);
 
-// ≪WORD／READING≫ -> WORD, which is what the engine draws.
+// ≪WORD／READING≫ -> WORD (what the engine draws).
 std::string strip_ruby(const std::string& s);
 
-// Append 」 when the string has more 「 than 」.
 std::string ensure_close_bracket(const std::string& s);
 
-// Splits `Name「quote」` on an already-stripped string: an optional leading ／,
-// then a non-greedy run with no 「 and no whitespace, then the quote (which may
-// span newlines).  Consequence worth knowing: "／「あ」" matches with
-// name == "／", because the optional ／ backtracks to empty.
+// Splits `Name「quote」`: "／「あ」" matches with name == "／".
 bool speaker_match(const std::string& s, std::string& name, std::string& quote);
 
-// All (jp_variant, en_variant) pairs for one translated line, deduped on the
-// jp side by an INSERTION-ORDERED set so the TSV's line order is stable.
+// All (jp_variant, en_variant) pairs for one line; insertion-ordered dedup.
 std::vector<std::pair<std::string, std::string>> variants(const std::string& jp,
                                                           const std::string& en);
 

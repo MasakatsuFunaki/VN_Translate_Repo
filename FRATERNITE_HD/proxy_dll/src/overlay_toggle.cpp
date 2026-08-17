@@ -5,10 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// overlay_toggle.cpp
-//
-// Implementation of the F1 JP/EN toggle + overlay window. See
-// overlay_toggle.h for the rationale and public surface.
+// F1 JP/EN toggle + overlay window.
 
 #include "overlay_toggle.h"
 #include "log.h"
@@ -21,12 +18,7 @@
 namespace overlay_toggle {
 namespace {
 
-// ── Recording: per-message buffer of TextOutA calls ─────────────────
-//
-// The translator hook fires this on every dialog c=2 TextOutA call.
-// We snapshot the GDI state (font, colours) too so we could replay
-// the exact pixels later if we wanted per-glyph alignment — for now
-// the JP banner just uses the bytes.
+// ── Per-message TextOutA recording ─────────────────────────────────
 struct RecordedCall {
     HDC      hdc;
     int      x, y;
@@ -49,9 +41,6 @@ std::atomic<bool>  g_threadRunning {false};
 HANDLE             g_threadHandle  = nullptr;
 
 // ── English overlay state ───────────────────────────────────────────
-// The translator hook stores the reconstructed English body here (under
-// g_ovlCs) and sets g_enDirty; the driver thread does the actual paint
-// so all overlay GDI runs on one thread.
 CRITICAL_SECTION   g_ovlCs;
 bool               g_ovlCsInit  = false;
 std::string        g_curEnglish;            // body to draw in EN mode
@@ -63,10 +52,7 @@ int (*g_msgLenProvider)()       = nullptr;  // reads engine state[+0x60]
 HFONT              g_ovlEnFont  = nullptr;
 int                g_ovlEnFontH = 0;        // client height the font was sized for
 
-// Dialogue-box geometry as fractions of the game client rect, measured
-// from in-game screenshots. The box is bottom-pinned in the lower third,
-// left-aligned. Tunable; OVL_SHOW_CALIB_RECT draws the rect outline so a
-// single screenshot calibrates these.
+// Dialogue-box geometry fractions, measured from in-game screenshots.
 constexpr double OVL_BODY_LEFT_FRAC  = 0.18;
 constexpr double OVL_BODY_RIGHT_FRAC = 0.84;
 constexpr double OVL_BODY_TOP_FRAC   = 0.78;
@@ -74,9 +60,7 @@ constexpr double OVL_BODY_BOT_FRAC   = 0.97;
 constexpr double OVL_BODY_FONT_FRAC  = 0.032;   // font em height / client height
 constexpr double OVL_SPK_TOP_FRAC    = 0.725;   // speaker name baseline above the body
 
-// Clear the overlay once the engine reports no active message for this
-// long. Longer than the ~300ms inter-message gap so we don't flicker
-// between lines, short enough to feel responsive on a dismiss.
+// Longer than the ~300ms inter-message gap to avoid flicker.
 constexpr DWORD  OVL_CLEAR_DEBOUNCE_MS = 450;
 
 // ── Overlay window ──────────────────────────────────────────────────
@@ -88,8 +72,7 @@ HBRUSH    g_ovlKeyBrush = nullptr;
 HFONT     g_ovlJpFont   = nullptr;
 int       g_ovlW        = 0;
 int       g_ovlH        = 0;
-// RGB(1,1,1) is the colour key (transparent). Pure black would punch
-// holes in shadow strokes the engine draws, so we offset by one.
+// RGB(1,1,1) avoids punching holes in shadow strokes that use pure black.
 const COLORREF OVL_COLOR_KEY = RGB(1, 1, 1);
 
 // ── Game window discovery ───────────────────────────────────────────
@@ -263,9 +246,7 @@ HFONT GetOverlayJpFont()
     return g_ovlJpFont;
 }
 
-// Bright yellow text with a black drop-shadow — chosen for max
-// contrast against arbitrary game backgrounds. Pure black for shadow
-// is fine because it's not the colour key.
+// Yellow on black drop-shadow for contrast against arbitrary backgrounds.
 void PaintOverlayString(int x, int y, const std::string& bytes)
 {
     if (bytes.empty() || !g_ovlBackDc) return;
@@ -279,9 +260,7 @@ void PaintOverlayString(int x, int y, const std::string& bytes)
     if (saved) SelectObject(g_ovlBackDc, saved);
 }
 
-// English body font: a proportional, bold, anti-aliased face sized to a
-// fraction of the client height. Re-created when the client height
-// changes (window resize / different launch).
+// Re-created when the client height changes.
 HFONT GetOverlayEnFont(int clientH)
 {
     int h = (int)(OVL_BODY_FONT_FRAC * clientH + 0.5);
@@ -302,8 +281,7 @@ HFONT GetOverlayEnFont(int clientH)
     return g_ovlEnFont;
 }
 
-// Draw one string with a black drop shadow into rect r, given format
-// flags. Assumes a font is already selected into g_ovlBackDc.
+// Caller must have a font selected into g_ovlBackDc.
 void DrawShadowed(const std::string& s, RECT r, UINT fmt, COLORREF fg)
 {
     RECT rs = r; OffsetRect(&rs, 2, 2);
@@ -313,10 +291,7 @@ void DrawShadowed(const std::string& s, RECT r, UINT fmt, COLORREF fg)
     DrawTextA(g_ovlBackDc, s.data(), (int)s.size(), &r, fmt);
 }
 
-// Paint the current message: speaker name (just above the box) and the
-// body (word-wrapped into the fractional box rect), each with a drop
-// shadow. Assumes the back buffer is already cleared to the colour key
-// and the caller holds g_ovlCs.
+// Caller holds g_ovlCs; back buffer is already cleared to the colour key.
 void PaintEnglishBody(const std::string& speaker, const std::string& body)
 {
     if (!g_ovlBackDc || body.empty()) return;
@@ -387,12 +362,7 @@ void RepaintOverlay()
     UpdateWindow  (g_ovlHwnd);
 }
 
-// ── Overlay driver thread ───────────────────────────────────────────
-//
-// Single owner of all overlay painting (so GDI stays single-threaded).
-// Each tick it: (1) handles the F1 JP/EN edge, (2) paints any new
-// English the hook queued (g_enDirty), (3) clears the overlay once the
-// engine reports no active message for OVL_CLEAR_DEBOUNCE_MS.
+// ── Overlay driver thread (owns all painting) ──────────────────────
 
 DWORD WINAPI OverlayDriverThread(LPVOID)
 {

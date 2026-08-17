@@ -10,10 +10,6 @@
 In-game Config → フォント must be **UD デジタル 教科書体 N**. The glyph advance is a fixed
 8px tuned to that font, so any other one renders cramped. Stored per install in `Save/SYSTEM.SAV`.
 
-> **AGENT** — Ghidra is the ONLY allowed disassembly method.
-> Project: `D:\ghidra_projects\Shingakkou`. Write `.java` GhidraScripts, run via `analyzeHeadless.bat`.
-> NEVER write Python scripts that scan EXE bytes for x86 opcodes.
-
 ## Pipeline
 
 ```

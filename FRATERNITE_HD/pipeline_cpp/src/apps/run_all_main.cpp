@@ -5,20 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// 00_run_all -- Fraternite HD Remaster English translation pipeline
-// orchestrator.
-//
-//   00_run_all                  # the whole pipeline
-//   00_run_all --test           # 1 batch smoke test
-//   00_run_all --test N         # N batches then stop
-//   00_run_all --max-batches N  # cap the run at N API requests
-//   00_run_all --batch N        # lines per API request
-//   00_run_all --clean          # delete cached JSON, then run
-//
-// Steps: 01_extract -> 02_translate -> deploy.  The translation step carries
-// the speaker gate and the runtime table with it, which is why there are three
-// steps and not five: everything that must happen for the game to show English
-// happens inside the command that pays for it.
+// 00_run_all -- orchestrator: 01_extract -> 02_translate -> deploy.
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
@@ -40,7 +27,6 @@ namespace {
 
 int run_command(const std::string& cmdline) {
     print_line("Running: " + cmdline);
-    // std::system returns the child's exit code on Windows.
     return std::system(("\"" + cmdline + "\"").c_str());
 }
 
@@ -54,26 +40,15 @@ void run_step(const std::string& exe, const std::vector<std::string>& args,
     }
 }
 
-// Ship the artifact the game reads.  Nothing is rebuilt here: a rebuild would
-// relink the very executable running this, and the copy would then fail on a
-// locked binary whenever a pipeline source had changed.
-//
-// The DLL is a hard failure -- without it the game shows Japanese and nothing
-// says why.  The table is a soft one, and it is not copied at all: 02_translate
-// writes it straight into the game folder, so the only thing left to report is
-// whether the runtime will find one.
+// Copy winmm.dll to the game folder. The table is not copied — 02_translate
+// writes it directly.
 bool deploy(const std::string& project, const std::string& game) {
     if (const char* dist = std::getenv("VN_DIST_BUILD"); dist && *dist) {
         log_info("[DIST] VN_DIST_BUILD set -- skipping the copy to the game folder.");
         return true;
     }
 
-    // The whole game builds into one tree, so the DLL is in build/proxy; when
-    // this executable is the staged copy under build/install/bin, the DLL is
-    // in the sibling game/ folder instead.
-    // Asked for, not thrown, like the copies below: a status query that fails
-    // says nothing about whether the file is there, and the throwing overload
-    // would end the run from here with no diagnosis at all.
+    // Non-throwing: a status query that fails is not proof the file is absent.
     std::error_code ec;
     fs::path dll;
     for (const auto& candidate : {project + "\\build\\proxy\\Release\\winmm.dll",
@@ -136,23 +111,16 @@ int main(int argc, char** argv) {
     po::variables_map vm;
     if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
 
-    // The caps are validated here as well as in the translation step, because
-    // this is the command that starts an unattended full run: a mistyped cap
-    // must fail before a key is read and before an archive is touched.
+    // Fail-fast: a mistyped cap must cost nothing.
     if (auto why = translate::validate_options(batch, test_n, max_batches)) {
         log_info("[ERROR] " + *why);
         return 2;
     }
 
-    // Both discard the cache; guard runs early so a refusal costs nothing.
     const std::string out_dir = project + "\\script_output";
     const std::string cache_file = out_dir + "\\translation_cache_anthropic.json";
     if (clean || test_n > 0) {
-        // Counting the cache parses it, and a cache that cannot be parsed
-        // throws.  Handled here because this guard runs before the banner: an
-        // escaping throw would end the run with no output at all.  A cache
-        // nobody could read is a refusal like any other, so nothing is
-        // deleted and the file is left as it is.
+        // An unparseable cache is a refusal, not a crash.
         try {
             if (auto why = translate::refuse_cache_discard(
                     translate::cache_entry_count(cache_file),
@@ -166,7 +134,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Children inherit explicit paths so a --dir override propagates.
     const std::string passthrough =
         " --dir \"" + project + "\" --game-dir \"" + game + "\"";
 
@@ -178,10 +145,7 @@ int main(int argc, char** argv) {
 
     anthropic::load_api_key();
 
-    // --clean and --test discard the cache, and a run that discards it is
-    // certain to need the API.  Checked before the deletion: without this the
-    // cache would go and the translation step would then fail for the missing
-    // key, losing work that cannot be rebuilt.
+    // Check before deletion: losing the cache without a key loses paid work.
     if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
         log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
                  "cache for a run that cannot translate.");
@@ -191,14 +155,10 @@ int main(int argc, char** argv) {
     if (clean) {
         for (const char* f : {"extracted_text.json", "translated_text.json",
                               "translation_cache_anthropic.json"}) {
-            // Reported, not thrown, at both steps: the throwing overloads
-            // would end the run with no diagnosis.  A delete fails when
-            // another process holds the file open without FILE_SHARE_DELETE,
-            // which scanners, indexers and sync clients routinely do.
             fs::path p = fs::u8path(out_dir + "\\" + f);
             std::error_code ec;
             const bool present = fs::exists(p, ec);
-            if (!ec && !present) continue;  // never written: nothing to clean
+            if (!ec && !present) continue;
             const bool removed = !ec && fs::remove(p, ec);
             if (ec) {
                 log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
@@ -206,7 +166,6 @@ int main(int argc, char** argv) {
                          " -- close whatever has it open, then retry.");
                 return 1;
             }
-            // A file that vanished between the two calls was not deleted here.
             log_info(std::string("[clean] ") + f +
                      (removed ? "" : " was already gone"));
         }
@@ -228,7 +187,6 @@ int main(int argc, char** argv) {
         if (test_n > 0) {
             args.emplace_back("--test");
             args.emplace_back(std::to_string(test_n));
-            // Propagate so the child's own guard does not re-block.
             if (discard_cache) args.emplace_back("--discard-cache");
         } else if (max_batches > 0) {
             args.emplace_back("--max-batches");

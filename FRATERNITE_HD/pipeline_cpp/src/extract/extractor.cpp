@@ -83,8 +83,7 @@ std::vector<Run> dialogue_runs(const Bytes& file, const std::string& path) {
         if (!all_digits(digits)) continue;
         picked.emplace_back(std::stoll(digits), entry);
     }
-    // Story scripts (>= 156) first, both groups ascending; stable so equal
-    // keys keep YPF index order.
+    // Story scripts (>= 156) first, both groups ascending.
     std::stable_sort(picked.begin(), picked.end(),
                      [](const auto& a, const auto& b) {
                          const int ga = a.first >= STORY_SCRIPT_START ? 0 : 1;
@@ -101,14 +100,13 @@ std::vector<Run> dialogue_runs(const Bytes& file, const std::string& path) {
 std::vector<Run> sidecar_runs(const Bytes& file, const std::string& path) {
     std::vector<yuris::YpfEntry> entries;
     for (const auto& entry : yuris::parse_ypf_index_bytes(file, path)) {
-        // Membership is tested on the basename as stored, NOT lowercased.
         if (plaintext_ybn_basenames().count(yuris::basename(entry.name)))
             entries.push_back(entry);
     }
     return scan_selected(file, entries, /*require_ystb=*/false);
 }
 
-// Insertion-ordered per-YBN string counter (R5).
+// Insertion-ordered per-YBN string counter.
 class FileCounter {
 public:
     void bump(const std::string& name) {
@@ -177,9 +175,7 @@ std::vector<std::string> split_into_messages(const std::string& text) {
         const std::string buf = utf8_encode(
             std::vector<char32_t>(cps.begin() + static_cast<std::ptrdiff_t>(buf_start),
                                   cps.begin() + static_cast<std::ptrdiff_t>(end)));
-        // The emptiness test uses the BARE strip, so a buffer of nothing but
-        // U+3000 is dropped -- but a buffer that IS kept is pushed UNSTRIPPED,
-        // because its leading U+3000 is part of what the engine renders.
+        // Trim tests emptiness but the kept buffer is unstripped: U+3000 is rendered.
         if (!trim(buf).empty()) out.push_back(buf);
         buf_start = end;
         i = end;
@@ -229,8 +225,6 @@ bj::object extract_from_archives(const std::string& pac_dir) {
         FileCounter per_file_count;
         long long skipped_no_jp = 0;
         for (const auto& run : runs) {
-            // One entry per on-screen message so the runtime proxy can match
-            // the engine's buffer contents 1:1.
             std::size_t piece_offset = run.offset;
             for (const auto& piece : split_into_messages(run.text)) {
                 if (global_seen.count(piece)) {

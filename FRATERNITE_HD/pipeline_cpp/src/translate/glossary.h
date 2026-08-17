@@ -5,10 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Fraternite HD Remaster character glossary + the Anthropic system prompt.
-//
-// glossary.cpp is GENERATED so the tables stay character-exact; regenerate
-// rather than hand-edit:
+// GENERATED character glossary + system prompt. Do not hand-edit glossary.cpp.
 #pragma once
 
 #include <string>
@@ -18,28 +15,15 @@
 
 namespace frat::translate {
 
-// Insertion-ordered (JP, EN) pairs.  The order is load-bearing: it is the
-// order the cache is seeded in, and therefore the key order of
-// translation_cache_anthropic.json.
+// Insertion order is load-bearing — it seeds the cache key order.
 const std::vector<std::pair<std::string, std::string>>& name_translations_ordered();
-
-// JP -> EN lookup map over the same data.
 const std::unordered_map<std::string, std::string>& name_translations();
 
-// Same pairs, STABLE-sorted by descending codepoint length of the JP key --
-// postprocess() substitutes longest-first so 園田 cannot eat into 園田Ｈ.
+// Descending codepoint length so 園田 cannot eat into 園田Ｈ.
 const std::vector<std::pair<std::string, std::string>>& names_by_len_desc();
 
 extern const char* const SYSTEM_PROMPT;
-
-// Files are translated in this order; anything not listed follows in the
-// order it appears in extracted_text.json.
 const std::vector<std::string>& story_order();
-
-// ── Available models (edit MODEL below to switch) ──
-// Same rate card for Opus 4.6 and 4.7 ($5/$25 per Mtok), but 4.7's new
-// tokenizer can emit up to 35% more tokens for the same text — 4.6 is
-// effectively cheaper per request. Sonnet 4.6 stays the cheap baseline.
 inline const std::string MODEL_HAIKU = "claude-haiku-4-5-20251001";
 inline const std::string MODEL_SONNET = "claude-sonnet-4-6";
 inline const std::string MODEL_OPUS_46 = "claude-opus-4-6";

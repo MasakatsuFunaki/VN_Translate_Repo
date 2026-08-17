@@ -41,8 +41,7 @@ constexpr const char* API_PORT = "443";
 constexpr const char* API_PATH = "/v1/messages";
 constexpr const char* API_VERSION = "2023-06-01";
 
-// OpenSSL doesn't read the Windows certificate store on its own; import the
-// ROOT store so peer verification of api.anthropic.com actually works.
+// OpenSSL needs the Windows ROOT store for peer verification.
 void load_windows_root_certs(asio::ssl::context& ctx) {
     HCERTSTORE store = CertOpenSystemStoreW(0, L"ROOT");
     if (!store) return;

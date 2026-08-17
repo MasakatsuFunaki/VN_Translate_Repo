@@ -35,8 +35,6 @@ std::string trim_ascii_edges(const std::string& utf8) {
         if (jpish(cps[i])) { start = i; found = true; break; }
     }
     if (!found) return {};
-    // The initial value is never observable: `start` is itself Japanese, so
-    // the backward scan always terminates on it at the latest.
     std::size_t end = cps.size();
     for (std::size_t i = cps.size(); i-- > start;) {
         if (jpish(cps[i])) { end = i + 1; break; }
@@ -79,7 +77,6 @@ std::vector<std::pair<std::size_t, std::string>> scan_cp932_jp(
                 if (i == start) ++i;
                 continue;
             }
-            // Only these five characters are trimmed, so U+3000 survives.
             static const std::string kEdgeChars(" \t\r\n\0", 5);
             const std::string text = strip_chars(trim_ascii_edges(*decoded), kEdgeChars);
             if (!text.empty() && has_japanese_run(text)) out.emplace_back(start, text);

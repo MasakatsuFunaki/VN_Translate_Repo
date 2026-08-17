@@ -1,24 +1,9 @@
-"""Build a synthetic bn.ypf out of analysys/ybn_samples so step 1 can be
-verified without the game installed.
+"""Build a synthetic bn.ypf from analysys/ybn_samples for offline step-1 testing.
 
-The four checked-in samples are already DECRYPTED blobs.  The YSTB body cipher
-is a plain u32 XOR, i.e. an involution, so applying it to the plaintext
-yst00001.ybn re-ENCRYPTS it -- that is how the archive gets a realistic
-encrypted YSTB body.
+    python tools/make_ypf.py <out_dir>
 
-Seven entries, chosen to exercise the whole step-1 chain:
-  ysbin\\yst00156.ybn, ysbin\\yst00157.ybn  same body twice -> story-first
-                                            ordering AND global_seen dedup
-  ysbin\\yst00001.ybn                       helper-script ordering
-  ysbin\\yscfg.ybn, ysbin\\yse.ybn,
-  ysbin\\yst_list.ybn                       the plaintext sidecars
-  ysbin\\yst.ybn                            excluded from the dialogue set,
-                                            matched as a sidecar
-
-Result is deterministic: 11,711 bytes, and 01_extract over it yields 388
-entries / 88,098 bytes (the digest ut_extract.EndToEnd_SyntheticArchive pins).
-
-Usage: python tools/make_ypf.py <out_dir>      (writes <out_dir>/pac/bn.ypf)
+Seven entries exercise story-first ordering, dedup, sidecars, and encryption.
+Deterministic output pinned by ut_extract.EndToEnd_SyntheticArchive.
 """
 import os
 import struct

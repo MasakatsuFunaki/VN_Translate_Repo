@@ -1,41 +1,10 @@
 """FRATERNITE_HD build driver — Conan 2 + CMake + MSVC.
 
-    python build.py                    # build everything, tests included
-    python build.py --test             # build, then run all the tests
-    python build.py --install          # build, then stage what the user runs
-    python build.py --deploy --game-dir DIR    # build, then ship to the game
-    python build.py --test --deploy --game-dir DIR    # ship only if tests pass
-    python build.py --clean            # delete the build tree
+    python build.py --test --install --deploy --game-dir DIR
+    python build.py --clean
 
-Release only.  Fraternite HD Remaster is a 32-bit MFC140 binary, so the two
-halves are built for different architectures and that is the trap this script
-exists to hide: `pipeline_cpp` is x64 (the tools that read the YPF archives and
-call the API), `proxy_dll` is Win32 because it is injected into the game
-process.  One CMake project cannot hold both, so the root CMakeLists.txt drives
-each half as a separate sub-build with its own Conan profile and toolchain.
-
-One build folder for the whole game:
-
-    build/pipeline/   pipeline_cpp, x64
-    build/proxy/      proxy_dll, Win32
-    build/install/    what --install stages: bin/ to run, game/ to copy
-
-A bare run builds every binary including the test executables; `--test` also
-runs them, every tier of both halves.  When `--test` and `--deploy` are given
-together the tests gate the deploy, so a regression is never shipped.
-
-Deploying copies `winmm.dll` — the export-forwarder that hooks
-`GDI32.TextOutA` — into the game folder.  It is the only file the deploy ships:
-unlike the other games, the translation step writes `translation_table.tsv`
-straight into the game folder, so there is no copy of the table in the project
-to copy from.  The deploy only reports whether that table is already in place.
-The game folder comes from `--game-dir`, which has no default because the
-install path differs per machine.  Set VN_DIST_BUILD to skip the whole deploy
-step, because a distribution build stages the artifacts itself and may run
-where no game is installed.
-
-This script builds; it never runs the pipeline executables.  Translating calls
-a paid API, so that stays an explicit, separate action.
+Hides the x64/Win32 split: pipeline_cpp is x64, proxy_dll is Win32.
+--test gates --deploy.  Set VN_DIST_BUILD to skip the game-folder copy.
 """
 
 import os
@@ -50,13 +19,9 @@ INSTALL_DIR = os.path.join(BUILD_DIR, "install")
 CONFIG = "Release"
 PRESET = "windows-release"
 
-# The table the translation step writes into the game folder.  The deploy
-# never produces it; it only says whether the runtime will find one.
 TABLE_NAME = "translation_table.tsv"
 
-# The halves, for the steps CMake does not own.  ctest is per sub-build:
-# each half has its own binary dir and its own test preset, and a single
-# ctest run cannot span the two.
+# ctest is per sub-build: a single ctest run cannot span both architectures.
 HALVES = [
     ("pipeline_cpp (x64)", os.path.join(ROOT, "pipeline_cpp"),
      "conan-windows-x64-release"),
@@ -80,9 +45,7 @@ def clean():
     else:
         print("Nothing to clean.")
 
-    # Conan rewrites these on every install and they point into the tree we
-    # just deleted; a stale one makes `cmake --preset` fail on a file that no
-    # longer exists, which reads like a broken preset rather than a stale one.
+    # Stale user-presets make `cmake --preset` fail after a clean.
     for _, source_dir, _ in HALVES:
         user_presets = os.path.join(source_dir, "CMakeUserPresets.json")
         if os.path.exists(user_presets):
@@ -90,20 +53,12 @@ def clean():
 
 
 def build():
-    # The root project configures and builds both halves: it runs Conan for
-    # each, configures each through its own preset, and builds each in its
-    # own binary dir under build/.
     run(["cmake", "--preset", PRESET], ROOT)
     run(["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
 
 
 def has_test_preset(source_dir, preset):
-    """True when the half exposes `preset` as a TEST preset.
-
-    Not every half has one, and `ctest --preset` on a missing preset fails the
-    way a broken build does.  Asking ctest itself keeps the answer honest even
-    when the preset lives in the Conan-generated CMakeUserPresets.json.
-    """
+    """True when the half exposes `preset` as a TEST preset."""
     out = subprocess.run(["ctest", "--list-presets"], cwd=source_dir,
                          capture_output=True, text=True)
     return f'"{preset}"' in out.stdout
@@ -122,6 +77,32 @@ def test():
             sys.exit(rc)
 
 
+def stage_translations():
+    """Stage .enc artifacts and the decrypt batch into install/."""
+    src = os.path.join(ROOT, "script_output")
+    dst = os.path.join(INSTALL_DIR, "script_output")
+    names = ["translated_text.json.enc", "translation_cache_anthropic.json.enc"]
+
+    present = [n for n in names if os.path.isfile(os.path.join(src, n))]
+    if not present:
+        print("  script_output: no .enc to stage — run "
+              "encrypt_translations.bat --encrypt first")
+        return
+
+    os.makedirs(dst, exist_ok=True)
+    for name in present:
+        shutil.copyfile(os.path.join(src, name), os.path.join(dst, name))
+        print(f"  script_output/{name}")
+
+    for name in ("decrypt_translations.bat", "translations_key.txt"):
+        path = os.path.join(ROOT, name)
+        if os.path.isfile(path):
+            shutil.copyfile(path, os.path.join(INSTALL_DIR, name))
+            print(f"  {name}")
+        else:
+            print(f"  MISSING {name} at {path} — the install cannot be decrypted")
+
+
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
@@ -132,6 +113,8 @@ def install():
             for name in sorted(os.listdir(path)):
                 print(f"  {folder}/{name}")
 
+    stage_translations()
+
 
 def deploy(game_dir):
     if os.environ.get("VN_DIST_BUILD"):
@@ -140,10 +123,7 @@ def deploy(game_dir):
 
     print(f"\nDeploying to {game_dir}...")
 
-    # From the build tree, not the install tree: --deploy has to work whether
-    # or not --install was asked for, and the build tree is always the fresher
-    # of the two.
-    # The DLL is a hard failure: the usual cause is the game holding it open.
+    # From the build tree (always fresher than install).
     dll = os.path.join(BUILD_DIR, "proxy", CONFIG, "winmm.dll")
     try:
         shutil.copyfile(dll, os.path.join(game_dir, "winmm.dll"))
@@ -151,8 +131,7 @@ def deploy(game_dir):
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # The table is a soft failure: the pipeline writes it into the game folder
-    # itself, so a missing one just means it has not been run yet.
+    # Soft failure: 02_translate writes the table; missing just means it hasn't run.
     if not os.path.exists(os.path.join(game_dir, TABLE_NAME)):
         print(f"WARN: {TABLE_NAME} not in the game folder — run 02_translate.exe first.")
 
@@ -178,14 +157,12 @@ def main():
         clean()
         return
 
-    # Checked before the build, so a missing --game-dir fails in a second
-    # rather than after a full compile.
+    # Fail fast before a full compile.
     if args.deploy and not args.game_dir:
         sys.exit("--deploy needs --game-dir: the install path differs per machine")
 
     build()
 
-    # Tests run before any staging or deploy, so --test gates both.
     if args.test:
         test()
 
