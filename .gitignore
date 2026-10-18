@@ -102,3 +102,7 @@ mushigurui_HD10/analysys/_retired/
 # The other games still track their JSON in the clear.
 FRATERNITE_HD/script_output/translated_text.json
 FRATERNITE_HD/script_output/translation_cache_anthropic.json
+
+# SakuraNoUta's translate step writes every raw API answer here on each run.
+# It repeats the script line by line, and nothing reads it back.
+SakuraNoUta/script_output/anthropic_raw_answers.log
