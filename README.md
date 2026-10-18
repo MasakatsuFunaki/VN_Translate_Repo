@@ -14,7 +14,7 @@ runtime — the original game files stay untouched.
 | CROSS†CHANNEL FC | Shipped |
 | Shingakkou ~Noli me tangere~ DL | Shipped |
 | Fraternite HD | Shipped |
-| Sakura no Uta | In progress |
+| Sakura no Uta | Shipped |
 | Sakura no Toki | In progress |
 | Adieu | In progress |
 | 夜、灯す。 | In progress |
