@@ -26,7 +26,7 @@
 | 11 | **Decided to try going up to the floor above.** | — |
 | 12 | **I'll mark Lucifer.** | here Lucifer is correct |
 | 13 | **Let me deliberately make a prophecy that could come true.** | ⚠️ "Let's avoid the danger." → BAD branch |
-| 14 | **I think I'll go with Lucifer after all.** | ⚠️ "Or maybe I should mark all the rest of them." = **BAD** |
+| 14 | **I think I'll go with Lucifer after all.** | either option is safe |
 | 15 | *H-scene position (either):* **Get him back** = Michael×Leonid · **Leave it alone** = Leonid×Michael | not good/bad — both continue the route, only the scene differs |
 | 16 | ✅ **I'll trust Chris after all.** | **GOOD END**. ⚠️ "It can't be helped. I have to go." = **BAD END** |
 
@@ -61,7 +61,7 @@
 | 12 | **Accept it.** | ⚠️ "No, I can't, not something like this." = **BAD** |
 | 13 | *H-scene position (either):* **I reached my hand toward Cecil's lower belly.** = Michael×Cecil · **I simply let out a sigh.** = Cecil×Michael | not good/bad — both continue the route, only the scene differs |
 | 14 | **Let me deliberately make a prophecy that could come true.** | ⚠️ "Let's avoid the danger." → BAD branch |
-| 15 | **I think I'll go with Lucifer after all.** | ⚠️ "Or maybe I should mark all the rest of them." = **BAD** |
+| 15 | **I think I'll go with Lucifer after all.** | either option is safe |
 | 16 | ✅ **I just glared at him.** | **GOOD END**. ⚠️ "I took that hand." = **BAD END** |
 
 ---
@@ -90,7 +90,7 @@
 | 11 | **I thought about heading to the library.** | (Leonid goes "up to the floor above") |
 | 12 | **I'll mark Furcas.** | here Furcas is correct (Leonid marks Lucifer here) |
 | 13 | **Let me deliberately make a prophecy that could come true.** | ⚠️ "Let's avoid the danger." → BAD branch |
-| 14 | **I think I'll go with Lucifer after all.** | ⚠️ "Or maybe I should mark all the rest of them." = **BAD** |
+| 14 | **I think I'll go with Lucifer after all.** | either option is safe |
 | 15 | *H-scene position (either):* **I leaned against him quietly.** = Neil×Michael · **I reached for Neil's own once more.** = Michael×Neil | not good/bad — both continue the route, only the scene differs |
 | 16 | **Nodded.** | ⚠️ "I shook my head firmly." = **BAD** |
 | 17 | ✅ **I thought, no, I can't after all.** | **GOOD END**. ⚠️ "I decided to kill the demon." = **BAD** |
@@ -140,7 +140,7 @@ main02 → main03 → main04 → leo01 → main05 → august01 → august02 → 
 | 14 | **I pushed Gabby's hand away.** | free — the other option instead feeds Gabby's counter |
 | 15 | **I bit down hard on my lip and rode out the urge.** | free |
 | 16 | **Let me deliberately make a prophecy that could come true.** | ⚠️ "Let's avoid the danger." = **ed_main_bad2** at the end of main08 |
-| 17 | **I think I'll go with Lucifer after all.** | either option is safe — see [Verified mechanics](#verified-mechanics) |
+| 17 | **I think I'll go with Lucifer after all.** | either option is safe |
 | 18 | *H-scene position (either):* **I'll do it with my mouth.** = Michael×August · **Please, give it to me.** = August×Michael | not good/bad — both continue the route, only the scene differs |
 | 19 | **I turned my back on them both.** | ⚠️ "Biting my lip, I knelt where I stood." = **BAD END** (august_ed_bad1) |
 | 20 | ✅ **「…………」** | **GOOD END**. ⚠️ "I raised the sword." = **BAD END** (august_ed_bad2) |
@@ -148,8 +148,7 @@ main02 → main03 → main04 → leo01 → main05 → august01 → august02 → 
 **Notes**
 - The boathouse menu in august05 does **not** appear on this route — with fewer
   than 5 Gabby points the script walks you to the boathouse itself.
-- #20's option text is the bare ellipsis 「…………」 in both languages; the
-  pipeline leaves it untranslated on purpose.
+- #20's option text is the bare ellipsis 「…………」 in both languages.
 
 ---
 
@@ -189,7 +188,7 @@ Same as August's #2–#8 above, except the first pick:
 | 17 | **No, I couldn't. I wouldn't go to the boathouse.** | 🔑 splits Gabriel off from August. ⚠️ **the menu only shows up with all 5 Gabby picks** (#1, #9, #10, #15, #16) — otherwise the game takes the boathouse for you and you finish on August's route |
 | 18 | *H-scene position (either):* **"I'll pay you back one day."** = Michael×Gabby · **「…………」** = Gabby×Michael | not good/bad — both continue the route, only the scene differs |
 | 19 | **Let me deliberately make a prophecy that could come true.** | ⚠️ "Let's avoid the danger." = **ed_main_bad2** |
-| 20 | **Or maybe I should mark all the rest of them.** | the walkthrough's pick for this route; either option is safe — see [Verified mechanics](#verified-mechanics) |
+| 20 | **Or maybe I should mark all the rest of them.** | either option is safe |
 | 21 | ✅ **Even so, I shook my head.** | **GOOD END**. ⚠️ "I was nodding at Father August's words." = **BAD END** (gabriel_ed_bad1) |
 
 ---
@@ -207,45 +206,3 @@ one has a single verified trigger.
 
 There is no separate "true" ending script. Gabriel's GOOD END is the last one
 the game unlocks, and it is the closest thing the game has to one.
-
----
-
-## Verified mechanics
-
-`analysys/dump_choice_menus.py` lists every `2A 10 FF 00` choice table with its
-option strings and branch targets; `analysys/dump_script_graph.py` interleaves
-those with the script-to-script jumps and the flag writes. Between them they
-cover all 32 menus in all 91 scripts. What that showed:
-
-**Route unlock flags** — persistent, written by the GOOD END scripts.
-
-| Var | Set by | Gates |
-|-----|--------|-------|
-| `0x384` / `0x385` / `0x386` | cecil / neil / leo `_ed_good` | main02 option **4** (August) |
-| `0x387` | `august_ed_good` | main02 option **5** (Gabriel) |
-
-**Per-run counters.**
-
-| Var | Meaning | Where it is tested |
-|-----|---------|--------------------|
-| `0x320`–`0x323` | Cecil / Neil / Leonid / August affection | main07_1 and main07_3 exits |
-| `0x325`–`0x329` | Cecil / Neil / Leonid / August / Gabriel route lock | main07_3, main08 and main09_4 dispatch |
-| `0x32a` / `0x32b` | August / Gabby points | main05's lake option (`0x32a ≥ 2`), main07_1's exit (`0x32b ≥ 3`), august05's boathouse menu (needs all 5 Gabby points) |
-| `0x32c`–`0x32f` | Lucifer / Eligos / Astaroth / Furcas marks | main07_3's Leonid gate (`0x32c ≥ 2`), main09_4's `ed_main_bad3` gate (`0x32d == 0`) |
-| `0x334` | "avoided the danger" | main08's `ed_main_bad2` gate |
-
-**Four choices carry a visibility condition** — everything else is always
-selectable:
-
-- main02 option 4 "Looked at the door to the sacristy." — the three GOOD flags
-- main02 option 5 "Looked behind me." — August's GOOD flag
-- main05 option 4 "Let's go to the lake" — August #2 taken, August #5 taken, August points ≥ 2
-- main06 option 3 "I need to go to Leonid's room." — Leonid affection ≥ 2
-
-**main08's second menu is not route-critical on any route.** "I think I'll go
-with Lucifer after all." adds to the Lucifer mark counter, "Or maybe I should
-mark all the rest of them." sets `0x330`; neither value is read after main09_1,
-and no ending gate looks at either. The Leonid/Cecil/Neil tables above mark the
-second option ⚠️ on the walkthrough's authority, and the Gabriel table follows
-the same source in picking it — but the bytecode says both options only change
-narration.
