@@ -1,0 +1,5 @@
+# Conan / CMake build tree (also covered by the repo-level .gitignore)
+build/
+
+# Conan-generated user presets (machine-local; committed CMakePresets.json is the source of truth)
+CMakeUserPresets.json
