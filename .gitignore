@@ -9,7 +9,6 @@
 /docs/
 /FAVORITE/
 /kishin_hisho/
-/sakuranotoki/
 /TOOLS/
 
 # The aggregate install tree the root build.py stages -- build output, and the
@@ -102,6 +101,17 @@ mushigurui_HD10/analysys/_retired/
 # The other games still track their JSON in the clear.
 FRATERNITE_HD/script_output/translated_text.json
 FRATERNITE_HD/script_output/translation_cache_anthropic.json
+
+# The script of sakuranotoki, in every form it takes on disk.  The repository
+# is public, so the translated document, the cache that holds the paid answers
+# and the table the game loads stay out of it; the run logs carry the same text
+# line by line.  iarsys_orig.dll is a copy of a game binary, which is not this
+# repository's to publish.
+sakuranotoki/translations.tsv
+sakuranotoki/script_output/translated_text.json
+sakuranotoki/script_output/translation_cache_anthropic.json
+sakuranotoki/script_output/*.log
+sakuranotoki/proxy_dll/iarsys_orig.dll
 
 # SakuraNoUta's translate step writes every raw API answer here on each run.
 # It repeats the script line by line, and nothing reads it back.

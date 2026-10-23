@@ -1,0 +1,23 @@
+; iarsys.dll export forwarding.
+;
+; Sakura no Toki's iarsys.dll exports 10 symbols.  We forward ALL of them
+; to the renamed original (iarsys_orig.dll).  The actual proxy thunks are
+; implemented as naked-jmp stubs in proxy.cpp — the LIBRARY directive +
+; EXPORTS block here just defines the names that DllMain's import
+; redirection will resolve to.
+;
+; The forwarding uses linker-level redirection so the engine sees the
+; same export table our `iarsys.dll` had originally.
+
+LIBRARY iarsys
+EXPORTS
+    Delete                  = iarsys_orig.Delete
+    GetConsolePosition      = iarsys_orig.GetConsolePosition
+    GetDesktopSize          = iarsys_orig.GetDesktopSize
+    GetDllVersion           = iarsys_orig.GetDllVersion
+    GetExecFullpath         = iarsys_orig.GetExecFullpath
+    GetExecName             = iarsys_orig.GetExecName
+    GetWindowPosition       = iarsys_orig.GetWindowPosition
+    SetConsolePosition      = iarsys_orig.SetConsolePosition
+    SetWindowPosition       = iarsys_orig.SetWindowPosition
+    SetWindowSize           = iarsys_orig.SetWindowSize
