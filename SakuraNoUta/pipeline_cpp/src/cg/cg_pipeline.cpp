@@ -525,23 +525,66 @@ Image epigraph_render(const CgOptions& opt, int n_lines, const Image& img) {
     const std::array<std::uint8_t, 3> INK = {38, 26, 18};  // dark sepia
     struct Line { const char* text; int y; int x; int size; };
     const std::vector<Line> LINES = {
-        {"If that is nothingness, then nothingness itself is just as it appears here", 316, 208, 28},
-        {"and to a certain degree it is common to all",                                357, 380, 28},
-        {"Just as all things are everyone within me",                                  512, 460, 28},
-        {"so too is everything within each and every one",                             553, 350, 28},
-        {"  -- 'Spring and Asura' Preface",                                            614, 950, 22},
+        {"If this be nothingness, then nothingness itself is just this,", 316, 260, 28},
+        {"and to some degree, it is shared by us all;",                   357, 390, 28},
+        {"for just as everything within me is everyone,",                 512, 440, 28},
+        {"so too is everything within each and every one.",               553, 350, 28},
+        {"  -- 'Spring and Asura' Preface",                               614, 950, 22},
     };
 
     if (n_lines == 0) return img;
     Image base = img;
-    if (auto blank = decode_entry(opt.game_dir + "\\data02501.arc", "sp0065a"))
+    if (auto blank = decode_entry(opt.game_dir + "\\data02501.arc.backup", "sp0065a"))
         base = *blank;
+    else if (auto blank2 = decode_entry(opt.game_dir + "\\data02501.arc", "sp0065a"))
+        base = *blank2;
     std::string fp = default_font_path();
     for (int i = 0; i < n_lines && i < static_cast<int>(LINES.size()); ++i) {
         const Line& ln = LINES[static_cast<std::size_t>(i)];
         auto font = Font::load(fp, ln.size);
         if (!font) font = Font::load(FONT_FALLBACK, ln.size);
         if (font) font->draw(base, ln.x, ln.y, ln.text, INK);
+    }
+    return base;
+}
+
+// sp0067a..f — Nakahara Chuuya 'Spring Day Rhapsody' (春日狂想), progressive
+// reveal onto sp0067a (the blank background) so petals are never boxy-inpainted.
+Image chuuya_render(const CgOptions& opt, int frame, const Image& img) {
+    const std::array<std::uint8_t, 3> INK = {236, 232, 246};
+    struct Line { const char* text; int y; int x; int size; };
+    const std::vector<Line> STANZA_1 = {
+        {"When the one you love has died,", 252, 135, 34},
+        {"you must take your own life.",    304, 285, 34},
+        {"When the one you love has died,", 460, 540, 34},
+        {"there is no other way.",          512, 720, 34},
+    };
+    const std::vector<Line> STANZA_2 = {
+        {"Come now, everyone, come now, all together --", 322, 180, 36},
+        {"In proper tempo, let us shake hands.",          378, 430, 36},
+    };
+
+    if (frame == 0) return img;
+    Image base = img;
+    if (auto blank = decode_entry(opt.game_dir + "\\data02501.arc.backup", "sp0067a"))
+        base = *blank;
+    else if (auto blank2 = decode_entry(opt.game_dir + "\\data02501.arc", "sp0067a"))
+        base = *blank2;
+
+    std::string fp = default_font_path();
+    if (frame >= 1 && frame <= 4) {
+        for (int i = 0; i < frame && i < static_cast<int>(STANZA_1.size()); ++i) {
+            const Line& ln = STANZA_1[static_cast<std::size_t>(i)];
+            auto font = Font::load(fp, ln.size);
+            if (!font) font = Font::load(FONT_FALLBACK, ln.size);
+            if (font) font->draw(base, ln.x, ln.y, ln.text, INK);
+        }
+    } else if (frame == 5) {
+        for (const auto& ln : STANZA_2) {
+            auto font = Font::load(fp, ln.size);
+            if (!font) font = Font::load(FONT_FALLBACK, ln.size);
+            if (font) font->draw(base, ln.x, ln.y, ln.text, INK);
+        }
     }
     return base;
 }
@@ -558,6 +601,13 @@ manual_overrides() {
                 t.emplace_back(std::make_pair(std::string("data02501.arc"), entry),
                                [n](const CgOptions& o, const Image& img) {
                                    return epigraph_render(o, n, img);
+                               });
+            }
+            for (int n = 0; n < 6; ++n) {
+                std::string entry = std::string("sp0067") + static_cast<char>('a' + n);
+                t.emplace_back(std::make_pair(std::string("data02501.arc"), entry),
+                               [n](const CgOptions& o, const Image& img) {
+                                   return chuuya_render(o, n, img);
                                });
             }
             // Add more hand-tuned entries here.
@@ -851,6 +901,8 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
     std::map<std::string, std::map<std::string, Bytes>> by_arc;
     for (const auto& cv : candidates) {
         const auto& c = cv.get_object();
+        const std::string arc(c.at("arc").get_string());
+        const std::string entry(c.at("entry").get_string());
         std::string bmp;
         if (auto* p = c.if_contains("patched_bmp"))
             if (p->is_string()) bmp = std::string(p->get_string());
@@ -858,9 +910,22 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
         // replacement is read from: a recorded path from before the project
         // folder moved no longer names a readable file.
         bmp = resolve_patched_path(bmp, paths.out_dir);
-        if (bmp.empty()) continue;
-        by_arc[std::string(c.at("arc").get_string())]
-              [std::string(c.at("entry").get_string())] = read_file(bmp);
+        if (!bmp.empty()) {
+            by_arc[arc][entry] = read_file(bmp);
+            continue;
+        }
+        std::string arc_src = opt.game_dir + "\\" + arc + ".backup";
+        if (!fs::exists(fs::u8path(arc_src)))
+            arc_src = opt.game_dir + "\\" + arc;
+        if (const OverrideFn* fn = find_override(arc, entry)) {
+            if (auto img = decode_entry(arc_src, entry))
+                by_arc[arc][entry] = encode_bmp((*fn)(opt, *img));
+        } else if (auto* r = c.if_contains("regions");
+                   r && r->is_array() && !r->get_array().empty()) {
+            if (auto img = decode_entry(arc_src, entry))
+                by_arc[arc][entry] =
+                    encode_bmp(render_translation(*img, r->get_array()));
+        }
     }
 
     if (by_arc.empty()) {

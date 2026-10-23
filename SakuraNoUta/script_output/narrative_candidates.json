@@ -2,7 +2,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0065a",
-    "confidence": 1.0,
+    "confidence": 1E0,
     "description": "manual override",
     "regions": [],
     "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0065a.bmp"
@@ -10,47 +10,47 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0065b",
-    "confidence": 1.0,
+    "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0065b.bmp"
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065b.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0065c",
-    "confidence": 1.0,
+    "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0065c.bmp"
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065c.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0065d",
-    "confidence": 1.0,
+    "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0065d.bmp"
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065d.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0065e",
-    "confidence": 1.0,
+    "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0065e.bmp"
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065e.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0065f",
-    "confidence": 1.0,
+    "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0065f.bmp"
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065f.bmp"
   },
   {
     "arc": "data02500.arc",
     "entry": "ev3000c",
-    "confidence": 0.82,
+    "confidence": 8.2E-1,
     "description": "A document or paper held by the character contains vertical Japanese text that appears to be a written passage or letter with multiple lines of narrative content, overlaid as part of the scene artwork rather than a standard text box.",
     "regions": [
       {
@@ -71,7 +71,7 @@
   {
     "arc": "data02500.arc",
     "entry": "ev3000e",
-    "confidence": 0.82,
+    "confidence": 8.2E-1,
     "description": "A sheet of paper held by the character contains Japanese text that appears to be a written passage or document with multiple lines of kanji/characters, suggesting it is a letter, poem, or story-relevant written content integrated into the scene artwork.",
     "regions": [
       {
@@ -92,7 +92,7 @@
   {
     "arc": "data02500.arc",
     "entry": "ev3000f",
-    "confidence": 0.82,
+    "confidence": 8.2E-1,
     "description": "A sheet of paper held by the character contains vertical Japanese text, appearing to be a letter, poem, or written passage that is part of the story narrative — not a UI element or background sign.",
     "regions": [
       {
@@ -125,7 +125,7 @@
   {
     "arc": "data02500.arc",
     "entry": "ev3000g",
-    "confidence": 0.82,
+    "confidence": 8.2E-1,
     "description": "A document or letter with Japanese text is visible being held by the character. The text appears to be a formal written document with multiple lines of kanji/Japanese characters, suggesting it is story-relevant content such as a letter, notice, or passage integral to the visual novel's narrative.",
     "regions": [
       {
@@ -158,7 +158,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002c",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' are written on the chalkboard in a calligraphic style, appearing to be a title card or scene/location name that is story-relevant, rendered as part of the artwork rather than a standard UI text box.",
     "regions": [
       {
@@ -179,7 +179,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002d",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' are written on the chalkboard in a stylized handwritten manner, appearing to be a title card or scene/location title relevant to the story — likely the name of a school or organization central to the visual novel's narrative.",
     "regions": [
       {
@@ -200,7 +200,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002e",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' are overlaid on the chalkboard in a stylized handwritten font, appearing to function as a scene or location title card relevant to the story narrative.",
     "regions": [
       {
@@ -221,7 +221,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002m",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' are written on the chalkboard in a stylized manner, appearing to be a title card or location name relevant to the story — likely the name of the school or scene setting written as a narrative title overlay.",
     "regions": [
       {
@@ -242,7 +242,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002n",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' are written on a chalkboard in the background, appearing to be a location/scene title (likely the name of a school or place) rendered as a title card element within the artwork.",
     "regions": [
       {
@@ -263,7 +263,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002o",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' are written in a handwritten style on the chalkboard background, appearing to be a scene/location title card (likely the name of a school or place relevant to the story) overlaid as narrative text rather than a background element.",
     "regions": [
       {
@@ -284,7 +284,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002p",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' are written in a calligraphic style on what appears to be a chalkboard, functioning as a title card or scene/location title relevant to the story.",
     "regions": [
       {
@@ -305,7 +305,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002q",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' (Misakura Ura) are written on the chalkboard in a stylized brush script, appearing to function as a scene/chapter title card or location title within the visual novel's narrative.",
     "regions": [
       {
@@ -326,7 +326,7 @@
   {
     "arc": "data02500.arc",
     "entry": "evb002r",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Two kanji characters '御桜裏' (Misakura Ura/Ura) are written in a calligraphic style on what appears to be a chalkboard, likely functioning as a scene or chapter title card for this visual novel.",
     "regions": [
       {
@@ -347,7 +347,7 @@
   {
     "arc": "data02501.arc",
     "entry": "ic0004d",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A chapter/scene title card reading 'Ⅲ A Nice Derangement of Epitaphs' overlaid on the artwork — this is a story-relevant narrative title in English, referencing a literary phrase (from Richard Sheridan's 'The Rivals'), functioning as a chapter title card.",
     "regions": [
       {
@@ -367,15 +367,8 @@
   },
   {
     "arc": "data02501.arc",
-    "entry": "ic0005a",
-    "confidence": 0.95,
-    "description": "A literary/philosophical quote overlaid on the artwork: 'IV What is mind? No matter. What is matter? Never mind.' — presented as a chapter or scene title card with a poetic passage, styled as narrative text integrated into the visual composition.",
-    "regions": []
-  },
-  {
-    "arc": "data02501.arc",
     "entry": "ic0007a",
-    "confidence": 0.72,
+    "confidence": 7.2E-1,
     "description": "Text visible on the left side reading '『VI　　　　　　　』' — appears to be a chapter or scene title card with Roman numeral VI enclosed in Japanese quotation marks, suggesting a story chapter heading with partially visible or faded Japanese text within.",
     "regions": [
       {
@@ -396,7 +389,7 @@
   {
     "arc": "data02501.arc",
     "entry": "ic0007b",
-    "confidence": 0.97,
+    "confidence": 9.7E-1,
     "description": "A chapter/scene title card reading 『VI　桜の森の下を歩む』which translates to 'VI Walking Beneath the Cherry Blossom Forest' — a story-relevant chapter title overlaid on the artwork.",
     "regions": [
       {
@@ -417,7 +410,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0042a",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "A scene/chapter title card displaying '閑話休題' (meaning 'digression aside' or 'back to the main topic'), formatted as a decorative title with horizontal lines flanking the text, centered on an ornate pastel background.",
     "regions": [
       {
@@ -438,7 +431,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043a",
-    "confidence": 0.97,
+    "confidence": 9.7E-1,
     "description": "A literary title card or scene heading reads '——斯くして私は乙女を愛した——' (roughly: '——And thus I loved the maiden——'), styled with em-dashes on both sides, overlaid on the artwork as a narrative title or chapter heading.",
     "regions": [
       {
@@ -459,7 +452,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043c",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "A scene/chapter title card reading '転調' (modulation/key change) displayed beneath a stylized circular logo with closed eye imagery, formatted as a decorative title card with horizontal lines flanking the text.",
     "regions": [
       {
@@ -480,7 +473,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043d",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A scene/chapter title card with the Japanese text '——予感——' (meaning '——Premonition——'), displayed as a stylized title overlay on the artwork.",
     "regions": [
       {
@@ -501,7 +494,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043f",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "The word 'ZYPRESSEN' (German for 'cypresses') is displayed as a chapter/scene title card in the center of the image, flanked by decorative horizontal lines. This appears to be a story-relevant title card rather than UI or credits.",
     "regions": [
       {
@@ -522,7 +515,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043g",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A chapter/scene title card reading '転調 Ⅱ' (Modulation II / Key Change II) displayed in the center of the image with decorative horizontal lines flanking it, consistent with a story segment title card.",
     "regions": [
       {
@@ -543,7 +536,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043h",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A scene/chapter title card reading '——予感Ⅱ——' (roughly 'Premonition II') displayed in decorative Japanese text with ornamental dashes, centered on the image as a story-relevant title card.",
     "regions": [
       {
@@ -564,7 +557,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043j",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A chapter/scene title card displaying '——象徴と死——' (Symbol and Death) centered on the image, rendered in a stylized font overlaid on the artwork with decorative dashes, consistent with a story chapter title.",
     "regions": [
       {
@@ -585,7 +578,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043k",
-    "confidence": 0.93,
+    "confidence": 9.3E-1,
     "description": "A scene or chapter title card reading '──櫻の芸術家──' (The Artist of Cherry Blossoms), styled as a decorative title overlay on a soft watercolor background.",
     "regions": [
       {
@@ -606,7 +599,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043l",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A chapter/scene title card reading '転調 III' (Modulation III / Key Change III) centered on the image, formatted as a story section divider with decorative horizontal lines on either side.",
     "regions": [
       {
@@ -627,7 +620,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043m",
-    "confidence": 0.93,
+    "confidence": 9.3E-1,
     "description": "A chapter/scene title card reading '——欅の芸術家Ⅱ——' (The Artist of the Zelkova II), styled with decorative dashes, overlaid on the artwork as a story-relevant title card.",
     "regions": [
       {
@@ -648,7 +641,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043n",
-    "confidence": 0.9,
+    "confidence": 9E-1,
     "description": "A scene or chapter title card reads '── 真夏の絵画 ──' (Midsummer Painting/Picture), styled with decorative dashes on either side, overlaid on the artwork as a story-relevant title.",
     "regions": [
       {
@@ -669,7 +662,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043o",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "A scene or chapter title card reading '——未完成のグラフィティ群——' (roughly 'Unfinished Graffiti Collection/Group') overlaid on decorative artwork, styled as a story-relevant title.",
     "regions": [
       {
@@ -690,7 +683,7 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0043p",
-    "confidence": 0.92,
+    "confidence": 9.2E-1,
     "description": "The text '——終劇——' (meaning 'End' or 'The End' of the play/drama) is displayed centered on the image, framed by decorative theatrical curtains. This is a story-relevant title card marking the conclusion of a scene or the entire narrative.",
     "regions": [
       {
@@ -711,132 +704,47 @@
   {
     "arc": "data02501.arc",
     "entry": "sp0067b",
-    "confidence": 0.97,
+    "confidence": 9.7E-1,
     "description": "White Japanese text overlaid on the artwork reading '愛するものが死んだ時には' (roughly 'When the one you love has died'), appearing as a poetic or literary passage displayed over a dark purple atmospheric scene with floating petals.",
-    "regions": [
-      {
-        "text_jp": "愛するものが死んだ時には",
-        "text_en": "When the one you love has died",
-        "bbox": [
-          130,
-          248,
-          525,
-          292
-        ],
-        "text_color": "#e8e8f0",
-        "bg_tone": "dark"
-      }
-    ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0067b.bmp"
+    "regions": [],
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067b.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0067c",
-    "confidence": 0.97,
+    "confidence": 9.7E-1,
     "description": "Two lines of Japanese text overlaid on the artwork reading '愛するものが死んだ時には / 自殺しなけあなりません。' ('When the one you love dies, you must commit suicide.') — presented as a poetic or literary passage on a title card style screen with no text box.",
-    "regions": []
+    "regions": [],
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067c.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0067d",
-    "confidence": 0.98,
+    "confidence": 9.8E-1,
     "description": "Two lines of Japanese text overlaid on the artwork forming what appears to be a poetic or lyrical passage: '愛するものが死んだ時には / 自殺しなけあなりません。' (When one who is loved dies / one must commit suicide) and a partial repeat '愛するものが死んだ時には', styled as a literary poem or song lyric rendered directly on the CG background without a text box.",
-    "regions": []
+    "regions": [],
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067d.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0067e",
-    "confidence": 0.98,
+    "confidence": 9.8E-1,
     "description": "Two poetic/literary passages overlaid on the artwork: '愛するものが死んだ時には 自殺しなけあなりません。' (When the one you love dies, you must commit suicide.) and '愛するものが死んだ時には それより他に、方法がない。' (When the one you love dies, there is no other way.) — appearing to be a poem or literary quote rendered as title-card style text over the visual novel CG.",
-    "regions": [
-      {
-        "text_jp": "愛するものが死んだ時には",
-        "text_en": "When the one you love has died,",
-        "bbox": [
-          130,
-          248,
-          540,
-          290
-        ],
-        "text_color": "#e8e8f0",
-        "bg_tone": "dark"
-      },
-      {
-        "text_jp": "自殺しなけあなりません。",
-        "text_en": "you must take your own life.",
-        "bbox": [
-          280,
-          290,
-          620,
-          335
-        ],
-        "text_color": "#e8e8f0",
-        "bg_tone": "dark"
-      },
-      {
-        "text_jp": "愛するものが死んだ時には",
-        "text_en": "When the one you love has died,",
-        "bbox": [
-          540,
-          458,
-          940,
-          500
-        ],
-        "text_color": "#e8e8f0",
-        "bg_tone": "dark"
-      },
-      {
-        "text_jp": "それより他に、方法がない。",
-        "text_en": "there is no other way.",
-        "bbox": [
-          720,
-          500,
-          1210,
-          548
-        ],
-        "text_color": "#e8e8f0",
-        "bg_tone": "dark"
-      }
-    ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0067e.bmp"
+    "regions": [],
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067e.bmp"
   },
   {
     "arc": "data02501.arc",
     "entry": "sp0067f",
-    "confidence": 0.97,
+    "confidence": 9.7E-1,
     "description": "Poetic/lyrical Japanese text overlaid on the artwork reading: 'ハイ、ではみなさん、ハイ、ご一緒に―― テンポ正しく、握手をしませう。' (roughly: 'Yes, everyone, yes, all together—— In proper tempo, let us shake hands.'). This appears to be a literary passage or song lyric rendered directly over the CG artwork, not in a standard dialogue text box.",
-    "regions": [
-      {
-        "text_jp": "ハイ、ではみなさん、ハイ、ご一緒に——",
-        "text_en": "Alright, everyone, alright, all together now——",
-        "bbox": [
-          148,
-          320,
-          1050,
-          375
-        ],
-        "text_color": "#e8e8ff",
-        "bg_tone": "dark"
-      },
-      {
-        "text_jp": "テンポ正しく、握手をしませう。",
-        "text_en": "In perfect tempo, let us shake hands.",
-        "bbox": [
-          390,
-          370,
-          1155,
-          425
-        ],
-        "text_color": "#e8e8ff",
-        "bg_tone": "dark"
-      }
-    ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0067f.bmp"
+    "regions": [],
+    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067f.bmp"
   },
   {
     "arc": "data02503.arc",
     "entry": "ed05_end01",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A stylized title or poetic phrase overlaid on the image reads 'ふわふわの櫻の森で、世界が鳴った' (roughly: 'In the fluffy cherry blossom forest, the world resonated/rang'), rendered in a decorative cloud-like pink banner with red outline text, consistent with a chapter title card or literary passage in a visual novel.",
     "regions": [
       {
@@ -857,7 +765,7 @@
   {
     "arc": "data02503.arc",
     "entry": "ev4006e_bg",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "Text written on an anime character's body/skin reading '直哉くん専用♥' (Naoya-kun's exclusive/reserved ♥), which is story-relevant text integrated into the artwork as part of the scene's narrative content.",
     "regions": [
       {
@@ -878,7 +786,7 @@
   {
     "arc": "data02503.arc",
     "entry": "logo_sakuuta1",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "The image shows Japanese katakana and kanji text 'サクラノ詩' (Sakura no Uta / Poem of Sakura) overlaid on artistic imagery of feathers and a moon with cherry blossom petals. This appears to be a title card for the visual novel 'サクラノ詩', making it a story-relevant title/scene card rather than UI or credits.",
     "regions": [
       {
@@ -899,7 +807,7 @@
   {
     "arc": "data02503.arc",
     "entry": "logo_sakuuta2",
-    "confidence": 0.95,
+    "confidence": 9.5E-1,
     "description": "A stylized title card or scene heading reading '櫻の森の上を舞う' (Dancing above the cherry blossom forest), presented with decorative horizontal lines on either side, suggesting a chapter or scene title overlay.",
     "regions": [
       {
@@ -920,7 +828,7 @@
   {
     "arc": "data02503.arc",
     "entry": "sp0044a_tare",
-    "confidence": 0.85,
+    "confidence": 8.5E-1,
     "description": "Large stylized Japanese/CJK characters overlaid on the image in an artistic title-card style, appearing to be a chapter or scene title with story-relevant text, partially obscured by a white redaction block in the center.",
     "regions": [
       {
@@ -941,7 +849,7 @@
   {
     "arc": "data02503.arc",
     "entry": "sp0044b_tare",
-    "confidence": 0.72,
+    "confidence": 7.2E-1,
     "description": "The image appears to contain large overlaid Japanese/stylized text spanning across the upper portion of the image, consistent with a title card or scene/chapter heading rendered as artwork over a dark background. The text appears decorative and story-relevant rather than UI or credits.",
     "regions": [
       {
