@@ -2967,7 +2967,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "\"Wouldn't it be cool if I tried it...?\""
+    "translated": "　Wouldn't it be cool if I tried it...?"
    },
    {
     "offset": 85653,
@@ -6826,7 +6826,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"If this be nothingness, then nothingness itself is thus,"
+    "translated": "\"If this be nothingness, then nothingness itself is just this,"
    },
    {
     "offset": 105578,
@@ -6835,7 +6835,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "and to a certain degree, common to all of us.\""
+    "translated": "and to some degree, it is shared by us all.\""
    },
    {
     "offset": 105617,
@@ -10521,7 +10521,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　So even if I get treated like that, it can't be helped, I suppose..."
+    "translated": "　So I can't really blame her for giving me that kind of attitude..."
    },
    {
     "offset": 79266,
@@ -15267,7 +15267,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "圭",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 86882,
@@ -18190,7 +18190,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"This isn't a joke -- I need to ask about the fact that every single one of those is right!\""
+    "translated": "\"All joking aside! How the hell did you get every single one of those right?!\""
    },
    {
     "offset": 107091,
@@ -21409,7 +21409,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Ai made a troubled face."
+    "translated": "Ai wore an exasperated look."
    },
    {
     "offset": 59961,
@@ -22523,7 +22523,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 66525,
@@ -23772,7 +23772,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "\"When one you love has died,"
+    "translated": "When the one you love has died,"
    },
    {
     "offset": 192550,
@@ -23781,7 +23781,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "you must kill yourself."
+    "translated": "you must take your own life."
    },
    {
     "offset": 192575,
@@ -23790,7 +23790,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "There is no other way.\""
+    "translated": "There is no other way."
    },
    {
     "offset": 192639,
@@ -24130,7 +24130,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Now, everyone, come, all together--"
+    "translated": "Come now, everyone, come now, all together --"
    },
    {
     "offset": 193998,
@@ -24139,7 +24139,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "In perfect tempo, let us shake hands."
+    "translated": "In proper tempo, let us shake hands."
    },
    {
     "offset": 194045,
@@ -27661,7 +27661,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Yes, how should I put it, I'm not actually his real little sister.\nMore like a spiritual little sister...... that kind of pathetic thing.\""
+    "translated": "\"Yes, how should I put it -- I'm not actually his real little sister.\nMore like a little sister in spirit...... that sort of cringeworthy arrangement.\""
    },
    {
     "offset": 212395,
@@ -28030,7 +28030,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"No, the matter of the letters is settled by that troubled face you're making right now.\nThe fact that you're troubled means you cared, at least a little......\""
+    "translated": "\"No, seeing that guilty look on your face right now makes us even on the letters.\nThe fact that it bothers you means you cared, at least a little......\""
    },
    {
     "offset": 215353,
@@ -28228,7 +28228,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"I've known Kusanagi-senpai for about six years, and he's been kind to me since then, so somehow, whether by circumstance or the mood of the moment or as a stupid joke, I ended up with the setting of being his spiritual little sister.\""
+    "translated": "\"I've known Kusanagi-senpai for about six years, and he's been kind to me since then, so somehow, whether by circumstance or the mood of the moment or as a stupid joke, we ended up going with the story that I'm his little sister in spirit.\""
    },
    {
     "offset": 217927,
@@ -28480,7 +28480,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　For some reason, Hikawa mutters this with a lonely look."
+    "translated": "　For some reason, Hikawa mutters this wistfully."
    },
    {
     "offset": 219554,
@@ -28532,7 +28532,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Close as siblings, huh.\nWell, it's true we've had a stuck-together tie since way back.\""
+    "translated": "\"Close as siblings, huh.\nWell, it's true we've been stuck with each other for ages.\""
    },
    {
     "offset": 219923,
@@ -29278,7 +29278,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 224896,
@@ -40842,7 +40842,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 204903,
@@ -48527,7 +48527,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 258268,
@@ -55380,7 +55380,7 @@
     "text": "こんな事で我が身が危険な目に遭うのも考え物だ。",
     "has_jp": true,
     "type": "other",
-    "translated": "Putting my own life in danger over something like this is something to think about."
+    "translated": "Putting my own neck on the line over something like this is out of the question."
    },
    {
     "offset": 171950,
@@ -55388,7 +55388,7 @@
     "text": "たしかに氷川が危険な目に遭うのも考え物だ。",
     "has_jp": true,
     "type": "other",
-    "translated": "It's true that putting Hikawa in danger is also something to think about."
+    "translated": "Letting Hikawa get into danger really isn't an option either."
    },
    {
     "offset": 171993,
@@ -55397,7 +55397,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Putting my own life in danger over something like this is something to think about."
+    "translated": "Putting my own neck on the line over something like this is out of the question."
    },
    {
     "offset": 172042,
@@ -55406,7 +55406,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "It's true that putting Hikawa in danger is also something to think about."
+    "translated": "Letting Hikawa get into danger really isn't an option either."
    },
    {
     "offset": 172098,
@@ -56189,7 +56189,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"Aye, that it is! Universal gravitation is my field of expertise. I've earned doctorates on nothing but universal gravitation, conquering all six universities. To dare present a report on universal gravitation without my permission -- ridiculous!\""
+    "translated": "\"Aye, that it is! Universal gravitation is my field of expertise. I've earned doctorates across all of Tokyo's Big Six universities on universal gravitation alone! To dare present a report on universal gravitation without my permission -- ridiculous!\""
    },
    {
     "offset": 177188,
@@ -56270,7 +56270,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"Indeed! Taking the initial of Einstein's equations, people call them the 'i' equations! In other words, gravity is love!\""
+    "translated": "\"Indeed! Taking the first sound of Einstein -- 'ai' -- people call them the 'i' equations! And 'ai' means love -- so gravity is love!\""
    },
    {
     "offset": 177912,
@@ -56324,7 +56324,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Could you teach me more about that, in detail?\nI'd like to see what a revolving planet looks like... myself.\""
+    "translated": "\"Could you teach me more about that, in detail?\nI'd love to see what planets drawn to each other look like... myself.\""
    },
    {
     "offset": 178564,
@@ -56333,7 +56333,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"Ah, of course, little lady. I'll show you the sight of a revolving planet-- huh?\""
+    "translated": "\"Ah, of course, little lady. I'll show you what planets drawn together look like-- huh?\""
    },
    {
     "offset": 178657,
@@ -57529,7 +57529,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"Move, move! Richard Matheson! I'm gonna G! E! K! I! T! O! Tsu!\""
+    "translated": "\"Outta the way! Richard Matheson's Duel -- C-R-A-S-H incoming!\""
    },
    {
     "offset": 186914,
@@ -60627,7 +60627,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 107012,
@@ -60888,7 +60888,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"The time I spend talking with the likes of you is precious indeed.\""
+    "translated": "\"Talking with the likes of you is a waste of my precious time.\""
    },
    {
     "offset": 109005,
@@ -63376,7 +63376,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"Family planning made cheerful...\""
+    "translated": "\"'Bright Family Planning' condoms...\""
    },
    {
     "offset": 128603,
@@ -65276,7 +65276,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"What's wrong? You're making such a difficult face.\""
+    "translated": "\"What's wrong? You have such a grim look on your face.\""
    },
    {
     "offset": 109557,
@@ -66521,7 +66521,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "？？？",
-    "translated": "\"Oho. Playing with water guns, are we? Looks fun-nya.\""
+    "translated": "\"Oho. Playing with water guns, are we? Looks like fun, eh?\""
    },
    {
     "offset": 116478,
@@ -67865,7 +67865,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"I've come on my own to answer the summons of witness.\""
+    "translated": "\"I took the liberty of summoning myself to the witness stand.\""
    },
    {
     "offset": 126213,
@@ -69740,7 +69740,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "圭",
-    "translated": "\"That's not it. It's just that someone slightly wrong showed up.\""
+    "translated": "\"That's not it. Somebody who's a little off in the head just showed up.\""
    },
    {
     "offset": 59405,
@@ -69749,7 +69749,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"That 'wrong' person is you, you bastaaaard! You are the wrong existence!\""
+    "translated": "\"That 'somebody' is you, you bastaaaard! You're the one whose whole existence is a mistake!\""
    },
    {
     "offset": 59507,
@@ -71596,7 +71596,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"If anything happens with you, I'll wind up saddled with the duty of inheriting Kusanagi Ken'ichirou's estate, so watch yourself.\""
+    "translated": "\"If anything happens to you after that, I'll be honor-bound as your brother-in-law to inherit Kusanagi Ken'ichirou's estate, so watch yourself.\""
    },
    {
     "offset": 71026,
@@ -72154,7 +72154,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　For an instant, I thought something had once again been\nspirited away into a dream the cherry trees were dreaming--"
+    "translated": "　For an instant, I thought something had once again been\nspirited away into a dream of the cherry blossoms--"
    },
    {
     "offset": 74053,
@@ -73940,7 +73940,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"No... I have no idea.\""
+    "translated": "\"Yeah... it makes zero sense to me.\""
    },
    {
     "offset": 44010,
@@ -75542,7 +75542,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "I made a point of looking only at Kawachino's face (not looking at that) so she wouldn't notice."
+    "translated": "I made a point of keeping my eyes strictly on Kawachino's face (and looking nowhere else) so she wouldn't notice."
    },
    {
     "offset": 55131,
@@ -76082,7 +76082,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 58005,
@@ -77974,7 +77974,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "教師",
-    "translated": "\"(Wry smile)... Shiritori, huh.\""
+    "translated": "\"Heh... Shiritori, huh.\""
    },
    {
     "offset": 148751,
@@ -79688,7 +79688,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Sixteen hours... (speechless)\""
+    "translated": "\"Sixteen hours... I don't even have words.\""
    },
    {
     "offset": 160434,
@@ -84101,7 +84101,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "藍",
-    "translated": "\"It's an old bike, so it's a lot of trouble. Especially during the humid season, I shouldn't ride it.\""
+    "translated": "\"It's an old bike, so it's high-maintenance. Especially if you don't ride it during the humid season.\""
    },
    {
     "offset": 18125,
@@ -89321,7 +89321,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "The girl in front of me made a face more shocked than I'd ever seen."
+    "translated": "The girl in front of me looked about as shocked as humanly possible."
    },
    {
     "offset": 79434,
@@ -89609,7 +89609,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "She made the same face as before, so this must be her maximum-level expression of shock."
+    "translated": "Her face hadn't changed a bit from before, so this must be what peak shock looks like on her."
    },
    {
     "offset": 80911,
@@ -90516,7 +90516,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"The fact that you don't see even a shred of danger in it -- that thinking of yours is already dangerous.\""
+    "translated": "\"The fact that you don't find that the least bit alarming is what's truly alarming here.\""
    },
    {
     "offset": 86033,
@@ -91086,7 +91086,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "Ah, I see, you were purchasing something along the lines of family planning.\""
+    "translated": "Ah, I see -- you were purchasing 'Bright Family Planning' supplies.\""
    },
    {
     "offset": 7964,
@@ -91753,7 +91753,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"No, it's nothing like that. Simply put, acetone has high polarity with plastics and the like.\""
+    "translated": "\"No, it's nothing like that. Acetone is just a polar solvent that easily dissolves plastics and the like.\""
    },
    {
     "offset": 53177,
@@ -95451,7 +95451,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"An errand, huh. Well, you certainly have the face of an errand-runner.\""
+    "translated": "\"A trifling errand, huh. Well, you certainly have a trifling, boorish face to match.\""
    },
    {
     "offset": 82016,
@@ -95460,7 +95460,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"The look on my face has nothing to do with running errands.\""
+    "translated": "\"Having a boorish face has nothing to do with running an errand.\""
    },
    {
     "offset": 82072,
@@ -95478,7 +95478,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "Besides, your face isn't dull at all."
+    "translated": "Besides, your face isn't boorish at all."
    },
    {
     "offset": 82162,
@@ -101497,7 +101497,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"The fact that something like that was mixed in at all is already something...\""
+    "translated": "\"The fact that something like that was mixed in there to begin with is bad enough...\""
    },
    {
     "offset": 111908,
@@ -106038,7 +106038,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Besides, that wasn't on purpose. It really was just by chance!\""
+    "translated": "Besides, that wasn't on purpose. It really was just by chance!\""
    },
    {
     "offset": 139355,
@@ -106802,7 +106802,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 144143,
@@ -107125,7 +107125,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "Joking aside, isn't Kusanagi actually the most lewd-contaminated?"
+    "translated": "Joking aside, isn't Kusanagi's mind the most hopelessly in the gutter out of all of us?"
    },
    {
     "offset": 146346,
@@ -107179,7 +107179,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"For the reason that he's the most lewd-contaminated, though.\""
+    "translated": "\"Only because his mind is the most in the gutter, though.\""
    },
    {
     "offset": 146709,
@@ -109557,7 +109557,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟＆真琴＆直哉",
-    "translated": "\"\"\"Whaaat\"\""
+    "translated": "\"Whaaat?!\""
    },
    {
     "offset": 58220,
@@ -111253,7 +111253,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"Still and all, why did Sui suddenly get so dizzy, I wonder...\""
+    "translated": "Still and all, why did Sui suddenly get so dizzy, I wonder...\""
    },
    {
     "offset": 56370,
@@ -120863,7 +120863,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"You don't get it? The fact that I wear a coat even in midsummer!!"
+    "translated": "\"Don't you get what it means that I wear a coat even in midsummer?!"
    },
    {
     "offset": 148630,
@@ -125109,7 +125109,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"Just words, without a shred of enthusiasm behind them......\""
+    "translated": "\"All talk, and not a shred of actual enthusiasm in your voice......\""
    },
    {
     "offset": 170147,
@@ -125298,7 +125298,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"As expected of a genius. It's hard to believe this is the father of Kusanagi Naoya, given the quality.\""
+    "translated": "\"What else would you expect from a genius? With quality like this, it's hard to believe he's Kusanagi Naoya's father.\""
    },
    {
     "offset": 171495,
@@ -129415,7 +129415,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "藍",
-    "translated": "\"Even so, who calls a teacher 'that guy' to their face?"
+    "translated": "\"Even so, who refers to a teacher as 'that guy'?"
    },
    {
     "offset": 207758,
@@ -130250,7 +130250,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "校長",
-    "translated": "\"Do you have any questions about the fact that I fired Kusanagi Ken'ichirou-shi?\""
+    "translated": "\"Do you have any questions about my dismissing Kusanagi Ken'ichirou?\""
    },
    {
     "offset": 212299,
@@ -130322,7 +130322,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "校長",
-    "translated": "\"Kusanagi Ken'ichirou-shi's departure is on the books as a voluntary resignation, not a dismissal.\""
+    "translated": "\"Kusanagi Ken'ichirou's departure is on the books as a voluntary resignation, not a dismissal.\""
    },
    {
     "offset": 212885,
@@ -131222,7 +131222,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"What are ya raving about, Kusanagi? So you're gonna pin the blame on someone else, are ya-nya?\""
+    "translated": "\"What are ya raving about, Kusanagi? Trying to pin the blame on someone else now, are ya?\""
    },
    {
     "offset": 218012,
@@ -131231,7 +131231,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"I'm sorry. This guy's gotten scared of the fact that he pulled off something so audacious, and he's trying to pin the blame on me-oh."
+    "translated": "\"I'm terribly sorry! This guy got cold feet over pulling off something so audacious, and now he's trying to pin the blame on me!"
    },
    {
     "offset": 218126,
@@ -131240,7 +131240,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "The one who planned this from the start was this man here-nya.\""
+    "translated": "This fella right here is the one who planned the whole thing from the start, see.\""
    },
    {
     "offset": 218175,
@@ -131321,7 +131321,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"My apologies-nya. Making the headmaster go to all this trouble. This whole matter proceeded entirely on the sole judgment of this man, Kusanagi Naoya. There is no mistake about that."
+    "translated": "\"My deepest apologies, ma'am, making the headmaster go to all this trouble. This whole matter proceeded entirely on the sole judgment of this man, Kusanagi Naoya. There is no mistake about that."
    },
    {
     "offset": 218741,
@@ -136069,7 +136069,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 247667,
@@ -137427,7 +137427,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈＆優美",
-    "translated": "\"Would like to do the dishes.\""
+    "translated": "\"We'd like to do the dishes.\""
    },
    {
     "offset": 256071,
@@ -144354,7 +144354,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"The problem is that Ai-nee-san, standing behind Naoya, is taking on a face like a demon's...\""
+    "translated": "\"The problem is that Ai-nee-san, standing right behind you, is starting to look like a wrathful demon...\""
    },
    {
     "offset": 42809,
@@ -158662,7 +158662,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"The problem is that Ai-nee-san, standing behind Naoya, is taking on a face like a demon's...\""
+    "translated": "\"The problem is that Ai-nee-san, standing right behind you, is starting to look like a wrathful demon...\""
    },
    {
     "offset": 43283,
@@ -168345,7 +168345,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 40069,
@@ -172565,7 +172565,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"I have no choice but to rape you!\""
+    "translated": "\"How could I not ravish you on the spot?!\""
    },
    {
     "offset": 19998,
@@ -173042,7 +173042,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 23398,
@@ -176028,7 +176028,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"For all that, Kusanagi-san was leaning way forward, peeking at Shizuku's phone, wasn't he?\""
+    "translated": "\"For all that, you sure were leaning way forward, peeking at Shizuku's phone, weren't you, Kusanagi-san?\""
    },
    {
     "offset": 124898,
@@ -176181,7 +176181,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"Terrifying! Kusanagi-san is too terrifying!\nFaced with such heinous fiend-play, Sui can't help grinning from sheer fear.\""
+    "translated": "\"Terrifying! You're far too terrifying, Kusanagi-san!\nFaced with such heinous debauchery, Sui can't help grinning from sheer terror.\""
    },
    {
     "offset": 126227,
@@ -178214,7 +178214,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"Hmm, as expected of Sui -- excellent.\""
+    "translated": "\"Hmm, Sui outdoes herself -- excellent.\""
    },
    {
     "offset": 137766,
@@ -180113,7 +180113,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 148381,
@@ -182504,7 +182504,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 399426,
@@ -185896,7 +185896,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Is that so, then it's all the more troubling.\nWhat happened when you swallowed the lewd dream? Are you feeling unwell?\""
+    "translated": "\"Really? Then that's even worse.\nWhat happened when you swallowed the lewd dream? Are you feeling unwell?\""
    },
    {
     "offset": 418949,
@@ -186211,7 +186211,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "葛",
-    "translated": "\"Is that so, Naoya is a good person.\""
+    "translated": "\"I see. You really are a good person, Naoya.\""
    },
    {
     "offset": 420732,
@@ -188897,7 +188897,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Ah, no, that is true, but, what should I say.\nAnyway, there's no reason for you to like me, is there?\""
+    "translated": "\"Ah, no, that's true, but... how do I put this?\nAnyway, there's no reason for you to like me, is there?\""
    },
    {
     "offset": 436813,
@@ -189653,7 +189653,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"What is mind? -- What is the heart?\nNo matter. -- It is not matter.\""
+    "translated": "\"What is mind? -- What is the mind?\nNo matter. -- It is not matter.\""
    },
    {
     "offset": 442915,
@@ -189662,7 +189662,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"What is matter? -- What is substance?\nNever mind. -- It is by no means the heart.\""
+    "translated": "\"What is matter? -- What is substance?\nNever mind. -- It is by no means the mind.\""
    },
    {
     "offset": 442982,
@@ -203038,7 +203038,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"Who? Is this person?\""
+    "translated": "\"Who's this guy?\""
    },
    {
     "offset": 531165,
@@ -203785,7 +203785,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "明石",
-    "translated": "\"Is that so? As expected of Mr. Friedman.\""
+    "translated": "\"Oh, really? Leave it to Mr. Friedman.\""
    },
    {
     "offset": 537971,
@@ -206106,7 +206106,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "As expected, this shopkeeper has a sharp eye."
+    "translated": "Just as I thought, this shopkeeper has a sharp eye."
    },
    {
     "offset": 554248,
@@ -207663,7 +207663,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "The storehouse floor is hard, as expected."
+    "translated": "Sure enough, the storehouse floor is hard."
    },
    {
     "offset": 565061,
@@ -208293,7 +208293,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"As the name implies, the Kusouzu depicts the nine stages of a corpse's decay.\""
+    "translated": "\"As the name implies, the Nine Aspects of Death depicts the nine stages of a corpse's decay.\""
    },
    {
     "offset": 568052,
@@ -208419,7 +208419,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Who knows. Maybe to express the impermanence of the world......\nAt any rate, this Nine Aspects depicts a beautiful woman. The concept is that something beautiful gradually becomes something horrifying to look upon.\""
+    "translated": "\"Who knows. Maybe to express the impermanence of the world......\nAt any rate, the Nine Aspects of Death depicts a beautiful woman. The concept is that something beautiful gradually becomes something horrifying to look upon.\""
    },
    {
     "offset": 569077,
@@ -210795,7 +210795,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "フリッドマン",
-    "translated": "\"Ah, that's true. As administrator, I'll go and get the formal signature.\""
+    "translated": "\"Ah, that's true. As the trustee, I'll go and get the formal signature.\""
    },
    {
     "offset": 583301,
@@ -213221,7 +213221,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Don't remember what I said last night! Th, that way of confessing was a little embarrassing.\""
+    "translated": "\"Stop bringing up what I said last night! Th-that way of confessing was a little embarrassing.\""
    },
    {
     "offset": 86701,
@@ -213841,7 +213841,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"He goes all delighted like, 'It's a se-cret♪' He talks like a girl, that guy.\""
+    "translated": "\"He goes all delighted like, 'It's a se-cret~' He talks like a girl, that guy.\""
    },
    {
     "offset": 90278,
@@ -215567,7 +215567,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Or rather, we got ready while chatting, so it's just that Nao-kun didn't do anything, wouldn't you say?\""
+    "translated": "\"Or rather, we got everything ready while chatting -- you're the only one who didn't lift a finger, Nao-kun.\""
    },
    {
     "offset": 100367,
@@ -215585,7 +215585,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"If mercy would raise your grades, I would show it, but when it comes to studying, I learned the hard way during the summer sessions that coddling Nao-kun does no good.\""
+    "translated": "\"If going easy on you would raise your grades, I would, but when it comes to studying, I learned the hard way over the summer that coddling you does no good, Nao-kun.\""
    },
    {
     "offset": 100536,
@@ -216044,7 +216044,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 103071,
@@ -217538,7 +217538,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"Shizuku loves you so much, Naoya, just being kissed makes me tingle so much down there. ...So it can't really be helped...\""
+    "translated": "\"I love you so much, Naoya, that just being kissed makes me ache down there. ...So I really couldn't help it...\""
    },
    {
     "offset": 111110,
@@ -219122,7 +219122,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Little by little the shaft was wrapped in warmth too, and with each bit Shizuku let out a pained voice."
+    "translated": "Little by little the shaft was wrapped in warmth too, and with each inch Shizuku let out a pained cry."
    },
    {
     "offset": 120384,
@@ -223928,7 +223928,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "藍",
-    "translated": "\"Um...... K-Ken'ichirou...... who is this person?\""
+    "translated": "\"Um...... K-Ken'ichirou...... who is this?\""
    },
    {
     "offset": 197750,
@@ -227744,7 +227744,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"No, it's just, you were being so considerate even about Sui...... and I was thinking, this person really is kind...... and then I was kissing you.\""
+    "translated": "\"No, it's just, you were being so considerate even toward Sui...... and I found myself thinking how truly kind you are...... and before I knew it, I was kissing you.\""
    },
    {
     "offset": 221628,
@@ -242389,7 +242389,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 183263,
@@ -242677,7 +242677,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"It can't be helped. To a genius like me, Ken'ichirou-san's paintings are still nowhere near enough.\""
+    "translated": "\"Well, what can you do? To a genius like Sui, Ken'ichirou-san's paintings still have a long way to go.\""
    },
    {
     "offset": 185244,
@@ -245535,7 +245535,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"That can't be helped, Rina!\""
+    "translated": "\"You couldn't help that, Rina!\""
    },
    {
     "offset": 113096,
@@ -245544,7 +245544,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"'Can't be helped' has nothing to do with it. Maybe I should train my body a bit more.\""
+    "translated": "\"Whether I could help it or not is beside the point. Maybe I should build up my stamina a bit more.\""
    },
    {
     "offset": 113170,
@@ -246165,7 +246165,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 116311,
@@ -246237,7 +246237,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　Slowly, I\nthen kissed her."
+    "translated": "　Slowly,\nI kissed her."
    },
    {
     "offset": 116661,
@@ -246246,7 +246246,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　So this is what another person's lips feel like... is what I thought."
+    "translated": "　So this is what someone else's lips feel like... I thought."
    },
    {
     "offset": 116719,
@@ -247353,7 +247353,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　Now that she says it, our thighs and thighs, chests and chests are pressed together, and our faces are close."
+    "translated": "　Now that she mentions it, we're pressed thigh to thigh, chest to chest, our faces right up close."
    },
    {
     "offset": 122564,
@@ -247758,7 +247758,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Shakes head, shakes head.\""
+    "translated": "\"Nuh-uh, nuh-uh.\""
    },
    {
     "offset": 124889,
@@ -249162,7 +249162,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"It, it can't be helped that I get like this.\""
+    "translated": "\"I-I can't help getting like this...\""
    },
    {
     "offset": 134633,
@@ -249612,7 +249612,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Soaked as if you'd wet yourself.\nAmazing. As expected of the pervert who's always fantasized about me.\""
+    "translated": "\"Soaked as if you'd wet yourself.\nAmazing. Just what I'd expect from the pervert who's always fantasizing about me.\""
    },
    {
     "offset": 137500,
@@ -249972,7 +249972,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Gently, with a face of blessing... with that smile, she welcomed my masturbation."
+    "translated": "Gently, with a blissful... welcoming smile, she gave her blessing to my masturbation."
    },
    {
     "offset": 140086,
@@ -250188,7 +250188,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Rina made a briefly saddened face."
+    "translated": "A sad look crossed Rina's face for a moment."
    },
    {
     "offset": 141792,
@@ -255468,7 +255468,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "I trembled within Rina's skin."
+    "translated": "I trembled against Rina's warm skin."
    },
    {
     "offset": 19290,
@@ -257979,7 +257979,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 106212,
@@ -259437,7 +259437,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"That said, it wasn't as though this person was my master. They didn't teach me how to paint, you see?\""
+    "translated": "\"That said, it's not as though they were my master. I wasn't taught how to paint or anything like that, you see?\""
    },
    {
     "offset": 116848,
@@ -260040,7 +260040,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Can't be helped if they think so. Besides, according to Toritani, anything up to a third of the class missed is counted as tardy.\""
+    "translated": "\"You can't blame them for thinking that. Besides, according to Toritani, as long as you don't miss more than a third of the period, it only counts as a tardy.\""
    },
    {
     "offset": 120718,
@@ -260480,7 +260480,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"I saw it on TV! It was incredible. The moment I saw it, I thought, 'Ah, only Kusanagi-kun could do this.' No one else could pull off something like that! As expected, you're amazing.\""
+    "translated": "\"I saw it on TV! It was incredible. The moment I saw it, I thought, 'Ah, only Kusanagi-kun could do this.' No one else could pull off something like that! You really are amazing.\""
    },
    {
     "offset": 123654,
@@ -260498,7 +260498,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "What \"as expected\" my ass."
+    "translated": "\"Amazing,\" my ass."
    },
    {
     "offset": 123762,
@@ -268069,7 +268069,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Ah, th-that. It's old, so it can't be helped. Yeah. So please step away from there this instant...\""
+    "translated": "\"Ah, th-that. It's old, so there's no helping it. Yeah. So please step away from there this instant...\""
    },
    {
     "offset": 166022,
@@ -270289,7 +270289,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"Hmm, this April. But that's amazing. As expected of Rin.\""
+    "translated": "\"Huh, this April. Still, that's amazing. That's our Rin for you.\""
    },
    {
     "offset": 178045,
@@ -270604,7 +270604,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"True. But to Rin, I guess I wasn't even worth remembering... so it can't be helped.\""
+    "translated": "\"True. But to Rin, I guess I wasn't even worth remembering... so what can I do?\""
    },
    {
     "offset": 180425,
@@ -271189,7 +271189,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Well, it can't be helped since I'm lending them to you.\""
+    "translated": "\"Well, what choice do I have when I'm lending them to you?\""
    },
    {
     "offset": 183725,
@@ -272296,7 +272296,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 190594,
@@ -273884,7 +273884,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "\"'I'll learn it, already,' huh... so you actually are aware you keep failing to remember, aren't you...?\""
+    "translated": "　'I'll learn it, already,' huh... so you actually are aware you keep failing to remember, aren't you...?"
    },
    {
     "offset": 98331,
@@ -273947,7 +273947,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"Kusanagi-san once did not assault me.\""
+    "translated": "\"Kusanagi-san held back from assaulting me once before, too.\""
    },
    {
     "offset": 98835,
@@ -274388,7 +274388,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"Ah, no, Rin is such a well-made young lady, and to think she's being ravished every night by Kusanagi-san... Sui feels so, so sorry for Rin.\""
+    "translated": "\"Ah, no, Rin is such a fine, virtuous young lady, and to think you're ravishing her every night, Kusanagi-san... Sui feels so, so sorry for Rin.\""
    },
    {
     "offset": 102064,
@@ -274847,7 +274847,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Why does my feelings need to be quality-guaranteed by something like the Mo*de Selection award!\""
+    "translated": "\"Why the hell do my feelings need to be certified for quality by something like the Mo*de Selection award?!\""
    },
    {
     "offset": 104851,
@@ -278403,7 +278403,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"What is it?\nStaring at me like that... have you fallen for me, Sui?\""
+    "translated": "\"What is it?\nStaring at me like that... have you fallen for Sui?\""
    },
    {
     "offset": 124479,
@@ -279014,7 +279014,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 127453,
@@ -281297,7 +281297,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "As expected, Rin's cooking was absurdly delicious."
+    "translated": "Rin's cooking was every bit as absurdly delicious as I'd expect."
    },
    {
     "offset": 122796,
@@ -282943,7 +282943,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 134726,
@@ -284076,7 +284076,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Rin's teaching was always clear and to the point... but somehow I just couldn't focus."
+    "translated": "Rin's tutoring is always clear and to the point... but for some reason I just can't keep my head in it."
    },
    {
     "offset": 141438,
@@ -284409,7 +284409,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Can't be helped. My studies are completely behind.\""
+    "translated": "\"What choice do I have? I'm way behind on my studies.\""
    },
    {
     "offset": 143221,
@@ -284445,7 +284445,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"No, I'm happy that I'm happy. You're a good teacher, Rin...\""
+    "translated": "\"No, I mean, I am happy about it. You're a good teacher, Rin...\""
    },
    {
     "offset": 143416,
@@ -288924,7 +288924,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 185521,
@@ -289878,7 +289878,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "I let out a voice before I could stop myself."
+    "translated": "I let out a gasp before I could stop myself."
    },
    {
     "offset": 191371,
@@ -292965,7 +292965,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"But we're doing this sort of thing, so that can't be helped, can it?\""
+    "translated": "\"Well, considering what we're doing, it's only natural, isn't it?\""
    },
    {
     "offset": 213042,
@@ -294043,7 +294043,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Is that so, sounds rough. My condolences. Good luck out there.\""
+    "translated": "\"Right, sounds rough. My condolences. Good luck with that.\""
    },
    {
     "offset": 219481,
@@ -295920,7 +295920,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Knowing you, pervert that you are, you were going to use checking the tag as a pretext to strip Hikawa completely naked. And to do that, I standing before you had to be dealt with.\""
+    "translated": "\"Knowing what a pervert you are, you were going to use checking the tag as an excuse to strip Hikawa stark naked. And to do that, I was standing right in your way.\""
    },
    {
     "offset": 231688,
@@ -297953,7 +297953,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"It's not like Nao-kun was the only one holding back, you know...\""
+    "translated": "\"You weren't the only one holding back, you know, Nao-kun...\""
    },
    {
     "offset": 243627,
@@ -299267,7 +299267,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"......(nod)\""
+    "translated": "\"......Mm.\""
    },
    {
     "offset": 254454,
@@ -301778,7 +301778,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Th-that can't be helped!\""
+    "translated": "\"I-I couldn't help it!\""
    },
    {
     "offset": 272043,
@@ -302650,7 +302650,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "御桜父親",
-    "translated": "\"As expected of an artist's son. What you say is difficult...... philosophical.\""
+    "translated": "\"An artist's son through and through. The things you say are so deep...... so philosophical.\""
    },
    {
     "offset": 277432,
@@ -302983,7 +302983,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Only a faint sting of sound-heavy, sensation-light impact seeped into my cheek."
+    "translated": "The slap was all sound and no force, leaving only a faint sting seeping into my cheek."
    },
    {
     "offset": 279597,
@@ -303559,7 +303559,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Whatever she may face. Even before the harsh fate awaiting her, this time I will truly save her, in the real sense of the word."
+    "translated": "Even in the face of the harsh fate she's bound to walk, this time I'll save her in the truest sense of the word."
    },
    {
     "offset": 283440,
@@ -311426,7 +311426,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Aah...... kya...... upu...... n n...... uuuu...... nnnnu...... !! Squeeze!!!!!\""
+    "translated": "\"Aah...... kya...... mph...... nnh, nnh...... uuuu...... nnnnh......!! *clench*!!!!!\""
    },
    {
     "offset": 164063,
@@ -312425,7 +312425,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Does Nao-kun feel good too...? You're making... such an amazing face... haa, haa, haa...\""
+    "translated": "\"Does it feel good for you too, Nao-kun...? Look at the face... you're making... haa, haa, haa...\""
    },
    {
     "offset": 172246,
@@ -319869,7 +319869,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Nao-kun says that because you're kind,\nbut no, no. It's my fault!\""
+    "translated": "\"You only say that because you're kind, Nao-kun,\nbut no, no! It's my fault!\""
    },
    {
     "offset": 72037,
@@ -319959,7 +319959,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"If I'd remembered that accident properly, Nao-kun would never have had to give up painting. Because I was weak, because I couldn't bear the truth of that fire, Nao-kun thought of me and threw away his art.\""
+    "translated": "\"If I'd remembered that accident properly, you never would have had to give up painting, Nao-kun. Because I was weak, because I couldn't bear the truth of that fire, you thought of me and threw away your art.\""
    },
    {
     "offset": 72854,
@@ -320499,7 +320499,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Nao-kun is kind... you'll tell me any number of lies.\""
+    "translated": "\"You're so kind, Nao-kun... you'd tell me any number of lies.\""
    },
    {
     "offset": 76025,
@@ -322377,7 +322377,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"No, that was all coming out of your mouth on your own!\""
+    "translated": "\"No, you're the one who brought that up all on your own!\""
    },
    {
     "offset": 46393,
@@ -324038,7 +324038,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"My life, my body, and my heart all belong to this person! From now on, this life will be used for Nao-kun's sake alone.\""
+    "translated": "\"My life, my body, and my heart all belong to him! From now on, I'll live this life for Nao-kun's sake alone.\""
    },
    {
     "offset": 58928,
@@ -326815,7 +326815,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"That sort of authorship talk means nothing to that person.\nIt couldn't possibly.\""
+    "translated": "\"That sort of talk about artistic intent means nothing to her.\nIt couldn't possibly.\""
    },
    {
     "offset": 103623,
@@ -329731,7 +329731,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"Panties, panties -- keep saying it and the word 'panties' is going to undergo gestalt collapse.\""
+    "translated": "\"Panties, panties -- keep saying it and the word 'panties' is going to lose all meaning.\""
    },
    {
     "offset": 124779,
@@ -329929,7 +329929,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Of course, there were times, as an element composing the work, when I drew the subject in a way that expressed their inner self. But that was strictly as an element of the work's composition. I don't paint the interior of the subject itself.\""
+    "translated": "\"Of course, there were times when I drew a subject in a way that expressed their inner self as part of the composition. But that was strictly as one element of the work. I don't paint the inner self of the subject itself.\""
    },
    {
     "offset": 126490,
@@ -329956,7 +329956,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"His far-too-keen powers of observation even, at one point,\ntouched the fury of his friend Manet.\""
+    "translated": "\"His all-too-keen powers of observation even, at one point,\nincurred the wrath of his friend Manet.\""
    },
    {
     "offset": 126726,
@@ -330960,7 +330960,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Over there, canvases that had been blank until just recently\nwere crammed in in huge numbers, each with something painted on it."
+    "translated": "Over there, canvases that had been blank until just recently\nwere crammed in by the dozen, each with something painted on it."
    },
    {
     "offset": 133698,
@@ -331095,7 +331095,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"Yes -- Kusanagi wouldn't even let me help with the dishes.\""
+    "translated": "\"Yes -- you wouldn't even let me help with the dishes, Kusanagi.\""
    },
    {
     "offset": 134529,
@@ -331131,7 +331131,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"It's not a big deal I'm making. Food costs, labor, utilities...\neven a single dinner runs up all sorts of expenses, that's a fact.\""
+    "translated": "\"I'm not exaggerating. Food costs, labor, utilities...\neven a single dinner runs up all sorts of expenses, and that's a fact.\""
    },
    {
     "offset": 134851,
@@ -331455,7 +331455,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"Still, from the sound of it, even Kusanagi doesn't know the details.\""
+    "translated": "\"Still, from the sound of it, even you don't know the details, Kusanagi.\""
    },
    {
     "offset": 137082,
@@ -336533,7 +336533,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Having said that, Toritani suddenly shifted to a lighter tone."
+    "translated": "After saying that much, Toritani suddenly shifted to a lighter tone."
    },
    {
     "offset": 93668,
@@ -336542,7 +336542,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"But it's funny -- for all how close you are with Kei, you don't know a thing about his past.\""
+    "translated": "\"But it's funny -- for how close you are with Kei, you don't know a thing about his past.\""
    },
    {
     "offset": 93739,
@@ -339569,7 +339569,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"They all struck out on their own and moved out. Now only that person lives here.\nA housekeeper apparently comes and goes, and I talk with her sometimes too.\""
+    "translated": "\"They all struck out on their own and moved out. Now she's the only one living here.\nA live-out housekeeper apparently comes by, and I talk with her sometimes too.\""
    },
    {
     "offset": 65308,
@@ -351108,7 +351108,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Having said that, I added the gum syrup."
+    "translated": "After saying that, I added the gum syrup."
    },
    {
     "offset": 90304,
@@ -353580,7 +353580,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"In any case, I've got the gist of it.\nHow Kusanagi thinks about panties. How you conceive of them.\""
+    "translated": "\"In any case, I've got the gist of it.\nHow you think about panties, Kusanagi. How you view them.\""
    },
    {
     "offset": 107769,
@@ -353733,7 +353733,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Toritani fanned her reddened face, flap flap."
+    "translated": "Toritani fanned her reddened face with her hand."
    },
    {
     "offset": 108719,
@@ -356941,7 +356941,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Still, like I said earlier, it's fun when Toritani acts like she's my girlfriend, so if I do say so myself, I think it's not a bad proposal.\""
+    "translated": "\"Still, like I said earlier, it's fun when you act like my girlfriend, so if I do say so myself, I think it's not a bad proposal.\""
    },
    {
     "offset": 89998,
@@ -356977,7 +356977,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"If Kusanagi has to take that ridiculous detour every day and get chased around by girls... it'd be a problem if it had a bad effect on your entrance exam studies or anything else...\""
+    "translated": "\"If you have to take that ridiculous detour every day and get chased around by girls... it'd be a problem if it had a bad effect on your entrance exam studies or anything else...\""
    },
    {
     "offset": 90296,
@@ -357576,7 +357576,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"I ended up making a scene, though -- I did wrong by Komaki and the others. Has that person been giving you complaints since then?\""
+    "translated": "\"I ended up making a scene, though -- I did wrong by Komaki and the others. Has she been giving you any grief since then?\""
    },
    {
     "offset": 95109,
@@ -365307,7 +365307,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"It even sounded like she was telling me to pull myself together.\nBut still...... as far as rebuking encouragement goes, isn't it an awfully clumsy way of putting it?\""
+    "translated": "\"It even sounded like she was telling me to pull myself together.\nBut still...... even as tough love, isn't that an awfully clumsy way of putting it?\""
    },
    {
     "offset": 107117,
@@ -370253,7 +370253,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "真琴",
-    "translated": "\"Oh, so Kusanagi knows about it too. I would've thought that wasn't your area of interest.\nIt's the custom where a bride wears them at her wedding to bring her happiness.\""
+    "translated": "\"Oh, so you know about it too, Kusanagi. I would've thought that wasn't your area of interest.\nIt's the custom where a bride wears them at her wedding to bring her happiness.\""
    },
    {
     "offset": 81329,
@@ -389826,7 +389826,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 109336,
@@ -391191,7 +391191,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"She suits cigarettes. That cynical wry smile she shows sometimes is enticing...\""
+    "translated": "\"Cigarettes really suit her. That cynical smirk she gives sometimes is so alluring...\""
    },
    {
     "offset": 117574,
@@ -391227,7 +391227,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Well, a boy like Kusanagi wouldn't understand that person's sexual appeal.\nYou can just be happy having those piddling little brats fawning over you.\""
+    "translated": "\"Well, a little boy like you wouldn't understand her sex appeal, Kusanagi.\nYou can just be happy having those piddling little brats fawning over you.\""
    },
    {
     "offset": 117873,
@@ -393735,7 +393735,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"It is not! And Kusanagi-senpai, don't listen in on this stuff with such a cool face!\""
+    "translated": "\"It is not! And Kusanagi-senpai, don't just listen to all this with a straight face!\""
    },
    {
     "offset": 133260,
@@ -399943,7 +399943,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 237744,
@@ -406945,7 +406945,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 281423,
@@ -410124,7 +410124,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "義貞",
-    "translated": "\"It is only that when you show me no interest at all, Hakuki-dono, my heart does ache.\nThough of course, you are the miko of dream-swallowing.\nSo it cannot be helped......\""
+    "translated": "\"It is only that when you show me no interest at all, Hakuki-dono, my heart does ache.\nThough of course, you are the dream-eating priestess.\nSo it is only natural......\""
    },
    {
     "offset": 49120,
@@ -410491,7 +410491,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 50986,
@@ -410660,7 +410660,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"No. I don't do works......\""
+    "translated": "\"Yeah, I don't paint works of my own......\""
    },
    {
     "offset": 51902,
@@ -411425,7 +411425,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"No, that one was a bolt from the blue for me. Thanks to it, I'm a celebrity.\nIf anyone can really be called service and self-negation, it's Akashi.\""
+    "translated": "\"No, that one just fell right into my lap. Thanks to it, I'm a celebrity.\nIf anyone is the picture of selfless devotion, it's Akashi.\""
    },
    {
     "offset": 56611,
@@ -411749,7 +411749,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"No matter how much you painted, no matter how much you painted, nothing worked out.\nSo you couldn't even complete a piece, and you just scattered paintings around aimlessly, didn't you?\""
+    "translated": "\"You painted and painted, and still nothing worked out.\nSo you couldn't even finish a single piece, and just kept churning out paintings in vain, didn't you?\""
    },
    {
     "offset": 58922,
@@ -411776,7 +411776,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"And every single one of them, though painted with 'Spring Day Rhapsody' in mind, turned out to be something else entirely.\""
+    "translated": "\"And every single one of them, though painted with 'Sakura Day Rhapsody' in mind, turned out to be something else entirely.\""
    },
    {
     "offset": 59204,
@@ -411875,7 +411875,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Forcing yourself to paint with an uncooperative hand -- didn't that turn every day into an endless cycle of retracing your steps?\""
+    "translated": "\"Wasn't it because you forced yourself to paint with an uncooperative hand that you had to keep coming back day after day to work on it?\""
    },
    {
     "offset": 60128,
@@ -412775,7 +412775,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Me, an understander of you? It really does make me want to vomit.\""
+    "translated": "\"Me, someone who understands you? It really does make me want to vomit.\""
    },
    {
     "offset": 65884,
@@ -414585,7 +414585,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "The girl named Nagayama laughed while looking down,\nthen raised her face."
+    "translated": "The girl named Nagayama looked down with a laugh,\nthen raised her head."
    },
    {
     "offset": 53142,
@@ -414666,7 +414666,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "She knows it's a cleaver? She knows I carry a Bob Kramer around. Just how much of a stalker is this woman?"
+    "translated": "She knows it's a kitchen knife? She knows I carry a Bob Kramer around. Just how much of a stalker is this woman?"
    },
    {
     "offset": 53683,
@@ -414881,7 +414881,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "I'd swapped it out for the smartphone."
+    "translated": "I'd swapped my smartphone out for it."
    },
    {
     "offset": 54616,
@@ -416446,7 +416446,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Yeah, and then I saw you running, with a few guys from another school chasing you, so I ran after them too.\""
+    "translated": "\"Yeah, and then I saw you running, with a few students from another school chasing you, so I ran after them too.\""
    },
    {
     "offset": 62112,
@@ -417188,7 +417188,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"She suits cigarettes. That cynical wry smile she shows sometimes is enticing...\""
+    "translated": "\"Cigarettes really suit her. That cynical smirk she gives sometimes is so alluring...\""
    },
    {
     "offset": 39444,
@@ -417224,7 +417224,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Well, a boy like Kusanagi wouldn't understand that person's sexual appeal.\nYou can just be happy having those piddling little brats fawning over you.\""
+    "translated": "\"Well, a little boy like you wouldn't understand her sex appeal, Kusanagi.\nYou can just be happy having those piddling little brats fawning over you.\""
    },
    {
     "offset": 39734,
@@ -418078,7 +418078,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"I saw it on TV! It was incredible. The moment I saw it, I thought, 'Ah, only Kusanagi-kun could do this.' No one else could pull off something like that! As expected, you're amazing.\""
+    "translated": "\"I saw it on TV! It was incredible. The moment I saw it, I thought, 'Ah, only Kusanagi-kun could do this.' No one else could pull off something like that! You really are amazing.\""
    },
    {
     "offset": 45723,
@@ -419509,7 +419509,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 55209,
@@ -419797,7 +419797,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Ah, class is about to end. I have to hurry back, or they'll realize I wasn't sitting out P.E.\""
+    "translated": "\"Ah, class is about to end. I have to hurry back, or they'll realize I ditched P.E. while I was supposed to be sitting it out.\""
    },
    {
     "offset": 57328,
@@ -420576,7 +420576,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 23654,
@@ -420999,7 +420999,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"You didn't look like it was.\""
+    "translated": "\"It certainly didn't look like it.\""
    },
    {
     "offset": 25978,
@@ -421620,7 +421620,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "I was watching her, in that form."
+    "translated": "I stood there watching her."
    },
    {
     "offset": 29521,
@@ -423122,7 +423122,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "鈴菜",
-    "translated": "\"Well, isn't it fine? If you have a friend that's that much of a peeping tomcat, of course you'd ask her to snap a photo or two.\""
+    "translated": "\"Well, isn't it fine? When you have a friend who's that much of a sneak-photo maniac, of course you'd ask her to snap a photo or two.\""
    },
    {
     "offset": 47164,
@@ -423743,7 +423743,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 50785,
@@ -424265,7 +424265,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"But I don't regret it. If anything, I think it was fitting as a last.\""
+    "translated": "\"But I don't regret it. If anything, I think it was a fitting way to end things.\""
    },
    {
     "offset": 53846,
@@ -424598,7 +424598,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Yeah, I get why you all tease me for being some philanthropist.\nBut that's not it.\""
+    "translated": "\"Yeah, I get why you all tease me about loving everyone equally.\nBut that's not it.\""
    },
    {
     "offset": 55704,
@@ -427120,7 +427120,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "女子校生達",
-    "translated": "\"\"\"\"\"Whaaaat\"\"\"\"\"\""
+    "translated": "\"Whaaaat?!\""
    },
    {
     "offset": 63494,
@@ -427255,7 +427255,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "Guff"
+    "translated": "\"Guff"
    },
    {
     "offset": 64164,
@@ -427291,7 +427291,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "Gugeh"
+    "translated": "Gugeh\""
    },
    {
     "offset": 64281,
@@ -427578,7 +427578,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 65970,
@@ -431356,7 +431356,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Eh, well -- curry that Kusanagi made is a little gross.\""
+    "translated": "\"Eh, well -- eating curry you made is a little gross, Kusanagi.\""
    },
    {
     "offset": 69507,
@@ -431869,7 +431869,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 72236,
@@ -433435,7 +433435,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Hearing that far is a little rough on me......\""
+    "translated": "\"When you put it like that, it's a little rough on me......\""
    },
    {
     "offset": 81045,
@@ -433534,7 +433534,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"You solve everything, and appropriately at that.\""
+    "translated": "\"You always handle everything so capably.\""
    },
    {
     "offset": 81623,
@@ -433876,7 +433876,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"For this thing to bloom at this timing......\""
+    "translated": "\"For this thing to bloom at a time like this......\""
    },
    {
     "offset": 83494,
@@ -433885,7 +433885,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"It means someone's feelings have blossomed into flower......\""
+    "translated": "\"Does it mean someone's feelings have finally blossomed......?\""
    },
    {
     "offset": 83544,
@@ -434290,7 +434290,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Rina is in love with Kusanagi-san......\""
+    "translated": "\"Rina is in love with you, Kusanagi-san......\""
    },
    {
     "offset": 86575,
@@ -435739,7 +435739,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"There's no way a me like that wouldn't bless you.\""
+    "translated": "\"When I feel that way, how could I not give you my blessing?\""
    },
    {
     "offset": 96523,
@@ -435928,7 +435928,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Those ones went so far as to show me an outrageous dream, trying to grant my wish.\""
+    "translated": "\"Those two went so far as to show me an outrageous dream, trying to grant my wish.\""
    },
    {
     "offset": 97390,
@@ -437176,7 +437176,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 43909,
@@ -437698,7 +437698,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"You were always close by, you'd talk to me easily, you were always kind to me... and precisely because of that, you felt like the most distant existence......\""
+    "translated": "\"You were always close by, you'd talk to me so easily, you were always so kind to me... and precisely because of that, you felt further away than anyone......\""
    },
    {
     "offset": 47265,
@@ -438823,7 +438823,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"A self-proclaimed little sister has a faint presence, you know. Precisely because I was that sort of existence, I could naturally stay by your side.\""
+    "translated": "\"A self-proclaimed little sister barely registers, you know. Precisely because that was my role, I could stay by your side so naturally.\""
    },
    {
     "offset": 54584,
@@ -439111,7 +439111,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　Against the feel of Rina, I who had been keeping my composure...... naturally lose all composure."
+    "translated": "　Feeling Rina against me, whatever composure I'd managed to keep until now...... completely vanishes."
    },
    {
     "offset": 56859,
@@ -439183,7 +439183,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　The two of us held each other like that.\nAnd then Rina closes her eyes."
+    "translated": "　The two of us held each other like that.\nAnd then Rina closed her eyes."
    },
    {
     "offset": 57206,
@@ -440302,7 +440302,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"So here's the thing, Kusanagi. I love Rina so much I'm always masturbating while thinking about Rina. But Rina doesn't really like Kusanagi that much, so she doesn't masturbate.\""
+    "translated": "\"So here's the thing, Kusanagi. I love Rina so much I'm always masturbating while thinking about her. But Rina doesn't really like you that much, so she doesn't masturbate.\""
    },
    {
     "offset": 85260,
@@ -441778,7 +441778,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 94514,
@@ -447085,7 +447085,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"By the time I did, Kusanagi would already be dead, so it's fine.\""
+    "translated": "\"By the time I did, you'd already be dead, Kusanagi, so it's fine.\""
    },
    {
     "offset": 49667,
@@ -449801,7 +449801,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Sun sun... haaa~~... it's so good... the smell of Naoya-san's semen... haaa... I can't stand it. Naoya-san, Naoya-san...\""
+    "translated": "\"Sniff, sniff... haaa~~... it's so good... the smell of Naoya-san's semen... haaa... I can't get enough of it. Naoya-san, Naoya-san...\""
    },
    {
     "offset": 71903,
@@ -451982,7 +451982,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Because along with death, the cypress also carries the meanings of rebirth, immortality, eternal life."
+    "translated": "Yet along with those, it also carries the meanings of rebirth, immortality, and eternal life."
    },
    {
     "offset": 34148,
@@ -452952,7 +452952,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 39685,
@@ -453849,7 +453849,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"That can't be helped. Naoya is a Kusanagi. And being a Kusanagi means being fated to get caught up in serious business.\""
+    "translated": "\"There's no helping that. Naoya is a Kusanagi. And being a Kusanagi means being fated to get caught up in serious business.\""
    },
    {
     "offset": 8680,
@@ -453876,7 +453876,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "若田",
-    "translated": "\"I only know a little. Kusanagi-san, you were the Madonna every boy at Yumihari Academy pined after. And you eloped with Mizuna-san.\""
+    "translated": "\"I only know a little.\nKusanagi-san, you eloped with Mizuna-san -- the Madonna every boy at Yumihari Academy pined after.\""
    },
    {
     "offset": 8917,
@@ -454146,7 +454146,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 11054,
@@ -455007,7 +455007,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Which is why, indecent as it is, sometimes I can't help but wonder."
+    "translated": "Which is why, indiscreet as it may be, the thought sometimes crosses my mind."
    },
    {
     "offset": 223632,
@@ -455976,7 +455976,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "水菜",
-    "translated": "\"Sigh... So you're going to make that face too, sensei...\nJust as you're thinking right now, yes -- Nakamura, as in that Nakamura family...\""
+    "translated": "\"Honestly... Even you're giving me that look, sensei...\nJust as you're thinking right now, yes -- Nakamura, as in that Nakamura family...\""
    },
    {
     "offset": 229774,
@@ -457028,7 +457028,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "She made a suspicious face and said,"
+    "translated": "With a dubious look,"
    },
    {
     "offset": 237737,
@@ -457613,7 +457613,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"What is mind? -- What is the heart?\nNo matter. -- It is not matter.\""
+    "translated": "\"What is mind? -- What is the mind?\nNo matter. -- It is not matter.\""
    },
    {
     "offset": 242459,
@@ -457622,7 +457622,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"What is matter? -- What is substance?\nNever mind. -- It is by no means the heart.\""
+    "translated": "\"What is matter? -- What is substance?\nNever mind. -- It is by no means the mind.\""
    },
    {
     "offset": 242537,
@@ -457640,7 +457640,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"What is mind? -- What the hell is the heart?\nNo matter. -- Who cares, right?\""
+    "translated": "\"What is mind? -- What the hell is the mind?\nNo matter. -- Who cares, right?\""
    },
    {
     "offset": 242666,
@@ -458450,7 +458450,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "水菜",
-    "translated": "\"Ah, no... he's not. This person is a teacher from my school...\""
+    "translated": "\"Ah, no... he's not.\nHe's a teacher from my school...\""
    },
    {
     "offset": 248394,
@@ -460105,7 +460105,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "水菜",
-    "translated": "\"Sigh... really, getting Ai-chan attached to you like this... You ought to be arrested for XX porn.\""
+    "translated": "\"Honestly... getting Ai-chan this attached to you...\nYou ought to be hauled in for c***d porn.\""
    },
    {
     "offset": 259410,
@@ -460168,7 +460168,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "水菜",
-    "translated": "\"In any case, you don't dislike this person, do you, Ai-chan?\""
+    "translated": "\"In any case, you don't dislike him, do you, Ai-chan?\""
    },
    {
     "offset": 259722,
@@ -460492,7 +460492,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"Once upon a time~ on a mountain far, far away~ ♪\""
+    "translated": "\"Once upon a time~ on a mountain far, far away~\""
    },
    {
     "offset": 262014,
@@ -460681,7 +460681,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "\"Though I look upon the world from afar,\nlike bogwood long buried from sight --\nso let this unfeeling self remain unseen.\""
+    "translated": "\"Though I look upon the world from afar,\nlike bogwood long buried from sight --\nhow could I remain forever buried, as though I had no heart?\""
    },
    {
     "offset": 263217,
@@ -464564,7 +464564,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Looking at the painting hung in the entrance of the Kootoba mansion, Nakamura Shouichi let out a displeased voice."
+    "translated": "Looking at the painting hung in the entrance of the Kootoba mansion, Nakamura Shouichi spoke in a displeased tone."
    },
    {
     "offset": 287417,
@@ -467802,7 +467802,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "琴子",
-    "translated": "\"Have you ever seen this person? Age-wise, she wouldn't be much different from me, would she?\""
+    "translated": "\"Have you ever seen her? Age-wise, she wouldn't be much different from me, would she?\""
    },
    {
     "offset": 310350,
@@ -468504,7 +468504,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "琴子",
-    "translated": "\"I see. If that's your will, then it can't be helped.\""
+    "translated": "\"I see. If it's your own choice, then there's no stopping you.\""
    },
    {
     "offset": 315457,
@@ -469251,7 +469251,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"If that is emptiness, then emptiness itself is thus\nAnd to a certain extent it is common to us all.\""
+    "translated": "\"If this be nothingness, then nothingness itself is just this,\nand to some degree, it is shared by us all.\""
    },
    {
     "offset": 321323,
@@ -469260,7 +469260,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "健一郎",
-    "translated": "\"(For all things are the everyone within me,\nAnd the everything within each and every one)\""
+    "translated": "\"(For just as everything within me is everyone,\nso too is everything within each and every one.)\""
    },
    {
     "offset": 321422,
@@ -470939,7 +470939,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "吹",
-    "translated": "\"That said, it wasn't as though this person was my master. They didn't teach me how to paint, you see?\""
+    "translated": "\"That said, it's not as though they were my master. I wasn't taught how to paint or anything like that, you see?\""
    },
    {
     "offset": 86192,
@@ -471002,7 +471002,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Where did you and this person meet?\""
+    "translated": "\"Where did the two of you meet?\""
    },
    {
     "offset": 86498,
@@ -471730,7 +471730,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"I saw it on TV! It was incredible. The moment I saw it, I thought, 'Ah, only Kusanagi-kun could do this.' No one else could pull off something like that! As expected, you're amazing.\""
+    "translated": "\"I saw it on TV! It was incredible. The moment I saw it, I thought, 'Ah, only Kusanagi-kun could do this.' No one else could pull off something like that! You really are amazing.\""
    },
    {
     "offset": 90800,
@@ -471748,7 +471748,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "What \"as expected\" my ass."
+    "translated": "\"Amazing,\" my ass."
    },
    {
     "offset": 90908,
@@ -475661,7 +475661,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "I let out a bitter smile."
+    "translated": "I gave a wry smile."
    },
    {
     "offset": 117182,
@@ -476039,7 +476039,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "圭",
-    "translated": "\"Yeah, definitely give it a listen. It's my favorite song. It's the 'Modfather.'\""
+    "translated": "\"Yeah, definitely give it a listen. It's my favorite song -- by the 'Modfather' himself.\""
    },
    {
     "offset": 119573,
@@ -477101,7 +477101,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 125547,
@@ -477612,7 +477612,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Even without any understanding of geography, these can be understood to a certain degree."
+    "translated": "Even without knowing the geography, you can grasp these to a certain degree."
    },
    {
     "offset": 47116,
@@ -479445,7 +479445,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Elan Loutre\nThree slots worldwide.\nA Japanese artist took one of the three three years ago."
+    "translated": "Elan Loutre\nThree slots worldwide.\nAmong Japanese artists, it has produced three winners, the last one three years ago."
    },
    {
     "offset": 58338,
@@ -479625,7 +479625,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "In fact, it's said to have been a strategy to pull Tokyo -- a global city that as a city boasts the world's number-one GDP and population, and reigns as one of the world's three great cities -- into the art market."
+    "translated": "In fact, it's said to have been a strategy to pull Tokyo -- a global metropolis boasting the world's largest urban GDP and population, reigning as one of the world's three major cities -- into the art market."
    },
    {
     "offset": 60162,
@@ -482454,7 +482454,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"Really? Well, I suppose it can't be helped that you'd feel that way, Kusanagi-kun.\""
+    "translated": "\"Really? Well, I can't blame you for feeling that way, Kusanagi-kun.\""
    },
    {
     "offset": 66415,
@@ -484865,7 +484865,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "フリッドマン",
-    "translated": "\"As executor, I've met with Miss Natsume Ai several times.\""
+    "translated": "\"As the trustee, I've met with Miss Natsume Ai several times.\""
    },
    {
     "offset": 81471,
@@ -490193,7 +490193,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 79268,
@@ -491111,7 +491111,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"I want to find that person and ruin their life.\""
+    "translated": "\"I want to track that bastard down and ruin their life.\""
    },
    {
     "offset": 85615,
@@ -493636,7 +493636,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "The fruit of a bad habit -- solving everything alone.\nA bad fruit, though......"
+    "translated": "The byproduct of a habit of solving everything alone.\nAn unwelcome byproduct, though......"
    },
    {
     "offset": 70884,
@@ -493995,7 +493995,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Sui stared fixedly at me for a while, then opened her mouth."
+    "translated": "Sui stared fixedly at me for a while, then spoke."
    },
    {
     "offset": 72460,
@@ -496702,7 +496702,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　But even so, still......"
+    "translated": "　And yet, even so......"
    },
    {
     "offset": 88836,
@@ -499241,7 +499241,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Elan Rootle won three years ago, so if there's another win the press will be in a frenzy again.\""
+    "translated": "\"Since the last Elan Loutre win was three years ago, if someone takes it again the press will be in a frenzy.\""
    },
    {
     "offset": 96262,
@@ -500808,7 +500808,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "村田",
-    "translated": "\"Yeah, I like to think I've built up a fair career overseas, but to stop at Elan Faux...\""
+    "translated": "\"Yeah, I like to think I've built up a fair career overseas, but to top out at the Elan Foc...\""
    },
    {
     "offset": 106533,
@@ -501051,7 +501051,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "村田",
-    "translated": "\"Speaking of which, the talk this time is that there are two domestic recipients, and I hear the other one is Elan Otari.\""
+    "translated": "\"Speaking of which, word is there are two domestic recipients this time, and I hear the other winner is taking the Elan Otarie.\""
    },
    {
     "offset": 108460,
@@ -501267,7 +501267,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "村田",
-    "translated": "\"Well then, shall we go check who's taking the Elan Otari?\""
+    "translated": "\"Well then, shall we go check who's taking the Elan Otarie?\""
    },
    {
     "offset": 109905,
@@ -506590,7 +506590,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "藍",
-    "translated": "\"Ah, it seems she can't come back to the Natsume house for a while.\nThe shock was too much for her... she's in a state of daze.\""
+    "translated": "\"Ah, it seems she can't come back to the Natsume house for a while.\nThe shock was too much for her... she's in a complete daze.\""
    },
    {
     "offset": 140417,
@@ -507800,7 +507800,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 54624,
@@ -509312,7 +509312,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"In the heart? Or in nature?\""
+    "translated": "\"In the mind? Or in nature?\""
    },
    {
     "offset": 64690,
@@ -509339,7 +509339,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"The heart and nature.\""
+    "translated": "\"Mind and nature.\""
    },
    {
     "offset": 64799,
@@ -509357,7 +509357,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Are the heart and nature really two utterly different things?\""
+    "translated": "\"Are the mind and nature really two utterly different things?\""
    },
    {
     "offset": 64897,
@@ -509384,7 +509384,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Take the story of the kitten. Whether the concept of 'horizontal' was born in nature or in the heart -- isn't it fundamentally unreasonable to try to judge which?\""
+    "translated": "\"Take the story of the kitten. Whether the concept of 'horizontal' was born in nature or in the mind -- isn't it fundamentally unreasonable to try to judge which?\""
    },
    {
     "offset": 65164,
@@ -509465,7 +509465,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"The Brain -- is wider than the Sky --\nOur heads are wider than the sky.\""
+    "translated": "\"The Brain -- is wider than the Sky --\nOur minds are wider than the sky.\""
    },
    {
     "offset": 65681,
@@ -509483,7 +509483,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Our heads will easily contain the sky,\nand you along with it.\""
+    "translated": "\"Our minds will easily contain the sky,\nand you along with it.\""
    },
    {
     "offset": 65869,
@@ -509492,7 +509492,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"The Brain is deeper than the sea --\nOur heads are deeper than the sea.\""
+    "translated": "\"The Brain is deeper than the sea --\nOur minds are deeper than the sea.\""
    },
    {
     "offset": 65935,
@@ -509510,7 +509510,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Our heads will soak up the sea\nas a sponge sops up water from a bucket.\""
+    "translated": "\"Our minds will soak up the sea\nas a sponge sops up water from a bucket.\""
    },
    {
     "offset": 66217,
@@ -509519,7 +509519,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Our heads weigh exactly the same as God.\nLook, weigh the two of them precisely.\""
+    "translated": "\"Our minds weigh exactly the same as God.\nLook, weigh the two of them precisely.\""
    },
    {
     "offset": 66353,
@@ -509834,7 +509834,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Nature and heart aren't separate. They are equal elements that constitute 'me.'\""
+    "translated": "\"Nature and mind aren't separate. They are equal elements that constitute 'me.'\""
    },
    {
     "offset": 68308,
@@ -509951,7 +509951,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"By your earlier logic, Kusanagi-kun, number is discovered from nature, and also discovered within the heart, and that's why it comes to exist in our world.\""
+    "translated": "\"By your earlier logic, Kusanagi-kun, number is discovered from nature, and also discovered within the mind, and that's why it comes to exist in our world.\""
    },
    {
     "offset": 69425,
@@ -510995,7 +510995,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"'If it be void, then that void itself is such as this,\nand to some degree common to us all.'\""
+    "translated": "\"'If this be nothingness, then nothingness itself is just this,\nand to some degree, it is shared by us all.'\""
    },
    {
     "offset": 76858,
@@ -511004,7 +511004,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"'(Just as everything is each one within me,\nso it is everything within each of them.)'\""
+    "translated": "\"'(For just as everything within me is everyone,\nso too is everything within each and every one.)'\""
    },
    {
     "offset": 76981,
@@ -514535,7 +514535,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　With an \"just do it\" sort of feeling, Ai took hold of the zipper."
+    "translated": "　With a \"for starters\" sort of air, Ai took hold of the zipper."
    },
    {
     "offset": 53406,
@@ -518840,7 +518840,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 53029,
@@ -519882,7 +519882,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Hmm... was that person really an acquaintance, I wonder...\""
+    "translated": "\"Hmm... could you really call us acquaintances, I wonder...\""
    },
    {
     "offset": 60484,
@@ -524231,7 +524231,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 59857,
@@ -526448,7 +526448,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "鈴菜",
-    "translated": "\"Apparently there have been students in the past who took an interest in the former art club and approached Kusanagi-sama about it, and each time this person has lied and kept it hidden.\""
+    "translated": "\"Apparently there have been students in the past who took an interest in the former art club and approached Kusanagi-sama about it, and each time he has lied and kept it hidden.\""
    },
    {
     "offset": 76392,
@@ -528190,7 +528190,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "This person, if I remember right......"
+    "translated": "If I remember right, she's......"
    },
    {
     "offset": 97246,
@@ -528368,7 +528368,7 @@
     "text": "うなぎ",
     "has_jp": true,
     "type": "name",
-    "translated": "Eel-vendor"
+    "translated": "Unagi"
    },
    {
     "offset": 97938,
@@ -528683,7 +528683,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"A surfer is someone who can make waves happen no matter the conditions. Someone like me doesn't count.\""
+    "translated": "\"A real surfer is someone who can at least make a wave no matter the conditions. Someone like me doesn't count.\""
    },
    {
     "offset": 99474,
@@ -531512,7 +531512,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 117680,
@@ -531926,7 +531926,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "ルリヲ",
-    "translated": "\"That's been true since way back too. Kusanagi-chan gets the whole 'cool' thing wrong on a fundamental level, so to others his attitude comes across as too listless -- like he's about to die. I hear that person Toritani used to tell him so all the time.\""
+    "translated": "\"That's been true since way back too. Kusanagi-chan gets the whole 'cool' thing wrong on a fundamental level, so to others his attitude comes across as too listless -- like he's about to die. I hear someone named Toritani used to tell him so all the time.\""
    },
    {
     "offset": 120751,
@@ -532385,7 +532385,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "鈴菜",
-    "translated": "\"Haa, how should I put it -- that obliviousness of yours hasn't changed. Even I, without being my sister, feel like stabbing you to death, Kusanagi-sama.\""
+    "translated": "\"Haa, how should I put it -- that obliviousness of yours hasn't changed. You don't have to be my sister to feel like stabbing you to death, Kusanagi-sama.\""
    },
    {
     "offset": 123723,
@@ -533327,7 +533327,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"It's practically a scorched-earth marketing scheme.\""
+    "translated": "\"It's practically outrage marketing.\""
    },
    {
     "offset": 129505,
@@ -537557,7 +537557,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "校長",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 81559,
@@ -538718,7 +538718,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "桜子",
-    "translated": "\"Sigh... what happened in this past hour, sensei?\""
+    "translated": "\"Honestly... what happened in this past hour, sensei?\""
    },
    {
     "offset": 89551,
@@ -539928,7 +539928,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 68843,
@@ -543108,7 +543108,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "桜子",
-    "translated": "\"That's exactly why it comes down to trust in this person, Kusanagi Naoya.\""
+    "translated": "\"That's exactly why it comes down to the trust we have in Kusanagi Naoya as a person.\""
    },
    {
     "offset": 91820,
@@ -546083,7 +546083,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "香奈",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 104628,
@@ -546344,7 +546344,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "There was a really flashy sound."
+    "translated": "It made a loud, resounding crack."
    },
    {
     "offset": 106451,
@@ -548142,7 +548142,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "フリッドマン",
-    "translated": "\"Of course. I'm Ken'ichirou's estate manager. I have copies of those blueprints on hand, too.\""
+    "translated": "\"Of course. I'm Ken'ichirou's trustee. I have copies of those blueprints on hand, too.\""
    },
    {
     "offset": 116926,
@@ -548650,7 +548650,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 120288,
@@ -549675,7 +549675,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Huh? Ah, w-what? Sakizaki-kun?\""
+    "translated": "\"Huh? Ah, w-what? Sakizaki-kun?"
    },
    {
     "offset": 126537,
@@ -554680,7 +554680,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"Trustee Murayama already hated me to begin with, and I probably made him lose face on top of that......\""
+    "translated": "\"Director Murayama already hated me to begin with, and I probably made him lose face on top of that......\""
    },
    {
     "offset": 16544,
@@ -554698,7 +554698,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Honestly, I hadn't ruled out the possibility of being fired.\nBut since I'd been acting on Trustee Inoue's behalf, I figured the safest bet was that I'd get off without a scolding and just continue as before."
+    "translated": "Honestly, I hadn't ruled out the possibility of being fired.\nBut since I'd been acting on Director Inoue's behalf, I figured the safest bet was that I'd get off without a scolding and just continue as before."
    },
    {
     "offset": 16747,
@@ -554769,7 +554769,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "校長",
-    "translated": "\"Why would you need my permission? You got permission from Trustee Inoue, didn't you? Naturally, word came to me as well.\""
+    "translated": "\"Why would you need my permission? You got permission from Director Inoue, didn't you? Naturally, word came to me as well.\""
    },
    {
     "offset": 17098,
@@ -554796,7 +554796,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "校長",
-    "translated": "\"That said, Trustee Murayama is furious.\""
+    "translated": "\"That said, Director Murayama is furious.\""
    },
    {
     "offset": 17281,
@@ -554814,7 +554814,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "校長",
-    "translated": "\"Everything he'd planned got snatched away by Trustee Inoue, after all.\""
+    "translated": "\"Everything he'd planned got snatched away by Director Inoue, after all.\""
    },
    {
     "offset": 17395,
@@ -554994,7 +554994,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "校長",
-    "translated": "\"That said, it wasn't easy, believe me.\nTrustee Murayama holds quite a grudge against you. When this came up, he opposed it with tremendous fury......\""
+    "translated": "\"That said, it wasn't easy, believe me.\nDirector Murayama holds quite a grudge against you. When this came up, he opposed it with tremendous fury......\""
    },
    {
     "offset": 18673,
@@ -556581,7 +556581,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "　With an \"just do it\" sort of feeling, Ai took hold of the zipper."
+    "translated": "　With a \"for starters\" sort of air, Ai took hold of the zipper."
    },
    {
     "offset": 31173,
@@ -560655,7 +560655,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 59776,
@@ -567933,7 +567933,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Sun sun... haaa~~... it's so good... the smell of Naoya-san's semen... haaa... I can't stand it. Naoya-san, Naoya-san...\""
+    "translated": "\"Sniff, sniff... haaa~~... it's so good... the smell of Naoya-san's semen... haaa... I can't get enough of it. Naoya-san, Naoya-san...\""
    },
    {
     "offset": 55786,
@@ -576195,7 +576195,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "I let out a voice before I could stop myself."
+    "translated": "I let out a gasp before I could stop myself."
    },
    {
     "offset": 40111,
@@ -579291,7 +579291,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"But we're doing this sort of thing, so that can't be helped, can it?\""
+    "translated": "\"Well, considering what we're doing, it's only natural, isn't it?\""
    },
    {
     "offset": 61799,
@@ -579810,7 +579810,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"It's not like Nao-kun was the only one holding back, you know...\""
+    "translated": "\"You weren't the only one holding back, you know, Nao-kun...\""
    },
    {
     "offset": 45394,
@@ -580161,7 +580161,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "直哉",
-    "translated": "\"What is?\""
+    "translated": "\"Scared of what?\""
    },
    {
     "offset": 47646,
@@ -581169,7 +581169,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"......(nod)\""
+    "translated": "\"......Mm.\""
    },
    {
     "offset": 56344,
@@ -583707,7 +583707,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Th-that can't be helped!\""
+    "translated": "\"I-I couldn't help it!\""
    },
    {
     "offset": 73991,
@@ -587178,7 +587178,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Aah...... kya...... upu...... n n...... uuuu...... nnnnu...... !! Squeeze!!!!!\""
+    "translated": "\"Aah...... kya...... mph...... nnh, nnh...... uuuu...... nnnnh......!! *clench*!!!!!\""
    },
    {
     "offset": 72017,
@@ -588186,7 +588186,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "稟",
-    "translated": "\"Does Nao-kun feel good too...? You're making... such an amazing face... haa, haa, haa...\""
+    "translated": "\"Does it feel good for you too, Nao-kun...? Look at the face... you're making... haa, haa, haa...\""
    },
    {
     "offset": 80213,
@@ -589836,7 +589836,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"Shizuku loves you so much, Naoya, just being kissed makes me tingle so much down there. ...So it can't really be helped...\""
+    "translated": "\"I love you so much, Naoya, that just being kissed makes me ache down there. ...So I really couldn't help it...\""
    },
    {
     "offset": 30558,
@@ -591456,7 +591456,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Little by little the shaft was wrapped in warmth too, and with each bit Shizuku let out a pained voice."
+    "translated": "Little by little the shaft was wrapped in warmth too, and with each inch Shizuku let out a pained cry."
    },
    {
     "offset": 39899,
@@ -592668,7 +592668,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "雫",
-    "translated": "\"No, it's just, you were being so considerate even about Sui...... and I was thinking, this person really is kind...... and then I was kissing you.\""
+    "translated": "\"No, it's just, you were being so considerate even toward Sui...... and I found myself thinking how truly kind you are...... and before I knew it, I was kissing you.\""
    },
    {
     "offset": 50667,
@@ -606294,7 +606294,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"It, it can't be helped that I get like this.\""
+    "translated": "\"I-I can't help getting like this...\""
    },
    {
     "offset": 71053,
@@ -606744,7 +606744,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "里奈",
-    "translated": "\"Soaked as if you'd wet yourself.\nAmazing. As expected of the pervert who's always fantasized about me.\""
+    "translated": "\"Soaked as if you'd wet yourself.\nAmazing. Just what I'd expect from the pervert who's always fantasizing about me.\""
    },
    {
     "offset": 73920,
@@ -607113,7 +607113,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Gently, with a face of blessing... with that smile, she welcomed my masturbation."
+    "translated": "Gently, with a blissful... welcoming smile, she gave her blessing to my masturbation."
    },
    {
     "offset": 76525,
@@ -607329,7 +607329,7 @@
     "has_jp": true,
     "type": "narrative",
     "speaker": null,
-    "translated": "Rina made a briefly saddened face."
+    "translated": "A sad look crossed Rina's face for a moment."
    },
    {
     "offset": 78231,
@@ -612451,7 +612451,7 @@
     "has_jp": true,
     "type": "dialogue",
     "speaker": "優美",
-    "translated": "\"Eh? What is?\""
+    "translated": "\"Eh? For what?\""
    },
    {
     "offset": 28521,
