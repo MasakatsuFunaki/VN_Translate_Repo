@@ -70,7 +70,7 @@ const std::vector<std::pair<std::string, std::string>>& name_translations_ordere
         // Furigana-confirmed reading: <r いえつな>宇綱</r>.
         {"宇綱",       "Ietsuna"},
         {"女性店主",   "Female Shopkeeper"},
-        {"副会長",     "Vice-Chairman"},
+        {"副会長",     "Vice President"},
         {"末竹",       "Suetake"},
         {"一宮",       "Ichinomiya"},
         {"琢磨",       "Takuma"},
@@ -104,7 +104,7 @@ const std::vector<std::pair<std::string, std::string>>& name_translations_ordere
         {"関係者Ｂ",   "Person Concerned B"},
         // The museum director; narration confirms 老館長.
         {"老人",       "Old Man"},
-        {"会長",       "Chairman"},
+        {"会長",       "President"},
         {"愛のトーマス", "Loving Thomas"},
         {"配達員",     "Delivery Worker"},
         {"キャスター", "News Caster"},
