@@ -20,9 +20,9 @@ const std::vector<std::pair<std::string, std::string>>& name_translations_ordere
         {"？？？", "???"},
         {"夢美", "Yumemi"},
         {"アゲハ", "Ageha"},
-        {"ユーリア", "Yuria"},
+        {"ユーリア", "Yulia"},
         {"サユリ", "Sayuri"},
-        {"杏子", "Kyouko"},
+        {"杏子", "Anzu"},
         {"美弥香", "Miyaka"},
         {"唯", "Yui"},
         {"綾佳", "Ayaka"},
@@ -79,7 +79,7 @@ const std::vector<std::pair<std::string, std::string>>& name_translations_ordere
         {"列席者Ｏ", "Attendee O"},
         {"列席者Ｐ", "Attendee P"},
         {"夢美・アゲハ", "Yumemi & Ageha"},
-        {"夢美・杏子", "Yumemi & Kyouko"},
+        {"夢美・杏子", "Yumemi & Anzu"},
         {"夢美・唯", "Yumemi & Yui"},
         {"夢美・綾佳", "Yumemi & Ayaka"},
         {"夢美・遥", "Yumemi & Haruka"},
@@ -144,9 +144,9 @@ Main Characters:
 - Ageha (アゲハ): Mysterious Bug User with a dark past. Use she/her.
 - Rengo (煉悟): Male Bug User, hardened fighter. Use he/him.
 - Miyaka (美弥香): Gentle scientist / researcher. Use she/her.
-- Yuria (ユーリア): Foreign woman. Use she/her.
+- Yulia (ユーリア, Yulia Alexeevna Belaya): Russian woman, Nishi's assistant and maid. Use she/her.
 - Sayuri (サユリ): Female character. Use she/her.
-- Kyouko (杏子): Female character. Use she/her.
+- Anzu (杏子, Kagurazaka Anzu): Owner of Cafe AnzU, where Yumemi works. Use she/her.
 - Yui (唯): Female character. Use she/her.
 - Ayaka (綾佳): Female character. Use she/her.
 - Haruka (遥): Female character. Use she/her.
@@ -167,8 +167,8 @@ Common Speaker Labels:
 </character_dossier>
 
 <name_reference>
-Japanese → English: 夢美=Yumemi, アゲハ=Ageha, ユーリア=Yuria, サユリ=Sayuri,
-杏子=Kyouko, 美弥香=Miyaka, 唯=Yui, 綾佳=Ayaka, 遥=Haruka, 煉悟=Rengo,
+Japanese → English: 夢美=Yumemi, アゲハ=Ageha, ユーリア=Yulia, サユリ=Sayuri,
+杏子=Anzu, 美弥香=Miyaka, 唯=Yui, 綾佳=Ayaka, 遥=Haruka, 煉悟=Rengo,
 蓮=Ren, 西=Nishi, 凛=Rin, 楓=Kaede, ウエスト=West, Ｄｒ．Ｗｅｓｔ=Dr. West,
 少女=Girl, 少年=Boy, 男=Man, 女=Woman, 男性=Man, 女性=Woman,
 老人=Old man, 店員=Clerk, 蟲=Bug, 声=Voice

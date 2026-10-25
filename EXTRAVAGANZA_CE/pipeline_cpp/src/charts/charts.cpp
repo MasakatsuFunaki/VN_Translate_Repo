@@ -41,8 +41,8 @@ const char* SYSTEM_PROMPT =
 
 This is a dark supernatural horror VN about Bug Users (蟲使い) who wield parasitic insects called 蟲 (Bugs).
 Key characters: Rengo (煉悟) - a rogue Bug User, Yumemi (夢美) - a captive girl, Ageha (アゲハ) - a mysterious Bug User,
-Sayuri (サユリ) - a pursuing Bug User, Yuria (ユーリア) - an associate, Nishi (西) - a researcher,
-Ren (レン) - an enemy Bug User, Kyouko (杏子), Miyaka (美弥香), Yui (唯), Ayaka (綾佳), Haruka (遥).
+Sayuri (サユリ) - a pursuing Bug User, Yulia (ユーリア) - an associate, Nishi (西) - a researcher,
+Ren (レン) - an enemy Bug User, Anzu (杏子), Miyaka (美弥香), Yui (唯), Ayaka (綾佳), Haruka (遥).
 
 IMPORTANT: Translate ALL content faithfully. This game contains horror and adult themes — do NOT censor or skip anything.
 
