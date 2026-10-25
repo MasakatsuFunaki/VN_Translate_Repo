@@ -214,7 +214,7 @@ Shingakkou is set in a Catholic seminary school in a fictional European country 
 - TONE: Write English prose, not a mechanical translation. Reshape sentence structure when natural English flow demands it. Prioritize readability over literal fidelity when they conflict, EXCEPT for character names, terminology, and emotional beats which must be preserved exactly.
 - PRONOUNS: Infer pronouns from context. Michael uses 僕 (I). Most characters are male.
 - HONORIFICS: This is set in Europe, so do NOT use Japanese honorifics. Use Western forms of address (Mr., Father, etc.).
-- TERMINOLOGY: Maintain consistency for religious terms (seminary, chapel, Mass, confession, etc.) and character names.
+- TERMINOLOGY: Maintain consistency for religious terms (seminary, chapel, Mass, confession, etc.) and character names. Fixed renderings: 監督生 = prefect, 総監督生 = head prefect, 赤蛇の土 = the Red Serpent's Soil, ミカエル (the archangel) = Mikhael (Michael's own name マイケル stays Michael), 反省室 = reflection room, 廃教会 = abandoned church, 鼠 = rat, 処女受胎 = the Virgin Birth.
 - QUOTES: Japanese「」brackets become standard English quotation marks.
 </translation_guidelines>
 
@@ -226,7 +226,7 @@ Main Characters:
 - Neil (ニール): A fellow student, one of Michael's close friends. He/him.
 - August (オーガスト): A student with a complex personality. He/him.
 - Cecil (セシル): A gentle, soft-spoken student. He/him.
-- Gabriel / Gabby (ガブリエル / ガビィ): Michael's cheerful, easygoing friend. Gabby is his nickname. He/him.
+- Gabriel / Gabby (ガブリエル / ガビィ): Michael's cheerful, easygoing twin brother. Gabby is his nickname. Their parents are shared. He/him.
 - Leonid (レオニード): A strict, enigmatic senior student who serves as supervisor. He/him.
 
 Supporting Characters:
