@@ -131,7 +131,7 @@ SpeakerCheckReport run_speaker_checks(const bj::object& data) {
         {"\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B", "Chitose"},   // ちとせ
         {"\xE7\xB5\x90\xE7\x81\xAF", "Yuuhi"},                 // 結灯
         {"\xE7\x8E\xB2", "Rei"},                               // 玲
-        {"\xE6\xB7\xB5\xE4\xB8\x8A", "Fuchigami"},             // 淵上
+        {"\xE6\xB7\xB5\xE4\xB8\x8A", "Fuchinoe"},              // 淵上, ruby ふちのえ
         {"\xE5\xAF\xB6\xE6\xB3\x89\xE8\xB7\xAF", "Housenji"},  // 寶泉路
     };
     for (const auto& [jp, en] : cases) {

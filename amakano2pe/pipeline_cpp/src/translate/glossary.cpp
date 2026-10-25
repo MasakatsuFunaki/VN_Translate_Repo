@@ -20,7 +20,7 @@ const std::vector<std::pair<std::string, std::string>>& name_translations_ordere
         {"ゆうひ", "Yuuhi"},
         {"玲", "Rei"},
         {"結灯", "Yuuhi"},
-        {"淵上", "Fuchigami"},
+        {"淵上", "Fuchinoe"},
         {"寶泉路", "Housenji"},
         {"ジャック", "Jack"},
         {"ゾンビ", "Zombie"},
@@ -103,8 +103,8 @@ const std::vector<std::pair<std::string, std::string>>& name_translations_ordere
         {"結灯＠店員さんの声", "Yuuhi (Clerk's Voice)"},
         {"結灯＠？？？", "Yuuhi (???)"},
         {"寶泉路＠？？？", "Housenji (???)"},
-        {"淵上＠？？？", "Fuchigami (???)"},
-        {"副部長＠茉莉", "Vice President (Matsuri)"},
+        {"淵上＠？？？", "Fuchinoe (???)"},
+        {"副部長＠茉莉", "Vice President (Mari)"},
         {"女将さん＠おばあさん", "Hostess (Grandmother)"},
         {"こはる＠店員さん", "Koharu (Clerk)"},
         {"こはる＠観光客さんＢ", "Koharu (Tourist B)"},
@@ -115,9 +115,9 @@ const std::vector<std::pair<std::string, std::string>>& name_translations_ordere
         {"穂波＠観光客さんＡ", "Honami (Tourist A)"},
         {"紗雪＠巫女さんＡ", "Sayuki (Shrine Maiden A)"},
         {"紗雪＠観光客さんＢ", "Sayuki (Tourist B)"},
-        {"聖＠お客さんＡ", "Hijiri (Customer A)"},
-        {"聖＠観光客さんＢ", "Hijiri (Tourist B)"},
-        {"雪静＠巫女さんＢ", "Yukishizu (Shrine Maiden B)"},
+        {"聖＠お客さんＡ", "Mizuki (Customer A)"},
+        {"聖＠観光客さんＢ", "Mizuki (Tourist B)"},
+        {"雪静＠巫女さんＢ", "Yuzuka (Shrine Maiden B)"},
         {"Chit", "Chit"},
         {"Hona", "Hona"},
         {"Kana", "Kana"},
@@ -157,15 +157,16 @@ IMPORTANT: This is a licensed commercial visual novel translation project. You M
 
 <character_dossier>
 Main Characters:
-- Protagonist (POV): Male. Uses "I/me/my". Default narrator unless context indicates otherwise.
-- Chitose (ちとせ): Adult Woman. Older sister figure. Use she/her.
-- Yuuhi (ゆうひ / 結灯): Young Girl. Use she/her. Also appears as 少女 (Girl).
-- Rei (玲): Female. Use she/her.
-- Fuchigami (淵上): Male.
+- Protagonist (POV): Wakura Ken'ichi (和倉 賢一), male. Uses "I/me/my". Default narrator unless context indicates otherwise. The script writes his names as $str10 (family) and $str20 (given); keep those tokens exactly.
+- Tsutamachi Chitose (蔦町 ちとせ): The older girl next door, a third-year at the protagonist's school. He calls her 姉さん ("sis"), but they are not related. Use she/her.
+- Kurohime Yuuhi (黒姫 結灯): The protagonist's classmate. Use she/her. Her childhood self appears as 少女 (Girl).
+- Himiyama Rei (氷見山 玲): The protagonist's younger cousin, who moves in with him. Use she/her.
+- Fuchinoe (淵上, read ふちのえ): Male, the protagonist's classmate, nicknamed Futchi (フッチー).
 - Housenji (寶泉路/ほうせんじ): Male. Protagonist's classmate. Nicknamed Hosen (ホーセン).
+- Address forms: the protagonist calls Chitose 姉さん = "Sis"; Rei calls him 兄さん = "Nii-san" and Chitose 姉さま = "Nee-sama"; Yuuhi's お姉ちゃん = "Big sis". 賢くん = "Ken-kun".
 
 Supporting Cast:
-- Koharu (こはる), Kanade (奏), Ruika (涙香), Honami (穂波), Sayuki (紗雪), Hijiri (聖), Yukishizu (雪静): Female characters.
+- Koharu (こはる), Kanade (奏), Ruika (涙香), Honami (穂波), Sayuki (紗雪), Mizuki (聖), Yuzuka (雪静): Female characters.
 - Jack (ジャック), Master (マスター), Zombie (ゾンビ): Side characters.
 
 Common Speaker Labels:
@@ -175,19 +176,25 @@ Common Speaker Labels:
 </character_dossier>
 
 <name_reference>
-Japanese Name → English: ちとせ=Chitose, ゆうひ=Yuuhi, 玲=Rei, 結灯=Yuuhi, 淵上=Fuchigami, 寶泉路=Housenji,
+Japanese Name → English: ちとせ=Chitose, ゆうひ=Yuuhi, 玲=Rei, 結灯=Yuuhi, 淵上=Fuchinoe, 寶泉路=Housenji,
 ジャック=Jack, ゾンビ=Zombie, マスター=Master, 母さん=Mom, 猫=Cat, 少女=Girl, 少年=Boy, 男の子=Boy,
 担任=Homeroom Teacher, 放送=Broadcast, 教員=Teacher, 女将さん=Hostess, 旦那さん=Husband, 店員さん=Clerk,
 副部長=Vice President, おじさん=Uncle, おばさん=Aunt, おばあさん=Grandmother, お客さん=Customer,
 誰かの声=Someone's Voice, 男性=Man, 男性客=Male Customer, 女性客=Female Customer,
 男子学生=Male Student, 女子学生=Female Student, 学生たち=Students, 部員たち=Club Members,
-こはる=Koharu, 奏=Kanade, 涙香=Ruika, 穂波=Honami, 紗雪=Sayuki, 聖=Hijiri, 雪静=Yukishizu
+こはる=Koharu, 奏=Kanade, 涙香=Ruika, 穂波=Honami, 紗雪=Sayuki, 聖=Mizuki, 雪静=Yuzuka
 </name_reference>
 
 <locations>
 緋衣亭 (ひごろもてい) = Higoromotei (traditional inn next door)
+蓮池園 (れんちえん) = Renchien (garden near the school)
+城白祭 (じょうはくさい) = the Jouhaku Festival
+くらやみ坂 = Kurayami Slope
 ながれ茶屋街 (ちゃやがい) = Nagare Chayagai (tea-house district)
-蔦町 (つたまち) = Tsutamachi (protagonist's family name)
+蔦町 (つたまち) = Tsutamachi (Chitose's family name)
+黒姫 (くろひめ) = Kurohime (Yuuhi's family name)
+氷見山 (ひみやま) = Himiyama (Rei's family name)
+和倉 (わくら) = Wakura (the protagonist's family name)
 </locations>
 
 <formatting_rules>
