@@ -709,9 +709,12 @@ ValidationResult validate_proposed_fix(
         return res;
     }
 
+    const bool compressed_runaway =
+        old_body.size() > 500 && new_body.size() * 2 < old_body.size();
+
     // When fix_punctuation == false (default), reject edits that only alter
     // punctuation/hyphens/ellipses/quotes while keeping identical alphanumeric words
-    if (!fix_punctuation && !has_real_japanese(old_body) &&
+    if (!fix_punctuation && !compressed_runaway && !has_real_japanese(old_body) &&
         extract_alnum_words_lower(old_body) == extract_alnum_words_lower(new_body)) {
         res.rejection_reason =
             "punctuation-only change rejected (fix_punctuation is false)";
@@ -720,9 +723,11 @@ ValidationResult validate_proposed_fix(
 
     // 0. Stage 2 GEMBA-MQM Span-Grounded Surgical Verification:
     // If the LLM specified an offending `error_span` present in `old_body`,
-    // `new_body` must actually modify/remove that span!
+    // `new_body` must actually modify/remove that span (unless compressing a
+    // runaway repetition loop where a short prefix of repeated chars remains).
     const std::string span = trim(error_span);
-    if (!span.empty() && old_body.find(span) != std::string::npos &&
+    if (!compressed_runaway && !span.empty() &&
+        old_body.find(span) != std::string::npos &&
         new_body.find(span) != std::string::npos) {
         res.rejection_reason =
             "proposed fix left GEMBA-MQM error_span '" + span + "' unchanged";
@@ -1250,11 +1255,15 @@ struct SpotChecker::Impl {
                                   std::size_t max_h_lines = 3) {
         std::size_t h_count = 0;
         for (const auto& e : slice.target) {
+            if (e.current_en.size() > 500 &&
+                e.current_en.size() > 4 * std::max<std::size_t>(1, e.jp_text.size())) {
+                return false;
+            }
             if (is_h_scene_line(e.jp_text, e.current_en)) {
-                if (++h_count >= max_h_lines) return true;
+                ++h_count;
             }
         }
-        return false;
+        return h_count >= max_h_lines;
     }
 
     SpotCheckReport run() {

@@ -325,6 +325,9 @@ double compute_script_info_bits(const std::string& jp_body) {
 bool is_h_scene_line(const std::string& jp_text, const std::string& en_text) {
     const std::string jp_body = strip_speaker_prefix_body(jp_text);
     const std::string en_body = strip_speaker_prefix_body(en_text);
+    if (en_body.size() > 500 && en_body.size() > 4 * std::max<std::size_t>(1, jp_body.size())) {
+        return false;
+    }
 
     for (const char* jp_term : {
              "肉棒", "秘部", "秘裂", "膣", "子宮", "精液", "射精", "絶頂",
@@ -739,14 +742,20 @@ struct HotspotDetector::Impl {
         const std::size_t w = std::min(cfg.window_size, n);
         const std::size_t num_cand = n - w + 1;
 
-        // Prefix sum of smoothed_density and H-scene line counts for O(1) window queries
+        // Prefix sum of smoothed_density, H-scene line counts, and runaway artifacts
         std::vector<double> prefix(n + 1, 0.0);
         std::vector<std::size_t> h_prefix(n + 1, 0);
+        std::vector<std::size_t> runaway_prefix(n + 1, 0);
         for (std::size_t i = 0; i < n; ++i) {
             prefix[i + 1] = prefix[i] + scores[i].smoothed_density;
-            const bool is_h = cfg.skip_h_scenes &&
+            const bool is_runaway =
+                entries[i].current_en.size() > 500 &&
+                entries[i].current_en.size() >
+                    4 * std::max<std::size_t>(1, entries[i].jp_text.size());
+            const bool is_h = cfg.skip_h_scenes && !is_runaway &&
                               is_h_scene_line(entries[i].jp_text, entries[i].current_en);
             h_prefix[i + 1] = h_prefix[i] + (is_h ? 1u : 0u);
+            runaway_prefix[i + 1] = runaway_prefix[i] + (is_runaway ? 1u : 0u);
         }
 
         std::vector<double> energies(num_cand, 0.0);
@@ -754,7 +763,8 @@ struct HotspotDetector::Impl {
         double sum_e = 0.0;
         std::size_t valid_cand = 0;
         for (std::size_t a = 0; a < num_cand; ++a) {
-            if (cfg.skip_h_scenes &&
+            const bool has_runaway = (runaway_prefix[a + w] - runaway_prefix[a]) > 0;
+            if (cfg.skip_h_scenes && !has_runaway &&
                 (h_prefix[a + w] - h_prefix[a]) >= cfg.max_h_lines_per_window) {
                 suppressed[a] = true;
                 continue;
