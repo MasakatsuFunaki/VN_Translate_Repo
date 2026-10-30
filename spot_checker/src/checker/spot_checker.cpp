@@ -221,6 +221,11 @@ std::string default_editorial_rules_prompt(bool fix_punctuation) {
         "   character voice tics (e.g. cat-puns like nya/meow, formal ojou-sama register, rough slang),\n"
         "   and multi-line banter callbacks (when line B echoes a verb/noun from line A in Japanese,\n"
         "   the English pair must preserve that verbal echo so the joke/callback lands).\n"
+        "   If current_en includes a short quoted phonetic reading specifically to make an explicit\n"
+        "   Japanese wordplay/pun intelligible when the following line reacts to that pun (e.g.\n"
+        "   \"'Shokai housou'... 'Shoka, ihou housou'--an early-summer illegal broadcast...\"\n"
+        "   followed by \"'let's leave out puns like that'\"), DO NOT strip the pun setup! Only\n"
+        "   remove parenthetical translator notes like (hippu) when they are not part of a spoken pun.\n"
         "3. NOT WESTERNIZED: Never domesticate Japanese cultural concepts, honorific dynamics, or\n"
         "   setting details into out-of-place Western internet slang, memes, or Americanized idioms.\n"
         "4. NOT CENSORED: Never soften, bowdlerize, sanitize, or euphemize explicit adult/erotic\n"
@@ -450,13 +455,15 @@ WindowSlice build_window_slice(const std::vector<ScriptEntry>& entries,
 std::set<int> compute_editable_ids(const WindowSlice& slice,
                                    const std::vector<LineWeaknessScore>& novel_scores,
                                    bool review_all_in_window,
-                                   bool skip_h_scenes) {
+                                   bool skip_h_scenes,
+                                   const std::set<std::size_t>& repaired_indices) {
     std::set<int> editable;
     const int n = static_cast<int>(slice.target.size());
     if (n == 0) return editable;
 
     auto is_blocked_line = [&](int id) {
         const auto& e = slice.target[static_cast<std::size_t>(id - 1)];
+        if (repaired_indices.count(e.global_index) != 0) return true;
         if (is_passthrough_or_non_jp_entry(e)) return true;
         if (skip_h_scenes && is_h_scene_line(e.jp_text, e.current_en)) return true;
         return false;
@@ -695,7 +702,7 @@ ValidationResult validate_proposed_fix(
 
     // When fix_punctuation == false (default), reject edits that only alter
     // punctuation/hyphens/ellipses/quotes while keeping identical alphanumeric words
-    if (!fix_punctuation &&
+    if (!fix_punctuation && !has_real_japanese(old_body) &&
         extract_alnum_words_lower(old_body) == extract_alnum_words_lower(new_body)) {
         res.rejection_reason =
             "punctuation-only change rejected (fix_punctuation is false)";
@@ -1039,6 +1046,26 @@ struct SpotChecker::Impl {
         return map;
     }
 
+    std::set<std::size_t> load_existing_checked_offsets() const {
+        std::set<std::size_t> offsets;
+        if (!fs::exists(fs::u8path(cfg.out_path))) return offsets;
+        try {
+            const bj::value v = json_parse_file(cfg.out_path);
+            if (!v.is_object()) return offsets;
+            const auto* arr = v.as_object().if_contains("checked_offsets");
+            if (!arr || !arr->is_array()) return offsets;
+            for (const auto& item : arr->as_array()) {
+                if (item.is_int64() && item.as_int64() >= 0) {
+                    offsets.insert(static_cast<std::size_t>(item.as_int64()));
+                } else if (item.is_uint64()) {
+                    offsets.insert(static_cast<std::size_t>(item.as_uint64()));
+                }
+            }
+        } catch (...) {
+        }
+        return offsets;
+    }
+
     void save_report_file(const SpotCheckReport& rep) const {
         bj::object root;
         root["game_dir"] = cfg.game_dir;
@@ -1062,6 +1089,12 @@ struct SpotChecker::Impl {
             static_cast<std::int64_t>(rep.script_entries_updated);
         root["cache_entries_updated"] =
             static_cast<std::int64_t>(rep.cache_entries_updated);
+
+        bj::array co_arr;
+        for (std::size_t off : rep.checked_offsets) {
+            co_arr.push_back(static_cast<std::int64_t>(off));
+        }
+        root["checked_offsets"] = std::move(co_arr);
 
         bj::array hs_arr;
         for (const auto& hw : rep.ranked_hotspots) {
@@ -1225,6 +1258,11 @@ struct SpotChecker::Impl {
         }
 
         std::map<std::size_t, Improvement> merged = load_existing_improvements();
+        std::set<std::size_t> visited_offsets = load_existing_checked_offsets();
+        std::set<std::size_t> repaired_indices;
+        for (const auto& [g_idx, _] : merged) {
+            repaired_indices.insert(g_idx);
+        }
 
         HotspotConfig hcfg;
         hcfg.window_size = cfg.window_size;
@@ -1235,20 +1273,33 @@ struct SpotChecker::Impl {
 
         std::vector<LineWeaknessScore> novel_scores;
         std::deque<std::pair<std::size_t, std::size_t>> work_queue;
-        std::set<std::size_t> visited_offsets;
         std::unordered_map<std::size_t, std::set<int>> radar_suspect_overrides;
+
+        const bool live_log = !static_cast<bool>(callback);
 
         if (cfg.mode == SpotCheckMode::Hotspot) {
             rep.ranked_hotspots =
                 detector.select_hotspots(script_entries, 0, &novel_scores);
             rep.hotspots_detected = rep.ranked_hotspots.size();
             for (const auto& hw : rep.ranked_hotspots) {
-                work_queue.emplace_back(hw.offset, hw.length);
+                if (visited_offsets.count(hw.offset) == 0) {
+                    work_queue.emplace_back(hw.offset, hw.length);
+                }
+            }
+            if (live_log) {
+                log_info("Hotspot scan complete: " +
+                         std::to_string(rep.hotspots_detected) +
+                         " candidate windows (" +
+                         std::to_string(visited_offsets.size()) +
+                         " previously checked, " +
+                         std::to_string(repaired_indices.size()) +
+                         " lines already repaired)");
             }
         } else {
             novel_scores = detector.score_entries(script_entries);
             for (std::size_t off = cfg.offset; off < script_entries.size();
                  off += cfg.window_size) {
+                if (visited_offsets.count(off) != 0) continue;
                 const std::size_t len =
                     std::min(cfg.window_size, script_entries.size() - off);
                 work_queue.emplace_back(off, len);
@@ -1268,8 +1319,10 @@ struct SpotChecker::Impl {
                 while (pack.size() < kPassagesPerRadarCall && !work_queue.empty()) {
                     const auto [off, len] = work_queue.front();
                     work_queue.pop_front();
+                    if (visited_offsets.count(off) != 0) continue;
                     WindowSlice ws = build_window_slice(script_entries, off, len, 0, 0);
                     if (cfg.skip_h_scenes && is_h_scene_window(ws)) {
+                        visited_offsets.insert(off);
                         ++rep.h_windows_skipped;
                         continue;
                     }
@@ -1279,18 +1332,33 @@ struct SpotChecker::Impl {
                 }
                 if (pack.empty()) break;
 
+                if (live_log) {
+                    log_info("[Radar " + std::to_string(r + 1) + "/" +
+                             std::to_string(cfg.radar_calls) + "] Triaging " +
+                             std::to_string(pack.size()) + " candidate passages...");
+                }
                 const std::string radar_prompt = build_radar_pack_prompt(pack);
                 const std::string raw_radar = invoke_model(radar_prompt);
                 ++rep.radar_calls_made;
                 rep.radar_passages_triaged += pack.size();
 
                 const auto batch_res = parse_radar_pack_response(raw_radar, pack);
+                std::set<std::size_t> flagged_in_batch;
                 for (const auto& rpr : batch_res) {
                     if (rpr.mqm_score > 0.0 || !rpr.suspect_ids.empty()) {
+                        flagged_in_batch.insert(rpr.offset);
                         flagged_passages.push_back(rpr);
                         if (!rpr.suspect_ids.empty()) {
                             radar_suspect_overrides[rpr.offset] = rpr.suspect_ids;
                         }
+                    }
+                }
+                // Any passage in `pack` that Radar marked clean (mqm_score == 0 and
+                // suspect_ids.empty()) is recorded in visited_offsets so future runs
+                // do not re-triage it.
+                for (const auto& ws : pack) {
+                    if (flagged_in_batch.count(ws.target_start) == 0) {
+                        visited_offsets.insert(ws.target_start);
                     }
                 }
             }
@@ -1328,8 +1396,11 @@ struct SpotChecker::Impl {
                 continue;
             }
 
-            slice.editable_ids = compute_editable_ids(
-                slice, novel_scores, cfg.review_all_in_window, cfg.skip_h_scenes);
+            slice.editable_ids = compute_editable_ids(slice,
+                                                      novel_scores,
+                                                      cfg.review_all_in_window,
+                                                      cfg.skip_h_scenes,
+                                                      repaired_indices);
             if (auto it = radar_suspect_overrides.find(cur_offset);
                 it != radar_suspect_overrides.end() && !cfg.review_all_in_window) {
                 const int max_id = static_cast<int>(slice.target.size());
@@ -1337,7 +1408,8 @@ struct SpotChecker::Impl {
                     for (int cand : {sid - 1, sid, sid + 1}) {
                         if (cand >= 1 && cand <= max_id) {
                             const auto& ce = slice.target[static_cast<std::size_t>(cand - 1)];
-                            if (!is_passthrough_or_non_jp_entry(ce) &&
+                            if (repaired_indices.count(ce.global_index) == 0 &&
+                                !is_passthrough_or_non_jp_entry(ce) &&
                                 (!cfg.skip_h_scenes ||
                                  !is_h_scene_line(ce.jp_text, ce.current_en))) {
                                 slice.editable_ids.insert(cand);
@@ -1369,17 +1441,24 @@ struct SpotChecker::Impl {
                 cfg.fix_punctuation);
             rep.candidates_rejected_by_validator += rejected;
 
+            std::vector<Improvement> accepted_new;
             for (const auto& imp : found) {
+                if (repaired_indices.count(imp.global_index) != 0) {
+                    ++rep.candidates_rejected_by_validator;
+                    continue;
+                }
                 merged[imp.global_index] = imp;
+                repaired_indices.insert(imp.global_index);
+                accepted_new.push_back(imp);
             }
 
             ++rep.windows_checked;
             rep.lines_checked += slice.target.size();
 
             // Hybrid Adaptive Contagion: expand to adjacent windows when defect density is high
-            if (cfg.mode == SpotCheckMode::Hotspot && !found.empty()) {
+            if (cfg.mode == SpotCheckMode::Hotspot && !accepted_new.empty()) {
                 const NeighborExpansion exp = detector.evaluate_contagion(
-                    cur_offset, slice.target.size(), script_entries.size(), found);
+                    cur_offset, slice.target.size(), script_entries.size(), accepted_new);
                 if (exp.expand_right && visited_offsets.count(exp.right_offset) == 0) {
                     work_queue.emplace_front(exp.right_offset, exp.right_length);
                     ++rep.adaptive_expansions;
@@ -1390,7 +1469,7 @@ struct SpotChecker::Impl {
                 }
             }
 
-            if (cfg.auto_apply && !found.empty()) {
+            if (cfg.auto_apply && !accepted_new.empty()) {
                 const ApplyReport step_app = sync_improvements_to_disk(merged);
                 checkpoint_applied_.improvements_loaded = step_app.improvements_loaded;
                 checkpoint_applied_.script_entries_updated +=
@@ -1401,6 +1480,7 @@ struct SpotChecker::Impl {
                 rep.cache_entries_updated = checkpoint_applied_.cache_entries_updated;
             }
 
+            rep.checked_offsets.assign(visited_offsets.begin(), visited_offsets.end());
             rep.improvements.clear();
             rep.improvements.reserve(merged.size());
             for (const auto& [idx, imp] : merged) {
@@ -1408,6 +1488,28 @@ struct SpotChecker::Impl {
             }
             rep.improvements_found = rep.improvements.size();
             save_report_file(rep);
+
+            if (live_log) {
+                char pbuf[256];
+                if (cfg.max_windows > 0) {
+                    const double pct =
+                        100.0 * static_cast<double>(rep.windows_checked) /
+                        static_cast<double>(cfg.max_windows);
+                    std::snprintf(
+                        pbuf, sizeof(pbuf),
+                        "[Window %zu/%zu (%.1f%%)] offset=%zu unlocked=%zu -> +%zu fixes (total=%zu)",
+                        rep.windows_checked, cfg.max_windows, pct, cur_offset,
+                        slice.editable_ids.size(), accepted_new.size(),
+                        rep.improvements_found);
+                } else {
+                    std::snprintf(
+                        pbuf, sizeof(pbuf),
+                        "[Window %zu] offset=%zu unlocked=%zu -> +%zu fixes (total=%zu)",
+                        rep.windows_checked, cur_offset, slice.editable_ids.size(),
+                        accepted_new.size(), rep.improvements_found);
+                }
+                log_info(pbuf);
+            }
         }
 
         if (cfg.auto_apply && !merged.empty()) {
@@ -1421,6 +1523,7 @@ struct SpotChecker::Impl {
             rep.cache_entries_updated = checkpoint_applied_.cache_entries_updated;
         }
 
+        rep.checked_offsets.assign(visited_offsets.begin(), visited_offsets.end());
         rep.improvements.clear();
         rep.improvements.reserve(merged.size());
         for (const auto& [idx, imp] : merged) {

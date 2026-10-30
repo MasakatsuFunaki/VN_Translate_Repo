@@ -35,8 +35,8 @@ python spot_checker/build.py --test --install
 ## CLI Usage (`01_spot_check.exe`)
 
 ```powershell
-# Statistical hotspot mode (default): scan entire novel and check top K hotspot windows
-.\spot_checker\build\install\bin\01_spot_check.exe --game CROSS_CHANNEL --max-windows 1
+# Default production run (hotspot mode, 20 Radar calls, 400 windows = 16,000 target lines, H-scenes & punctuation noise skipped):
+.\spot_checker\build\install\bin\01_spot_check.exe --game CROSS_CHANNEL
 
 # Linear mode: check sequential windows starting at a specific entry offset
 .\spot_checker\build\install\bin\01_spot_check.exe --game CROSS_CHANNEL --mode linear --offset 120 --window 40 --max-windows 1

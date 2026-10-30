@@ -962,3 +962,133 @@ TEST(SpotCheckerSystemTests, SystemTest9_PassthroughSymbolGateAndPunctuationNois
         dash_entry, "Taichi\r\n\"Hah--\"", {}, {}, "", /*fix_punctuation=*/true);
     EXPECT_TRUE(v_punc_enabled.accepted) << v_punc_enabled.rejection_reason;
 }
+
+// ============================================================================
+// System Test 10: Multi-Run checked_offsets Persistence, repaired_indices Lock,
+// Zero-Threshold Hotspot Queueing, and Phonetic Pun Prompt Rule
+// ============================================================================
+
+TEST(SpotCheckerSystemTests, SystemTest10_MultiRunCheckedOffsetsAndRepairedLineLocking) {
+    // 1. Verify phonetic pun preservation rule is present in default_editorial_rules_prompt
+    const std::string rules = default_editorial_rules_prompt(false);
+    EXPECT_NE(rules.find("DO NOT strip the pun setup"), std::string::npos);
+
+    // 2. Build a 40-line script with two separate 10-line windows containing defects:
+    //    - Window A (around index 5) has 2 leaked kanji defects (stronger hotspot #1)
+    //    - Window B (around index 28) has 1 leaked kanji defect (weaker hotspot #2, z_score < 0)
+    TempDir tmp;
+    bj::array strings_arr;
+    for (int i = 0; i < 40; ++i) {
+        std::string jp = "「屋上のアンテナは静かに風を受けていた。」";
+        std::string en = "\"The antenna on the rooftop quietly caught the breeze.\"";
+        if (i == 5 || i == 6) {
+            jp = "「放送部の機材を屋上へ運ぼう」";
+            en = "\"As for that, let's carry the 放送部 equipment to the 屋上.\"";
+        } else if (i == 28) {
+            jp = "「見里先輩が部室で待っている」";
+            en = "\"Misato-senpai is waiting in the 部室 clubroom.\"";
+        }
+        strings_arr.push_back(bj::object{
+            {"index", i},
+            {"type", "dialogue"},
+            {"speaker", "Taichi"},
+            {"text", jp},
+            {"translated", en},
+        });
+    }
+    const std::string translated_path =
+        (tmp.path() / "script_output" / "translated_text.json").u8string();
+    write_json_preserving_style(
+        translated_path,
+        bj::value(bj::object{{"sn.bin", bj::object{{"strings", std::move(strings_arr)}}}}),
+        1,
+        true);
+
+    SpotCheckConfig cfg;
+    cfg.game_dir = tmp.str();
+    cfg.mode = SpotCheckMode::Hotspot;
+    cfg.window_size = 10;
+    cfg.context_before = 0;
+    cfg.context_after = 0;
+    cfg.z_threshold = 0.0;  // Allow all non-H windows with energy > 0.0
+    cfg.max_windows = 1;    // Check 1 window per run
+
+    // Run 1: Checks Hotspot #1 (covering indices 5..6) and saves checked_offsets
+    std::size_t run1_offset = 999;
+    {
+        SpotChecker run1(cfg, [&](const std::string&, const std::string& user_prompt) {
+            for (int id = 1; id <= 10; ++id) {
+                const std::string tag = std::to_string(id) + ". [Taichi]";
+                const std::size_t pos = user_prompt.find(tag);
+                if (pos == std::string::npos) continue;
+                const std::size_t next_pos =
+                    user_prompt.find(std::to_string(id + 1) + ". [", pos);
+                const std::string block = user_prompt.substr(
+                    pos, next_pos == std::string::npos ? 240 : next_pos - pos);
+                if (block.find("放送部の機材") != std::string::npos) {
+                    return bj::serialize(bj::array{bj::object{
+                        {"id", id},
+                        {"new_en", "\"Let's carry the broadcasting club equipment to the roof.\""},
+                        {"category", "artifact_or_note"},
+                        {"confidence", 0.97},
+                        {"reason", "Fix leaked kanji"},
+                    }});
+                }
+            }
+            return std::string("[]");
+        });
+        const SpotCheckReport rep1 = run1.run();
+        ASSERT_GE(rep1.hotspots_detected, 2u);  // z_threshold = 0.0 queued both windows!
+        EXPECT_EQ(rep1.windows_checked, 1u);
+        ASSERT_EQ(rep1.checked_offsets.size(), 1u);
+        run1_offset = rep1.checked_offsets.front();
+        EXPECT_LE(run1_offset, 5u);
+        EXPECT_EQ(rep1.improvements_found, 1u);
+    }
+
+    // Run 2: Must load checked_offsets from argon_spot_check.json, skip run1_offset,
+    // and check Hotspot #2 (covering index 28) instead!
+    {
+        SpotChecker run2(cfg, [&](const std::string&, const std::string& user_prompt) {
+            // Run 2 must NOT re-send Hotspot #1's defect line
+            EXPECT_EQ(user_prompt.find("放送部の機材"), std::string::npos);
+            for (int id = 1; id <= 10; ++id) {
+                const std::string tag = std::to_string(id) + ". [Taichi]";
+                const std::size_t pos = user_prompt.find(tag);
+                if (pos == std::string::npos) continue;
+                const std::size_t next_pos =
+                    user_prompt.find(std::to_string(id + 1) + ". [", pos);
+                const std::string block = user_prompt.substr(
+                    pos, next_pos == std::string::npos ? 240 : next_pos - pos);
+                if (block.find("見里先輩が部室で待っている") != std::string::npos) {
+                    return bj::serialize(bj::array{bj::object{
+                        {"id", id},
+                        {"new_en", "\"Misato-senpai is waiting in the clubroom.\""},
+                        {"category", "artifact_or_note"},
+                        {"confidence", 0.98},
+                        {"reason", "Fix leaked kanji"},
+                    }});
+                }
+            }
+            return std::string("[]");
+        });
+        const SpotCheckReport rep2 = run2.run();
+        EXPECT_EQ(rep2.windows_checked, 1u);
+        EXPECT_EQ(rep2.checked_offsets.size(), 2u);
+        EXPECT_EQ(rep2.improvements_found, 2u);  // Merged Run 1 + Run 2 improvements!
+    }
+
+    // 3. Also verify compute_editable_ids locks repaired_indices even when review_all_in_window=true
+    std::vector<ScriptEntry> slice_entries = {
+        make_entry(5, "Taichi", "「放送部の機材を屋上へ運ぼう」",
+                   "\"Let's carry the broadcasting club equipment to the roof.\""),
+        make_entry(6, "Taichi", "「見里先輩が部室で待っている」",
+                   "\"Misato-senpai is waiting in the 部室 clubroom.\""),
+    };
+    const WindowSlice ws = build_window_slice(slice_entries, 0, 2, 0, 0);
+    const std::set<std::size_t> repaired_set = {5};
+    const std::set<int> unlocked = compute_editable_ids(
+        ws, {}, /*review_all_in_window=*/true, /*skip_h_scenes=*/true, repaired_set);
+    EXPECT_EQ(unlocked.count(1), 0u);  // global_index 5 is locked because it was already repaired!
+    EXPECT_EQ(unlocked.count(2), 1u);
+}

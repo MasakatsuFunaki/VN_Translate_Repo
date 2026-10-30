@@ -113,6 +113,7 @@ struct SpotCheckReport {
     std::size_t improvements_found = 0;
     std::size_t script_entries_updated = 0;
     std::size_t cache_entries_updated = 0;
+    std::vector<std::size_t> checked_offsets;
     std::vector<HotspotWindow> ranked_hotspots;
     std::vector<Improvement> improvements;
 };
@@ -161,7 +162,8 @@ WindowSlice build_window_slice(const std::vector<ScriptEntry>& entries,
 std::set<int> compute_editable_ids(const WindowSlice& slice,
                                    const std::vector<LineWeaknessScore>& novel_scores,
                                    bool review_all_in_window = false,
-                                   bool skip_h_scenes = true);
+                                   bool skip_h_scenes = true,
+                                   const std::set<std::size_t>& repaired_indices = {});
 
 // Formats a WindowSlice into the structured prompt sent to gemini-4-argon,
 // annotating each target line as [EDITABLE SUSPECT] or [READ-ONLY CONTEXT].

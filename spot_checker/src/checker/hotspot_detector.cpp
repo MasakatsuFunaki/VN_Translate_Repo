@@ -786,6 +786,9 @@ struct HotspotDetector::Impl {
 
         for (std::size_t a : order) {
             if (suppressed[a]) continue;
+            if (!selected.empty() && energies[a] <= 0.0) {
+                break;
+            }
             const double kde_z = (energies[a] - mean_e) / std_e;
 
             std::size_t peak_idx = a;
@@ -801,10 +804,12 @@ struct HotspotDetector::Impl {
                 }
             }
 
-            // Combine KDE Z-score with Page's CUSUM sequential change-point boost
+            // Combine KDE Z-score with Page's CUSUM sequential change-point boost.
+            // When cfg.z_threshold <= 0.0, any non-H window with energy > 0.0 passes!
             const double combined_z = kde_z + 0.05 * max_cusum;
-            if (!selected.empty() && combined_z < cfg.z_threshold) {
-                break;
+            if (!selected.empty() && cfg.z_threshold > 0.0 &&
+                combined_z < cfg.z_threshold) {
+                continue;
             }
 
             HotspotWindow hw;

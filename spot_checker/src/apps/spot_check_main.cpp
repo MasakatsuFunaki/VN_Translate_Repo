@@ -72,18 +72,18 @@ int main(int argc, char** argv) {
     std::string game_dir_arg;
     std::string game_name_arg;
     std::string mode_arg = "hotspot";
-    double z_threshold = 1.5;
+    double z_threshold = 0.0;
     double min_confidence = 0.85;
     bool review_all_in_window = false;
     bool include_h_scenes = false;
     bool fix_punctuation = false;
     bool dry_run = false;
-    int radar_calls = 0;
+    int radar_calls = 20;
     int offset = 0;
     int window_size = 40;
     int context_before = 40;
     int context_after = 20;
-    int max_windows = 1;
+    int max_windows = 400;
     bool apply_only = false;
     std::string out_path;
 
@@ -94,8 +94,8 @@ int main(int argc, char** argv) {
         ("game", po::value(&game_name_arg), "game folder name relative to repository root")
         ("mode", po::value(&mode_arg)->default_value("hotspot"),
          "selection mode: 'hotspot' (full-novel statistical KDE+CUSUM+NMS) or 'linear'")
-        ("z-threshold", po::value(&z_threshold)->default_value(1.5),
-         "minimum statistical Z-score for hotspot windows")
+        ("z-threshold", po::value(&z_threshold)->default_value(0.0),
+         "minimum statistical Z-score for hotspot windows (0.0 = rank all non-H windows with positive weakness energy)")
         ("min-confidence", po::value(&min_confidence)->default_value(0.85),
          "minimum LLM confidence (0.0-1.0) required to accept a proposed fix")
         ("review-all-in-window", po::bool_switch(&review_all_in_window),
@@ -106,8 +106,8 @@ int main(int argc, char** argv) {
          "enable punctuation, parenthesis/romaji-note, and bracket scoring/fixes (disabled by default)")
         ("dry-run", po::bool_switch(&dry_run),
          "write argon_spot_check.json only without editing translated_text.json or caches")
-        ("radar-calls", po::value(&radar_calls)->default_value(0),
-         "Stage 1 Packed LLM Radar calls (6 candidate passages per call) before Stage 2 repair")
+        ("radar-calls", po::value(&radar_calls)->default_value(20),
+         "Stage 1 Packed LLM Radar calls (12 candidate passages per call) before Stage 2 repair")
         ("offset", po::value(&offset)->default_value(0),
          "starting translatable entry index (0-based, for linear mode)")
         ("window", po::value(&window_size)->default_value(40),
@@ -116,8 +116,8 @@ int main(int argc, char** argv) {
          "preceding context lines included before target window")
         ("context-after", po::value(&context_after)->default_value(20),
          "following context lines included after target window")
-        ("max-windows", po::value(&max_windows)->default_value(1),
-         "maximum windows to check (0 = all)")
+        ("max-windows", po::value(&max_windows)->default_value(400),
+         "maximum windows to check per run (400 windows = 16,000 target lines; 0 = all)")
         ("apply", po::bool_switch(&apply_only),
          "apply saved argon_spot_check.json to translated_text.json and cache without calling API")
         ("out", po::value(&out_path),
