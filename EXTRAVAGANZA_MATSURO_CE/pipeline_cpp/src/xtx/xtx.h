@@ -5,7 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// The .xtx config-file translation behind 03_translate_xtx.
+// The .xtx config-file translation behind 03_build_xtx.
 //
 // XTX files are comma-separated CP932 text.  Only the character-name table is
 // applied: it drives the name plate above dialogue and uses FULL-WIDTH romaji,

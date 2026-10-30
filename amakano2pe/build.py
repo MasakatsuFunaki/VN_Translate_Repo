@@ -26,7 +26,7 @@ DLL.  When `--test` and `--deploy` are given together the tests gate the
 deploy, so a regression is never shipped.
 
 Deploying copies `winmm.dll` into the game folder and nothing else: unlike the
-other games, `02_translate.exe` writes `translation_table.tsv` straight into
+other games, `02_build_tsv.exe` writes `translation_table.tsv` straight into
 the game directory, so the table never passes through this tree — the deploy
 only checks that it is there and warns if it is not.  The game folder comes
 from `--game-dir`, which has no default because the install path differs per
@@ -155,13 +155,13 @@ def deploy(game_dir):
               f"and retry, or point --game-dir at the install folder.")
         sys.exit(1)
 
-    # The table is a soft failure: 02_translate.exe writes it into the game
+    # The table is a soft failure: 02_build_tsv.exe writes it into the game
     # folder itself, so a missing one just means the translation pipeline has
     # not been run yet.  There is nothing here to copy.
     tsv = os.path.join(game_dir, "translation_table.tsv")
     if not os.path.exists(tsv):
         print("WARN: translation_table.tsv not found in the game folder — "
-              "run 02_translate.exe first.")
+              "run 02_build_tsv.exe first.")
 
     print(f"\nDeployed to {game_dir}.")
 

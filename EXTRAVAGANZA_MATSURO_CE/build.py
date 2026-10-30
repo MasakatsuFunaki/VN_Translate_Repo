@@ -27,7 +27,7 @@ together the tests gate the deploy, so a regression is never shipped.
 Deploying copies `winmm.dll` into the game folder and nothing else.  Matsuro CE
 never rewrites its SPT files: the DLL hooks the text splitter at runtime and
 looks up `translation_table.tsv` next to the game exe.  That table is written
-straight into the game folder by 02_translate.exe, so there is nothing for this
+straight into the game folder by 02_build_tsv.exe, so there is nothing for this
 script to copy — it only warns when the table is not there yet.  The game
 folder comes from `--game-dir`, which has no default because the install path
 differs per machine.  Set VN_DIST_BUILD to skip the deploy entirely, because a
@@ -146,12 +146,12 @@ def deploy(game_dir):
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # The table is never copied — 02_translate writes it into the game folder
+    # The table is never copied — 02_build_tsv writes it into the game folder
     # directly.  A missing one only means the pipeline has not been run yet, so
     # it is a warning and not a failure.
     if not os.path.exists(os.path.join(game_dir, "translation_table.tsv")):
         print("WARN: translation_table.tsv not in the game folder — "
-              "run 02_translate.exe first.")
+              "run 02_build_tsv.exe first.")
 
     print(f"\nDeployed to {game_dir}.")
 

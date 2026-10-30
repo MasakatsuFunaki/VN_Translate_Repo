@@ -26,7 +26,7 @@ struct PipelineStep {
 inline const std::array<PipelineStep, 3>& pipeline_steps() {
     static const std::array<PipelineStep, 3> steps = {{
         {"01_extract", "Extract JP text from the .pfs archives (Artemis .ast / Lua)"},
-        {"02_translate", "Speaker gate, translate via Claude, build translations.tsv"},
+        {"02_translate", "Speaker gate, translate via Gemini, build translations.tsv"},
         {"deploy", "Deploy version.dll and translations.tsv to the game folder"},
     }};
     return steps;

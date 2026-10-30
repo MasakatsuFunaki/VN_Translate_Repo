@@ -14,12 +14,12 @@
 //   00_run_all --batch N   # lines per API request
 //   00_run_all --clean     # delete cached JSON, then run
 //
-// Steps: 01_extract -> 02_translate -> deploy.  The translation step carries
+// Steps: 01_extract -> 02_build_tsv -> deploy.  The translation step carries
 // the speaker gate and the runtime table with it, which is why there are
 // three steps and not five: everything that must happen for the game to show
 // English happens inside the command that pays for it.
 //
-// The asset tools (03_translate_xtx, 04_find_narrative_cg,
+// The asset tools (03_build_xtx, 04_find_narrative_cg,
 // 05_replace_choice_text) are deliberately not here: they touch the shipped
 // archives, the config files and the screenshots, not the script text.
 #include <cstdlib>
@@ -30,8 +30,7 @@
 #include <vector>
 
 #include "common/util.h"
-#include "translate/anthropic_client.h"
-#include "translate/translate_core.h"
+#include "cache/cache_core.h"
 
 #include "apps/paths.h"
 
@@ -62,7 +61,7 @@ void run_step(const std::string& exe, const std::vector<std::string>& args,
 // changed.
 //
 // The DLL is a hard failure -- without it the game shows Japanese and nothing
-// says why.  The table is a soft one: 02_translate writes it straight into
+// says why.  The table is a soft one: 02_build_tsv writes it straight into
 // the game folder, so a missing one means the translation step has not
 // produced it yet.
 bool deploy(const std::string& project, const std::string& game) {
@@ -110,7 +109,7 @@ bool deploy(const std::string& project, const std::string& game) {
                  "translation_table.tsv: " + ec.message());
     else if (!have_table)
         log_info("  WARN: translation_table.tsv not in the game folder -- "
-                 "02_translate produces it.");
+                 "02_build_tsv produces it.");
     return true;
 }
 
@@ -174,22 +173,18 @@ int main(int argc, char** argv) {
     const std::string bar(60, '=');
     log_info(bar);
     log_info("Mushigurui HD10 (Bug Madness)");
-    log_info("English Translation Pipeline (Anthropic)");
+    log_info("English Translation Pipeline");
     log_info(bar);
 
-    anthropic::load_api_key();
-
     // --clean deletes the cache and --test translates a capped number of
-    // batches, so either is certain to need the API.  Only --clean throws work
+    // batches, so either would require live API calls.  Only --clean throws work
     // away, and the two are reported apart because a message that names the
     // wrong consequence sends the reader looking for a cache that is still
-    // there.  Checked before the deletion: without this the cache would go and
-    // the translation step would then fail for the missing key, losing work
-    // that cannot be rebuilt.
-    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
-        log_info(std::string("[ERROR] ANTHROPIC_API_KEY not set -- ") +
-                 (clean ? "refusing to discard the cache for a run that cannot "
-                          "translate."
+    // there.  Checked before the deletion so the cached translations are never
+    // lost.
+    if (clean || test_n > 0) {
+        log_info(std::string("[ERROR] offline build: network API calls are disabled -- ") +
+                 (clean ? "refusing to discard the cache"
                         : "--test translates a capped number of batches and "
                           "cannot run without the API."));
         return 2;
@@ -226,7 +221,7 @@ int main(int argc, char** argv) {
     run_step("01_extract", {}, passthrough);
 
     log_info("\n" + bar);
-    log_info("STEP 2: Speaker gate, translate via Claude, build translation_table.tsv");
+    log_info("STEP 2: Speaker gate, translate script, build translation_table.tsv");
     log_info(bar);
     {
         std::vector<std::string> args = {"--batch", std::to_string(batch)};
@@ -234,7 +229,7 @@ int main(int argc, char** argv) {
             args.emplace_back("--test");
             args.emplace_back(std::to_string(test_n));
         }
-        run_step("02_translate", args, passthrough);
+        run_step("02_build_tsv", args, passthrough);
     }
 
     log_info("\n" + bar);

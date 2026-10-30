@@ -88,7 +88,7 @@ std::size_t char_len(const std::string& utf8);
 
 // Prefix of the first n CODEPOINTS.  Used for the API prompt's
 // 100-char context truncation, so a byte cut would both shorten the context
-// Claude sees and put a split UTF-8 sequence in the request body.
+// the model sees and put a split UTF-8 sequence in the request body.
 std::string utf8_prefix(const std::string& utf8, std::size_t n);
 
 // One UTF-16 CODE UNIT -> UTF-8.

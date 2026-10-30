@@ -13,9 +13,9 @@
 
 ```
 01_extract          → extracted_text.json
-02_translate        → speaker gate → translated_text.json + translation_table.tsv (CP932, tab-separated)
+02_build_tsv        → speaker gate → translated_text.json + translation_table.tsv (CP932, tab-separated)
 00_run_all          → all in one shot
-03_translate_xtx    → name-plate tables (one-shot, once per install, not part of 00_run_all)
+03_build_xtx        → name-plate tables (one-shot, once per install, not part of 00_run_all)
 ```
 
 `python build.py --deploy` copies `winmm.dll` into the game folder.
@@ -27,7 +27,6 @@ python build.py --test --install   # both halves + tests + stage
 python build.py --deploy
 python build.py --clean
 
-set ANTHROPIC_API_KEY=sk-ant-...
 build\install\bin\00_run_all.exe
 ```
 

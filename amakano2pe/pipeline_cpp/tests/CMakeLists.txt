@@ -18,7 +18,7 @@ endfunction()
 
 ama_test(ut_cs2_archive)
 ama_test(ut_extract)
-ama_test(ut_translate)
+ama_test(ut_cache)
 ama_test(ut_build_tsv)
 ama_test(ut_cp932)
 ama_test(ut_extracted_integrity)

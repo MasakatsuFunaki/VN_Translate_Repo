@@ -32,10 +32,10 @@ struct PipelineStep {
 inline const std::array<PipelineStep, 6>& pipeline_steps() {
     static const std::array<PipelineStep, 6> steps = {{
         {"01_extract", "Extract text from the .spt scripts"},
-        {"02_translate", "Speaker gate, then translate via Claude"},
+        {"02_build_tsv", "Speaker gate, then translate"},
         {"03_repack", "Word-wrap and write the English back into the .spt scripts"},
-        {"04_translate_xtx", "Translate the .xtx config name plates"},
-        {"05_translate_charts", "Translate the chart/*.fxf flowcharts"},
+        {"04_build_xtx", "Translate the .xtx config name plates"},
+        {"05_build_charts", "Translate the chart/*.fxf flowcharts"},
         {"deploy", "Deploy winmm.dll to the game folder"},
     }};
     return steps;

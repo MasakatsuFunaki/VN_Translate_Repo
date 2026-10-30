@@ -131,9 +131,9 @@ def deploy(game_dir):
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # Soft failure: 02_translate writes the table; missing just means it hasn't run.
+    # Soft failure: 02_build_tsv writes the table; missing just means it hasn't run.
     if not os.path.exists(os.path.join(game_dir, TABLE_NAME)):
-        print(f"WARN: {TABLE_NAME} not in the game folder — run 02_translate.exe first.")
+        print(f"WARN: {TABLE_NAME} not in the game folder — run 02_build_tsv.exe first.")
 
     print(f"\nDeployed to {game_dir}.")
 

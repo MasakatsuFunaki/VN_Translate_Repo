@@ -19,7 +19,7 @@ endfunction()
 
 crc_test(ut_sn_archive)
 crc_test(ut_extract)
-crc_test(ut_translate)
+crc_test(ut_cache)
 crc_test(ut_build_tsv)
 crc_test(ut_cg)
 crc_test(ut_cg_resume)

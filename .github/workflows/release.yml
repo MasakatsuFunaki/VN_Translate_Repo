@@ -39,8 +39,8 @@ jobs:
       - name: Conan profile detect
         run: conan profile detect --force
 
-      - name: Build every shipped game and stage install/
-        run: python build.py --install
+      - name: Build, test, and stage every shipped game
+        run: python build.py --test --install
 
       - name: Verify every staged game carries its translation
         run: |

@@ -12,7 +12,7 @@
 // text, UI buttons or shop signs painted into backgrounds -- and records the
 // hits in script_output/narrative_candidates.json.
 //
-// Detection is entirely Claude vision.  A local-OCR pre-filter stage would
+// Detection is entirely Gemini vision.  A local-OCR pre-filter stage would
 // cut vision-token spend by rejecting text-free images before the API call,
 // but no OCR engine is wired in, so the pre-filter passes everything through.
 // Only the cheap dimension/prefix checks below bound the token cost.
@@ -36,7 +36,7 @@ struct CgOptions {
     bool scan_only = false;
     bool no_resume = false;
     std::optional<int> max_images;
-    // Skip the interactive "send to Claude?" prompt (for non-tty runs).
+    // Skip the interactive "send to Gemini?" prompt (for non-tty runs).
     bool assume_yes = false;
 };
 

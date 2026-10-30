@@ -1,10 +1,9 @@
 # Conan 2 recipe for the amakano2pe translation pipeline (C++ port of the
 # former Python scripts 00..03 + implementation/cs2_archive.py).
 #
-#   boost    - Beast/Asio (Anthropic HTTPS client), JSON, Program_options,
-#              Regex
-#   openssl  - TLS for api.anthropic.com AND the raw Blowfish block cipher the
-#              KIF (.int) archive is encrypted with (replaces pycryptodome)
+#   boost    - Headers, JSON, Program_options, Regex
+#   openssl  - Raw Blowfish block cipher the KIF (.int) archive is encrypted
+#              with (replaces pycryptodome)
 #   zlib     - CatScene (.cst) script payloads are zlib-deflated
 #   gtest    - the tests/ suites; test-only, never linked into the apps
 #

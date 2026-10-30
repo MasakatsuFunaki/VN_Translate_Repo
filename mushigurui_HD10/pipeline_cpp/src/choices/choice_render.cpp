@@ -20,7 +20,6 @@
 
 #include "cg/text_render.h"
 #include "common/util.h"
-#include "translate/anthropic_client.h"
 
 namespace mgi::choices {
 
@@ -28,8 +27,6 @@ namespace bj = boost::json;
 namespace fs = std::filesystem;
 
 namespace {
-
-const char* const MODEL = "claude-sonnet-4-6";
 
 // Most-stylish-first; arialbd is the last resort.
 const std::vector<std::string> FONT_CANDIDATES = {
@@ -39,21 +36,6 @@ const std::vector<std::string> FONT_CANDIDATES = {
     "C:/Windows/Fonts/calibrib.ttf",  // Calibri Bold
     "C:/Windows/Fonts/arialbd.ttf",   // fallback
 };
-
-const char* const PROMPT =
-    R"__(You are looking at a Japanese visual novel CHOICE MENU screenshot.
-Yellow text labels sit on blue parallelogram buttons stacked vertically on the screen.
-
-Translate each Japanese choice into English. Constraints:
-  - Faithful to the meaning — do not paraphrase to the point of distortion.
-  - SHORT: prefer 4-7 words per choice when possible. The English must fit
-    inside the same blue button at a similar visual width to the JP.
-  - Casual, natural conversational English (not literal/wooden).
-  - Do not add commentary, ellipses, or punctuation that wasn't in the JP.
-
-Return ONLY a JSON array of strings (one per choice), top to bottom, no prose, no fences:
-  ["...", "...", "..."]
-)__";
 
 bool path_exists(const std::string& p) {
     std::error_code ec;
@@ -75,67 +57,6 @@ std::uint8_t median_u8(std::vector<std::uint8_t>& v) {
                              : (static_cast<double>(v[n / 2 - 1]) +
                                 static_cast<double>(v[n / 2])) / 2.0;
     return static_cast<std::uint8_t>(static_cast<int>(m));
-}
-
-// msg.content[0].text, with the ``` fences and surrounding prose stripped.
-std::vector<std::string> parse_translations(const std::string& reply) {
-    std::string raw = trim(reply);
-    // re.sub(r"^```(?:json)?\s*", "") then re.sub(r"\s*```$", "")
-    if (raw.rfind("```", 0) == 0) {
-        std::size_t i = 3;
-        if (raw.compare(i, 4, "json") == 0) i += 4;
-        while (i < raw.size() && std::isspace(static_cast<unsigned char>(raw[i]))) ++i;
-        raw = raw.substr(i);
-    }
-    if (raw.size() >= 3 && raw.compare(raw.size() - 3, 3, "```") == 0) {
-        std::size_t e = raw.size() - 3;
-        while (e > 0 && std::isspace(static_cast<unsigned char>(raw[e - 1]))) --e;
-        raw = raw.substr(0, e);
-    }
-
-    const std::size_t start = raw.find('[');
-    const std::size_t end = raw.rfind(']');
-    if (start == std::string::npos || end == std::string::npos || end < start)
-        throw std::runtime_error("no JSON array in Claude reply: " + raw);
-
-    const bj::value v = bj::parse(raw.substr(start, end + 1 - start));
-    if (!v.is_array()) throw std::runtime_error("expected a list of strings");
-    const bj::array& a = v.get_array();
-    if (a.size() < 2) throw std::runtime_error("expected a list of strings");
-    std::vector<std::string> out;
-    for (const auto& e : a) {
-        if (!e.is_string()) throw std::runtime_error("expected a list of strings");
-        out.push_back(std::string(e.get_string()));
-    }
-    return out;
-}
-
-std::vector<std::string> get_translations(anthropic::Client& client,
-                                          const std::string& img_path) {
-    bj::object source;
-    source["type"] = "base64";
-    source["media_type"] = "image/jpeg";
-    source["data"] = cg::base64_encode(read_file(img_path));
-    bj::object image_block;
-    image_block["type"] = "image";
-    image_block["source"] = std::move(source);
-    bj::object text_block;
-    text_block["type"] = "text";
-    text_block["text"] = PROMPT;
-    bj::object msg;
-    msg["role"] = "user";
-    msg["content"] = bj::array{std::move(image_block), std::move(text_block)};
-
-    bj::object body;
-    body["model"] = MODEL;
-    body["max_tokens"] = 512;
-    body["messages"] = bj::array{std::move(msg)};
-
-    const bj::value resp = client.messages(bj::value(std::move(body)));
-    const bj::array& content = resp.get_object().at("content").get_array();
-    if (content.empty()) throw std::runtime_error("empty response content");
-    return parse_translations(
-        std::string(content.at(0).get_object().at("text").get_string()));
 }
 
 }  // namespace
@@ -286,8 +207,6 @@ int run_replace_choice_text(const Options& opt) {
     const std::string base = opt.project_dir + "\\choices";
     const std::string cache_file = base + "\\_cache.json";
 
-    anthropic::load_api_key();
-
     const std::string font_path = detail::resolve_font();
     if (font_path.empty()) {
         print_line("No bold font found; tried the FONT_CANDIDATES list");
@@ -341,15 +260,12 @@ int run_replace_choice_text(const Options& opt) {
                    joined);
     }
 
-    // Only a source the cache does not already hold is sent to Claude, so a
-    // fully cached re-render needs no key.  Resolved here rather than at the
-    // request itself: the per-image handler below catches everything, so a
-    // missing key would otherwise be reported once per image and the run would
-    // still end successfully.
-    anthropic::LazyClient client;
+    // Offline build: every source image must already be present in _cache.json.
     if (std::any_of(sources.begin(), sources.end(),
-                    [&](const std::string& n) { return !cache.if_contains(n); }))
-        client.get();
+                    [&](const std::string& n) { return !cache.if_contains(n); })) {
+        throw std::runtime_error(
+            "Offline build: missing cached translation; live API client removed for finished game");
+    }
 
     for (const auto& name : sources) {
         try {
@@ -373,12 +289,8 @@ int run_replace_choice_text(const Options& opt) {
             if (cached) {
                 print_line("\n" + name + ": using cached translations (re-rendering)");
             } else {
-                print_line("\n" + name + ": requesting translations from Claude…");
-                texts = get_translations(client.get(), src);
-                bj::array arr;
-                for (const auto& t : texts) arr.push_back(bj::string(t));
-                cache[name] = std::move(arr);
-                save_cache();  // persist incrementally so a crash doesn't re-bill
+                throw std::runtime_error(
+                    "Offline build: missing cached translation; live API client removed for finished game");
             }
 
             for (std::size_t i = 0; i < texts.size(); ++i)

@@ -9,7 +9,7 @@
 //
 // Scans the WillPlus CPK archives for images carrying Japanese text worth
 // showing in English -- narrative prose, chapter cards, menu and button labels
-// -- translates them with Claude vision, and paints the English back onto the
+// -- translates them with vision, and paints the English back onto the
 // extracted BMP.
 //
 // CPK extraction is delegated to TOOLS/garbro/extract_cpk.exe; CPK *repacking*
@@ -36,7 +36,7 @@ struct CgOptions {
     std::string project_dir;  // CROSS_CHANNEL\  (for script_output)
     bool scan_only = false;
     bool no_resume = false;
-    // Skip the interactive "send to Claude?" prompt (for non-tty runs).
+    // Skip the interactive API prompt (for non-tty runs).
     bool assume_yes = false;
 };
 
@@ -96,7 +96,7 @@ std::string safe_filename(const std::string& name);
 
 // First balanced JSON array in `resp` (bracket-depth walk, string-literal and
 // backslash aware), or nullopt.  Replaced a greedy \[.*\] regex that broke
-// when Claude appended prose containing brackets.
+// when the LLM appended prose containing brackets.
 std::string first_json_array(const std::string& resp, bool* found);
 
 }  // namespace crc::cg

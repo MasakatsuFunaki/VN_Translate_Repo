@@ -11,7 +11,7 @@ English translation pipeline for **Fraternite HD Remaster** by **CLOCKUP**.
 
 ```
 01_extract.exe          → script_output/extracted_text.json
-02_translate.exe        → the speaker gate, then
+02_build_tsv.exe        → the speaker gate, then
                           script_output/translated_text.json,
                           translation_cache_anthropic.json, and
                           translation_table.tsv in the game folder
@@ -27,7 +27,6 @@ python build.py --test --install
 
 build\install\decrypt_translations.bat
 
-set ANTHROPIC_API_KEY=sk-ant-...
 build\install\bin\00_run_all.exe --game-dir <install>
 ```
 
@@ -56,12 +55,12 @@ cd FRATERNITE_HD
 ```powershell
 cd build\install\bin
 01_extract.exe
-02_translate.exe --batch 150
-02_translate.exe --test              # smoke run: 1 batch only, from a wiped cache
-02_translate.exe --max-batches 4     # 4 batches, keeping the cache and outputs
-02_translate.exe --discard-cache     # let --test or --retranslate delete a cache holding paid work
-02_translate.exe --file bn.ypf
-02_translate.exe --out D:\scratch\table.tsv   # keeps the game folder untouched
+02_build_tsv.exe --batch 150
+02_build_tsv.exe --test              # smoke run: 1 batch only, from a wiped cache
+02_build_tsv.exe --max-batches 4     # 4 batches, keeping the cache and outputs
+02_build_tsv.exe --discard-cache     # let --test or --retranslate delete a cache holding paid work
+02_build_tsv.exe --file bn.ypf
+02_build_tsv.exe --out D:\scratch\table.tsv   # keeps the game folder untouched
 cd ..\..\.. && python build.py --deploy --game-dir <install>
 ```
 

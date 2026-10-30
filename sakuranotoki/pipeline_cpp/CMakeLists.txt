@@ -40,8 +40,8 @@ add_library(snt_core STATIC
     src/build_tsv/build_tsv.h
     src/translate/glossary.cpp
     src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
+    src/translate/gemini_client.cpp
+    src/translate/gemini_client.h
     src/translate/translate_core.cpp
     src/translate/translate_core.h
     src/translate/speaker_gate.cpp
@@ -63,8 +63,8 @@ target_link_libraries(snt_core PUBLIC
     # compiled Boost lib, including test_exec_monitor, whose main() wants a
     # test_main symbol the GoogleTest suites don't define.
     Boost::headers
-    # OpenSSL supplies both TLS for api.anthropic.com and the SHA-1 the PF8
-    # archive key is derived from.
+    # OpenSSL supplies both TLS for generativelanguage.googleapis.com and the
+    # SHA-1 the PF8 archive key is derived from.
     openssl::openssl
     stb::stb
     ws2_32

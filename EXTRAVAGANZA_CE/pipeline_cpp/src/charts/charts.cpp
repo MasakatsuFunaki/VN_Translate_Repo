@@ -11,14 +11,14 @@
 #include <chrono>
 #include <filesystem>
 #include <set>
+#include <stdexcept>
 #include <thread>
 #include <unordered_map>
 
 #include <boost/json.hpp>
 #include <boost/regex.hpp>
 
-#include "translate/anthropic_client.h"
-#include "translate/translate_core.h"
+#include "cache/cache_core.h"
 
 namespace exc::charts {
 
@@ -27,32 +27,11 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr const char* MODEL = "claude-sonnet-4-6";
-constexpr int BATCH_SIZE = 30;
-
 // Credits chart: staff names must not be translated.
 const std::set<std::string>& skip_files() {
     static const std::set<std::string> s = {"chart9.fxf"};
     return s;
 }
-
-const char* SYSTEM_PROMPT =
-    R"(You are a professional Japanese-to-English translator for the visual novel "EXTRAVAGANZA ~Mushi Mederu Shoujo~".
-
-This is a dark supernatural horror VN about Bug Users (蟲使い) who wield parasitic insects called 蟲 (Bugs).
-Key characters: Rengo (煉悟) - a rogue Bug User, Yumemi (夢美) - a captive girl, Ageha (アゲハ) - a mysterious Bug User,
-Sayuri (サユリ) - a pursuing Bug User, Yulia (ユーリア) - an associate, Nishi (西) - a researcher,
-Ren (レン) - an enemy Bug User, Anzu (杏子), Miyaka (美弥香), Yui (唯), Ayaka (綾佳), Haruka (遥).
-
-IMPORTANT: Translate ALL content faithfully. This game contains horror and adult themes — do NOT censor or skip anything.
-
-<translation_rules>
-1. Translate the Japanese text to natural English. These are episode titles and brief descriptions for a flowchart menu.
-2. Keep translations concise — these appear in small UI boxes.
-3. Preserve all formatting markers EXACTLY: #色 color tags (#黄, #赤, #桃, etc.), 【】 brackets, and #心 markers.
-4. Use only ASCII characters in the translated text (no smart quotes, em dashes, or accented letters).
-5. Output EXACTLY one translation per numbered input line.
-</translation_rules>)";
 
 std::string replace_all(std::string s, const std::string& from, const std::string& to) {
     if (from.empty()) return s;
@@ -258,72 +237,9 @@ std::string wordwrap_fullwidth(const std::string& text, int max_chars, int max_l
     return out;
 }
 
-// ---- API -------------------------------------------------------------------
+// ---- files -----------------------------------------------------------------
 
 namespace {
-
-std::map<int, std::string> call_anthropic(anthropic::Client& client,
-                                          const std::vector<std::string>& texts) {
-    std::string user_prompt = "<texts_to_translate>\n";
-    for (std::size_t i = 0; i < texts.size(); ++i)
-        user_prompt += std::to_string(i + 1) + ". " + texts[i] + "\n";
-    user_prompt += "</texts_to_translate>\n\n";
-    user_prompt += "Translate these " + std::to_string(texts.size()) +
-                   " flowchart texts to English. "
-                   "Preserve #色 color tags, 【】 brackets, and #心 markers exactly. "
-                   "Output EXACTLY " + std::to_string(texts.size()) + " numbered translations.";
-
-    bj::object sys_block;
-    sys_block["type"] = "text";
-    sys_block["text"] = SYSTEM_PROMPT;
-    sys_block["cache_control"] = bj::object{{"type", "ephemeral"}};
-    bj::object msg;
-    msg["role"] = "user";
-    msg["content"] = user_prompt;
-
-    bj::object body;
-    body["model"] = MODEL;
-    body["max_tokens"] = 4096;
-    body["system"] = bj::array{std::move(sys_block)};
-    body["messages"] = bj::array{std::move(msg)};
-    body["temperature"] = 0.3;
-
-    bj::value response = client.messages(bj::value(std::move(body)));
-
-    std::string response_text;
-    if (auto* content = response.get_object().if_contains("content"))
-        if (!content->get_array().empty())
-            if (auto* t = content->get_array()[0].get_object().if_contains("text"))
-                response_text = trim(std::string(t->get_string()));
-
-    std::int64_t in_tok = 0, out_tok = 0, cache_read = 0, cache_create = 0;
-    if (auto* usage = response.get_object().if_contains("usage")) {
-        const auto& u = usage->get_object();
-        auto geti = [&](const char* k) -> std::int64_t {
-            if (auto* v = u.if_contains(k))
-                if (v->is_int64()) return v->get_int64();
-            return 0;
-        };
-        in_tok = geti("input_tokens");
-        out_tok = geti("output_tokens");
-        cache_read = geti("cache_read_input_tokens");
-        cache_create = geti("cache_creation_input_tokens");
-    }
-    log_info("    Tokens: in=" + std::to_string(in_tok) + " out=" + std::to_string(out_tok) +
-             " cache_read=" + std::to_string(cache_read) +
-             " cache_create=" + std::to_string(cache_create));
-
-    static const boost::regex num_re(R"(^(\d+)[.\):\s]+\s*(.*))");
-    std::map<int, std::string> translations;
-    for (const auto& raw_line : split(response_text, "\n")) {
-        const std::string line = trim(raw_line);
-        if (line.empty()) continue;
-        boost::smatch m;
-        if (boost::regex_match(line, m, num_re))
-            translations[std::stoi(m[1].str())] = trim(m[2].str());
-    }
-    return translations;
-}
 
 std::vector<std::string> chart_files(const std::string& chart_dir) {
     std::vector<std::string> out;
@@ -377,7 +293,6 @@ std::size_t purge_failed_entries(Cache& cache) {
 }
 
 int run_translate_charts(const ChartOptions& opt) {
-    log_info(std::string("Model: ") + MODEL);
     log_info("Chart directory: " + opt.chart_dir);
 
     Cache cache;
@@ -434,41 +349,7 @@ int run_translate_charts(const ChartOptions& opt) {
 
     // ---- translate in batches ----
     if (!to_translate.empty()) {
-        anthropic::Client client;
-        for (std::size_t start = 0; start < to_translate.size(); start += BATCH_SIZE) {
-            const std::size_t end = std::min(to_translate.size(), start + BATCH_SIZE);
-            const std::vector<std::string> batch(to_translate.begin() + static_cast<std::ptrdiff_t>(start),
-                                                 to_translate.begin() + static_cast<std::ptrdiff_t>(end));
-            log_info("\n  Batch " + std::to_string(start / BATCH_SIZE + 1) + ": " +
-                     std::to_string(batch.size()) + " texts");
-
-            auto apply = [&](const std::map<int, std::string>& tr, bool warn) {
-                for (std::size_t i = 0; i < batch.size(); ++i) {
-                    auto it = tr.find(static_cast<int>(i) + 1);
-                    if (it != tr.end() && !it->second.empty()) cache.set(batch[i], it->second);
-                    else if (warn)
-                        log_info("    WARNING: missing translation for item " +
-                                 std::to_string(i + 1));
-                }
-                save_cache(cache, opt.cache_file);
-            };
-
-            try {
-                apply(call_anthropic(client, batch), /*warn=*/true);
-            } catch (const anthropic::RateLimitError&) {
-                log_info("    Rate limited, waiting 60s...");
-                std::this_thread::sleep_for(std::chrono::seconds(60));
-                try {
-                    apply(call_anthropic(client, batch), /*warn=*/false);
-                } catch (const std::exception& e) {
-                    log_info(std::string("    Retry failed: ") + e.what());
-                }
-            } catch (const std::exception& e) {
-                log_info(std::string("    Batch error: ") + e.what());
-            }
-        }
-        save_cache(cache, opt.cache_file);
-        log_info("\nTranslation done. Cache: " + std::to_string(cache.size()) + " entries");
+        throw std::runtime_error("Offline build: live API client removed for finished game");
     }
 
     // ---- pass 2: repack, longest key first so a short key cannot match

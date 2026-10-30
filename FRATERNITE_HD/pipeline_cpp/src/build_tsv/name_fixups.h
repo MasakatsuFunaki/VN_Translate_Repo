@@ -5,7 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// GENERATED name table for clean_en() — NOT the glossary in translate/.
+// GENERATED name table for clean_en() — NOT the glossary in cache/.
 // Separate because collapsing the two would change the TSV output.
 #pragma once
 

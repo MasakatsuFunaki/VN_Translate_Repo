@@ -15,6 +15,7 @@
 #include <iostream>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,7 +26,6 @@
 #include "common/util.h"
 #include "image.h"
 #include "text_render.h"
-#include "translate/anthropic_client.h"
 
 namespace crc::cg {
 
@@ -34,8 +34,6 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// Sonnet, NOT the step-2 model: these are cheap one-shot vision calls.
-constexpr const char* MODEL = "claude-sonnet-4-6";
 constexpr int MIN_WIDTH = 180;
 constexpr int MIN_HEIGHT = 60;
 constexpr const char* FONT_PATH = "C:/Windows/Fonts/MTCORSVA.TTF";
@@ -47,50 +45,6 @@ const std::vector<std::string>& scan_arcs() {
     static const std::vector<std::string> v = {"sys.cpk"};
     return v;
 }
-
-const char* const DETECT_PROMPT = R"(You are analyzing a visual novel image to determine if it contains Japanese text that the player would benefit from seeing in English.
-
-Translate-worthy text includes:
-  - Narrative content: poems, literary quotes, prose passages overlaid on artwork
-  - Chapter or scene title cards with story-relevant Japanese text
-  - Menu / UI labels: file, open, close, save, load, settings, options, exit, yes/no, back, skip, auto, log/backlog, config, quit, etc.
-  - Button labels and dialog box headers
-
-Answer with a JSON object and nothing else:
-{
-  "has_narrative_text": true or false,
-  "confidence": 0.0-1.0,
-  "description": "<brief description of what text you see, if any>"
-})";
-
-// {W} / {H} are substituted per image; the doubled braces below are literal
-// template text and collapse to single braces in the request that is sent.
-const char* const EXTRACT_PROMPT_TEMPLATE = R"(This image contains Japanese text. It may be narrative prose (a poem, quote, chapter title) or a menu / UI element (button label, dialog header, save/load prompt, settings panel, etc.).
-
-For UI labels, use a short idiomatic English equivalent — "Save", "Load", "Settings", "Options", "Back", "Skip", "Auto", "Log", "Quit", "Yes" / "No" — NOT a literal word-for-word translation.
-
-For narrative prose, give a natural high-quality English translation that preserves tone and rhythm.
-
-Extract every Japanese text element and provide:
-1. The original Japanese text (exact)
-2. The English translation
-3. The bounding box [x1, y1, x2, y2] of that text region in the image (pixel coords)
-4. Approximate text color as a hex string (e.g. "#2a1a0e")
-5. Whether the background behind the text is light or dark: "light" or "dark"
-
-Image dimensions: {W}x{H}
-
-Respond with a JSON array and nothing else:
-[
-  {{
-    "text_jp": "...",
-    "text_en": "...",
-    "bbox": [x1, y1, x2, y2],
-    "text_color": "#rrggbb",
-    "bg_tone": "light" or "dark"
-  }},
-  ...
-])";
 
 std::string replace_all(std::string s, const std::string& from, const std::string& to) {
     std::string out;
@@ -250,115 +204,14 @@ std::optional<Image> open_bmp(const std::string& bmp_path) {
 
 // ---- vision ---------------------------------------------------------------
 
-std::string vision(anthropic::Client& client, const std::string& prompt, const Image& img) {
-    print_inline(std::string("[claude ") + MODEL + "] calling api... ");
-    bj::object source;
-    source["type"] = "base64";
-    source["media_type"] = "image/png";
-    source["data"] = base64_encode(encode_png(img));
-
-    bj::object img_block;
-    img_block["type"] = "image";
-    img_block["source"] = std::move(source);
-    bj::object txt_block;
-    txt_block["type"] = "text";
-    txt_block["text"] = prompt;
-
-    bj::object msg;
-    msg["role"] = "user";
-    msg["content"] = bj::array{std::move(img_block), std::move(txt_block)};
-
-    bj::object body;
-    body["model"] = MODEL;
-    body["max_tokens"] = 1024;
-    body["messages"] = bj::array{std::move(msg)};
-
-    // Vision replies carry no thinking block, so content[0] is the text.
-    bj::value resp = client.messages(bj::value(std::move(body)), 60);
-    return std::string(
-        resp.get_object().at("content").get_array()[0].get_object().at("text").get_string());
-}
-
 struct Detection {
     bool has_text = false;
     double confidence = 0.0;
     std::string description;
 };
 
-Detection detect_narrative(anthropic::Client& client, const Image& img) {
-    std::vector<Image> tiles;
-    if (img.width > 2000) {
-        const int tile_w = 1280;
-        for (int x = 0; x < img.width; x += tile_w)
-            tiles.push_back(crop(img, x, 0, std::min(x + tile_w, img.width), img.height));
-    } else {
-        tiles.push_back(img);
-    }
-
-    for (const auto& tile : tiles) {
-        try {
-            const std::string resp = vision(client, DETECT_PROMPT, tile);
-            boost::smatch m;
-            // NON-GREEDY, so the match stops at the FIRST '}' and any prose
-            // Claude appends after the object is ignored; (?s) lets '.' cross
-            // the newlines inside the pretty-printed reply.
-            static const boost::regex OBJ_RE("(?s)\\{.*?\\}");
-            if (!boost::regex_search(resp, m, OBJ_RE)) continue;
-            const bj::value data = bj::parse(m[0].str());
-            const auto& o = data.get_object();
-            bool has = false;
-            if (auto* v = o.if_contains("has_narrative_text"))
-                has = v->is_bool() ? v->get_bool() : (v->is_string() && !v->get_string().empty());
-            double conf = 0.0;
-            if (auto* v = o.if_contains("confidence")) conf = json_num(*v);
-            if (has && conf >= 0.7) {
-                Detection d;
-                d.has_text = true;
-                d.confidence = conf;
-                d.description = json_str(o, "description");
-                return d;
-            }
-        } catch (const std::exception& e) {
-            log_info(std::string("    detect error: ") + e.what());
-        }
-    }
-    return {};
-}
-
-bj::array extract_and_translate(anthropic::Client& client, const Image& img) {
-    std::string prompt = EXTRACT_PROMPT_TEMPLATE;
-    prompt = replace_all(prompt, "{W}", std::to_string(img.width));
-    prompt = replace_all(prompt, "{H}", std::to_string(img.height));
-    prompt = replace_all(prompt, "{{", "{");
-    prompt = replace_all(prompt, "}}", "}");
-
-    double scale = 1.0;
-    Image check_img = img;
-    if (img.width > 1280) {
-        scale = 1280.0 / img.width;
-        check_img = resize(img, 1280, static_cast<int>(img.height * scale));
-    }
-    try {
-        const std::string resp = vision(client, prompt, check_img);
-        bool found = false;
-        const std::string arr_text = first_json_array(resp, &found);
-        if (!found) return {};
-        bj::array regions = bj::parse(arr_text).get_array();
-        if (scale < 1.0) {
-            for (auto& rv : regions) {
-                auto* bbox = rv.get_object().if_contains("bbox");
-                if (!bbox || !bbox->is_array()) continue;
-                bj::array scaled;
-                for (const auto& v : bbox->get_array())
-                    scaled.push_back(static_cast<std::int64_t>(json_num(v) / scale));
-                *bbox = std::move(scaled);
-            }
-        }
-        return regions;
-    } catch (const std::exception& e) {
-        log_info(std::string("    extract error: ") + e.what());
-        return {};
-    }
+Detection detect_narrative(const Image& /*img*/) {
+    throw std::runtime_error("Offline build: live API client removed for finished game");
 }
 
 // ---- render ---------------------------------------------------------------
@@ -492,9 +345,9 @@ Image render_translation(const Image& img, const bj::array& regions) {
 // ---- OCR pre-filter -------------------------------------------------------
 
 // No OCR backend is wired up, so the pre-filter passes every image through to
-// Claude.  The banner is still printed once per run so the scan log is honest
-// about how many backends voted (zero); --scan-only and the confirm prompt are
-// what keep the bill in check.
+// the vision step.  The banner is still printed once per run so the scan log is
+// honest about how many backends voted (zero); --scan-only and the confirm
+// prompt are what keep the bill in check.
 bool g_ocr_logged = false;
 void ocr_vote_log_once() {
     if (g_ocr_logged) return;
@@ -546,9 +399,9 @@ std::size_t extract_all_assets(const Paths& p) {
     return total;
 }
 
-bool confirm_send_to_claude() {
+bool confirm_send_to_api() {
     for (;;) {
-        print_inline("\nSend extracted assets to Claude API for translation? [Y/N]: ");
+        print_inline("\nSend extracted assets to vision API for translation? [Y/N]: ");
         std::string ans;
         if (!std::getline(std::cin, ans)) return false;
         ans = trim(ans);
@@ -560,7 +413,7 @@ bool confirm_send_to_claude() {
     }
 }
 
-bj::array run_scan(const Paths& p, anthropic::LazyClient& client, bool resume) {
+bj::array run_scan(const Paths& p, bool resume) {
     bj::array candidates;
     ScanKeySet done_keys;
 
@@ -614,10 +467,11 @@ bj::array run_scan(const Paths& p, anthropic::LazyClient& client, bool resume) {
     }
 
     // The resume file can already cover every target, and then the loop below
-    // makes no request at all.  Resolved here rather than inside the loop: its
-    // handlers catch everything, so a missing key would be reported once per
+    // makes no request at all.  Checked here rather than inside the loop: its
+    // handlers catch everything, so a missing client would be reported once per
     // image and the run would still end successfully.
-    if (count_left_to_scan(targets, done_keys)) client.get();
+    if (count_left_to_scan(targets, done_keys))
+        throw std::runtime_error("Offline build: live API client removed for finished game");
 
     for (const auto& ae : arcs) {
         for (std::size_t i = 0; i < ae.entries.size(); ++i) {
@@ -637,7 +491,7 @@ bj::array run_scan(const Paths& p, anthropic::LazyClient& client, bool resume) {
 
             ocr_vote_log_once();  // the vote itself always passes (0 backends)
             print_inline("ocr: \"\" \xE2\x86\x92 ");
-            const Detection d = detect_narrative(client.get(), *img);
+            const Detection d = detect_narrative(*img);
             if (!d.has_text) {
                 log_info("no narrative text");
             } else {
@@ -665,7 +519,7 @@ bj::array run_scan(const Paths& p, anthropic::LazyClient& client, bool resume) {
     return candidates;
 }
 
-void run_translate(const Paths& p, anthropic::LazyClient& client, bj::array& candidates) {
+void run_translate(const Paths& p, bj::array& candidates) {
     fs::create_directories(fs::u8path(p.out_dir));
     for (auto& cv : candidates) {
         auto& c = cv.get_object();
@@ -700,30 +554,10 @@ void run_translate(const Paths& p, anthropic::LazyClient& client, bj::array& can
         // Every candidate takes the automatic path; there is no per-entry
         // manual override table.
         log_info(" [auto]");
-        // Already resolved by the caller, which counted the same candidates
+        // Already checked by the caller, which counted the same candidates
         // this loop admits here.  Reaching it is what would prove the two had
         // drifted, and it throws rather than letting the run continue.
-        bj::array regions = extract_and_translate(client.get(), *img);
-        if (regions.empty()) {
-            log_info("    no regions extracted");
-            c["regions"] = bj::array{};
-            continue;
-        }
-        log_info("    " + std::to_string(regions.size()) + " region(s):");
-        for (const auto& rv : regions) {
-            const auto& r = rv.get_object();
-            log_info("      JP: " + truncate_cp(json_str(r, "text_jp"), 60));
-            log_info("      EN: " + truncate_cp(json_str(r, "text_en"), 80));
-        }
-        const Image patched = render_translation(*img, regions);
-        c["regions"] = regions;
-
-        const std::string out_bmp = p.out_dir + "\\" + entry + ".bmp";
-        write_file(out_bmp, encode_bmp(patched));
-        c["patched_bmp"] = out_bmp;
-        log_info("    saved -> " + out_bmp);
-
-        write_file_text(p.candidates, json_pretty(bj::value(candidates), 2));
+        throw std::runtime_error("Offline build: live API client removed for finished game");
     }
 }
 
@@ -833,30 +667,25 @@ int run_find_narrative_cg(const CgOptions& opt) {
     const Paths p = make_paths(opt);
     fs::create_directories(fs::u8path(p.output_dir));
 
-    anthropic::load_api_key();
-
-    // Phase 1: extract everything locally -- no Claude calls yet.
+    // Phase 1: extract everything locally -- no API calls yet.
     extract_all_assets(p);
 
-    // Phase 2: explicit confirmation before any Claude API call.
-    if (!opt.assume_yes && !confirm_send_to_claude()) {
-        log_info("Aborted by user. No Claude API calls made.");
+    // Phase 2: explicit confirmation before any API call.
+    if (!opt.assume_yes && !confirm_send_to_api()) {
+        log_info("Aborted by user. No API calls made.");
         return 0;  // NOTE: the trailing "Done." is skipped on this path
     }
 
-    // Nothing below builds a client until it has a request to make, so an
-    // abort at the prompt and a scan the resume file already covers both run
-    // without a key.
-    anthropic::LazyClient client;
-    bj::array candidates = run_scan(p, client, !opt.no_resume);
+    bj::array candidates = run_scan(p, !opt.no_resume);
     if (!opt.scan_only && !candidates.empty()) {
         // The pass sends a request only for a candidate it has not already
         // painted, and a candidates file whose entries all carry a patched BMP
-        // leaves it nothing to send.  Resolved here rather than inside the
+        // leaves it nothing to send.  Checked here rather than inside the
         // pass, so a run that cannot proceed stops before it opens an image or
         // rewrites the candidates file.
-        if (count_left_to_translate(candidates, p.out_dir)) client.get();
-        run_translate(p, client, candidates);
+        if (count_left_to_translate(candidates, p.out_dir))
+            throw std::runtime_error("Offline build: live API client removed for finished game");
+        run_translate(p, candidates);
         run_repack(p, candidates);
     }
 

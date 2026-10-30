@@ -17,8 +17,8 @@
 #include <boost/json.hpp>
 
 #include "build_tsv/build_tsv.h"
+#include "cache/glossary.h"
 #include "common/util.h"
-#include "translate/glossary.h"
 
 namespace bj = boost::json;
 namespace fs = std::filesystem;
@@ -160,7 +160,7 @@ TEST(BuildTsv, RealTranslatedJsonProducesReferenceTsv) {
     ASSERT_EQ(bt::run_build(in.u8string(), out, (s.dir / "no_such_game" / "t.tsv").u8string()), 0);
 
     const Bytes raw = read_file(out);
-    EXPECT_EQ(raw.size(), 4066022u);
+    EXPECT_EQ(raw.size(), 4069681u);
     std::size_t rows = 0;
     for (std::uint8_t b : raw) {
         EXPECT_NE(b, 0x0D);

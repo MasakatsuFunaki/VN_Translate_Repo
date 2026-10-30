@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "common/util.h"
-#include "translate/anthropic_client.h"
+#include "translate/gemini_client.h"
 #include "translate/translate_core.h"
 
 #include "apps/paths.h"
@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
 
     // Both discard the cache; guard runs early so a refusal costs nothing.
     const std::string out_dir = project + "\\script_output";
-    const std::string cache_file = out_dir + "\\translation_cache_anthropic.json";
+    const std::string cache_file = out_dir + "\\translation_cache_gemini.json";
     if (clean || test_n > 0) {
         // Counting the cache parses it, and a cache that cannot be parsed
         // throws.  Handled here because this guard runs before the banner: an
@@ -182,17 +182,17 @@ int main(int argc, char** argv) {
     const std::string bar(60, '=');
     log_info(bar);
     log_info("Sakura no Toki (サクラノ刻)");
-    log_info("English Translation Pipeline (Anthropic)");
+    log_info("English Translation Pipeline (Gemini)");
     log_info(bar);
 
-    anthropic::load_api_key();
+    gemini::load_api_key();
 
     // --clean and --test discard the cache, and a run that discards it is
     // certain to need the API.  Checked before the deletion: without this the
     // cache would go and the translation step would then fail for the missing
     // key, losing work that cannot be rebuilt.
-    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
-        log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
+    if ((clean || test_n > 0) && gemini::load_api_key().empty()) {
+        log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the "
                  "cache for a run that cannot translate.");
         return 2;
     }
@@ -200,7 +200,7 @@ int main(int argc, char** argv) {
     if (clean) {
         for (const char* f :
              {"extracted_text.json", "translated_text.json",
-              "translation_cache_anthropic.json", "narrative_candidates.json",
+              "translation_cache_gemini.json", "narrative_candidates.json",
               "narrative_scanned.json"}) {
             // Reported, not thrown, at both steps: the throwing overloads
             // would end the run with no diagnosis.  A delete fails when

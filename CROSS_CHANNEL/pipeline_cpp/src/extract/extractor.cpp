@@ -121,7 +121,7 @@ std::string strip_control_prefix(const std::string& utf8) {
     if (first_kept_byte == std::string::npos || first_kept_cp == 0) return utf8;
 
     // Only a prefix that actually carries a control byte is bytecode garbage;
-    // printable leaders are content (CLAUDE.md §6).
+    // printable leaders are content (AGENTS.md §6).
     std::size_t i = 0;
     while (i < first_kept_byte)
         if (utf8_next(utf8, i) < 0x20) return utf8.substr(first_kept_byte);
@@ -153,7 +153,7 @@ std::vector<RawString> extract_strings(const Bytes& data,
 
         auto decoded = cp932_to_utf8_strict(data.data() + pos, end - pos);
         if (!decoded) {
-            // CLAUDE.md §9: the chunk starts with opcode operand bytes that are
+            // AGENTS.md §9: the chunk starts with opcode operand bytes that are
             // not valid CP932 but may still hold real text further in.  Sliding
             // one byte lets the walker find the next valid lead; jumping to
             // end + 1 silently dropped the dialogue inside.

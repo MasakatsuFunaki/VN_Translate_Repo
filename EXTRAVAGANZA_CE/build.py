@@ -10,7 +10,7 @@
 Release only.  The game (mushiEx_CE.exe, BLACKCyc) is a 32-bit binary, so the
 two halves are built for different architectures and that is the trap this
 script exists to hide: `pipeline_cpp` is x64 (the tools that read the SPT
-archives, call the API and repack), `proxy_dll` is Win32 because it is
+archives, apply the translation cache and repack), `proxy_dll` is Win32 because it is
 injected into the game process as winmm.dll.  One CMake project cannot hold
 both, so the root CMakeLists.txt drives each half as a separate sub-build with
 its own Conan profile and toolchain.
@@ -30,14 +30,13 @@ never shipped.
 Deploying copies `winmm.dll` into the game folder, and that is the whole
 payload: unlike the games that ship a translation table next to the EXE, this
 one has its English repacked straight into the game's `.spt`, `.xtx` and
-`.fxf` files by 03_repack / 04_translate_xtx / 05_translate_charts.  The game
+`.fxf` files by 03_repack / 04_build_xtx / 05_build_charts.  The game
 folder comes from `--game-dir`, which has no default because the install path
 differs per machine.  Set VN_DIST_BUILD to skip the copy, because a
 distribution build stages the artifacts itself and may run where no game is
 installed.
 
-This script builds; it never runs the pipeline executables.  Translating calls
-a paid API, so that stays an explicit, separate action.
+This script builds; it never runs the pipeline executables.
 """
 
 import os

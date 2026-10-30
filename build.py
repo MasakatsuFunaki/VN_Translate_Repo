@@ -25,9 +25,10 @@ build -- two architectures, its own presets, its own install target -- behind
 system DLL's name; flattened beside the x64 executables the loader would pick
 it up and then refuse it.
 
-WHICH GAMES: every top-level folder holding a build.py and a CMakeLists.txt
-that git does not ignore.  .gitignore is the manifest -- a game listed there is
-neither tracked nor shipped, so the set that builds equals the set that
+WHICH GAMES: every top-level folder holding a build.py, a CMakeLists.txt, and
+a tracked script_output/translated_text.json(.enc) that git does not ignore.
+A game without a tracked translation is still in progress and is skipped
+until its translation lands, so the set that builds equals the set that
 releases, with nothing to keep in sync by hand.
 """
 
@@ -64,6 +65,15 @@ def git_ignores(path):
         return False
 
 
+def has_translation(game):
+    """True when `game` carries a non-ignored translated_text.json(.enc)."""
+    for name in ("translated_text.json", "translated_text.json.enc"):
+        rel = os.path.join(game, "script_output", name)
+        if os.path.isfile(os.path.join(ROOT, rel)) and not git_ignores(rel):
+            return True
+    return False
+
+
 def discover():
     """(shipped, skipped) game folder names, each sorted."""
     shipped, skipped = [], []
@@ -74,7 +84,10 @@ def discover():
         if not (os.path.isfile(os.path.join(d, "build.py"))
                 and os.path.isfile(os.path.join(d, "CMakeLists.txt"))):
             continue
-        (skipped if git_ignores(name) else shipped).append(name)
+        if git_ignores(name) or not has_translation(name):
+            skipped.append(name)
+        else:
+            shipped.append(name)
     return shipped, skipped
 
 
@@ -117,7 +130,8 @@ def collect(game):
         os.makedirs(text_dst, exist_ok=True)
         for name in sorted(os.listdir(text_src)):
             f = os.path.join(text_src, name)
-            if os.path.isfile(f):
+            rel = os.path.join(game, "script_output", name)
+            if os.path.isfile(f) and not git_ignores(rel):
                 shutil.copy2(f, os.path.join(text_dst, name))
     else:
         print(f"  {game}: no script_output -- shipping binaries only")
@@ -126,7 +140,8 @@ def collect(game):
     # is not part of the install target and has to be picked up by name.
     for name in RUNTIME_TABLES:
         table = os.path.join(ROOT, game, name)
-        if os.path.isfile(table):
+        rel = os.path.join(game, name)
+        if os.path.isfile(table) and not git_ignores(rel):
             game_dir = os.path.join(dst, "game")
             os.makedirs(game_dir, exist_ok=True)
             shutil.copy2(table, os.path.join(game_dir, name))
@@ -169,12 +184,13 @@ def main():
 
     shipped, skipped = discover()
     if args.only:
-        unknown = [g for g in args.only if g not in shipped]
+        known = set(shipped) | set(skipped)
+        unknown = [g for g in args.only if g not in known]
         if unknown:
             print(f"[ERROR] not a shipped game: {', '.join(unknown)}")
             print(f"        shipped: {', '.join(shipped) or '(none)'}")
             return 2
-        shipped = [g for g in shipped if g in args.only]
+        shipped = [g for g in sorted(known) if g in args.only]
 
     print(f"Shipped ({len(shipped)}): {', '.join(shipped) or '(none)'}")
     print(f"Ignored ({len(skipped)}): {', '.join(skipped) or '(none)'}")

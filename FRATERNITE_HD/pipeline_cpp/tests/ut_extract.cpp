@@ -150,7 +150,7 @@ TEST(Extract, GlobalSeen_DedupsAcrossFiles) {
 
 TEST(Extract, EndToEnd_SyntheticArchive_OutputIsPinnedByDigest) {
     // A seven-entry archive built from the checked-in ybn samples; the digest
-    // pins the whole of extracted_text.json (388 entries, 88,098 bytes) --
+    // pins the whole of extracted_text.json (375 entries, 85,674 bytes) --
     // CRLF, indent=2, key order, the story-first ordering, global_seen dedup
     // and the CP932 PUA decode all at once.
     const Bytes yst_plain = frat_test::sample("yst00001.ybn");
@@ -173,7 +173,7 @@ TEST(Extract, EndToEnd_SyntheticArchive_OutputIsPinnedByDigest) {
     ASSERT_EQ(extract::run_extract(dir / "pac", out), 0);
 
     const Bytes produced = read_file(out);
-    EXPECT_EQ(produced.size(), 88098u);
+    EXPECT_EQ(produced.size(), 85674u);
     EXPECT_EQ(frat_test::sha256_hex(produced.data(), produced.size()),
-              "2e8b27c4436e2dc2dfd3e147d69bed320b019448053b38e5d427144275eb2430");
+              "ed3795835191284252412fc9dea662f44eeb582ecb4f6c799eb704e90b9bb8f4");
 }

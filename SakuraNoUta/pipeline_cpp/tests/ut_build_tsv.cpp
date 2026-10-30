@@ -24,8 +24,8 @@
 #include "build_tsv/build_tsv.h"
 #include "common/coverage.h"
 #include "common/util.h"
-#include "translate/glossary.h"
-#include "translate/translate_core.h"
+#include "cache/glossary.h"
+#include "cache/cache_core.h"
 
 namespace fs = std::filesystem;
 namespace bt = snu::build_tsv;

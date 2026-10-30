@@ -5,7 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Sakura no Toki character glossary + Anthropic system prompt.
+// Sakura no Toki character glossary + Gemini system prompt.
 //
 // The tables in glossary.cpp are pinned: they seed the translation cache, so
 // editing an entry changes the English every downstream artifact already
@@ -23,7 +23,7 @@ namespace snt::translate {
 
 // Insertion-ordered (JP, EN) pairs.  The order is load-bearing: it is the
 // cache seeding order, and therefore the key order of
-// translation_cache_anthropic.json.
+// translation_cache_gemini.json.
 const std::vector<std::pair<std::string, std::string>>& name_translations_ordered();
 
 // JP -> EN lookup map over the same data.
@@ -57,28 +57,25 @@ const std::vector<std::pair<std::string, std::string>>& superseded_name_renderin
 const std::string& system_prompt();
 
 // ── Available models (edit MODEL below to switch) ──
-// Same rate card for Opus 4.6 and 4.7 ($5/$25 per Mtok), but 4.7's new
-// tokenizer can emit up to 35% more tokens for the same text — 4.6 is
-// effectively cheaper per request. Sonnet 4.6 stays the cheap baseline.
-inline const std::string MODEL_HAIKU = "claude-haiku-4-5-20251001";
-inline const std::string MODEL_SONNET = "claude-sonnet-4-6";
-inline const std::string MODEL_OPUS_46 = "claude-opus-4-6";
-inline const std::string MODEL_OPUS_47 = "claude-opus-4-7";
-inline const std::string MODEL = MODEL_OPUS_47;  // ← swap as needed
+inline const std::string MODEL_FLASH_LITE = "gemini-2.0-flash-lite";
+inline const std::string MODEL_FLASH_25 = "gemini-2.5-flash";
+inline const std::string MODEL_PRO = "gemini-2.5-pro";
+inline const std::string MODEL_FLASH = "gemini-flash-latest";
+inline const std::string MODEL = MODEL_FLASH;  // ← swap as needed
 
-// Effort level: controls token spend.  Supported on the Sonnet/Opus models
-// above; NOT supported on Haiku 4.5.
+// Effort level: controls token spend on the Gemini 2.5 models above; not
+// supported on Flash Lite.
 inline const std::string EFFORT = "high";
 
-// The reasoning knob a model accepts.  Opus 4.7 takes adaptive thinking;
-// Sonnet 4.6 and Opus 4.6 take output_config.effort.  Sending the wrong one
-// is an HTTP 400, so the request body and the banner both read this rather
+// The reasoning knob a model accepts.  MODEL_FLASH takes adaptive thinking;
+// MODEL_FLASH_25 and MODEL_PRO take output_config.effort.  Sending the wrong
+// one is an HTTP 400, so the request body and the banner both read this rather
 // than each deciding for themselves.
 enum class ReasoningControl { None, AdaptiveThinking, Effort };
 
 inline ReasoningControl reasoning_control(const std::string& m) {
-    if (m == MODEL_OPUS_47) return ReasoningControl::AdaptiveThinking;
-    if (m == MODEL_SONNET || m == MODEL_OPUS_46) return ReasoningControl::Effort;
+    if (m == MODEL_FLASH) return ReasoningControl::AdaptiveThinking;
+    if (m == MODEL_FLASH_25 || m == MODEL_PRO) return ReasoningControl::Effort;
     return ReasoningControl::None;
 }
 

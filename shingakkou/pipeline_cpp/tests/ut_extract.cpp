@@ -18,8 +18,8 @@
 
 #include "common/util.h"
 #include "extract/extractor.h"
-#include "translate/glossary.h"
-#include "translate/translate_core.h"
+#include "cache/glossary.h"
+#include "cache/cache_core.h"
 
 namespace fs = std::filesystem;
 using namespace shin;

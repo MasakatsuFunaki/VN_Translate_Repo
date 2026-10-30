@@ -172,7 +172,7 @@ TEST_F(TranslationPipelineTest, OverBudgetEntriesAreSkippedNotTruncated) {
 // History: ※-prefixed dialogue lines rendered raw because the OLD
 // the extract step's control-prefix strip dropped the leading ※ before the
 // TSV was built. Engine still emits ※ at runtime → literal lookup
-// missed → JP rendered raw.  The narrowed extractor (CLAUDE.md §6)
+// missed → JP rendered raw.  The narrowed extractor (AGENTS.md §6)
 // now keeps the ※, so the engine bytes match a TSV key VERBATIM.
 //
 // Ground truth for the byte sequence comes from an actual PRE-LOOP MISS

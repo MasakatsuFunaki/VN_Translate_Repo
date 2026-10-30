@@ -166,7 +166,7 @@ def deploy(game_dir):
             print(f"COPY translations.tsv FAILED ({exc})")
             sys.exit(1)
     else:
-        print("WARN: translations.tsv not found — run 02_translate.exe first.")
+        print("WARN: translations.tsv not found — run 02_build_tsv.exe first.")
 
     print(f"\nDeployed to {game_dir}.")
 

@@ -6,7 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // Step-1 tests.  Most of these pin bugs that shipped and rendered raw
-// Japanese in-game; see the CLAUDE.md sections referenced per case.
+// Japanese in-game; see the AGENTS.md sections referenced per case.
 #include <gtest/gtest.h>
 
 #include <filesystem>
@@ -42,7 +42,7 @@ void put(Bytes& b, std::initializer_list<std::uint8_t> l) { b.insert(b.end(), l)
 
 }  // namespace
 
-// ── CLAUDE.md §6 ──────────────────────────────────────────────────────────
+// ── AGENTS.md §6 ──────────────────────────────────────────────────────────
 TEST(Extract, StripControlPrefixKeepsPurePrintablePrefix) {
     const char* table[] = {
         "\xE2\x80\xBB\xE7\x94\xB7\xE5\xBF\x83\xE3\x82\x92\xE9\xB7\xB2\xE6\x8E\xB4\xE3\x82\x80"
@@ -69,7 +69,7 @@ TEST(Extract, StripControlPrefixStripsWhenPrefixHasControlByte) {
               "\xE3\x80\x8C\xE3\x81\x8A\xE3\x80\x8D");
 }
 
-// ── CLAUDE.md §9 ──────────────────────────────────────────────────────────
+// ── AGENTS.md §9 ──────────────────────────────────────────────────────────
 TEST(Extract, ExtractStringsSlidesOneByteOnDecodeFailure) {
     // 0x86 0x3A is an invalid CP932 pair (0x3A is ASCII ':', not a trail
     // byte), so strict decode fails at offset 0 of the chunk.  Jumping to the
@@ -88,7 +88,7 @@ TEST(Extract, ExtractStringsSlidesOneByteOnDecodeFailure) {
     EXPECT_TRUE(found) << "the 「今日は」 chunk was dropped -- the walker skipped past the NUL";
 }
 
-// ── CLAUDE.md §7 ──────────────────────────────────────────────────────────
+// ── AGENTS.md §7 ──────────────────────────────────────────────────────────
 TEST(Extract, ClassifyKeepsTwoCharChoiceOptionBehindPreamble) {
     // FF FF <label LE16> 00 00 帰る 00  -- the choice-option shape.
     Bytes with_preamble;

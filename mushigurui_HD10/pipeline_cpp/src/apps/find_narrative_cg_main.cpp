@@ -6,7 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 04_find_narrative_cg -- scan dwq/*.gpk for images carrying Japanese text,
-// translate them via Claude vision and repack the archives.
+// render the translated overlays and repack the archives.
 //
 // Usage:
 //   04_find_narrative_cg              # scan + translate + repack

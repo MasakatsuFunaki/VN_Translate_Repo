@@ -12,7 +12,7 @@ function(exm_test name)
 endfunction()
 
 exm_test(ut_spt_script)
-exm_test(ut_translate)
+exm_test(ut_cache)
 exm_test(ut_build_tsv)
 exm_test(ut_cp932)
 exm_test(ut_cache_io)

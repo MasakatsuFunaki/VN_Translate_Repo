@@ -36,14 +36,12 @@ add_library(ama_core STATIC
     src/extract/extractor.h
     src/build_tsv/build_tsv.cpp
     src/build_tsv/build_tsv.h
-    src/translate/glossary.cpp
-    src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
-    src/translate/speaker_gate.cpp
-    src/translate/speaker_gate.h
-    src/translate/translate_core.cpp
-    src/translate/translate_core.h
+    src/cache/glossary.cpp
+    src/cache/glossary.h
+    src/cache/speaker_gate.cpp
+    src/cache/speaker_gate.h
+    src/cache/cache_core.cpp
+    src/cache/cache_core.h
 )
 target_include_directories(ama_core PUBLIC src)
 target_compile_definitions(ama_core PUBLIC
@@ -57,8 +55,8 @@ target_link_libraries(ama_core PUBLIC
     # compiled Boost lib, including test_exec_monitor, whose main() wants a
     # test_main symbol the GoogleTest suites don't define.
     Boost::headers
-    # OpenSSL supplies both TLS for api.anthropic.com and the raw Blowfish
-    # block cipher the KIF archive is encrypted with.
+    # OpenSSL supplies the raw Blowfish block cipher the KIF archive is
+    # encrypted with.
     openssl::openssl
     ZLIB::ZLIB
     ws2_32
@@ -82,14 +80,14 @@ endfunction()
 
 ama_app(00_run_all   src/apps/run_all_main.cpp)
 ama_app(01_extract   src/apps/extract_main.cpp)
-ama_app(02_translate src/apps/translate_main.cpp)
+ama_app(02_build_tsv src/apps/build_tsv_main.cpp)
 
 # --------------------------------------------------------------------
 # Install: the three executables a user runs, and nothing else.  ama_core
 # and the test binaries exist to produce these and stay in the build tree.
 # Every dependency is a static library, so there is no runtime to carry.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_translate
+install(TARGETS 00_run_all 01_extract 02_build_tsv
         RUNTIME DESTINATION bin)
 
 

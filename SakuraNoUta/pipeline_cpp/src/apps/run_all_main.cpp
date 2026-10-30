@@ -5,7 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// 00_run_all -- pipeline orchestrator (01_extract -> 02_translate -> deploy).
+// 00_run_all -- pipeline orchestrator (01_extract -> 02_build_tsv -> deploy).
 // --test/--clean delete the cache; --max-batches caps without deleting.
 #include <cstdlib>
 #include <exception>
@@ -15,8 +15,7 @@
 #include <vector>
 
 #include "common/util.h"
-#include "translate/anthropic_client.h"
-#include "translate/translate_core.h"
+#include "cache/cache_core.h"
 
 #include "apps/paths.h"
 #include "apps/pipeline_steps.h"
@@ -88,7 +87,7 @@ bool deploy(const std::string& project, const std::string& game) {
         return true;
     }
     if (!have_table) {
-        log_info("  WARN: translations.tsv not found -- 02_translate produces it.");
+        log_info("  WARN: translations.tsv not found -- 02_build_tsv produces it.");
         return true;
     }
     fs::copy_file(tsv, fs::u8path(game + "\\translations.tsv"),
@@ -161,18 +160,15 @@ int main(int argc, char** argv) {
     const std::string bar(60, '=');
     log_info(bar);
     log_info("Sakura no Uta (サクラノ詩)");
-    log_info("English Translation Pipeline (Anthropic)");
+    log_info("English Translation Pipeline");
     log_info(bar);
 
-    anthropic::load_api_key();
-
-    // --clean and --test discard the cache, and a run that discards it is
-    // certain to need the API.  Checked before the deletion: without this the
-    // cache would go and the translation step would then fail for the missing
-    // key, losing work that cannot be rebuilt.
-    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
-        log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
-                 "cache for a run that cannot translate.");
+    // --clean and --test discard the cache, and a run that discards it cannot
+    // rebuild the translations offline.  Checked before the deletion so work
+    // that cannot be rebuilt is never lost.
+    if (clean || test_n > 0) {
+        log_info("[ERROR] offline build: network API calls are disabled -- "
+                 "refusing to discard the cache");
         return 2;
     }
 

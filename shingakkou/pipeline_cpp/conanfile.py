@@ -1,9 +1,8 @@
 # Conan 2 recipe for the Shingakkou translation pipeline (C++ port of the
 # former Python scripts 00..03).
 #
-#   boost    - Beast/Asio (Anthropic HTTPS client), JSON, Program_options,
-#              Regex
-#   openssl  - TLS for api.anthropic.com.  No crypto beyond that: the archive
+#   boost    - JSON, Program_options, Regex
+#   openssl  - TLS support.  No crypto beyond that: the archive
 #              cipher is an 8-line repeating XOR and ShsCompression is
 #              hand-rolled, so there is no zlib / Blowfish dependency here.
 #   freetype - TTF measurement/rasterisation for the narrative-CG renderer

@@ -7,8 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # MSVC defaults to interpreting source bytes as the system codepage, which
 # mangles the UTF-8 Japanese literals in the glossary.  /utf-8 is the standard
-# fix.  /bigobj: the 3,822-char SYSTEM_PROMPT + 75 glossary pairs + boost
-# headers overflow the default section limit.
+# fix.  /bigobj: 75 glossary pairs + boost headers overflow the default
+# section limit.
 if(MSVC)
     add_compile_options(/utf-8 /bigobj)
 endif()
@@ -39,14 +39,12 @@ add_library(crc_core STATIC
     src/extract/extractor.h
     src/build_tsv/build_tsv.cpp
     src/build_tsv/build_tsv.h
-    src/translate/glossary.cpp
-    src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
-    src/translate/speaker_gate.cpp
-    src/translate/speaker_gate.h
-    src/translate/translate_core.cpp
-    src/translate/translate_core.h
+    src/cache/glossary.cpp
+    src/cache/glossary.h
+    src/cache/speaker_gate.cpp
+    src/cache/speaker_gate.h
+    src/cache/cache_core.cpp
+    src/cache/cache_core.h
     src/cg/image.cpp
     src/cg/image.h
     src/cg/text_render.cpp
@@ -66,8 +64,8 @@ target_link_libraries(crc_core PUBLIC
     # compiled Boost lib, including test_exec_monitor, whose main() wants a
     # test_main symbol the GoogleTest suites don't define.
     Boost::headers
-    # TLS for api.anthropic.com.  sn.bin is unencrypted, so unlike some other
-    # titles here there is no crypto step.
+    # SHA-256 digests in the test suites.  sn.bin is unencrypted, so unlike some
+    # other titles here there is no archive crypto step.
     openssl::openssl
     stb::stb
     Freetype::Freetype
@@ -93,7 +91,7 @@ endfunction()
 
 crc_app(00_run_all              src/apps/run_all_main.cpp)
 crc_app(01_extract              src/apps/extract_main.cpp)
-crc_app(02_translate            src/apps/translate_main.cpp)
+crc_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 crc_app(03_find_narrative_cg    src/apps/find_narrative_cg_main.cpp)
 
 # --------------------------------------------------------------------
@@ -101,7 +99,7 @@ crc_app(03_find_narrative_cg    src/apps/find_narrative_cg_main.cpp)
 # the test binaries exist to produce these and stay in the build tree.  Every
 # dependency is a static library, so there is no runtime to carry.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_translate 03_find_narrative_cg
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg
         RUNTIME DESTINATION bin)
 
 # --------------------------------------------------------------------

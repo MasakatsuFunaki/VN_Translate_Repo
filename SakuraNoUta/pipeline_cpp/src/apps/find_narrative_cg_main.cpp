@@ -6,7 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 03_find_narrative_cg -- scan arcs for CGs with narrative Japanese text,
-// translate via Claude vision, repack.  --scan-only / --repack / --no-resume.
+// render English text, repack.  --scan-only / --repack / --no-resume.
 #include "cg/cg_pipeline.h"
 #include "common/util.h"
 

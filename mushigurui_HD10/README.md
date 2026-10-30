@@ -13,13 +13,13 @@
 
 ```
 01_extract          → extracted_text.json
-02_translate        → speaker gate → translated_text.json + translation_table.tsv
+02_build_tsv        → speaker gate → translated_text.json + translation_table.tsv
 00_run_all          → extract + translate + deploy in one shot
 ```
 
 Side tools (not in `00_run_all`):
 ```
-03_translate_xtx          → config name plates
+03_build_xtx              → config name plates
 04_find_narrative_cg      → CG asset translation + GPK repack
 05_replace_choice_text    → choice-menu screenshot translator (choices/*.jpg → *_en.jpg)
 ```
@@ -33,7 +33,6 @@ python build.py --test --install
 python build.py --deploy
 python build.py --clean
 
-set ANTHROPIC_API_KEY=sk-ant-...
 build\install\bin\00_run_all.exe
 ```
 

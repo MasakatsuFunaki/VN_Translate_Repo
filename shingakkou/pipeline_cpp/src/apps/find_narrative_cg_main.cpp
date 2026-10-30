@@ -6,7 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 03_find_narrative_cg -- scan the DDP CG archives for images carrying Japanese
-// text, translate them via Claude vision and repack the archives.
+// text, render the English overlays and repack the archives.
 //
 // Usage:
 //   03_find_narrative_cg              # scan + translate + repack

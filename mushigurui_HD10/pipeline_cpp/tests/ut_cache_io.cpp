@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "common/util.h"
-#include "translate/translate_core.h"
+#include "cache/cache_core.h"
 
 namespace fs = std::filesystem;
 namespace tr = mgi::translate;

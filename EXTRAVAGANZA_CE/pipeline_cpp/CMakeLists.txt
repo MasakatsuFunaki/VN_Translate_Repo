@@ -35,14 +35,12 @@ add_library(exc_core STATIC
     src/repack/repack.h
     src/charts/charts.cpp
     src/charts/charts.h
-    src/translate/glossary.cpp
-    src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
-    src/translate/translate_core.cpp
-    src/translate/translate_core.h
-    src/translate/speaker_gate.cpp
-    src/translate/speaker_gate.h
+    src/cache/glossary.cpp
+    src/cache/glossary.h
+    src/cache/cache_core.cpp
+    src/cache/cache_core.h
+    src/cache/speaker_gate.cpp
+    src/cache/speaker_gate.h
     src/xtx/xtx.cpp
     src/xtx/xtx.h
     src/xtx/xtx_tables.cpp
@@ -67,7 +65,7 @@ target_link_libraries(exc_core PUBLIC
 # --------------------------------------------------------------------
 # Pipeline executables (numbered in run order).
 #
-# The spine is 01_extract -> 02_translate -> deploy; the speaker gate is part
+# The spine is 01_extract -> 02_build_tsv -> deploy; the speaker gate is part
 # of the translation step rather than an app of its own, so it cannot be
 # forgotten before a paid run.  03..05 write the English into the game's own
 # files and 00_run_all runs them between translation and the deploy copy.
@@ -81,18 +79,18 @@ endfunction()
 
 exc_app(00_run_all              src/apps/run_all_main.cpp)
 exc_app(01_extract              src/apps/extract_main.cpp)
-exc_app(02_translate            src/apps/translate_main.cpp)
+exc_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 exc_app(03_repack               src/apps/repack_main.cpp)
-exc_app(04_translate_xtx        src/apps/translate_xtx_main.cpp)
-exc_app(05_translate_charts     src/apps/translate_charts_main.cpp)
+exc_app(04_build_xtx            src/apps/build_xtx_main.cpp)
+exc_app(05_build_charts         src/apps/build_charts_main.cpp)
 
 # --------------------------------------------------------------------
 # Install: what the USER runs.  bin/ only -- exc_core and the test binaries
 # are internal, and the proxy half installs its DLL into game/ so a 32-bit
 # winmm.dll never lands beside these x64 executables.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_translate 03_repack 04_translate_xtx
-                05_translate_charts
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_repack 04_build_xtx
+                05_build_charts
         RUNTIME DESTINATION bin)
 
 # --------------------------------------------------------------------

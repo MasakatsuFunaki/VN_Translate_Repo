@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# /utf-8: JP literals in the glossary; /bigobj: SYSTEM_PROMPT + boost headers.
+# /utf-8: JP literals in the glossary; /bigobj: glossary + boost headers.
 if(MSVC)
     add_compile_options(/utf-8 /bigobj)
 endif()
@@ -35,14 +35,12 @@ add_library(frat_core STATIC
     src/build_tsv/build_tsv.h
     src/build_tsv/name_fixups.cpp
     src/build_tsv/name_fixups.h
-    src/translate/glossary.cpp
-    src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
-    src/translate/speaker_gate.cpp
-    src/translate/speaker_gate.h
-    src/translate/translate_core.cpp
-    src/translate/translate_core.h
+    src/cache/glossary.cpp
+    src/cache/glossary.h
+    src/cache/speaker_gate.cpp
+    src/cache/speaker_gate.h
+    src/cache/cache_core.cpp
+    src/cache/cache_core.h
 )
 target_include_directories(frat_core PUBLIC src)
 target_compile_definitions(frat_core PUBLIC
@@ -67,10 +65,10 @@ endfunction()
 
 frat_app(00_run_all    src/apps/run_all_main.cpp)
 frat_app(01_extract    src/apps/extract_main.cpp)
-frat_app(02_translate  src/apps/translate_main.cpp)
+frat_app(02_build_tsv  src/apps/build_tsv_main.cpp)
 
 # Install: just the three apps; all deps are static.
-install(TARGETS 00_run_all 01_extract 02_translate
+install(TARGETS 00_run_all 01_extract 02_build_tsv
         RUNTIME DESTINATION bin)
 
 # Tests

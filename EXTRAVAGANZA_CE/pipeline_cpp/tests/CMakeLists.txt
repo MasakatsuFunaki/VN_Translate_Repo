@@ -12,7 +12,7 @@ function(exc_test name)
 endfunction()
 
 exc_test(ut_spt_script)
-exc_test(ut_translate)
+exc_test(ut_cache)
 exc_test(ut_repack)
 exc_test(ut_charts)
 exc_test(ut_cp932)

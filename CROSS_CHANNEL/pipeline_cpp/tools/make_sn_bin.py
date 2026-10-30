@@ -4,7 +4,7 @@
 CROSS_CHANNEL is not installed on the build machine, so 01_extract cannot be
 verified against the real archive.  This generates a deliberately adversarial
 decompressed payload -- every branch of the walker, classifier and the three
-CLAUDE.md extractor traps -- and LZSS-encodes it two ways:
+AGENTS.md extractor traps -- and LZSS-encodes it two ways:
 
   1. all-literal   (flag 0xFF + 8 raw bytes per group)
   2. with real back-references over the multi-megabyte filler run, which
@@ -81,7 +81,7 @@ NAMES = ['太一', '見里', '美希', '霧', '冬子', '友貴', '桜庭', '曜
 
 
 def section_traps():
-    """CLAUDE.md §6 / §7 / §9 plus the ordinary classifier branches."""
+    """AGENTS.md §6 / §7 / §9 plus the ordinary classifier branches."""
     out = bytearray()
 
     # §6 -- pure-printable prefixes that must survive verbatim.

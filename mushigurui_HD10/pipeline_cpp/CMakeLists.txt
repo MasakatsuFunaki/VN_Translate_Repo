@@ -37,14 +37,12 @@ add_library(mgi_core STATIC
     src/extract/extractor.h
     src/build_tsv/build_tsv.cpp
     src/build_tsv/build_tsv.h
-    src/translate/glossary.cpp
-    src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
-    src/translate/speaker_gate.cpp
-    src/translate/speaker_gate.h
-    src/translate/translate_core.cpp
-    src/translate/translate_core.h
+    src/cache/glossary.cpp
+    src/cache/glossary.h
+    src/cache/speaker_gate.cpp
+    src/cache/speaker_gate.h
+    src/cache/cache_core.cpp
+    src/cache/cache_core.h
     src/xtx/xtx.cpp
     src/xtx/xtx.h
     src/xtx/xtx_tables.cpp
@@ -97,8 +95,8 @@ endfunction()
 
 mgi_app(00_run_all              src/apps/run_all_main.cpp)
 mgi_app(01_extract              src/apps/extract_main.cpp)
-mgi_app(02_translate            src/apps/translate_main.cpp)
-mgi_app(03_translate_xtx        src/apps/translate_xtx_main.cpp)
+mgi_app(02_build_tsv            src/apps/build_tsv_main.cpp)
+mgi_app(03_build_xtx            src/apps/build_xtx_main.cpp)
 mgi_app(04_find_narrative_cg    src/apps/find_narrative_cg_main.cpp)
 mgi_app(05_replace_choice_text  src/apps/replace_choice_text_main.cpp)
 
@@ -111,8 +109,8 @@ mgi_app(05_replace_choice_text  src/apps/replace_choice_text_main.cpp)
 # carries a system DLL's name and is 32-bit, so a copy beside these x64
 # executables is something the loader picks up and then refuses.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_translate
-                03_translate_xtx 04_find_narrative_cg 05_replace_choice_text
+install(TARGETS 00_run_all 01_extract 02_build_tsv
+                03_build_xtx 04_find_narrative_cg 05_replace_choice_text
         RUNTIME DESTINATION bin)
 
 

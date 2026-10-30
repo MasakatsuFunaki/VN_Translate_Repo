@@ -12,7 +12,7 @@
 
 ```
 01_extract          → extracted_text.json
-02_translate        → speaker gate → translated_text.json + translations.tsv
+02_build_tsv        → speaker gate → translated_text.json + translations.tsv
 00_run_all          → all three in one shot
 03_find_narrative_cg → CG/UI images with JP text → narrative_patched/ (inspection-only; CPK repack not implemented)
 ```
@@ -27,7 +27,6 @@ python build.py --test --install   # build + tests + stage
 python build.py --deploy           # ship to game
 python build.py --clean
 
-set ANTHROPIC_API_KEY=sk-ant-...
 build\install\bin\00_run_all.exe
 ```
 

@@ -9,7 +9,7 @@
 // sn.bin bytecode.
 //
 // Three engine-specific traps are baked into this file; all three were real
-// in-game bugs and are documented at length in the repo CLAUDE.md:
+// in-game bugs and are documented at length in the repo AGENTS.md:
 //   §6  strip_control_prefix must KEEP a pure-printable prefix.
 //   §7  the JP-count threshold relaxes to 2 behind the choice-option preamble.
 //   §9  a CP932 decode failure slides ONE byte, it does not skip to the next NUL.
@@ -49,12 +49,12 @@ double japanese_density(const std::string& utf8);
 // Offsets of the name bytes following each `47 0D 00` speaker opcode.
 std::unordered_set<std::size_t> find_speaker_offsets(const Bytes& data);
 
-// CLAUDE.md §6.  Strip a leading run only when it actually contains a control
+// AGENTS.md §6.  Strip a leading run only when it actually contains a control
 // byte; a pure-printable prefix (`※`, `Ａ`, `（`, `FLOWER'S`) is legitimate
 // content and dropping it produced TSV keys the engine never emits.
 std::string strip_control_prefix(const std::string& utf8);
 
-// CLAUDE.md §7.  Choice-menu option text is always preceded by
+// AGENTS.md §7.  Choice-menu option text is always preceded by
 // `FF FF <jump label LE16> 00 00`.
 bool is_choice_option_at(std::size_t offset, const Bytes& data);
 

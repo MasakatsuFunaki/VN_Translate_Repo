@@ -11,7 +11,7 @@
 
 #include "cg/cg_pipeline.h"
 #include "common/util.h"
-#include "translate/anthropic_client.h"
+#include "translate/gemini_client.h"
 
 #include "apps/paths.h"
 
@@ -31,13 +31,13 @@ int main(int argc, char** argv) {
         ("no-resume", po::bool_switch(&no_resume),
          "start the scan from scratch (ignore narrative_candidates.json)")
         ("yes,y", po::bool_switch(&yes),
-         "skip the interactive confirmation before Claude API calls");
+         "skip the interactive confirmation before Gemini API calls");
     po::variables_map vm;
     if (auto rc = snt::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
 
-    // The scan itself decides whether a key is needed: a resume file that
-    // already covers every target makes no request.
-    snt::anthropic::load_api_key();
+    // The scan itself decides whether a GEMINI_API_KEY is needed: a resume file
+    // that already covers every target makes no request.
+    snt::gemini::load_api_key();
 
     snt::cg::CgOptions opt;
     opt.game_dir = game;

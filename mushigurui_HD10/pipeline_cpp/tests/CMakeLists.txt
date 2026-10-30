@@ -12,7 +12,7 @@ function(mgi_test name)
 endfunction()
 
 mgi_test(ut_spt_script)
-mgi_test(ut_translate)
+mgi_test(ut_cache)
 mgi_test(ut_build_tsv)
 mgi_test(ut_cp932)
 mgi_test(ut_json_float)

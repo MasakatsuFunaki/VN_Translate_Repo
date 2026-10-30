@@ -15,7 +15,7 @@
 #include <boost/json.hpp>
 
 #include "common/util.h"
-#include "translate/glossary.h"
+#include "cache/glossary.h"
 
 namespace shin::build_tsv {
 

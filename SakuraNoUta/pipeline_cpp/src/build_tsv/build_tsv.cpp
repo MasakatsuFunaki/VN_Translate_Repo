@@ -21,7 +21,7 @@
 #include "box_budget.h"
 #include "common/coverage.h"
 #include "common/util.h"
-#include "translate/glossary.h"
+#include "cache/glossary.h"
 #include "translator_logic.h"
 
 namespace snu::build_tsv {

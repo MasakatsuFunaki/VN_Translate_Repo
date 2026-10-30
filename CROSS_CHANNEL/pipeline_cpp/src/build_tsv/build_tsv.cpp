@@ -14,8 +14,8 @@
 
 #include <boost/json.hpp>
 
+#include "cache/glossary.h"
 #include "common/util.h"
-#include "translate/glossary.h"
 
 namespace crc::build_tsv {
 
@@ -83,7 +83,7 @@ int run_build(const std::string& translated_file, const std::string& out_tsv,
               const std::string& game_tsv) {
     if (!fs::exists(fs::u8path(translated_file))) {
         log_info("ERROR: " + translated_file + " not found");
-        log_info("Run 02_translate first.");
+        log_info("Run 02_build_tsv first.");
         return 1;
     }
 

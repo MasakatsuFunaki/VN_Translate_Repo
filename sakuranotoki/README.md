@@ -36,9 +36,9 @@ The pipeline is **C++** (`pipeline_cpp/`, Conan 2 + Boost + CMake).
 
 - cmake (>=3.23), conan (>=2), ninja, and the MSVC C++ toolchain (VS 2022
   or its Build Tools) -- the build uses Ninja Multi-Config, never MSBuild
-- Anthropic API key — set via **one** of:
-  - `ANTHROPIC_API_KEY` env var, or
-  - `~/.claude_vn/settings.json` (`primaryApiKey`, auto-loaded)
+- Google Gemini API key — set via **one** of:
+  - `GEMINI_API_KEY` env var, or
+  - `~/.gemini/.env` (`GEMINI_API_KEY=...`, auto-loaded)
 
 ## Pipeline
 
@@ -47,9 +47,9 @@ Three steps, and `00_run_all.exe` is all three in one command.
 | Step | Executable | Description |
 |------|-----------|-------------|
 | 1 | `01_extract.exe` | Walk every `.ast` in `*.pfs`, decrypt (XOR with `SHA-1(index_bytes)`), parse as Lua, capture every dialogue / narrative / speaker / title string with the speaker it belongs to, log every shadowed copy -> `script_output/extracted_text.json` |
-| 2 | `02_translate.exe` | The speaker gate (6 checks, zero API tokens), then JP -> EN via Claude with a rolling context window per script (resume-safe, cached), then the coverage report and `translations.tsv` |
+| 2 | `02_translate.exe` | The speaker gate (6 checks, zero API tokens), then JP -> EN via Gemini with a rolling context window per script (resume-safe, cached), then the coverage report and `translations.tsv` |
 | 3 | `python build.py --deploy` | Copy `version.dll` and `translations.tsv` into the game folder |
-| ext | `03_find_narrative_cg.exe` | Scan PFS for CG images with narrative text, Claude vision detection, record candidates.  A separate investigation, not part of the run above |
+| ext | `03_find_narrative_cg.exe` | Scan PFS for CG images with narrative text, Gemini vision detection, record candidates.  A separate investigation, not part of the run above |
 
 The gate and the table builder are library code inside step 2 rather than
 commands of their own: the checks that decide whether a run can be correct
@@ -75,8 +75,8 @@ sit beside the x64 executables.
 ## Running
 
 `<G>` is the game folder, and every command runs from `sakuranotoki\`.  The API
-key auto-loads from `%USERPROFILE%\.claude_vn\settings.json`, or from
-`ANTHROPIC_API_KEY`.
+key auto-loads from `%USERPROFILE%\.gemini\.env`, or from
+`GEMINI_API_KEY`.
 
 Run these four first.  None of them sends a request or reads the key:
 
@@ -91,7 +91,7 @@ The gate has to exit 0 before anything is bought.  The projection states what
 the run will send: **723 requests carrying 53,733 lines**, ending on a cache of
 53,653 entries.
 
-Then buy one request and read its `in=` and `out=` off the `CLAUDE RAW ANSWER`
+Then buy one request and read its `in=` and `out=` off the `GEMINI RAW ANSWER`
 line, which is the only honest measurement of what the run costs:
 
 ```bat
@@ -110,7 +110,7 @@ It is resume-safe: Ctrl+C and restart, and a line already in the cache is never
 bought twice.  `--max-batches N` caps it without losing work.  `--test`,
 `--retranslate` and `--clean` delete paid work — see the warning below.
 
-> **WARNING: back up `script_output\translation_cache_anthropic.json` and
+> **WARNING: back up `script_output\translation_cache_gemini.json` and
 > `script_output\translated_text.json`.**  Copy both after the first paid
 > request, during the run, and at the end.  Nothing in this pipeline can
 > rebuild them, and `02_translate --test N`, `02_translate --retranslate` and
@@ -317,7 +317,7 @@ sakuranotoki/
 │   │   ├── common/                file IO, CP932<->UTF-8, JSON helpers
 │   │   ├── artemis/               PF8 reader + SHA-1 XOR decryption
 │   │   ├── extract/               .ast Lua line walker (step 1)
-│   │   ├── translate/             Anthropic client, glossary, speaker gate, batching/cache (step 2)
+│   │   ├── translate/             Gemini client, glossary, speaker gate, batching/cache (step 2)
 │   │   ├── build_tsv/             translations.tsv builder, called at the end of step 2
 │   │   ├── cg/                    narrative-CG scanner
 │   │   └── apps/                  00_run_all, 01_extract, 02_translate, 03_find_narrative_cg mains
@@ -326,7 +326,7 @@ sakuranotoki/
 │   ├── extracted_text.json        JP text per script, with the speaker of each line
 │   ├── translated_text.json       JP+EN paired            (not written yet)
 │   ├── coverage_report.json       per-script English against untouched Japanese
-│   └── translation_cache_anthropic.json                   (not written yet)
+│   └── translation_cache_gemini.json                      (not written yet)
 ├── translations.tsv               Runtime lookup table for the DLL
 ├── proxy_dll/                     version.dll proxy + IAT hook, Win32
 │   ├── conanfile.py               gtest (tests only; the DLL has no dependencies)
@@ -359,7 +359,7 @@ run exists.
 ## Notes
 
 - All steps are resume-safe — Ctrl+C and restart at any time; the
-  per-line cache is in `script_output/translation_cache_anthropic.json`.
+  per-line cache is in `script_output/translation_cache_gemini.json`.
 - The CrackProof launcher means **the static EXE is opaque**.  To
   identify the engine's text-render function, dump the running process
   with Scylla / x64dbg-Scylla / ProcessHacker after the menu is up,
@@ -373,5 +373,5 @@ run exists.
 - The CG scanner has a local-OCR pre-filter stage that would reject
   text-free images before spending vision tokens, but no OCR engine is
   wired in — it logs `[ocr] 0 method(s): none`, passes everything through,
-  and Claude does the detection.  Only the dimension and path-prefix checks
+  and Gemini does the detection.  Only the dimension and path-prefix checks
   bound the token cost, so use `--max N` first.

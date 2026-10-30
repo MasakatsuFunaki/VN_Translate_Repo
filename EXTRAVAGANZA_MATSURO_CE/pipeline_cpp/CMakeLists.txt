@@ -33,14 +33,12 @@ add_library(exm_core STATIC
     src/extract/extractor.h
     src/build_tsv/build_tsv.cpp
     src/build_tsv/build_tsv.h
-    src/translate/glossary.cpp
-    src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
-    src/translate/speaker_gate.cpp
-    src/translate/speaker_gate.h
-    src/translate/translate_core.cpp
-    src/translate/translate_core.h
+    src/cache/glossary.cpp
+    src/cache/glossary.h
+    src/cache/speaker_gate.cpp
+    src/cache/speaker_gate.h
+    src/cache/cache_core.cpp
+    src/cache/cache_core.h
     src/xtx/xtx.cpp
     src/xtx/xtx.h
     src/xtx/xtx_tables.cpp
@@ -80,8 +78,8 @@ endfunction()
 
 exm_app(00_run_all              src/apps/run_all_main.cpp)
 exm_app(01_extract              src/apps/extract_main.cpp)
-exm_app(02_translate            src/apps/translate_main.cpp)
-exm_app(03_translate_xtx        src/apps/translate_xtx_main.cpp)
+exm_app(02_build_tsv            src/apps/build_tsv_main.cpp)
+exm_app(03_build_xtx            src/apps/build_xtx_main.cpp)
 # Driver for the CP932 differential sweep.  Not a pipeline step and not
 # installed: it speaks a hex protocol on stdin for a test harness.
 exm_app(cp932_probe             src/apps/cp932_probe_main.cpp)
@@ -92,7 +90,7 @@ exm_app(cp932_probe             src/apps/cp932_probe_main.cpp)
 # build tree.  Every dependency is a static library, so there is no runtime
 # to carry.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_translate 03_translate_xtx
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_build_xtx
         RUNTIME DESTINATION bin)
 
 # --------------------------------------------------------------------

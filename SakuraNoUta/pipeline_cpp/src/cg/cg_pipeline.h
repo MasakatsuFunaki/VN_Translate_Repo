@@ -5,8 +5,8 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Narrative-CG pipeline: scan arcs for CGs with narrative JP text, translate
-// via Claude vision, render EN with FreeType, repack into game arcs.
+// Narrative-CG pipeline: scan arcs for CGs with narrative JP text, render EN
+// with FreeType, repack into game arcs.
 #pragma once
 
 #include <cstddef>

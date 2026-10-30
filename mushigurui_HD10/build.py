@@ -10,7 +10,7 @@
 Release only.  mushigurui_HD10.exe is a 32-bit BLACKCyc (nnn/BCmkri) binary,
 so the two halves are built for different architectures and that is the trap
 this script exists to hide: `pipeline_cpp` is x64 (the SPT/GPK tools and the
-Anthropic client), `proxy_dll` is Win32 because winmm.dll is loaded into the
+translation pipeline), `proxy_dll` is Win32 because winmm.dll is loaded into the
 game process — its CMakeLists hard-fails on a 64-bit configure.  One CMake
 project cannot hold both, so the root CMakeLists.txt drives each half as a
 separate sub-build with its own Conan profile and toolchain.
@@ -148,12 +148,12 @@ def deploy(game_dir):
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # The table is a soft failure: 02_translate.exe writes it into the game
+    # The table is a soft failure: 02_build_tsv.exe writes it into the game
     # folder directly, so a missing one just means the translation pipeline
     # has not been run yet.
     if not os.path.exists(os.path.join(game_dir, "translation_table.tsv")):
         print("WARN: translation_table.tsv not in the game folder — "
-              "run 02_translate.exe first.")
+              "run 02_build_tsv.exe first.")
 
     print(f"\nDeployed to {game_dir}.")
 

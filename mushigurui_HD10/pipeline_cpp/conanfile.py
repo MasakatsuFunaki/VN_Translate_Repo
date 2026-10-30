@@ -1,9 +1,8 @@
 # Conan 2 recipe for the mushigurui_HD10 translation pipeline (C++ port of the
 # former Python scripts 00..04).
 #
-#   boost    - Beast/Asio (Anthropic HTTPS client), JSON, Program_options,
-#              Regex
-#   openssl  - TLS for api.anthropic.com
+#   boost    - JSON, Program_options, Regex
+#   openssl  - cryptographic primitives for the build
 #   freetype - TTF measurement/rasterisation for the narrative-CG renderer
 #   stb      - image decode/encode for the narrative-CG renderer
 #   gtest    - the tests/ suites; test-only, never linked into the apps

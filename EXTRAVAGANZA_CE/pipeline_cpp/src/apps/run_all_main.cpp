@@ -14,11 +14,11 @@
 //   00_run_all --batch N   # lines per API request
 //   00_run_all --clean     # delete cached JSON, then run
 //
-// The spine is 01_extract -> 02_translate -> deploy: the speaker gate now
+// The spine is 01_extract -> 02_build_tsv -> deploy: the speaker gate now
 // lives inside the translation step, so everything that must happen for the
 // game to show English happens inside the command that pays for it.  The
 // steps that write the English into the game's own files -- 03_repack,
-// 04_translate_xtx, 05_translate_charts -- run between the two.
+// 04_build_xtx, 05_build_charts -- run between the two.
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
@@ -26,9 +26,8 @@
 #include <system_error>
 #include <vector>
 
+#include "cache/cache_core.h"
 #include "common/util.h"
-#include "translate/anthropic_client.h"
-#include "translate/translate_core.h"
 
 #include "apps/paths.h"
 #include "apps/pipeline_steps.h"
@@ -162,22 +161,15 @@ int main(int argc, char** argv) {
     const std::string bar(60, '=');
     log_info(bar);
     log_info("EXTRAVAGANZA ~Mushi Mederu Shoujo~ Complete Edition");
-    log_info("English Translation Pipeline (Anthropic)");
+    log_info("English Translation Pipeline");
     log_info(bar);
 
-    anthropic::load_api_key();
-
     // --clean deletes the cache and --test translates a capped number of
-    // batches, so either is certain to need the API.  Only --clean throws work
-    // away, and the two are reported apart because a message that names the
-    // wrong consequence sends the reader looking for a cache that is still
-    // there.  Checked before the deletion: without this the cache would go and
-    // the translation step would then fail for the missing key, losing work
-    // that cannot be rebuilt.
-    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
-        log_info(std::string("[ERROR] ANTHROPIC_API_KEY not set -- ") +
-                 (clean ? "refusing to discard the cache for a run that cannot "
-                          "translate."
+    // batches, so either is certain to need the API.  Checked before the
+    // deletion so an offline build never discards work that cannot be rebuilt.
+    if (clean || test_n > 0) {
+        log_info(std::string("[ERROR] offline build: network API calls are disabled -- ") +
+                 (clean ? "refusing to discard the cache"
                         : "--test translates a capped number of batches and "
                           "cannot run without the API."));
         return 2;

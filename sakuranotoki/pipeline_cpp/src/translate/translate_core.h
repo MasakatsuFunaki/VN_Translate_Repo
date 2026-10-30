@@ -24,12 +24,12 @@
 
 #include <boost/json.hpp>
 
-#include "anthropic_client.h"
+#include "gemini_client.h"
 
 namespace snt::translate {
 
 // jp -> en cache.  Insertion order is load-bearing: it decides the key order
-// of translation_cache_anthropic.json, so a resumed run appends to the file
+// of translation_cache_gemini.json, so a resumed run appends to the file
 // instead of rewriting it in a different order.
 class Cache {
 public:
@@ -207,9 +207,9 @@ const std::string& raw_answer_log();
 std::string raw_answer_log_path(const std::string& sibling_file);
 
 // One API round trip.  batch_lines: (speaker, jp).  previous_context:
-// (speaker, en).  Throws anthropic::RateLimitError / ApiError.
-std::map<int, std::string> call_anthropic(
-    anthropic::Client& client,
+// (speaker, en).  Throws gemini::RateLimitError / ApiError.
+std::map<int, std::string> call_gemini(
+    gemini::Client& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
     const std::vector<std::pair<std::string, std::string>>& previous_context);
 
@@ -217,7 +217,7 @@ std::map<int, std::string> call_anthropic(
 inline constexpr std::chrono::seconds RATE_LIMIT_WAIT{60};
 
 // Asks for one batch and returns {line_no -> translation}; throws as
-// call_anthropic does.
+// call_gemini does.
 using BatchAnswer = std::function<std::map<int, std::string>()>;
 
 // Ask for one batch and write what came back into the cache.  Every failure
@@ -254,7 +254,7 @@ struct TranslateOptions {
     // request is sent, and no file is written or removed.
     bool gate_only = false;
     std::string input_file;   // extracted_text.json
-    std::string cache_file;   // translation_cache_anthropic.json
+    std::string cache_file;   // translation_cache_gemini.json
     std::string output_file;  // translated_text.json
     std::string tsv_file;     // translations.tsv, the table the game loads
 };

@@ -1,7 +1,7 @@
 # mushigurui_HD10 -- root build for the whole game.
 #
 # The game is built from two halves that CANNOT share one CMake configure:
-# `pipeline_cpp` is x64 (the SPT/GPK tools and the Anthropic client),
+# `pipeline_cpp` is x64 (the SPT/GPK tools and the translation pipeline),
 # `proxy_dll` is Win32 because mushigurui_HD10.exe is a 32-bit BLACKCyc
 # binary and winmm.dll is loaded into its process.  A CMake project has
 # exactly one toolchain, so this project compiles nothing itself.  It drives

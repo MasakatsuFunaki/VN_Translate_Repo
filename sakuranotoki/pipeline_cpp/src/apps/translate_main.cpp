@@ -6,7 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 02_translate -- the whole translation step: the speaker gate, the batched
-// translation via Anthropic Claude, translated_text.json, and the
+// translation via Google Gemini, translated_text.json, and the
 // translations.tsv the game loads.
 //
 // Usage:
@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
     bool retranslate = false, discard_cache = false, include_untranslated = false;
     bool gate_only = false, rebuild_table = false, flow_breaks = false;
     po::options_description desc(
-        "02_translate -- speaker gate, translate via Claude, build translations.tsv");
+        "02_translate -- speaker gate, translate via Gemini, build translations.tsv");
     desc.add(apps::common_options(project, game));
     desc.add_options()
         ("batch", po::value(&batch)->default_value(150), "strings per API request")
@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
 
     std::string out_dir = project + "\\script_output";
     const std::string cache_file =
-        out_dir + "\\translation_cache_anthropic.json";
+        out_dir + "\\translation_cache_gemini.json";
 
     // Read-only mode, above everything that could spend or delete: the table
     // and the coverage report are both derived from the document on disk, so

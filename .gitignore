@@ -109,7 +109,7 @@ FRATERNITE_HD/script_output/translation_cache_anthropic.json
 # repository's to publish.
 sakuranotoki/translations.tsv
 sakuranotoki/script_output/translated_text.json
-sakuranotoki/script_output/translation_cache_anthropic.json
+sakuranotoki/script_output/translation_cache_gemini.json
 sakuranotoki/script_output/*.log
 sakuranotoki/proxy_dll/iarsys_orig.dll
 

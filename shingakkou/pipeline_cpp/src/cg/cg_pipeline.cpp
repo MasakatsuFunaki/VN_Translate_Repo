@@ -28,7 +28,6 @@
 
 #include "common/util.h"
 #include "ddp/ddp_archive.h"
-#include "translate/anthropic_client.h"
 
 namespace shin::cg {
 
@@ -56,8 +55,6 @@ const std::vector<std::string> SCAN_ARCS = {"sin_cgev.dat", "sin_sysd.dat"};
 // narrative CGs; sprite-sized icons are still filtered out.
 constexpr int MIN_WIDTH = 180;
 constexpr int MIN_HEIGHT = 60;
-
-const char* const MODEL = "claude-sonnet-4-6";
 
 // extract_ddp.exe gets 10 minutes: unpacking sin_cgev.dat is ~800 MB of IO.
 constexpr unsigned kExtractTimeoutMs = 600 * 1000;
@@ -420,7 +417,7 @@ ProcResult run_capture(const std::vector<std::string>& argv, unsigned timeout_ms
 // ---------------------------------------------------------------------------
 
 // There is no OCR pre-filter: no backend is wired up, so ocr_vote() votes yes
-// unconditionally and every image above the size threshold reaches Claude.  The
+// unconditionally and every image above the size threshold reaches the vision pass.  The
 // summary line is still logged once, so a run says plainly that nothing was
 // filtered -- otherwise the vision-call count looks inexplicable.
 bool g_ocr_initialised = false;
@@ -434,19 +431,18 @@ std::pair<bool, std::string> ocr_vote(const Image&) {
 }
 
 // ---------------------------------------------------------------------------
-// Claude vision
+// Vision replay / offline check
 // ---------------------------------------------------------------------------
 
-// --replay transcript, consumed in call order.  The seam sits below the
-// "[claude ...] calling api..." line, so a replayed run logs exactly like a
-// live one.
+// --replay transcript, consumed in call order.
 std::vector<std::string> g_replay;
 std::size_t g_replay_pos = 0;
 bool g_replay_active = false;
 
-std::string claude_vision(anthropic::Client& client, const std::string& prompt,
-                          const Image& img) {
-    print_inline(std::string("[claude ") + MODEL + "] calling api... ");
+std::string vision_request(const std::string& prompt, const Image& img) {
+    (void)prompt;
+    (void)img;
+    print_inline("[vision] calling api... ");
 
     if (g_replay_active) {
         if (g_replay_pos >= g_replay.size())
@@ -457,34 +453,8 @@ std::string claude_vision(anthropic::Client& client, const std::string& prompt,
         return std::string(content.at(0).get_object().at("text").get_string());
     }
 
-    // open_bmp() converted to RGB, so nothing here is ever RGBA -- but a
-    // hand-built region image could be, and PNG carries RGBA perfectly well.
-    // Encode whatever we have.
-    const Image& upload = img;
-
-    bj::object source;
-    source["type"] = "base64";
-    source["media_type"] = "image/png";
-    source["data"] = base64_encode(encode_png(upload));
-    bj::object image_block;
-    image_block["type"] = "image";
-    image_block["source"] = std::move(source);
-    bj::object text_block;
-    text_block["type"] = "text";
-    text_block["text"] = prompt;
-    bj::object msg;
-    msg["role"] = "user";
-    msg["content"] = bj::array{std::move(image_block), std::move(text_block)};
-
-    bj::object body;
-    body["model"] = MODEL;
-    body["max_tokens"] = 1024;
-    body["messages"] = bj::array{std::move(msg)};
-
-    const bj::value resp = client.messages(bj::value(std::move(body)), /*timeout_sec=*/60);
-    const bj::array& content = resp.get_object().at("content").get_array();
-    if (content.empty()) throw std::runtime_error("list index out of range");
-    return std::string(content.at(0).get_object().at("text").get_string());
+    throw std::runtime_error(
+        "Offline build: missing cached translation; live API client removed for finished game");
 }
 
 // ---------------------------------------------------------------------------
@@ -497,7 +467,7 @@ struct DetectResult {
     std::string description;
 };
 
-DetectResult detect_narrative(anthropic::Client& client, const Image& img) {
+DetectResult detect_narrative(const Image& img) {
     std::vector<Image> tiles;
     if (img.width > 2000) {
         constexpr int tile_w = 1280;
@@ -509,7 +479,7 @@ DetectResult detect_narrative(anthropic::Client& client, const Image& img) {
 
     for (const auto& tile : tiles) {
         try {
-            const std::string resp = claude_vision(client, DETECT_PROMPT, tile);
+            const std::string resp = vision_request(DETECT_PROMPT, tile);
             const auto text = detail::first_json_object_text(resp);
             if (!text) continue;  // `if not m: continue`
             // A parse failure throws and is caught below and logged -- it is
@@ -531,7 +501,7 @@ DetectResult detect_narrative(anthropic::Client& client, const Image& img) {
     return {};
 }
 
-bj::array extract_and_translate(anthropic::Client& client, const Image& img) {
+bj::array extract_and_translate(const Image& img) {
     const std::string prompt = extract_prompt(img.width, img.height);
     Image check_img = img;
     double scale = 1.0;
@@ -541,7 +511,7 @@ bj::array extract_and_translate(anthropic::Client& client, const Image& img) {
     }
 
     try {
-        const std::string resp = claude_vision(client, prompt, check_img);
+        const std::string resp = vision_request(prompt, check_img);
         const auto text = detail::balanced_json_array_text(resp);
         if (!text) return {};  // `if regions is None: return []`
         bj::array regions = bj::parse(*text).get_array();
@@ -608,9 +578,9 @@ std::size_t extract_all_assets(const CgOptions& opt) {
     return total;
 }
 
-bool confirm_send_to_claude() {
+bool confirm_send_to_api() {
     for (;;) {
-        print_inline("\nSend extracted assets to Claude API for translation? [Y/N]: ");
+        print_inline("\nSend extracted assets to vision API for translation? [Y/N]: ");
         std::string line;
         if (!std::getline(std::cin, line)) return false;
         const std::string ans = ascii_lower(trim(line));
@@ -636,7 +606,7 @@ void save_scanned(const Paths& paths, const detail::ScanKeySet& done) {
     write_file_text(paths.scanned, json_dump(bj::value(std::move(arr))));
 }
 
-bj::array run_scan(const CgOptions& opt, anthropic::LazyClient& client, bool resume) {
+bj::array run_scan(const CgOptions& opt, bool resume) {
     const Paths paths = make_paths(opt);
     bj::array candidates;
     detail::ScanKeySet done_keys;
@@ -703,10 +673,11 @@ bj::array run_scan(const CgOptions& opt, anthropic::LazyClient& client, bool res
     }
 
     // The resume file can already cover every target, and then the loop below
-    // makes no request at all.  Resolved here rather than inside the loop: its
-    // handlers catch everything, so a missing key would be reported once per
-    // image and the run would still end successfully.
-    if (detail::count_left_to_scan(targets, done_keys)) client.get();
+    // makes no request at all.
+    if (detail::count_left_to_scan(targets, done_keys) && !g_replay_active) {
+        throw std::runtime_error(
+            "Offline build: missing cached translation; live API client removed for finished game");
+    }
 
     for (const auto& ae : arcs) {
         const std::string& arc_name = ae.arc;
@@ -736,7 +707,7 @@ bj::array run_scan(const CgOptions& opt, anthropic::LazyClient& client, bool res
                 log_info("no japanese (ocr)");
             } else {
                 print_inline("ocr: \"" + ocr_snippet + "\" → ");
-                const DetectResult det = detect_narrative(client.get(), *img);
+                const DetectResult det = detect_narrative(*img);
                 if (!det.has_text) {
                     log_info("no narrative text");
                 } else {
@@ -767,8 +738,7 @@ bj::array run_scan(const CgOptions& opt, anthropic::LazyClient& client, bool res
     return candidates;
 }
 
-void run_translate(const CgOptions& opt, anthropic::LazyClient& client,
-                   bj::array& candidates) {
+void run_translate(const CgOptions& opt, bj::array& candidates) {
     const Paths paths = make_paths(opt);
     fs::create_directories(fs::u8path(paths.out_dir));
 
@@ -820,11 +790,7 @@ void run_translate(const CgOptions& opt, anthropic::LazyClient& client,
             c["regions"] = *override_->regions;
         } else {
             log_info(" [auto]");
-            // Already resolved by the caller, which counted the same
-            // candidates this branch admits.  Reaching it is what would prove
-            // the two had drifted, and it throws rather than letting the run
-            // continue.
-            const bj::array regions = extract_and_translate(client.get(), *img);
+            const bj::array regions = extract_and_translate(*img);
             if (regions.empty()) {
                 // Record the empty region list but skip the rewrite of
                 // candidates.json -- the change only lands if a later candidate
@@ -1421,9 +1387,6 @@ int run_find_narrative_cg(const CgOptions& opt) {
         g_replay_active = true;
     }
 
-    // _load_key() runs on both paths; only the non-repack path requires a key.
-    anthropic::load_api_key();
-
     if (opt.repack_only) {
         if (!path_exists(paths.candidates)) {
             log_info("ERROR: " + paths.candidates + " not found. Run scan first.");
@@ -1432,27 +1395,21 @@ int run_find_narrative_cg(const CgOptions& opt) {
         const bj::array candidates = json_parse_file(paths.candidates).get_array();
         run_repack(opt, candidates);
     } else {
-        // Phase 1: extract everything locally -- no Claude calls yet.
+        // Phase 1: extract everything locally -- no API calls yet.
         extract_all_assets(opt);
-        // Phase 2: explicit user confirmation before any Claude API call.
-        if (!confirm_send_to_claude()) {
-            log_info("Aborted by user. No Claude API calls made.");
+        // Phase 2: explicit user confirmation before any vision API call.
+        if (!confirm_send_to_api()) {
+            log_info("Aborted by user. No API calls made.");
             return 0;  // note: no "\nDone."
         }
-        // Phase 3: scan + translate + repack.  Nothing below builds a client
-        // until it has a request to make, so --repack, an abort at the prompt
-        // and a scan the resume file already covers all run without a key.
-        anthropic::LazyClient client;
-        bj::array candidates = run_scan(opt, client, /*resume=*/!opt.no_resume);
+        // Phase 3: scan + translate + repack.
+        bj::array candidates = run_scan(opt, /*resume=*/!opt.no_resume);
         if (!opt.scan_only && !candidates.empty()) {
-            // The pass sends a request only for a candidate it has not already
-            // painted and no override table entry covers, so a candidates file
-            // whose entries all carry a patched BMP leaves it nothing to send.
-            // Resolved here rather than inside the pass, so a run that cannot
-            // proceed stops before it opens an image or rewrites the
-            // candidates file.
-            if (detail::count_left_to_translate(candidates, paths.out_dir)) client.get();
-            run_translate(opt, client, candidates);
+            if (detail::count_left_to_translate(candidates, paths.out_dir) && !g_replay_active) {
+                throw std::runtime_error(
+                    "Offline build: missing cached translation; live API client removed for finished game");
+            }
+            run_translate(opt, candidates);
             run_repack(opt, candidates);
         }
     }

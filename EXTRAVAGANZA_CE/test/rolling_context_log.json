@@ -1,7 +1,7 @@
 {
   "batch_size": 50,
   "context_window": 10,
-  "model": "claude-sonnet-4-6",
+  "model": "offline",
   "total_translated": 150,
   "batches": [
     {

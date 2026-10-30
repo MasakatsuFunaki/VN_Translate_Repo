@@ -23,7 +23,7 @@
 #include "artemis/pfs_archive.h"
 #include "common/util.h"
 #include "image.h"
-#include "translate/anthropic_client.h"
+#include "translate/gemini_client.h"
 
 namespace snt::cg {
 
@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr const char* MODEL = "claude-sonnet-4-6";
+constexpr const char* MODEL = "gemini-flash-latest";
 
 // Minimum image dimensions to bother scanning (cheap pre-filter).
 constexpr int MIN_WIDTH = 800;
@@ -101,8 +101,8 @@ std::vector<Target> collect_image_targets(const pfs::Overlay& ov) {
 }
 
 // One vision call: image + prompt -> response text.
-std::string vision(anthropic::Client& client, const std::string& prompt, const Image& img) {
-    print_inline(std::string("[claude ") + MODEL + "] ");
+std::string vision(gemini::Client& client, const std::string& prompt, const Image& img) {
+    print_inline(std::string("[gemini ") + MODEL + "] ");
     bj::object source;
     source["type"] = "base64";
     source["media_type"] = "image/png";
@@ -135,7 +135,7 @@ struct Detection {
     std::string description;
 };
 
-Detection detect_narrative(anthropic::Client& client, const Image& img) {
+Detection detect_narrative(gemini::Client& client, const Image& img) {
     // Very wide images are tiled so no single upload loses detail.
     std::vector<Image> tiles;
     if (img.width > 2000) {
@@ -208,7 +208,7 @@ int run_find_narrative_cg(const CgOptions& opt) {
     const std::string scanned_file = out_dir + "\\narrative_scanned.json";
     fs::create_directories(fs::u8path(out_dir));
 
-    // ---- Phase 1: enumerate everything locally -- no Claude calls yet ----
+    // ---- Phase 1: enumerate everything locally -- no Gemini calls yet ----
     log_info("=== Listing all assets ===");
     pfs::Overlay ov = pfs::build_overlay(opt.game_dir);
     std::vector<Target> targets = collect_image_targets(ov);
@@ -221,10 +221,10 @@ int run_find_narrative_cg(const CgOptions& opt) {
                  std::to_string(by_arc.size()) + " archive(s).");
     }
 
-    // ---- Phase 2: explicit confirmation before any Claude API call ----
+    // ---- Phase 2: explicit confirmation before any Gemini API call ----
     if (!opt.assume_yes) {
         for (;;) {
-            print_inline("\nSend assets to Claude API for translation? [Y/N]: ");
+            print_inline("\nSend assets to Gemini API for translation? [Y/N]: ");
             std::string ans;
             if (!std::getline(std::cin, ans)) return 0;
             ans = trim(ans);
@@ -232,7 +232,7 @@ int run_find_narrative_cg(const CgOptions& opt) {
                            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
             if (ans == "y" || ans == "yes") break;
             if (ans == "n" || ans == "no") {
-                log_info("Aborted by user. No Claude API calls made.");
+                log_info("Aborted by user. No Gemini API calls made.");
                 return 0;
             }
             log_info("Please answer Y or N.");
@@ -284,7 +284,7 @@ int run_find_narrative_cg(const CgOptions& opt) {
     // makes no request at all.  Resolved here rather than inside the loop:
     // its handlers catch everything, so a missing key would be reported once
     // per image and the run would still end successfully.
-    anthropic::LazyClient client;
+    gemini::LazyClient client;
     if (count_left_to_scan(scan_keys, done_keys)) client.get();
 
     auto flush_state = [&] {

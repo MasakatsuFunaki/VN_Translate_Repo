@@ -504,11 +504,11 @@ TEST(Translate, option_validation_refuses_values_that_would_overspend) {
 // The banner must describe the request that is actually built.  Both read the
 // same function, so this pins them together.
 TEST(Translate, reasoning_banner_matches_the_transmitted_field) {
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_OPUS_47),
+    EXPECT_EQ(tr::reasoning_control(tr::MODEL_FLASH),
               tr::ReasoningControl::AdaptiveThinking);
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_SONNET), tr::ReasoningControl::Effort);
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_OPUS_46), tr::ReasoningControl::Effort);
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_HAIKU), tr::ReasoningControl::None);
+    EXPECT_EQ(tr::reasoning_control(tr::MODEL_FLASH_25), tr::ReasoningControl::Effort);
+    EXPECT_EQ(tr::reasoning_control(tr::MODEL_PRO), tr::ReasoningControl::Effort);
+    EXPECT_EQ(tr::reasoning_control(tr::MODEL_FLASH_LITE), tr::ReasoningControl::None);
 
     // Whatever the configured model is, the label may mention effort only when
     // effort is what goes into the body.
@@ -1025,8 +1025,8 @@ TEST(Translate, a_batch_whose_client_fails_leaves_the_cache_untouched) {
         tr::translate_batch(cache, context, batch,
                             [&]() -> std::map<int, std::string> {
                                 if (rate_limited)
-                                    throw snt::anthropic::RateLimitError("429");
-                                throw snt::anthropic::ApiError("500");
+                                    throw snt::gemini::RateLimitError("429");
+                                throw snt::gemini::ApiError("500");
                             },
                             std::chrono::seconds(0));
 
@@ -1096,7 +1096,7 @@ TEST(Translate, the_raw_answer_log_sits_beside_the_run_it_belongs_to) {
         (fs::temp_directory_path() / "script_output" / "translated_text.json").u8string();
     const std::string log = tr::raw_answer_log_path(sibling);
     EXPECT_EQ(fs::u8path(log).parent_path(), fs::u8path(sibling).parent_path());
-    EXPECT_EQ(fs::u8path(log).filename().u8string(), "anthropic_raw_answers.log");
+    EXPECT_EQ(fs::u8path(log).filename().u8string(), "gemini_raw_answers.log");
 
     const std::string was = tr::raw_answer_log();
     tr::set_raw_answer_log(log);
@@ -1157,7 +1157,7 @@ TEST(Translate, a_failed_gate_stops_the_translation_step_before_it_spends) {
 
     tr::TranslateOptions opt;
     opt.input_file = (dir / "extracted_text.json").u8string();
-    opt.cache_file = (dir / "translation_cache_anthropic.json").u8string();
+    opt.cache_file = (dir / "translation_cache_gemini.json").u8string();
     opt.output_file = (dir / "translated_text.json").u8string();
     opt.tsv_file = (dir / "translations.tsv").u8string();
     // A cache to lose, so "nothing was written" is a claim about this run
@@ -1192,7 +1192,7 @@ TEST(Translate, gate_only_answers_a_passing_gate_and_writes_nothing) {
 
     tr::TranslateOptions opt;
     opt.input_file = (dir / "extracted_text.json").u8string();
-    opt.cache_file = (dir / "translation_cache_anthropic.json").u8string();
+    opt.cache_file = (dir / "translation_cache_gemini.json").u8string();
     opt.output_file = (dir / "translated_text.json").u8string();
     opt.tsv_file = (dir / "translations.tsv").u8string();
     opt.gate_only = true;

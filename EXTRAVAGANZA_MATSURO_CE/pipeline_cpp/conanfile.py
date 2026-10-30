@@ -1,9 +1,8 @@
 # Conan 2 recipe for the EXTRAVAGANZA MATSURO CE translation pipeline (C++ port of the
 # former Python scripts 00..04).
 #
-#   boost    - Beast/Asio (Anthropic HTTPS client), JSON, Program_options,
-#              Regex
-#   openssl  - TLS for api.anthropic.com
+#   boost    - JSON, Program_options, Regex, headers
+#   openssl  - SHA-256 / crypto primitives
 #   gtest    - the tests/ suites; test-only, never linked into the apps
 #
 # The gtest dependency is gated on the same switch CMake uses for the test

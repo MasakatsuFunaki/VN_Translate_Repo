@@ -302,7 +302,7 @@ const std::string& raw_answer_log() { return raw_answer_log_slot(); }
 
 std::string raw_answer_log_path(const std::string& sibling_file) {
     const fs::path p = fs::u8path(sibling_file);
-    return (p.parent_path() / fs::u8path("anthropic_raw_answers.log")).u8string();
+    return (p.parent_path() / fs::u8path("gemini_raw_answers.log")).u8string();
 }
 
 std::string build_user_prompt(
@@ -666,8 +666,8 @@ std::map<int, std::string> usable_translations(const Answer& answer, std::size_t
     return translations;
 }
 
-std::map<int, std::string> call_anthropic(
-    anthropic::Client& client,
+std::map<int, std::string> call_gemini(
+    gemini::Client& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
     const std::vector<std::pair<std::string, std::string>>& previous_context) {
     bj::object body;
@@ -683,7 +683,7 @@ std::map<int, std::string> call_anthropic(
     msg["content"] = build_user_prompt(batch_lines, previous_context);
     body["messages"] = bj::array{std::move(msg)};
 
-    if (MODEL == MODEL_SONNET)
+    if (MODEL == MODEL_FLASH_25)
         body["temperature"] = 0.3;
     // reasoning_control() decides the knob; the wrong one is an HTTP 400, and
     // it is also what the banner reads, so the two cannot drift.
@@ -723,7 +723,7 @@ std::map<int, std::string> call_anthropic(
         " cache_create=" + std::to_string(cache_create);
 
     append_raw_answer(summary, answer.text);
-    log_info("--- CLAUDE RAW ANSWER (" + summary + ") ---");
+    log_info("--- GEMINI RAW ANSWER (" + summary + ") ---");
     log_info(answer.text.substr(0, RAW_ANSWER_PREVIEW));
     if (answer.text.size() > RAW_ANSWER_PREVIEW && !raw_answer_log().empty())
         log_info("  [preview cut -- full answer appended to " + raw_answer_log() + "]");
@@ -755,7 +755,7 @@ void translate_batch(Cache& cache,
             log_info("    WARN: got " + std::to_string(translations.size()) + "/" +
                      std::to_string(batch.size()) + " translations");
         apply(translations, true);
-    } catch (const anthropic::RateLimitError&) {
+    } catch (const gemini::RateLimitError&) {
         log_info("    Rate limited, waiting " + std::to_string(retry_wait.count()) + "s...");
         std::this_thread::sleep_for(retry_wait);
         try {
@@ -777,7 +777,7 @@ void translate_batch(Cache& cache,
 namespace {
 
 // Returns true when the run stopped early (test-mode batch budget hit).
-bool translate_script(anthropic::LazyClient& client, const bj::object& script,
+bool translate_script(gemini::LazyClient& client, const bj::object& script,
                       Cache& cache, int batch_size,
                       const std::function<void(const Cache&)>& save_fn,
                       bool test_mode, int* batches_remaining) {
@@ -820,12 +820,12 @@ bool translate_script(anthropic::LazyClient& client, const bj::object& script,
         // required.  Outside the try below on purpose: a missing key has to
         // stop the run, not be caught as a batch error and cached as a
         // failed line.
-        anthropic::Client& api = client.get();
+        gemini::Client& api = client.get();
 
         print_context_window(previous_context);
 
         translate_batch(cache, previous_context, needs_api, [&] {
-            return call_anthropic(api, needs_api, previous_context);
+            return call_gemini(api, needs_api, previous_context);
         });
 
         if (previous_context.size() > CONTEXT_WINDOW * 2)
@@ -889,8 +889,8 @@ int translate_all(const TranslateOptions& opt) {
     // same reason the gate comes first.
     // A run that discards the cache is certain to call the API, so the key is
     // required before anything is deleted rather than at the first batch.
-    if (opt.fresh_run && anthropic::load_api_key().empty()) {
-        log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
+    if (opt.fresh_run && gemini::load_api_key().empty()) {
+        log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the "
                  "cache for a run that cannot translate.");
         return 1;
     }
@@ -922,7 +922,7 @@ int translate_all(const TranslateOptions& opt) {
     set_raw_answer_log(raw_answer_log_path(opt.output_file));
     log_info("Raw answers: " + raw_answer_log());
 
-    anthropic::LazyClient client;
+    gemini::LazyClient client;
 
     log_info("Loading translation cache...");
     Cache cache;

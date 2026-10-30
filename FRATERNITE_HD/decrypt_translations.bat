@@ -1,5 +1,5 @@
 @echo off
-REM  Decrypt .json.enc files back to JSON. Run before 02_translate.
+REM  Decrypt .json.enc files back to JSON. Run before 02_build_tsv.
 REM  Without the cache the pipeline re-translates from scratch (hours, real money).
 REM  Passphrase: translations_key.txt (beside this file, public).
 setlocal

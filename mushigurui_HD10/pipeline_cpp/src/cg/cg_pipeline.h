@@ -6,8 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // Narrative-CG asset translator: scan dwq/*.gpk for images carrying Japanese
-// text, translate them via Claude vision, render the English over the original
-// and repack the archives.
+// text, render the English over the original and repack the archives.
 #pragma once
 
 #include <array>

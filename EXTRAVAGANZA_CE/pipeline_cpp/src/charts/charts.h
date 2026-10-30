@@ -37,9 +37,8 @@ namespace exc::charts {
 // chart_translation_cache.json, so a resumed run appends to the file instead
 // of reshuffling it.
 //
-// A separate file from the script cache in translate/, because the two hold
-// different material translated with different prompts: a chart title must not
-// pick up a script line's phrasing.
+// A separate file from the script cache in cache/, because the two hold
+// different material: a chart title must not pick up a script line's phrasing.
 class Cache {
 public:
     bool contains(const std::string& k) const { return index_.count(k) != 0; }

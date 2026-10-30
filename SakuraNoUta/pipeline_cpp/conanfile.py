@@ -1,9 +1,8 @@
 # Conan 2 recipe for the SakuraNoUta translation pipeline (C++ port of the
 # former Python scripts 00..04 + bgi_archive + bgi_cbg).
 #
-#   boost    - Beast/Asio (Anthropic HTTPS client), JSON, Program_options,
-#              Regex
-#   openssl  - TLS for api.anthropic.com
+#   boost    - Headers, JSON, Program_options, Regex
+#   openssl  - Crypto / TLS support
 #   freetype - TTF rendering for narrative-CG patching (step 04)
 #   stb      - PNG encode (vision API upload) + BMP decode
 #   gtest    - the tests/ suites; test-only, never linked into the apps

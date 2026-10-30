@@ -1,10 +1,10 @@
 # Conan 2 recipe for the sakuranotoki translation pipeline (C++ port of the
 # former Python scripts 00..04 + implementation/pfs_archive.py).
 #
-#   boost    - Beast/Asio (Anthropic HTTPS client), JSON, Program_options,
+#   boost    - Beast/Asio (Gemini HTTPS client), JSON, Program_options,
 #              Regex
-#   openssl  - TLS for api.anthropic.com AND the SHA-1 that derives the PF8
-#              archive XOR key
+#   openssl  - TLS for generativelanguage.googleapis.com AND the SHA-1 that
+#              derives the PF8 archive XOR key
 #   stb      - PNG decode + encode for the narrative-CG scanner (step 04)
 #   gtest    - the tests/ suites; test-only, never linked into the apps
 #

@@ -6,7 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // Narrative-CG asset translator: scan the DDP archives for images carrying
-// Japanese text, translate them via Claude vision, render the English over the
+// Japanese text, render the English over the
 // original and repack the archives.
 //
 // Extraction shells out to TOOLS/garbro/extract_ddp.exe -- the DDSystem image

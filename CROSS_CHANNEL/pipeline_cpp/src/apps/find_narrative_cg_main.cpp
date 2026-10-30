@@ -6,7 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 03_find_narrative_cg -- scan the WillPlus CPK archives for CG / UI images
-// with Japanese text, translate them via Claude vision and render the English
+// with Japanese text, translate them via vision and render the English
 // onto the extracted BMPs.
 //
 //   03_find_narrative_cg              # scan + translate
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
         ("scan-only", po::bool_switch(&scan_only), "Only scan; do not translate")
         ("no-resume", po::bool_switch(&no_resume), "Start scan from scratch")
         ("yes", po::bool_switch(&assume_yes),
-         "skip the interactive Claude-API confirmation (non-tty runs)");
+         "skip the interactive API confirmation (non-tty runs)");
     po::variables_map vm;
     if (auto rc = crc::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
 

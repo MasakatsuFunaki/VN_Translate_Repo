@@ -59,7 +59,7 @@ TEST(Cp932Scan, Scan_DecodeFailure_SkipsWholeRunWithoutRewinding) {
     // 0x85 0x40 is structurally valid CP932 but unmapped, so the strict decode
     // of the whole run fails.  The ENTIRE run is then skipped and scanning
     // resumes at the already-advanced cursor -- the deliberate inverse of
-    // CLAUDE.md section 9.  Sliding one byte would recover the kana instead,
+    // a sliding-window scanner.  Sliding one byte would recover the kana instead,
     // and would change every extracted key.
     const Bytes doomed = cat({cp932("あいうえお"), raw({0x85, 0x40}), cp932("かきくけこ")});
     EXPECT_TRUE(scan_cp932_jp(doomed).empty());

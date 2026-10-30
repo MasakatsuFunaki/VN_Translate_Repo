@@ -28,7 +28,7 @@ regression is never shipped.
 
 Deploying copies `winmm.dll` into the game folder, and nothing else: unlike the
 other games in this repo, the runtime table is not staged from the checkout.
-`02_translate.exe` writes `translation_table.tsv` straight into the game
+`02_build_tsv.exe` writes `translation_table.tsv` straight into the game
 directory, so the deploy only checks that the table is there and warns if it is
 not.  `03_find_narrative_cg.exe` likewise repacks the game's own archives in
 place; neither is a copy step.  The game folder comes from `--game-dir`, which
@@ -145,13 +145,13 @@ def deploy(game_dir):
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # The table is checked, not copied: 02_translate.exe writes it into the
+    # The table is checked, not copied: 02_build_tsv.exe writes it into the
     # game folder itself.  A missing one is a soft failure, because it only
     # means the translation pipeline has not been run yet.
     tsv = os.path.join(game_dir, "translation_table.tsv")
     if not os.path.exists(tsv):
         print("WARN: translation_table.tsv not in the game folder — "
-              "run 02_translate.exe first.")
+              "run 02_build_tsv.exe first.")
 
     print(f"\nDeployed to {game_dir}.")
 

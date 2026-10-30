@@ -39,14 +39,12 @@ add_library(shin_core STATIC
     src/extract/extractor.h
     src/build_tsv/build_tsv.cpp
     src/build_tsv/build_tsv.h
-    src/translate/glossary.cpp
-    src/translate/glossary.h
-    src/translate/anthropic_client.cpp
-    src/translate/anthropic_client.h
-    src/translate/speaker_gate.cpp
-    src/translate/speaker_gate.h
-    src/translate/translate_core.cpp
-    src/translate/translate_core.h
+    src/cache/glossary.cpp
+    src/cache/glossary.h
+    src/cache/speaker_gate.cpp
+    src/cache/speaker_gate.h
+    src/cache/cache_core.cpp
+    src/cache/cache_core.h
     src/cg/image.cpp
     src/cg/image.h
     src/cg/text_render.cpp
@@ -91,7 +89,7 @@ endfunction()
 
 shin_app(00_run_all             src/apps/run_all_main.cpp)
 shin_app(01_extract             src/apps/extract_main.cpp)
-shin_app(02_translate           src/apps/translate_main.cpp)
+shin_app(02_build_tsv           src/apps/build_tsv_main.cpp)
 shin_app(03_find_narrative_cg   src/apps/find_narrative_cg_main.cpp)
 
 # Verification-only: dumps the DDP entry table and drives the repacker so a
@@ -106,7 +104,7 @@ target_link_libraries(cg_parity PRIVATE shin_core)
 # in the build tree.  Every dependency is a static library, so there is no
 # runtime to carry.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_translate 03_find_narrative_cg
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg
         RUNTIME DESTINATION bin)
 
 # --------------------------------------------------------------------

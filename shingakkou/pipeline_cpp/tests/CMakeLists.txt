@@ -18,7 +18,7 @@ endfunction()
 
 shin_test(ut_ddp_archive)
 shin_test(ut_extract)
-shin_test(ut_translate)
+shin_test(ut_cache)
 shin_test(ut_build_tsv)
 shin_test(ut_cg)
 shin_test(ut_cg_resume)

@@ -4,7 +4,6 @@
 |---|---|
 | **Engine** | DDSystem (PIL) — DDP3 archives |
 | **Scripts** | 91 files, 52,840 strings (24,736 dialogue + 28,030 narration + 74 choice) |
-| **Model** | `claude-opus-4-7` with adaptive thinking |
 | **Delivery** | `winmm.dll` — runtime hook, swaps strings via `translation_table.tsv`. `sin_text.dat` is never modified. |
 
 In-game Config → フォント must be **UD デジタル 教科書体 N**. The glyph advance is a fixed
@@ -14,7 +13,7 @@ In-game Config → フォント must be **UD デジタル 教科書体 N**. The 
 
 ```
 01_extract.exe      → script_output/extracted_text.json
-02_translate.exe    → translation_cache + translation_table.tsv (written to game dir)
+02_build_tsv.exe    → translation_cache + translation_table.tsv (written to game dir)
 build.py --deploy   → winmm.dll into game folder
 00_run_all.exe      → all three in one shot
 03_find_narrative_cg.exe  → CG image translation (separate, not part of 00_run_all)
@@ -28,7 +27,6 @@ python build.py --test --install   # build, test, stage to build/install/
 python build.py --deploy           # ship winmm.dll + table to game
 python build.py --clean
 
-set ANTHROPIC_API_KEY=sk-ant-...
 build\pipeline\Release\00_run_all.exe
 ```
 
@@ -43,7 +41,7 @@ Add `--discard-cache` to let them run.
 
 ## Narrative CGs (`03_find_narrative_cg`)
 
-Scans CG archives for images with JP text, translates via Claude vision, renders EN over the
+Scans CG archives for images with JP text, renders EN over the
 original, repacks. No OCR pre-filter — every image above threshold gets a vision call.
 
 ```bat

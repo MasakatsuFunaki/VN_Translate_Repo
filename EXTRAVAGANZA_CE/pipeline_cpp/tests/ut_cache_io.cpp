@@ -17,8 +17,8 @@
 #include <utility>
 #include <vector>
 
+#include "cache/cache_core.h"
 #include "common/util.h"
-#include "translate/translate_core.h"
 
 namespace fs = std::filesystem;
 namespace tr = exc::translate;

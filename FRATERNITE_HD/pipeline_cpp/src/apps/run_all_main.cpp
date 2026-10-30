@@ -5,7 +5,7 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// 00_run_all -- orchestrator: 01_extract -> 02_translate -> deploy.
+// 00_run_all -- orchestrator: 01_extract -> 02_build_tsv -> deploy.
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
@@ -13,9 +13,8 @@
 #include <system_error>
 #include <vector>
 
+#include "cache/cache_core.h"
 #include "common/util.h"
-#include "translate/anthropic_client.h"
-#include "translate/translate_core.h"
 
 #include "apps/paths.h"
 #include "apps/pipeline_steps.h"
@@ -40,7 +39,7 @@ void run_step(const std::string& exe, const std::vector<std::string>& args,
     }
 }
 
-// Copy winmm.dll to the game folder. The table is not copied — 02_translate
+// Copy winmm.dll to the game folder. The table is not copied — 02_build_tsv
 // writes it directly.
 bool deploy(const std::string& project, const std::string& game) {
     if (const char* dist = std::getenv("VN_DIST_BUILD"); dist && *dist) {
@@ -82,7 +81,7 @@ bool deploy(const std::string& project, const std::string& game) {
                  "translation_table.tsv: " + ec.message());
     else if (!have_table)
         log_info("  WARN: translation_table.tsv not in the game folder -- "
-                 "02_translate writes it.");
+                 "02_build_tsv writes it.");
     return true;
 }
 
@@ -140,18 +139,13 @@ int main(int argc, char** argv) {
     const std::string bar(60, '=');
     log_info(bar);
     log_info("Fraternite HD Remaster (フラテルニテ HDリマスター)");
-    log_info("English Translation Pipeline (Anthropic)");
+    log_info("English Translation Pipeline");
     log_info(bar);
 
-    // No unconditional load here: a run whose cache already covers the script
-    // never calls the API, and must not ask the user for a key to do nothing.
-    // The two places that need one load it themselves -- the guard below, and
-    // the client when a batch is actually sent.
-
-    // Check before deletion: losing the cache without a key loses paid work.
-    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
-        log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
-                 "cache for a run that cannot translate.");
+    // Check before deletion: losing the cache without an API client loses paid work.
+    if (clean || test_n > 0) {
+        log_info("[ERROR] offline build: network API calls are disabled -- "
+                 "refusing to discard the cache.");
         return 2;
     }
 

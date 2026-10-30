@@ -1,9 +1,8 @@
 # Conan 2 recipe for the CROSS_CHANNEL translation pipeline (C++ port of the
 # former Python scripts, now numbered 00..03).
 #
-#   boost    - Beast/Asio (Anthropic HTTPS client), JSON, Program_options,
-#              Regex
-#   openssl  - TLS for api.anthropic.com (sn.bin itself is unencrypted)
+#   boost    - JSON, Program_options, Regex
+#   openssl  - SHA-256 digests for test suites (sn.bin itself is unencrypted)
 #   stb      - BMP/PNG decode + encode for the narrative-CG scanner (step 03)
 #   freetype - PIL ImageFont/ImageDraw replacement for the CG text render
 #   gtest    - the tests/ suites; test-only, never linked into the apps

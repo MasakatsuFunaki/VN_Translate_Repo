@@ -14,7 +14,7 @@
 //   00_run_all --batch N   # lines per API request
 //   00_run_all --clean     # delete cached JSON, then run
 //
-// Steps: 01_extract -> 02_translate -> deploy.  The translation step carries
+// Steps: 01_extract -> 02_build_tsv -> deploy.  The translation step carries
 // the speaker gate and the runtime table with it, which is why there are three
 // steps and not five: everything that must happen for the game to show English
 // happens inside the command that pays for it.
@@ -30,8 +30,7 @@
 #include <vector>
 
 #include "common/util.h"
-#include "translate/anthropic_client.h"
-#include "translate/translate_core.h"
+#include "cache/cache_core.h"
 
 #include "apps/paths.h"
 #include "apps/pipeline_steps.h"
@@ -63,7 +62,7 @@ void run_step(const std::string& exe, const std::vector<std::string>& args,
 //
 // The DLL is a hard failure -- without it the game shows Japanese and nothing
 // says why.  The table is only checked: unlike the other games in this repo it
-// is not staged from the checkout, because 02_translate writes it straight
+// is not staged from the checkout, because 02_build_tsv writes it straight
 // into the game folder.  A missing one means the translation step has not
 // produced it yet.
 bool deploy(const std::string& project, const std::string& game) {
@@ -113,7 +112,7 @@ bool deploy(const std::string& project, const std::string& game) {
     }
     if (!have_table) {
         log_info("  WARN: translation_table.tsv not in the game folder -- "
-                 "02_translate writes it there.");
+                 "02_build_tsv writes it there.");
         return true;
     }
     log_info("  translation_table.tsv is in place.");
@@ -180,18 +179,14 @@ int main(int argc, char** argv) {
     const std::string bar(60, '=');
     log_info(bar);
     log_info("Shingakkou ~Noli me tangere~ DL");
-    log_info("English Translation Pipeline (Anthropic)");
+    log_info("English Translation Pipeline");
     log_info(bar);
 
-    anthropic::load_api_key();
-
-    // --clean and --test discard the cache, and a run that discards it is
-    // certain to need the API.  Checked before the deletion: without this the
-    // cache would go and the translation step would then fail for the missing
-    // key, losing work that cannot be rebuilt.
-    if ((clean || test_n > 0) && anthropic::load_api_key().empty()) {
-        log_info("[ERROR] ANTHROPIC_API_KEY not set -- refusing to discard the "
-                 "cache for a run that cannot translate.");
+    // --clean and --test discard the cache, and a run that discards it cannot
+    // succeed in an offline build where network API calls are removed.
+    if (clean || test_n > 0) {
+        log_info("[ERROR] offline build: network API calls are disabled -- "
+                 "refusing to discard the cache");
         return 2;
     }
 
