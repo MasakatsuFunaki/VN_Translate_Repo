@@ -103,7 +103,16 @@ std::string strip_markdown_json_fences(const std::string& raw) {
 
 std::string normalize_restored_translation(const std::string& old_en,
                                            const std::string& candidate_en) {
-    std::string clean = sanitize_ascii(trim(candidate_en));
+    std::string raw = candidate_en;
+    if (old_en.find("\r\n") != std::string::npos &&
+        old_en.find("\\r\\n") == std::string::npos) {
+        for (;;) {
+            const std::size_t pos = raw.find("\\r\\n");
+            if (pos == std::string::npos) break;
+            raw.replace(pos, 4, "\r\n");
+        }
+    }
+    std::string clean = sanitize_ascii(trim(raw));
     if (clean.empty()) return {};
 
     // Restore Speaker\r\n prefix if `old_en` had one and `candidate_en` omitted it

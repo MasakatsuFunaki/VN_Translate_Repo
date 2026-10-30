@@ -160,7 +160,7 @@ TEST(BuildTsv, RealTranslatedJsonProducesReferenceTsv) {
     ASSERT_EQ(bt::run_build(in.u8string(), out, (s.dir / "no_such_game" / "t.tsv").u8string()), 0);
 
     const Bytes raw = read_file(out);
-    EXPECT_EQ(raw.size(), 4069681u);
+    EXPECT_EQ(raw.size(), 4070702u);
     std::size_t rows = 0;
     for (std::uint8_t b : raw) {
         EXPECT_NE(b, 0x0D);
