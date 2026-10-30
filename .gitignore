@@ -67,6 +67,7 @@ sakuranotoki/build/
 EXTRAVAGANZA_CE/build/
 EXTRAVAGANZA_MATSURO_CE/build/
 mushigurui_HD10/build/
+spot_checker/build/
 **/pipeline_cpp/build/
 **/proxy_dll/build/
 **/helper_dll/build/
@@ -85,6 +86,7 @@ amakano2pe/map_images/
 **/narrative_patched/
 **/_debug_title_originals/
 **/script_output/extracted_text.json
+**/script_output/argon_spot_check.json
 # Restored on demand by mushigurui_HD10/analysys/retired_py.py
 mushigurui_HD10/analysys/_retired/
 

@@ -42,7 +42,7 @@ namespace {
 
 constexpr const char* API_HOST = "generativelanguage.googleapis.com";
 constexpr const char* API_PORT = "443";
-constexpr const char* DEFAULT_MODEL = "gemini-flash-latest";
+constexpr const char* DEFAULT_MODEL = "gemini-4-argon";
 constexpr std::int64_t DEFAULT_MAX_OUTPUT_TOKENS = 16384;
 constexpr std::int64_t GEMINI_MAX_OUTPUT_TOKENS = 65536;
 constexpr std::int64_t DEFAULT_THINKING_BUDGET = 2048;

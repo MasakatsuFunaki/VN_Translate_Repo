@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr const char* MODEL = "gemini-flash-latest";
+constexpr const char* MODEL = "gemini-4-argon";
 
 // Minimum image dimensions to bother scanning (cheap pre-filter).
 constexpr int MIN_WIDTH = 800;

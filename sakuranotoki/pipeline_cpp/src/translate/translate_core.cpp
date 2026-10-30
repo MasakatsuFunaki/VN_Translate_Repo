@@ -683,8 +683,6 @@ std::map<int, std::string> call_gemini(
     msg["content"] = build_user_prompt(batch_lines, previous_context);
     body["messages"] = bj::array{std::move(msg)};
 
-    if (MODEL == MODEL_FLASH_25)
-        body["temperature"] = 0.3;
     // reasoning_control() decides the knob; the wrong one is an HTTP 400, and
     // it is also what the banner reads, so the two cannot drift.
     switch (reasoning_control(MODEL)) {

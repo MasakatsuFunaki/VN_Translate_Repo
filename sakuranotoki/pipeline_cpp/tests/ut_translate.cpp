@@ -504,11 +504,8 @@ TEST(Translate, option_validation_refuses_values_that_would_overspend) {
 // The banner must describe the request that is actually built.  Both read the
 // same function, so this pins them together.
 TEST(Translate, reasoning_banner_matches_the_transmitted_field) {
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_FLASH),
+    EXPECT_EQ(tr::reasoning_control(tr::MODEL),
               tr::ReasoningControl::AdaptiveThinking);
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_FLASH_25), tr::ReasoningControl::Effort);
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_PRO), tr::ReasoningControl::Effort);
-    EXPECT_EQ(tr::reasoning_control(tr::MODEL_FLASH_LITE), tr::ReasoningControl::None);
 
     // Whatever the configured model is, the label may mention effort only when
     // effort is what goes into the body.

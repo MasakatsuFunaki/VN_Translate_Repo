@@ -56,26 +56,17 @@ const std::vector<std::pair<std::string, std::string>>& superseded_name_renderin
 // into it from the data above, so the prompt and the pins cannot drift apart.
 const std::string& system_prompt();
 
-// ── Available models (edit MODEL below to switch) ──
-inline const std::string MODEL_FLASH_LITE = "gemini-2.0-flash-lite";
-inline const std::string MODEL_FLASH_25 = "gemini-2.5-flash";
-inline const std::string MODEL_PRO = "gemini-2.5-pro";
-inline const std::string MODEL_FLASH = "gemini-flash-latest";
-inline const std::string MODEL = MODEL_FLASH;  // ← swap as needed
+// ── Model ──
+inline const std::string MODEL = "gemini-4-argon";
 
-// Effort level: controls token spend on the Gemini 2.5 models above; not
-// supported on Flash Lite.
+// Effort level: controls token spend.
 inline const std::string EFFORT = "high";
 
-// The reasoning knob a model accepts.  MODEL_FLASH takes adaptive thinking;
-// MODEL_FLASH_25 and MODEL_PRO take output_config.effort.  Sending the wrong
-// one is an HTTP 400, so the request body and the banner both read this rather
-// than each deciding for themselves.
+// The reasoning knob a model accepts.
 enum class ReasoningControl { None, AdaptiveThinking, Effort };
 
 inline ReasoningControl reasoning_control(const std::string& m) {
-    if (m == MODEL_FLASH) return ReasoningControl::AdaptiveThinking;
-    if (m == MODEL_FLASH_25 || m == MODEL_PRO) return ReasoningControl::Effort;
+    if (m == MODEL) return ReasoningControl::AdaptiveThinking;
     return ReasoningControl::None;
 }
 
