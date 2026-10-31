@@ -118,6 +118,13 @@ constexpr size_t CHAIN_INDENT = 2;
 // Four lines at the substituted 30 px pitch (stock 42 px gives three).
 constexpr size_t MAX_LINES = 4;
 
+// Default dialogue panel origin and substituted pitch in window-relative pixels
+// (from scrmsg._bp: box_rect = {48, 24, 1083, 151}, stock pitch 42 -> 30).
+constexpr int DIALOGUE_BOX_LEFT_X    = 48;
+constexpr int DIALOGUE_BOX_TOP_Y     = 24;
+constexpr int DIALOGUE_LINE_PITCH_PX = 30;
+constexpr int HALFWIDTH_GLYPH_PX     = 14;
+
 static_assert(WRAP_AT + WRAP_INDENT <= BOX_COLUMNS,
               "a continuation line must fit the measured box width");
 static_assert(SINGLE_LINE_MAX <= BOX_COLUMNS,
@@ -286,6 +293,28 @@ public:
     // stays open for more.
     void Commit(uintptr_t box, const BoxState& state, bool stays_open);
 
+    // Open a SET_CURSOR-positioned box (yuzu_2g iMessage* dummy "\x81\x40"),
+    // or continue an already-open positioned box after a *NC ("No Clear")
+    // wait when `cursor_xy` has not been reset to `(left_x, top_y)`.
+    BoxState BeginPositionedBox(uintptr_t box, const char* wire,
+                                const int* cursor_xy = nullptr,
+                                int left_x = DIALOGUE_BOX_LEFT_X,
+                                int top_y = DIALOGUE_BOX_TOP_Y);
+
+    // Note a standalone "\n" no-clear click call or a 1-line save/load preview.
+    void NoteNoClearNewline();
+    void NoteSaveLoadPreview();
+
+    // Begin a segment that may belong to a positioned box or a normal chain.
+    BoxState BeginSegment(uintptr_t box, bool has_prefix, const char* wire,
+                          const int* cursor_xy, int left_x, int top_y,
+                          bool flows, bool& out_is_positioned,
+                          bool& out_keep_positioned);
+
+    // Commit a segment, keeping positioned-box state open when requested.
+    void CommitSegment(uintptr_t box, const BoxState& state,
+                       bool stays_open, bool keep_positioned);
+
     // Forget every box.
     void Clear();
 
@@ -335,5 +364,16 @@ SubstitutionStatus BuildSubstitution(const char* wire_text,
                                      const TranslationMap& translations,
                                      BoxLineBudget& budget, uintptr_t box,
                                      const Surface& surface, Substitution& out);
+
+// Same, with optional cursor (int[2]: x, y) and box bounds (int[4]: left, top,
+// right, bottom) so SET_CURSOR-positioned dialogue segments (yuzu_2g) are
+// normalized to the substituted line pitch and box left margin.
+SubstitutionStatus BuildSubstitution(const char* wire_text,
+                                     const TranslationMap& translations,
+                                     BoxLineBudget& budget, uintptr_t box,
+                                     const Surface& surface, Substitution& out,
+                                     int* cursor_xy,
+                                     const int* box_rect = nullptr,
+                                     int line_pitch = DIALOGUE_LINE_PITCH_PX);
 
 }  // namespace translator_logic

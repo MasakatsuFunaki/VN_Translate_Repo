@@ -40,15 +40,76 @@ bool is_excluded_entry_type(const std::string& type) {
            type == "label" || type == "name" || type == "NAME";
 }
 
+bool has_binary_or_pua_noise(const std::string& s) {
+    for (unsigned char c : s) {
+        if (c < 0x20 && c != '\r' && c != '\n' && c != '\t') {
+            return true;
+        }
+    }
+    std::size_t i = 0;
+    while (i < s.size()) {
+        const char32_t cp = utf8_next(s, i);
+        if (cp >= 0xE000 && cp <= 0xF8FF) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool is_shingakkou_sprite_tag(const std::string& jp, const std::string& en) {
+    return jp == en && jp.find('@') != std::string::npos &&
+           jp.find('_') != std::string::npos && jp.find(' ') == std::string::npos;
+}
+
+bool is_standalone_speaker_tag(const std::string& jp, const std::string& en) {
+    if (has_binary_or_pua_noise(jp) || has_binary_or_pua_noise(en)) return false;
+    if (jp.find('\r') != std::string::npos || jp.find('\n') != std::string::npos) {
+        return false;
+    }
+    // Reject halfwidth katakana opcode fragments (e.g. "ﾀ", "ﾊ", "ﾉ")
+    std::size_t idx = 0;
+    while (idx < jp.size()) {
+        const char32_t cp = utf8_next(jp, idx);
+        if (cp >= 0xFF61 && cp <= 0xFF9F) return false;
+    }
+    const std::string cand = trim((!en.empty() && en[0] != '$') ? en : jp);
+    if (cand.empty() || cand[0] == '$' || utf8_char_len(cand) > 20) return false;
+    if (cand.rfind("「", 0) == 0 || cand.rfind("『", 0) == 0 ||
+        cand.rfind("（", 0) == 0 || cand.rfind("―", 0) == 0 ||
+        cand.find("。") != std::string::npos || cand.find("、") != std::string::npos) {
+        return false;
+    }
+    for (char c : cand) {
+        if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
+            c == ':' || c == '!' || c == '[' || c == '-') {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Extracts "Speaker" if `text` begins with `Speaker\r\n` where `Speaker` is a
 // short name header rather than narrative prose.
 std::string extract_speaker_prefix(const std::string& text) {
     const std::size_t crlf = text.find("\r\n");
     if (crlf == std::string::npos || crlf == 0 || crlf > 35) return {};
+    const std::string rest = trim(text.substr(crlf + 2));
+    if (rest.empty()) return {};
+    // Real dialogue/thought lines after a speaker header open with a quote,
+    // parenthesis, asterisk, or Japanese bracket. Without this gate, a 2-line
+    // narrative sentence whose first line is <= 20 chars gets mis-tagged as a speaker.
+    const char r0 = rest.front();
+    const bool valid_body_open =
+        (r0 == '"' || r0 == '\'' || r0 == '(' || r0 == '*') ||
+        rest.rfind("「", 0) == 0 || rest.rfind("『", 0) == 0 ||
+        rest.rfind("（", 0) == 0;
+    if (!valid_body_open) return {};
+
     const std::string prefix = trim(text.substr(0, crlf));
     if (prefix.empty() || utf8_char_len(prefix) > 20) return {};
     for (char c : prefix) {
-        if (c == '"' || c == '\'' || c == '.' || c == '!' || c == '[' || c == '(') {
+        if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
+            c == ':' || c == '!' || c == '[' || c == '(') {
             return {};
         }
     }
@@ -101,17 +162,47 @@ std::string strip_markdown_json_fences(const std::string& raw) {
     return s;
 }
 
-std::string normalize_restored_translation(const std::string& old_en,
-                                           const std::string& candidate_en) {
-    std::string raw = candidate_en;
-    if (old_en.find("\r\n") != std::string::npos &&
-        old_en.find("\\r\\n") == std::string::npos) {
+std::string unescape_prompt_newlines(const std::string& old_en,
+                                     const std::string& text) {
+    std::string raw = text;
+    const bool old_has_crlf = old_en.find("\r\n") != std::string::npos &&
+                              old_en.find("\\r\\n") == std::string::npos;
+    const bool old_has_lf = !old_has_crlf &&
+                            old_en.find('\n') != std::string::npos &&
+                            old_en.find("\\n") == std::string::npos;
+    const bool old_has_literal_bs_n = old_en.find("\\n") != std::string::npos;
+
+    if (old_has_crlf) {
         for (;;) {
             const std::size_t pos = raw.find("\\r\\n");
             if (pos == std::string::npos) break;
             raw.replace(pos, 4, "\r\n");
         }
+        if (!old_has_literal_bs_n) {
+            for (;;) {
+                const std::size_t pos = raw.find("\\n");
+                if (pos == std::string::npos) break;
+                raw.replace(pos, 2, "\r\n");
+            }
+        }
+    } else if (old_has_lf && !old_has_literal_bs_n) {
+        for (;;) {
+            const std::size_t pos = raw.find("\\r\\n");
+            if (pos == std::string::npos) break;
+            raw.replace(pos, 4, "\n");
+        }
+        for (;;) {
+            const std::size_t pos = raw.find("\\n");
+            if (pos == std::string::npos) break;
+            raw.replace(pos, 2, "\n");
+        }
     }
+    return raw;
+}
+
+std::string normalize_restored_translation(const std::string& old_en,
+                                           const std::string& candidate_en) {
+    const std::string raw = unescape_prompt_newlines(old_en, candidate_en);
     std::string clean = sanitize_ascii(trim(raw));
     if (clean.empty()) return {};
 
@@ -275,10 +366,26 @@ std::string default_editorial_rules_prompt(bool fix_punctuation) {
     return rules;
 }
 
+std::string strip_translator_formatting_rules(const std::string& md) {
+    std::string out = md;
+    for (;;) {
+        const std::size_t open_tag = out.find("<formatting_rules>");
+        if (open_tag == std::string::npos) break;
+        const std::size_t close_tag = out.find("</formatting_rules>", open_tag);
+        if (close_tag == std::string::npos) {
+            out.erase(open_tag);
+            break;
+        }
+        out.erase(open_tag, close_tag + 19 - open_tag);
+    }
+    return trim(out);
+}
+
 std::string build_system_prompt(const std::string& tone_markdown, bool fix_punctuation) {
     std::string sys = default_editorial_rules_prompt(fix_punctuation);
-    if (!trim(tone_markdown).empty()) {
-        sys += "\n\n<novel_tone_and_glossary>\n" + trim(tone_markdown) +
+    const std::string cleaned_tone = strip_translator_formatting_rules(tone_markdown);
+    if (!cleaned_tone.empty()) {
+        sys += "\n\n<novel_tone_and_glossary>\n" + cleaned_tone +
                "\n</novel_tone_and_glossary>";
     }
     return sys;
@@ -289,13 +396,32 @@ std::vector<std::pair<std::string, std::string>> parse_glossary_from_tone_md(
     std::vector<std::pair<std::string, std::string>> out;
     std::unordered_set<std::string> seen_jp;
 
+    static const std::unordered_set<std::string> ignored_common_jp = {
+        "みんな", "全員", "少女", "少年", "女", "男", "女子", "男子", "声",
+        "？？？", "？", "二人", "ふたり", "教師", "先生", "母", "父", "客",
+        "店員", "生徒", "部員", "男の子", "女の子", "女性", "男性",
+    };
+
     auto add_pair = [&](std::string jp, std::string en) {
         jp = trim(jp);
         en = trim(en);
-        if (!jp.empty() && !en.empty() && has_japanese(jp) && !has_japanese(en)) {
-            if (seen_jp.insert(jp).second) {
-                out.emplace_back(std::move(jp), std::move(en));
-            }
+        // Strip parenthetical annotations in glossary target (e.g. "Yuuhi (Girl)" -> "Yuuhi")
+        if (const std::size_t p = en.find('('); p != std::string::npos) {
+            en = trim(en.substr(0, p));
+        }
+        if (jp.empty() || en.empty() || !has_real_japanese(jp) || has_japanese(en)) {
+            return;
+        }
+        // Skip multi-option definitions (e.g. "Miki / Yamanobe", "Everyone, All")
+        if (en.find('/') != std::string::npos || en.find(',') != std::string::npos) {
+            return;
+        }
+        if (ignored_common_jp.count(jp) != 0) return;
+        // Avoid short 1-char kanji or <=2-char kana terms or <=3-char English substrings
+        // that cause false-positive substring collisions (e.g. "レン"="Ren" inside "different")
+        if (utf8_char_len(jp) < 2 || en.size() <= 3) return;
+        if (seen_jp.insert(jp).second) {
+            out.emplace_back(std::move(jp), std::move(en));
         }
     };
 
@@ -383,29 +509,57 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
             const std::string translated = json_str(entry_obj, "translated");
 
             // Track standalone speaker definitions (e.g. amakano2pe / SakuraNoUta)
-            if (type == "NAME" || type == "name") {
-                if (!translated.empty() && translated[0] != '$') {
-                    active_speaker = trim(translated);
-                } else if (!jp_text.empty() && jp_text[0] != '$') {
-                    active_speaker = trim(jp_text);
+            if (type == "NAME") {
+                if (is_standalone_speaker_tag(jp_text, translated)) {
+                    active_speaker = trim(!translated.empty() ? translated : jp_text);
                 } else {
                     active_speaker = "NARRATION";
                 }
                 continue;
             }
+            if (type == "name") {
+                if (is_standalone_speaker_tag(jp_text, translated)) {
+                    active_speaker = trim(!translated.empty() ? translated : jp_text);
+                    continue;
+                }
+                // In .spt games (EXTRAVAGANZA_CE / Adieu), some short translated story
+                // lines or choices are mis-tagged as type=="name". Keep them if they are
+                // genuinely translated Japanese lines; skip binary/untranslated noise.
+                if (translated == jp_text || !has_real_japanese(jp_text) ||
+                    has_binary_or_pua_noise(jp_text)) {
+                    continue;
+                }
+            }
             if (type == "COMMAND" && jp_text == "fw 0") {
                 active_speaker = "NARRATION";
                 continue;
             }
-            if (is_excluded_entry_type(type)) continue;
+            if (is_excluded_entry_type(type) && type != "name") continue;
 
             if (const auto* hj = entry_obj.if_contains("has_jp");
                 hj && hj->is_bool() && !hj->as_bool()) {
                 continue;
             }
             if (!has_japanese(jp_text) || translated.empty()) continue;
+            if (has_binary_or_pua_noise(jp_text) ||
+                is_shingakkou_sprite_tag(jp_text, translated)) {
+                continue;
+            }
 
             std::string speaker = trim(json_str(entry_obj, "speaker"));
+            if (type == "narration" || type == "narrative") {
+                active_speaker = "NARRATION";
+                if (speaker.empty()) speaker = "NARRATION";
+            } else if (type == "MESSAGE" && speaker.empty()) {
+                const std::string t_jp = trim(jp_text);
+                const bool is_spoken_or_thought =
+                    t_jp.rfind("「", 0) == 0 || t_jp.rfind("『", 0) == 0 ||
+                    t_jp.rfind("（", 0) == 0;
+                if (!is_spoken_or_thought) {
+                    active_speaker = "NARRATION";
+                    speaker = "NARRATION";
+                }
+            }
             if (speaker.empty()) {
                 speaker = extract_speaker_prefix(translated);
             }
@@ -725,7 +879,8 @@ ValidationResult validate_proposed_fix(
     // If the LLM specified an offending `error_span` present in `old_body`,
     // `new_body` must actually modify/remove that span (unless compressing a
     // runaway repetition loop where a short prefix of repeated chars remains).
-    const std::string span = trim(error_span);
+    const std::string span =
+        trim(unescape_prompt_newlines(entry.current_en, error_span));
     if (!compressed_runaway && !span.empty() &&
         old_body.find(span) != std::string::npos &&
         new_body.find(span) != std::string::npos) {
@@ -791,15 +946,40 @@ ValidationResult validate_proposed_fix(
     }
 
     // 4. Glossary Invariant Check
+    // Check `jp_body` (excluding the speaker prefix line) with word-boundary matching,
+    // and allow replacing a repeated character name with a natural English pronoun.
     if (!glossary.empty()) {
         const std::string old_lower = to_lower_copy(old_body);
         const std::string new_lower = to_lower_copy(new_body);
+        const auto new_words = extract_alnum_words_lower(new_body);
+        bool has_pronoun = false;
+        for (const auto& w : new_words) {
+            if (w == "he" || w == "him" || w == "his" || w == "she" || w == "her" ||
+                w == "hers" || w == "they" || w == "them" || w == "their" ||
+                w == "you" || w == "your" || w == "i" || w == "me" || w == "my") {
+                has_pronoun = true;
+                break;
+            }
+        }
+        auto contains_word_bound = [](const std::string& hay, const std::string& needle) {
+            std::size_t pos = 0;
+            while ((pos = hay.find(needle, pos)) != std::string::npos) {
+                const bool left_ok =
+                    (pos == 0) || !(hay[pos - 1] >= 'a' && hay[pos - 1] <= 'z');
+                const std::size_t end = pos + needle.size();
+                const bool right_ok =
+                    (end >= hay.size()) || !(hay[end] >= 'a' && hay[end] <= 'z');
+                if (left_ok && right_ok) return true;
+                pos = end;
+            }
+            return false;
+        };
         for (const auto& [jp_term, en_term] : glossary) {
             if (jp_term.empty() || en_term.empty()) continue;
-            if (entry.jp_text.find(jp_term) != std::string::npos) {
+            if (jp_body.find(jp_term) != std::string::npos) {
                 const std::string en_lower = to_lower_copy(en_term);
-                if (old_lower.find(en_lower) != std::string::npos &&
-                    new_lower.find(en_lower) == std::string::npos) {
+                if (contains_word_bound(old_lower, en_lower) &&
+                    !contains_word_bound(new_lower, en_lower) && !has_pronoun) {
                     res.rejection_reason =
                         "dropped canonical glossary term '" + en_term + "' for '" + jp_term + "'";
                     return res;
@@ -816,10 +996,22 @@ ValidationResult validate_proposed_fix(
         detector.score_single_line(entry.jp_text, entry.current_en, ols);
     const LineWeaknessScore new_score =
         detector.score_single_line(entry.jp_text, candidate_en, ols);
-    if (new_score.raw_total > old_score.raw_total + 1e-6) {
-        res.rejection_reason = "mathematical weakness score worsened (" +
-                               std::to_string(new_score.raw_total) + " > " +
-                               std::to_string(old_score.raw_total) + ")";
+    const double old_non_len =
+        old_score.artifact_score + old_score.coupling_score + old_score.style_score;
+    const double new_non_len =
+        new_score.artifact_score + new_score.coupling_score + new_score.style_score;
+    if (new_non_len > old_non_len + 1e-6) {
+        res.rejection_reason = "intrinsic defect score worsened (" +
+                               std::to_string(new_non_len) + " > " +
+                               std::to_string(old_non_len) + ")";
+        return res;
+    }
+    const bool extreme_len_change =
+        new_body.size() > 140 || (old_body.size() >= 20 && new_body.size() * 2 < old_body.size());
+    if (extreme_len_change && new_score.length_z > old_score.length_z + 1e-6) {
+        res.rejection_reason = "mathematical length residual score worsened (" +
+                               std::to_string(new_score.length_z) + " > " +
+                               std::to_string(old_score.length_z) + ")";
         return res;
     }
 
@@ -987,8 +1179,11 @@ struct SpotChecker::Impl {
         }
 
         const fs::path tone_path = fs::u8path(cfg.game_dir) / "TONE_OF_NOVEL.md";
+        const fs::path fallback_tone_path = fs::u8path(cfg.game_dir) / "TONE.md";
         if (fs::exists(tone_path)) {
             tone_md = read_file_text(tone_path.u8string());
+        } else if (fs::exists(fallback_tone_path)) {
+            tone_md = read_file_text(fallback_tone_path.u8string());
         }
         sys_prompt = build_system_prompt(tone_md, cfg.fix_punctuation);
         glossary = parse_glossary_from_tone_md(tone_md);
@@ -1325,11 +1520,13 @@ struct SpotChecker::Impl {
         }
 
         // Stage 1 Packed LLM Radar Pass (Kocmi & Federmann WMT 2023):
-        // Pack up to 6 candidate passages per Radar API call, skip clean passages
-        // (mqm_score == 0), and prioritize high-MQM passages for Stage 2 repair.
+        // Pack up to 6 candidate passages per Radar API call and prioritize high-MQM
+        // passages for Stage 2 repair without discarding or marking unflagged passages
+        // as visited before Stage 2 actually reviews them.
         if (cfg.radar_calls > 0 && !work_queue.empty()) {
             constexpr std::size_t kPassagesPerRadarCall = 6;
             std::vector<RadarPassageResult> flagged_passages;
+            std::vector<std::pair<std::size_t, std::size_t>> unflagged_passages;
 
             for (std::size_t r = 0; r < cfg.radar_calls && !work_queue.empty(); ++r) {
                 std::vector<WindowSlice> pack;
@@ -1371,19 +1568,19 @@ struct SpotChecker::Impl {
                         }
                     }
                 }
-                // Any passage in `pack` that Radar marked clean (mqm_score == 0 and
-                // suspect_ids.empty()) is recorded in visited_offsets so future runs
-                // do not re-triage it.
+                // Preserve unflagged statistical hotspots in their original rank order
+                // behind the Radar-flagged passages so they are still reviewed by Stage 2
+                // when max_windows permits, and NEVER mark them visited prematurely!
                 for (const auto& ws : pack) {
                     if (flagged_in_batch.count(ws.target_start) == 0) {
-                        visited_offsets.insert(ws.target_start);
+                        unflagged_passages.emplace_back(ws.target_start, ws.target.size());
                     }
                 }
             }
 
-            // Sort surviving Radar-flagged passages by MQM score descending and push
-            // to the front of work_queue (clean triaged passages with mqm_score == 0
-            // remain dropped, saving Stage 2 calls).
+            for (auto it = unflagged_passages.rbegin(); it != unflagged_passages.rend(); ++it) {
+                work_queue.emplace_front(it->first, it->second);
+            }
             std::sort(flagged_passages.begin(), flagged_passages.end(),
                       [](const RadarPassageResult& a, const RadarPassageResult& b) {
                           if (std::abs(a.mqm_score - b.mqm_score) > 1e-9) {
@@ -1465,6 +1662,9 @@ struct SpotChecker::Impl {
                     ++rep.candidates_rejected_by_validator;
                     continue;
                 }
+                if (imp.global_index < script_entries.size()) {
+                    script_entries[imp.global_index].current_en = imp.improved_en;
+                }
                 merged[imp.global_index] = imp;
                 repaired_indices.insert(imp.global_index);
                 accepted_new.push_back(imp);
@@ -1487,7 +1687,10 @@ struct SpotChecker::Impl {
                 }
             }
 
-            if (cfg.auto_apply && !accepted_new.empty()) {
+            // Sync multi-megabyte translated_text.json and cache files every 25 windows
+            // (and at completion below) instead of after every single window so background
+            // runs do not cause CPU/SSD spikes every 4 seconds.
+            if (cfg.auto_apply && !merged.empty() && (rep.windows_checked % 25 == 0)) {
                 const ApplyReport step_app = sync_improvements_to_disk(merged);
                 checkpoint_applied_.improvements_loaded = step_app.improvements_loaded;
                 checkpoint_applied_.script_entries_updated +=

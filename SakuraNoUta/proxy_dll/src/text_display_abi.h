@@ -25,12 +25,12 @@ extern "C" {
 typedef DWORD (__cdecl *PFN_TextDisplayHandler)(
     DWORD          ecx,
     DWORD          edx,
-    void*          p1,    // [ebp+0x08]
+    void*          p1,    // [ebp+0x08]  glyph layout header / state
     char*          text,  // [ebp+0x0c]  CP932 text buffer
-    int*           p3,    // [ebp+0x10]
-    unsigned short*p4,    // [ebp+0x14]
-    int            p5,    // [ebp+0x18]
-    char*          p6,    // [ebp+0x1c]
+    int*           p3,    // [ebp+0x10]  font / style descriptor
+    unsigned short*p4,    // [ebp+0x14]  int cursor_xy[2]: { cursor_x, cursor_y } in px
+    int            p5,    // [ebp+0x18]  const int box_rect[4]: { left, top, right, bottom } in px
+    char*          p6,    // [ebp+0x1c]  int line_pitch in px (0x2A panel, 0x18 plate, 0x28 backlog)
     int*           p7,    // [ebp+0x20]
     int            p8,    // [ebp+0x24]
     int            p9,    // [ebp+0x28]

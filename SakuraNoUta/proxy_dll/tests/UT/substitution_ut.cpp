@@ -1025,3 +1025,635 @@ TEST(UnmeasuredSurface, one_line_is_taken_and_a_chained_segment_is_not) {
     EXPECT_TRUE(more.truncated)
         << "one line and another segment coming is a line that loses text";
 }
+
+// --- Positioned message boxes (yuzu_2g SET_CURSOR + op140) ------------
+//
+// yuzu_2g's iMessage*/Message* helpers open boxes with a dummy fullwidth space
+// ("\x81\x40"), compute SET_CURSOR (0x146) coordinates from Japanese byte
+// length and the stock 42 px row pitch, and emit segments with 0x05 prefixes
+// and no trailing 0x0A.
+
+TEST(PositionedBox, DummyFullwidthSpaceOpensPositionedBoxAndDrawsNothing) {
+    using translator_logic::DIALOGUE_PANEL;
+    TranslationMap m = MapOf("SEG1", "First positioned line.");
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+    int cursor_xy[2] = { 48, 24 };
+
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, cursor_xy, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_TRUE(sub.bytes.empty());
+    EXPECT_EQ(sub.lines, 0u);
+    EXPECT_TRUE(sub.more_follows);
+    EXPECT_EQ(sub.box_lines_before, 0u);
+    EXPECT_EQ(sub.box_lines_after, 0u);
+    EXPECT_EQ(cursor_xy[0], 48);
+    EXPECT_EQ(cursor_xy[1], 24);
+}
+
+TEST(PositionedBox, Screenshot1ThreeSegmentPositionedBoxLayout) {
+    using translator_logic::DIALOGUE_PANEL;
+    // 03_zypressen_02 [146..148]: iMessageLeftIg(y=0) -> MessageRightIg(y=1)
+    // -> MessageCenter(y=2).
+    const std::string kJp146 = "JP_146_GAZELLE_EYES";
+    const std::string kJp147 = "JP_147_TO_THE_LION";
+    const std::string kJp148 = "JP_148_SACK_OF_FLESH";
+
+    TranslationMap m;
+    m[kJp146] = "The gazelle's endearing eyes, its beautiful coat--";
+    m[kJp147] = "to the lion, none of it matters much.";
+    m[kJp148] = "Looks mean nothing to him; a gazelle is only a sack stuffed "
+                "with flesh and blood.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+
+    // Dummy opener from iMessageLeftIg.
+    int c0[2] = { 48, 24 };
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_TRUE(sub.bytes.empty());
+
+    // [146]: SET_CURSOR(0, 0) -> (48, 24).
+    int c1[2] = { 48, 24 };
+    ASSERT_EQ(BuildSubstitution(("\x05" + kJp146).c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.bytes, "The gazelle's endearing eyes, its beautiful coat--");
+    EXPECT_EQ(c1[0], 48);
+    EXPECT_EQ(c1[1], 24);
+    EXPECT_EQ(sub.lines, 1u);
+    EXPECT_EQ(sub.box_lines_after, 1u);
+    EXPECT_FALSE(sub.truncated);
+
+    // [147]: SET_CURSOR(1, 18) -> (552, 66), joins the open first line at
+    // col 51 (x = 48 + 51 * 14 = 762, y = 24) and wraps onto line 2 (y = 54).
+    int c2[2] = { 552, 66 };
+    ASSERT_EQ(BuildSubstitution(("\x05" + kJp147).c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.bytes, "to the lion, none of\nit matters much.");
+    EXPECT_EQ(c2[0], 762);
+    EXPECT_EQ(c2[1], 24);
+    EXPECT_EQ(sub.lines, 1u);
+    EXPECT_EQ(sub.box_lines_before, 1u);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+    EXPECT_FALSE(sub.truncated);
+
+    // [148]: SET_CURSOR(2, 5) -> (188, 108), joins line 2 at col 17
+    // (x = 48 + 17 * 14 = 286, y = 54) and wraps onto line 3 (y = 84).
+    int c3[2] = { 188, 108 };
+    ASSERT_EQ(BuildSubstitution(("\x05" + kJp148).c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.bytes,
+              "Looks mean nothing to him; a gazelle is only a sack\n"
+              "stuffed with flesh and blood.");
+    EXPECT_EQ(c3[0], 286);
+    EXPECT_EQ(c3[1], 54);
+    EXPECT_EQ(sub.lines, 1u);
+    EXPECT_EQ(sub.box_lines_before, 2u);
+    EXPECT_EQ(sub.box_lines_after, 3u);
+    EXPECT_FALSE(sub.truncated);
+    EXPECT_FALSE(sub.dropped);
+}
+
+TEST(PositionedBox, Screenshot2TwoSegmentPositionedBoxLayout) {
+    using translator_logic::DIALOGUE_PANEL;
+    // 03_zypressen_02 [160..161]: iMessageLeftIg(y=0) -> MessageRight(y=2).
+    const std::string kJp160 = "JP_160_CARNIVORE";
+    const std::string kJp161 = "JP_161_OWN_SEX";
+
+    TranslationMap m;
+    m[kJp160] = "Just as a carnivore devours the flesh of weaker animals as "
+                "if by necessity,";
+    m[kJp161] = "so too did I love my own sex.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+
+    int c0[2] = { 48, 24 };
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+
+    // [160]: wraps to 2 lines at (48, 24) and (48, 54), ending at col 10.
+    int c1[2] = { 48, 24 };
+    ASSERT_EQ(BuildSubstitution(("\x05" + kJp160).c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.bytes,
+              "Just as a carnivore devours the flesh of weaker animals as if "
+              "by\nnecessity,");
+    EXPECT_EQ(c1[0], 48);
+    EXPECT_EQ(c1[1], 24);
+    EXPECT_EQ(sub.lines, 2u);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+    EXPECT_FALSE(sub.truncated);
+
+    // [161]: SET_CURSOR(2, 25) -> (748, 108), joins line 2 at col 11
+    // (x = 48 + 11 * 14 = 202, y = 54) so the whole sentence fits in 2 lines.
+    int c2[2] = { 748, 108 };
+    ASSERT_EQ(BuildSubstitution(("\x05" + kJp161).c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.bytes, "so too did I love my own sex.");
+    EXPECT_EQ(c2[0], 202);
+    EXPECT_EQ(c2[1], 54);
+    EXPECT_EQ(sub.lines, 0u);
+    EXPECT_EQ(sub.box_lines_before, 2u);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+    EXPECT_FALSE(sub.truncated);
+}
+
+TEST(PositionedBox, Screenshot3SingleSegmentCenteredBoxLayout) {
+    using translator_logic::DIALOGUE_PANEL;
+    // 03_zypressen_02 [194]: iMessageCenter(y=1).
+    const std::string kJp194 = "JP_194_RINA_CHILD";
+
+    TranslationMap m;
+    m[kJp194] = "It was when both she and I were still small children that I "
+                "first laid eyes on Rina.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+
+    int c0[2] = { 48, 24 };
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+
+    // [194]: SET_CURSOR(1, 8) -> (272, 66), normalized to (48, 24) so it wraps
+    // into 2 lines instead of 3 and never clips at bottom_y = 151.
+    int c1[2] = { 272, 66 };
+    ASSERT_EQ(BuildSubstitution(("\x05" + kJp194).c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.bytes,
+              "It was when both she and I were still small children that I "
+              "first laid\neyes on Rina.");
+    EXPECT_EQ(c1[0], 48);
+    EXPECT_EQ(c1[1], 24);
+    EXPECT_EQ(sub.lines, 2u);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+    EXPECT_FALSE(sub.truncated);
+}
+
+TEST(PositionedBox, WindowRedrawWithoutControlPrefixReproducesLayout) {
+    using translator_logic::DIALOGUE_PANEL;
+    // msgwndctrl._bp redraws a positioned box by re-issuing "\x81\x40" and
+    // each segment WITHOUT the 0x05 prefix that scrmsg._bp prepended.
+    TranslationMap m;
+    m["S1"] = "The gazelle's endearing eyes, its beautiful coat--";
+    m["S2"] = "to the lion, none of it matters much.";
+    m["S3"] = "Looks mean nothing to him; a gazelle is only a sack stuffed "
+              "with flesh and blood.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+
+    int c0[2] = { 48, 24 };
+    int c1[2] = { 48, 24 };
+    int c2[2] = { 552, 66 };
+    int c3[2] = { 188, 108 };
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("S1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c1[0], 48);
+    EXPECT_EQ(c1[1], 24);
+
+    ASSERT_EQ(BuildSubstitution("S2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c2[0], 762);
+    EXPECT_EQ(c2[1], 24);
+
+    ASSERT_EQ(BuildSubstitution("S3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c3[0], 286);
+    EXPECT_EQ(c3[1], 54);
+    EXPECT_EQ(sub.box_lines_after, 3u);
+    EXPECT_FALSE(sub.truncated);
+}
+
+TEST(PositionedBox, SameRowAndFiveSegmentBoxesJoinOpenLineWithoutDropping) {
+    using translator_logic::DIALOGUE_PANEL;
+    // 03_zypressen_02 5-call box: two identical "壊せ、" calls on the same
+    // script row_y = 2 at different col_x, followed by a 5th segment.
+    TranslationMap m;
+    m["S1"] = "Such a delusion-like thought reared its head within me,";
+    m["S2"] = "urging me simply to--";
+    m["S3"] = "destroy her,";
+    m["S5"] = "and began driving me onward.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+
+    int c0[2] = { 48, 24 };
+    int c1[2] = { 48, 24 };
+    int c2[2] = { 216, 66 };
+    int c3[2] = { 384, 108 };
+    int c4[2] = { 496, 108 };  // same row_y = 108, different col_x
+    int c5[2] = { 552, 108 };  // same row_y = 108
+
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05S1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05S2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05S3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_GT(c3[0], 48);
+    EXPECT_EQ(c3[1], 54);
+
+    // Second "S3" at a different x on the same row joins the open line rather
+    // than re-rendering over the first "destroy her,".
+    ASSERT_EQ(BuildSubstitution("\x05S3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c4, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_GT(c4[0], c3[0]);
+    EXPECT_EQ(c4[1], 54);
+    EXPECT_FALSE(sub.dropped);
+
+    ASSERT_EQ(BuildSubstitution("\x05S5", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c5, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_FALSE(sub.dropped);
+    EXPECT_FALSE(sub.truncated);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+}
+
+TEST(PositionedBox, PremonitionScreenshotsFlowAsContinuousParagraphs) {
+    using translator_logic::DIALOGUE_PANEL;
+    // Box 81 (04:56) and Box 92 (06:50) in 03_zypressen_02: 3-segment boxes
+    // that previously broke mid-sentence onto separate lines.
+    TranslationMap m;
+    m["B81_1"] = "A boy said, \"What? Bathroom? I'll come too,\"";
+    m["B81_2"] = "and then, \"Ah, right, I forgot -- technically Kawachino "
+                 "uses a different bathroom than us, huh?\"";
+    m["B81_3"] = "and so I punched him.";
+
+    m["B92_1"] = "But we had cleverly kept the truth to ourselves";
+    m["B92_2"] = "(the official story became that Tsuyoshi had fallen into a "
+                 "sewer),";
+    m["B92_3"] = "and the other side, out of their own humiliation, could not "
+                 "bring themselves to speak of it either.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+
+    // Box 81: flows across 3 lines instead of 4 ragged lines.
+    int c0[2] = { 48, 24 }, c1[2] = { 48, 24 }, c2[2] = { 48, 66 },
+        c3[2] = { 888, 108 };
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05" "B81_1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05" "B81_2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c2[0], 48 + 45 * 14);
+    EXPECT_EQ(c2[1], 24);
+    EXPECT_EQ(sub.bytes,
+              "and then, \"Ah, right, I\n"
+              "forgot -- technically Kawachino uses a different bathroom than "
+              "us,\nhuh?\"");
+    ASSERT_EQ(BuildSubstitution("\x05" "B81_3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c3[0], 48 + 6 * 14);
+    EXPECT_EQ(c3[1], 84);
+    EXPECT_EQ(sub.bytes, "and so I punched him.");
+    EXPECT_EQ(sub.box_lines_after, 3u);
+    EXPECT_FALSE(sub.truncated);
+
+    // Box 92: flows across 4 lines continuously.
+    int d0[2] = { 48, 24 }, d1[2] = { 48, 24 }, d2[2] = { 244, 66 },
+        d3[2] = { 328, 108 };
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05" "B92_1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05" "B92_2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(d2[0], 48 + 48 * 14);
+    EXPECT_EQ(d2[1], 24);
+    ASSERT_EQ(BuildSubstitution("\x05" "B92_3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(d3[0], 48 + 47 * 14);
+    EXPECT_EQ(d3[1], 54);
+    EXPECT_EQ(sub.box_lines_after, 4u);
+    EXPECT_FALSE(sub.truncated);
+}
+
+TEST(PositionedBox, LongThreeSegmentBoxesFlowWithoutTruncation) {
+    using translator_logic::DIALOGUE_PANEL;
+    // Box 6 in 03_zypressen_02: Segment 1 wraps to Line 2 with a 6-char tail
+    // ("start,").  Joining Line 2 allows all 3 segments to fit in 4 lines
+    // without truncating Segment 3.
+    TranslationMap m;
+    m["B6_1"] = "As if my thoughts had been heading toward a single point "
+                "from the very start,";
+    m["B6_2"] = "the blank pure-white paper had, before I knew it, been dyed "
+                "pitch-black,";
+    m["B6_3"] = "converging upon a single answer.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = { 48, 24, 1083, 151 };
+
+    int c0[2] = { 48, 24 }, c1[2] = { 48, 24 }, c2[2] = { 216, 66 },
+        c3[2] = { 664, 108 };
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c0, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\x05" "B6_1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_FALSE(sub.truncated);
+    ASSERT_EQ(BuildSubstitution("\x05" "B6_2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_FALSE(sub.truncated);
+    ASSERT_EQ(BuildSubstitution("\x05" "B6_3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_FALSE(sub.truncated);
+    EXPECT_FALSE(sub.dropped);
+    EXPECT_EQ(sub.bytes, "converging upon a single answer.");
+    EXPECT_EQ(sub.box_lines_after, 3u);
+}
+
+TEST(PositionedBox, BacklogHistoryStripsLeadingFullwidthSpaceAndJoinsSegments) {
+    // logwnd._bp concatenates seg[0..k] directly ("\x81\x40" + jp1 + jp2...).
+    const std::string kJp1 = "\x83\x4B\x83\x5B\x83\x8B";  // ガゼル
+    const std::string kJp2 = "\x83\x89\x83\x43\x83\x49";  // ライオ
+    const std::string kJp3 = "\x8A\x4F\x8C\xA9\x82\xC8";  // 外見な
+
+    TranslationMap m;
+    m[kJp1] = "The gazelle's endearing eyes, its beautiful coat--";
+    m[kJp2] = "to the lion, none of it matters much.";
+    m[kJp3] = "Looks mean nothing to him; a gazelle is only a sack stuffed "
+              "with flesh and blood.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+
+    // Single-segment iMessage* in backlog ("\x81\x40" + kJp1).
+    ASSERT_EQ(BuildSubstitution(("\x81\x40" + kJp1).c_str(), m, budget,
+                                kDialogue, HISTORY_WINDOW, sub),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.bytes, "The gazelle's endearing eyes, its beautiful coat--");
+    EXPECT_FALSE(sub.truncated);
+
+    // Multi-segment iMessage* in backlog ("\x81\x40" + kJp1 + kJp2 + kJp3).
+    ASSERT_EQ(BuildSubstitution(("\x81\x40" + kJp1 + kJp2 + kJp3).c_str(),
+                                m, budget, kDialogue, HISTORY_WINDOW, sub),
+              SubstitutionStatus::Substituted);
+    EXPECT_FALSE(sub.truncated);
+    EXPECT_LE(sub.lines, HISTORY_WINDOW.lines);
+    EXPECT_NE(sub.bytes.find("endearing eyes"), std::string::npos);
+    EXPECT_NE(sub.bytes.find("to the lion"), std::string::npos);
+    EXPECT_NE(sub.bytes.find("flesh and blood."), std::string::npos);
+}
+
+TEST(PositionedBox, NoClearContinuationDoesNotOverwritePreviousSentences) {
+    using translator_logic::DIALOGUE_PANEL;
+    // 03_zypressen_02 ("Premonition II"): *NC ("No Clear") helpers wait for a
+    // click without clearing the message box, emit "\n" on p4=0xEFE958, and
+    // then the following iMessage* helper emits "\x81\x40" with cursor_xy
+    // still below top_y (e.g. (48, 54) or (48, 84)).  It must continue the
+    // open box rather than resetting to (48, 24) and overwriting Line 1.
+    TranslationMap m;
+    // Screenshot 1 (24:31, calls [281..283]):
+    m["NC1_1"] = "But,";
+    m["NC1_2"] = "pivoting on that twisted right foot, almost simultaneously "
+                 "I swept his legs out with my left,";
+    m["NC1_3"] = "and pulled you down on top of myself.";
+    // Screenshot 2 (26:13, calls [293..295]):
+    m["NC2_1"] = "All I wanted was to not run with anyone, not get tangled up "
+                 "with anyone,";
+    m["NC2_2"] = "to be alone -- and yet someone was always tangling "
+                 "themselves up with me.";
+    m["NC2_3"] = "I had never imagined that simply running at my own pace "
+                 "could be this hard.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = {48, 24, 1024, 150};
+    const uintptr_t kNcNewlineBox = 0xEFE958;
+
+    // --- Screenshot 1: iMessageLeftIg -> MessageLeftNC -> iMessageRight ---
+    int d1[2] = {48, 24};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(d1[0], 48);
+    EXPECT_EQ(d1[1], 24);
+    EXPECT_EQ(sub.box_lines_after, 0u);
+
+    int c1[2] = {48, 66};
+    ASSERT_EQ(BuildSubstitution("\x05" "NC1_1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c1[0], 48);
+    EXPECT_EQ(c1[1], 24);
+    EXPECT_EQ(sub.bytes, "But,");
+    EXPECT_EQ(sub.box_lines_after, 1u);
+
+    int c2[2] = {132, 66};
+    ASSERT_EQ(BuildSubstitution("\x05" "NC1_2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c2[0], 48 + (4 + 1) * 14);
+    EXPECT_EQ(c2[1], 24);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+    EXPECT_FALSE(sub.truncated);
+
+    // Player clicks after MessageLeftNC: engine emits "\n" on 0xEFE958, then
+    // iMessageRight emits "\x81\x40" on kDialogue with cursor_xy=(48, 84).
+    ASSERT_EQ(BuildSubstitution("\n", m, budget, kNcNewlineBox,
+                                DIALOGUE_PANEL, sub, nullptr, box_rect, 30),
+              SubstitutionStatus::EmptyKey);
+
+    int d2[2] = {48, 84};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(d2[0], 48);
+    EXPECT_EQ(d2[1], 84) << "must not reset cursor_xy to (48, 24)";
+    EXPECT_EQ(sub.box_lines_before, 2u);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+
+    int c3[2] = {384, 84};
+    ASSERT_EQ(BuildSubstitution("\x05" "NC1_3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    // Joins open Line 2 ("his legs out with my left," = 26 cols) at col 27:
+    EXPECT_EQ(c3[0], 48 + (26 + 1) * 14);
+    EXPECT_EQ(c3[1], 54);
+    EXPECT_EQ(sub.bytes, "and pulled you down on top of myself.");
+    EXPECT_EQ(sub.box_lines_after, 2u);
+    EXPECT_FALSE(sub.truncated);
+
+    // --- Screenshot 2: iMessageCenterNC -> iMessageCenterNC -> iMessageCenter
+    int s2_d1[2] = {48, 24};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, s2_d1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(s2_d1[1], 24) << "fresh cleared box at (48, 24) resets to 0";
+    EXPECT_EQ(sub.box_lines_after, 0u);
+
+    int s2_c1[2] = {216, 66};
+    ASSERT_EQ(BuildSubstitution("\x05" "NC2_1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, s2_c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(s2_c1[0], 48);
+    EXPECT_EQ(s2_c1[1], 24);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+    EXPECT_FALSE(sub.truncated);
+
+    ASSERT_EQ(BuildSubstitution("\n", m, budget, kNcNewlineBox,
+                                DIALOGUE_PANEL, sub, nullptr, box_rect, 30),
+              SubstitutionStatus::EmptyKey);
+
+    int s2_d2[2] = {48, 84};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, s2_d2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(s2_d2[1], 84);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+
+    int s2_c2[2] = {132, 108};
+    ASSERT_EQ(BuildSubstitution("\x05" "NC2_2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, s2_c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    // Joins open Line 2 ("anyone," = 7 cols) at col 8:
+    EXPECT_EQ(s2_c2[0], 48 + (7 + 1) * 14);
+    EXPECT_EQ(s2_c2[1], 54);
+    EXPECT_EQ(sub.box_lines_after, 3u);
+    EXPECT_FALSE(sub.truncated);
+
+    ASSERT_EQ(BuildSubstitution("\n", m, budget, kNcNewlineBox,
+                                DIALOGUE_PANEL, sub, nullptr, box_rect, 30),
+              SubstitutionStatus::EmptyKey);
+
+    int s2_d3[2] = {48, 84};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, s2_d3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(s2_d3[1], 114);
+    EXPECT_EQ(sub.box_lines_after, 3u);
+
+    int s2_c3[2] = {104, 150};
+    ASSERT_EQ(BuildSubstitution("\x05" "NC2_3", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, s2_c3, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    // Joins open Line 3 ("up with me." = 11 cols) at col 12:
+    EXPECT_EQ(s2_c3[0], 48 + (11 + 1) * 14);
+    EXPECT_EQ(s2_c3[1], 84);
+    EXPECT_EQ(sub.box_lines_after, 4u);
+    EXPECT_FALSE(sub.truncated);
+    EXPECT_FALSE(sub.dropped);
+}
+
+TEST(PositionedBox, SaveLoadPreviewResetsMidNoClearBoxWhenNoNewlineFollows) {
+    using translator_logic::DIALOGUE_PANEL;
+    using translator_logic::Surface;
+    // Loading a save created on the segment after *NC (HOOK[161..164] and
+    // HOOK[393..396]) renders 1-line save-slot previews on a derived surface
+    // (Surface{1, false}) and then re-executes iMessage* ("\x81\x40" at
+    // saved cursor_xy=(48, 54)) on a freshly cleared screen WITHOUT the "\n"
+    // no-clear click call.  That load must start at (48, 24), whereas
+    // cancelling the Save/Load menu and clicking through *NC (which emits
+    // "\n") must continue the open box.
+    TranslationMap m;
+    m["SEG1"] = "I thought that if I couldn't make this girl mine,";
+    m["SEG2"] = "then I wanted, rather, to destroy her.";
+
+    BoxLineBudget budget;
+    Substitution sub;
+    const int box_rect[4] = {48, 24, 1024, 150};
+    const Surface kSaveSlotPreview = {1, false};
+    const uintptr_t kPreviewBox = 0xEFEC00;
+    const uintptr_t kNcNewlineBox = 0xEFE958;
+
+    // 1. Open box with SEG1 (*NC).
+    int d1[2] = {48, 24};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    int c1[2] = {244, 24};
+    ASSERT_EQ(BuildSubstitution("\x05" "SEG1", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c1, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.box_lines_after, 1u);
+
+    // 2. Player opens Save/Load menu (renders 1-line preview) and cancels back
+    //    to the game, then clicks to advance past *NC (emits "\n").
+    ASSERT_EQ(BuildSubstitution("\x81\x40" "SEG2", m, budget, kPreviewBox,
+                                kSaveSlotPreview, sub),
+              SubstitutionStatus::Substituted);
+    ASSERT_EQ(BuildSubstitution("\n", m, budget, kNcNewlineBox,
+                                DIALOGUE_PANEL, sub, nullptr, box_rect, 30),
+              SubstitutionStatus::EmptyKey);
+
+    int d2[2] = {48, 54};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(d2[1], 54) << "cancelled menu + *NC click continues open box";
+    EXPECT_EQ(sub.box_lines_after, 1u);
+
+    int c2[2] = {48, 66};
+    ASSERT_EQ(BuildSubstitution("\x05" "SEG2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c2, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub.box_lines_after, 2u);
+
+    // 3. Player opens Load menu (renders 1-line preview) and loads the save
+    //    at SEG2: "\x81\x40" arrives at saved cursor_xy=(48, 54) with NO "\n".
+    ASSERT_EQ(BuildSubstitution("\x81\x40" "SEG2", m, budget, kPreviewBox,
+                                kSaveSlotPreview, sub),
+              SubstitutionStatus::Substituted);
+
+    int d_load[2] = {48, 54};
+    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, d_load, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(d_load[0], 48);
+    EXPECT_EQ(d_load[1], 24) << "save load without *NC newline resets to top";
+    EXPECT_EQ(sub.box_lines_after, 0u);
+
+    int c_load[2] = {48, 66};
+    ASSERT_EQ(BuildSubstitution("\x05" "SEG2", m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub, c_load, box_rect, 30),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(c_load[0], 48);
+    EXPECT_EQ(c_load[1], 24);
+    EXPECT_EQ(sub.box_lines_after, 1u);
+}

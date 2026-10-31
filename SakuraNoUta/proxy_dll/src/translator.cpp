@@ -421,10 +421,18 @@ static DWORD __cdecl HookedTextDisplay(
     // box_id names the drawing context, not an individual box -- consecutive
     // boxes share one; an unprefixed segment starts a fresh count.
     const uintptr_t box_id = SurfaceId(p4, pitch_in);
+    const bool is_dialogue_panel = (pitch_in == DIALOGUE_LINE_PITCH_STOCK);
+    int* cursor_xy = is_dialogue_panel ? reinterpret_cast<int*>(p4) : nullptr;
+    const int* box_rect =
+        is_dialogue_panel ? reinterpret_cast<const int*>(p5) : nullptr;
+    const int orig_cursor_x = cursor_xy ? cursor_xy[0] : 0;
+    const int orig_cursor_y = cursor_xy ? cursor_xy[1] : 0;
+
     translator_logic::Substitution sub;
     translator_logic::SubstitutionStatus status =
-        translator_logic::BuildSubstitution(text, g_translations, g_boxLines,
-                                            box_id, surface, sub);
+        translator_logic::BuildSubstitution(
+            text, g_translations, g_boxLines, box_id, surface, sub,
+            cursor_xy, box_rect, DIALOGUE_LINE_PITCH);
 
     // Derived surfaces only take one-line values that fit the width; anything
     // else is left to the engine.
@@ -502,6 +510,11 @@ static DWORD __cdecl HookedTextDisplay(
                 sub.more_follows ? " and another follows it" : "");
     }
 
+    if (cursor_xy &&
+        (cursor_xy[0] != orig_cursor_x || cursor_xy[1] != orig_cursor_y)) {
+        Log("HOOK[%d]: cursor normalized (%d,%d) -> (%d,%d)",
+            call_n, orig_cursor_x, orig_cursor_y, cursor_xy[0], cursor_xy[1]);
+    }
     Log("HOOK[%d]: HIT subst='%s' tail=%zu box=%p lines=%zu/%zu%s -- BEFORE_TRAMPOLINE",
         call_n, sub.bytes.c_str(), sub.tail, p4,
         sub.box_lines_after, surface_lines,

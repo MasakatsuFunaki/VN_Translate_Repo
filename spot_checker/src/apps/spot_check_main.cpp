@@ -67,6 +67,7 @@ std::string resolve_game_dir(const std::string& game_dir_opt,
 }  // namespace
 
 int main(int argc, char** argv) {
+    SetPriorityClass(GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
     spot_checker::setup_console_utf8();
 
     std::string game_dir_arg;
@@ -74,7 +75,8 @@ int main(int argc, char** argv) {
     std::string mode_arg = "hotspot";
     double z_threshold = 0.0;
     double min_confidence = 0.85;
-    bool review_all_in_window = false;
+    bool review_all_in_window = true;
+    bool lock_non_suspects = false;
     bool include_h_scenes = false;
     bool fix_punctuation = false;
     bool dry_run = false;
@@ -99,7 +101,9 @@ int main(int argc, char** argv) {
         ("min-confidence", po::value(&min_confidence)->default_value(0.85),
          "minimum LLM confidence (0.0-1.0) required to accept a proposed fix")
         ("review-all-in-window", po::bool_switch(&review_all_in_window),
-         "unlock all lines in each window instead of only mathematical suspect lines")
+         "unlock all non-H Japanese lines in each window (enabled by default)")
+        ("lock-non-suspects", po::bool_switch(&lock_non_suspects),
+         "lock lines without C++ regex flags as read-only context")
         ("include-h-scenes", po::bool_switch(&include_h_scenes),
          "include H-scene lines/windows (by default H-scenes are skipped)")
         ("fix-punctuation", po::bool_switch(&fix_punctuation),
@@ -166,7 +170,7 @@ int main(int argc, char** argv) {
     }
     cfg.z_threshold = z_threshold;
     cfg.min_confidence = min_confidence;
-    cfg.review_all_in_window = review_all_in_window;
+    cfg.review_all_in_window = !lock_non_suspects;
     cfg.skip_h_scenes = !include_h_scenes;
     cfg.fix_punctuation = fix_punctuation;
     cfg.auto_apply = !dry_run;

@@ -35,12 +35,28 @@ bool is_hiragana(char32_t cp) {
 
 std::string strip_speaker_prefix_body(const std::string& s) {
     const std::size_t crlf = s.find("\r\n");
-    if (crlf != std::string::npos && crlf <= 35) {
-        const std::string prefix = s.substr(0, crlf);
-        if (!prefix.empty() && prefix.front() != '"' && prefix.front() != '\'' &&
-            prefix.find("「") == std::string::npos &&
-            prefix.find("『") == std::string::npos) {
-            return trim(s.substr(crlf + 2));
+    if (crlf != std::string::npos && crlf > 0 && crlf <= 35) {
+        const std::string rest = trim(s.substr(crlf + 2));
+        if (!rest.empty()) {
+            const char r0 = rest.front();
+            const bool valid_body_open =
+                (r0 == '"' || r0 == '\'' || r0 == '(' || r0 == '*') ||
+                rest.rfind("「", 0) == 0 || rest.rfind("『", 0) == 0 ||
+                rest.rfind("（", 0) == 0;
+            const std::string prefix = trim(s.substr(0, crlf));
+            bool clean_prefix = !prefix.empty() && utf8_char_len(prefix) <= 20;
+            for (char c : prefix) {
+                if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
+                    c == ':' || c == '!' || c == '[' || c == '(') {
+                    clean_prefix = false;
+                    break;
+                }
+            }
+            if (valid_body_open && clean_prefix &&
+                prefix.rfind("「", 0) != 0 && prefix.rfind("『", 0) != 0 &&
+                prefix.rfind("　", 0) != 0 && prefix.rfind("（", 0) != 0) {
+                return rest;
+            }
         }
     }
     return trim(s);
@@ -489,10 +505,9 @@ struct HotspotDetector::Impl {
 
         // 4. Volansky et al. (2015) / Koppel & Ordan (2011) Translationese,
         //    Yule's K Repetition, Entropy & Westernization/Bowdlerization
-        for (const char* awkward : {"as for ", "concerning ", "with regards to ",
+        for (const char* awkward : {"as for ", "with regards to ",
                                     "regarding the fact", "it cannot be helped that",
-                                    "is it not that ", "is it not being ", "it is that ",
-                                    "the fact that "}) {
+                                    "is it not that ", "is it not being ", "it is that "}) {
             if (contains_ci(lower_en, awkward)) {
                 sc.style_score += 2.5;
             }

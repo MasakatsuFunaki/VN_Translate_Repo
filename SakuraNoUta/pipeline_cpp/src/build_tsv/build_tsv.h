@@ -31,6 +31,11 @@ std::string normalize_leading_space(const std::string& jp, const std::string& en
 // Only applied where the JP carries the term, and only at word boundaries.
 std::string apply_pinned_terms(const std::string& jp, const std::string& en);
 
+// Produce the exact English string written to translations.tsv for a (jp, en)
+// pair after term pinning, ruby markup stripping, leading-space alignment, and
+// internal line-break flowing.
+std::string shipped_english(const std::string& jp, const std::string& en);
+
 int run_build(const std::string& translated_file, const std::string& out_tsv,
               bool include_untranslated);
 

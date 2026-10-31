@@ -119,6 +119,55 @@ TEST(Extract, walker_classifies_name_dialogue_narrative) {
     EXPECT_FALSE(entries[2].speaker.has_value());
 }
 
+TEST(Extract, walker_classifies_yuzu_2g_positioned_message_helpers) {
+    ScriptBuilder sb;
+    const std::uint32_t code_size = 24 * 4;
+    std::size_t a_empty = sb.add_string("");
+    std::size_t a_fn1   = sb.add_string("iMessageLeftIg");
+    std::size_t a_fn2   = sb.add_string("MessageCenter");
+    std::size_t a_line1 = sb.add_string("ガゼルのその愛くるしい瞳も、その美しい毛並みも、");
+    std::size_t a_spk   = sb.add_string("直哉");
+    std::size_t a_line2 = sb.add_string("外見など、彼にとってはただ肉と血の詰まった袋でしかない。");
+    auto ref = [&](std::size_t addr) { return code_size + static_cast<std::uint32_t>(addr); };
+
+    sb.code = {
+        0,                            // d0
+        // Call 1: iMessageLeftIg(y_row=0, ruby_bytes=0, speaker="", text=a_line1)
+        3, ref(a_line1),              // d1 marker, d2 text_addr (pos 8)
+        3, ref(a_empty),              // d3 marker, d4 speaker_addr ("")
+        0, 0,                         // d5 marker, d6 ruby_bytes = 0
+        0, 0,                         // d7 marker, d8 y_row = 0
+        3, ref(a_fn1),                // d9 marker, d10 func_name_addr
+        0x1C,                         // d11 = CALL_FCN (0x1C) at pos + 0x24
+        // Call 2: MessageCenter(y_row=2, ruby_bytes=0, speaker="直哉", text=a_line2)
+        3, ref(a_line2),              // d12 marker, d13 text_addr (pos 52)
+        3, ref(a_spk),                // d14 marker, d15 speaker_addr ("直哉")
+        0, 0,                         // d16 marker, d17 ruby_bytes = 0
+        0, 2,                         // d18 marker, d19 y_row = 2
+        3, ref(a_fn2),                // d20 marker, d21 func_name_addr
+        0x1C,                         // d22 = CALL_FCN (0x1C) at pos + 0x24
+        0x1B,                         // d23: section boundary marker
+    };
+    ASSERT_EQ(sb.code.size(), 24u);
+
+    auto result = ext::extract_one(sb.build());
+    ASSERT_TRUE(result.has_value());
+    const auto& entries = *result;
+    ASSERT_EQ(entries.size(), 3u);
+
+    EXPECT_EQ(entries[0].type, "narrative");
+    EXPECT_EQ(entries[0].text, "ガゼルのその愛くるしい瞳も、その美しい毛並みも、");
+    EXPECT_FALSE(entries[0].speaker.has_value());
+
+    EXPECT_EQ(entries[1].type, "dialogue");
+    EXPECT_EQ(entries[1].text, "外見など、彼にとってはただ肉と血の詰まった袋でしかない。");
+    ASSERT_TRUE(entries[1].speaker.has_value());
+    EXPECT_EQ(*entries[1].speaker, "直哉");
+
+    EXPECT_EQ(entries[2].type, "name");
+    EXPECT_EQ(entries[2].text, "直哉");
+}
+
 // Backlog-only strings survive the walk; echoes of message-function lines stay suppressed.
 TEST(Extract, walker_keeps_backlog_only_strings_and_drops_echoes) {
     ScriptBuilder sb;

@@ -86,7 +86,7 @@ struct SpotCheckConfig {
     SpotCheckMode mode = SpotCheckMode::Hotspot;
     double z_threshold = 1.5;
     double min_confidence = 0.85;
-    bool review_all_in_window = false;  // false = lock non-suspect lines as read-only
+    bool review_all_in_window = true;   // true = unlock all non-H Japanese lines in window
     bool skip_h_scenes = true;          // Skip explicit H-scene lines and windows by default
     bool fix_punctuation = false;       // Do not fix punctuation/brackets/parentheses by default
     bool auto_apply = true;             // Checkpoint-apply fixes to translated_text.json & caches
@@ -161,7 +161,7 @@ WindowSlice build_window_slice(const std::vector<ScriptEntry>& entries,
 // skip_h_scenes is true or passthrough/non-JP lines.
 std::set<int> compute_editable_ids(const WindowSlice& slice,
                                    const std::vector<LineWeaknessScore>& novel_scores,
-                                   bool review_all_in_window = false,
+                                   bool review_all_in_window = true,
                                    bool skip_h_scenes = true,
                                    const std::set<std::size_t>& repaired_indices = {});
 

@@ -369,6 +369,7 @@ TEST(SpotCheckerSystemTests, SystemTest3_TwoPassIdempotencyZeroChurnConvergence)
     cfg.window_size = 4;
     cfg.max_windows = 1;
     cfg.auto_apply = false;
+    cfg.review_all_in_window = false;
 
     // Pass 1: Mock LLM fixes the 2 defective lines (IDs 2 and 3)
     int api_calls_pass1 = 0;
@@ -1091,4 +1092,223 @@ TEST(SpotCheckerSystemTests, SystemTest10_MultiRunCheckedOffsetsAndRepairedLineL
         ws, {}, /*review_all_in_window=*/true, /*skip_h_scenes=*/true, repaired_set);
     EXPECT_EQ(unlocked.count(1), 0u);  // global_index 5 is locked because it was already repaired!
     EXPECT_EQ(unlocked.count(2), 1u);
+}
+
+// ============================================================================
+// System Test 11: Full-Window Review Unlocks All 40 Lines, Single-Line CRLF
+// Guard, and Runaway Repetition Loop H-Scene Exemption
+// ============================================================================
+
+TEST(SpotCheckerSystemTests,
+     SystemTest11_FullWindowReviewSingleLineCrlfAndRunawayRegression) {
+    // 1. Single-line strings ending with \r\n must NOT be treated as Speaker\r\n prefixes
+    //    (which previously duplicated the line), and punctuation-only swaps on them
+    //    must be rejected when fix_punctuation == false:
+    const ScriptEntry single_crlf = make_entry(
+        0, "", ".■ウインドウ表示■\r\n", "■ Window Display ■\r\n");
+    const WindowSlice s1 = build_window_slice({single_crlf}, 0, 1, 0, 0);
+    const auto parsed_punc = parse_spot_check_response(
+        R"([{"id": 1, "new_en": "-- Window Display --\r\n", "category": "artifact_or_note", "confidence": 0.99, "reason": "ascii"}])",
+        s1, 0.85, {}, {}, nullptr, /*fix_punctuation=*/false);
+    EXPECT_TRUE(parsed_punc.empty());
+
+    // 2. Runaway repetition loop (>500 chars and >4x JP length) must NOT be skipped
+    //    by is_h_scene_line, and compressing it must pass validate_proposed_fix even
+    //    when error_span is a short prefix of the repeated characters:
+    const std::string runaway_en =
+        "Miyaka\r\n\"A" + std::string(1000, 'a') + "\r\n";
+    const std::string jp_scream =
+        "美弥香\r\n「ああああああああああああああああああああッッ！！！」\r\n";
+    EXPECT_FALSE(is_h_scene_line(jp_scream, runaway_en));
+    const ScriptEntry runaway_entry = make_entry(1, "Miyaka", jp_scream, runaway_en);
+    const ValidationResult v_runaway = validate_proposed_fix(
+        runaway_entry,
+        "Miyaka\r\n\"Aaaaaaaaaaaaaaaaaaaaaaahhh!!!\"\r\n",
+        {},
+        {},
+        "Aaaaaaaaaaa",
+        /*fix_punctuation=*/false);
+    EXPECT_TRUE(v_runaway.accepted) << v_runaway.rejection_reason;
+
+    // 3. When review_all_in_window == true (CLI default), all 40 non-H Japanese lines
+    //    in a 40-line window are unlocked (unlocked == 40, NOT unlocked == 3), allowing
+    //    semantic mistranslations on lines with raw_total == 0.0 to be repaired:
+    std::vector<ScriptEntry> win_entries;
+    for (std::size_t i = 0; i < 40; ++i) {
+        win_entries.push_back(make_entry(
+            i, "Ren", "レン\r\n「父はどこですか？」\r\n", "Ren\r\n\"Where is the elder?\"\r\n"));
+    }
+    const WindowSlice full_ws = build_window_slice(win_entries, 0, 40, 0, 0);
+    HotspotDetector det;
+    const auto scores = det.score_entries(win_entries);
+    const std::set<int> unlocked_all = compute_editable_ids(
+        full_ws, scores, /*review_all_in_window=*/true, /*skip_h_scenes=*/true);
+    EXPECT_EQ(unlocked_all.size(), 40u);
+
+    // 4. Glossary pronoun substitution and speaker-header exclusion:
+    //    Replacing a repeated character name ("Misato") with a pronoun ("she") or
+    //    omitting the speaker's own name inside their spoken dialogue must be ACCEPTED:
+    const ScriptEntry pronoun_entry = make_entry(
+        10, "Taichi", "「見里先輩は屋上にいる」", "\"Misato-senpai is on the roof.\"");
+    const ValidationResult v_pronoun = validate_proposed_fix(
+        pronoun_entry, "\"She is waiting on the rooftop.\"", {{"見里", "Misato"}});
+    EXPECT_TRUE(v_pronoun.accepted) << v_pronoun.rejection_reason;
+
+    // 5. build_system_prompt strips initial translator <formatting_rules> blocks so
+    //    they cannot conflict with spot_checker's Speaker\r\n preservation:
+    const std::string sys_stripped = build_system_prompt(
+        "Tone guide.\n<formatting_rules>\nDrop speaker name.\n</formatting_rules>\nGlossary.");
+    EXPECT_EQ(sys_stripped.find("Drop speaker name"), std::string::npos);
+    EXPECT_NE(sys_stripped.find("Tone guide."), std::string::npos);
+}
+
+// ============================================================================
+// System Test 12: Live API End-to-End Test on Known Corrupted Synthetic Novel
+// (Burns 1 real gemini-4-argon API call to verify real LLM detection & fixes)
+// ============================================================================
+
+TEST(SpotCheckerSystemTests, SystemTest12_LiveApiEndToEndOnSyntheticCorruptedNovel) {
+    const std::string api_key = load_gemini_api_key();
+    if (api_key.empty()) {
+        GTEST_SKIP() << "Skipping live API test: GEMINI_API_KEY not configured";
+    }
+
+    TempDir tmp;
+    write_file((tmp.path() / "TONE.md").u8string(),
+               "# Characters\n"
+               "- Ren (レン): Calm male protagonist.\n"
+               "- Miyaka (美弥香): Gentle heroine.\n"
+               "- Kyou (狂): Dangerous female antagonist. Always use she/her pronouns.\n");
+
+    const std::string runaway_scream =
+        "Miyaka\r\n\"A" + std::string(1200, 'a') + "\r\n";
+
+    const bj::array strings_arr = {
+        // 0: Clean dialogue line (must NOT be modified)
+        bj::object{
+            {"index", 0},
+            {"type", "dialogue"},
+            {"text", "レン\r\n「静かな夜ですね。少し休みましょうか」\r\n"},
+            {"translated", "Ren\r\n\"It's a quiet night. Shall we rest for a bit?\"\r\n"},
+        },
+        // 1: Symbol-only passthrough line (must NEVER be unlocked or modified)
+        bj::object{
+            {"index", 1},
+            {"type", "dialogue"},
+            {"text", "美弥香\r\n「？」\r\n"},
+            {"translated", "Miyaka\r\n「？」\r\n"},
+        },
+        // 2: Single-line header ending in \r\n (must NOT be duplicated as Speaker\r\n)
+        bj::object{
+            {"index", 2},
+            {"type", "dialogue"},
+            {"text", ".■ウインドウ表示■\r\n"},
+            {"translated", "■ Window Display ■\r\n"},
+        },
+        // 3: Semantic mistranslation with ZERO C++ regex score ("father" -> "hospital")
+        //    Tests that review_all_in_window=true (default) unlocks and fixes it!
+        bj::object{
+            {"index", 3},
+            {"type", "dialogue"},
+            {"text", "レン\r\n「父はどこですか？」\r\n"},
+            {"translated", "Ren\r\n\"Where is the hospital?\"\r\n"},
+        },
+        // 4: Misgendered pronoun ("he/his" instead of "she/her" for Kyou) with ZERO regex score
+        bj::object{
+            {"index", 4},
+            {"type", "narrative"},
+            {"text", "狂は不気味に笑いながら、右手に蟲筒を握り締めていた。\r\n"},
+            {"translated", "Smiling eerily, he gripped a Bug tube in his right hand.\r\n"},
+        },
+        // 5: 2-line narrative with a short first line (<= 20 chars) + inverted meaning ("everyone" vs "no one")
+        //    Tests that normalize_restored_translation does NOT prepend "Even if you wait,\r\n" as a speaker!
+        bj::object{
+            {"index", 5},
+            {"type", "narrative"},
+            {"text", "たとえ待っていても、\r\n誰も助けには来なかった。\r\n"},
+            {"translated", "Even if you wait,\r\neveryone came to help.\r\n"},
+        },
+        // 6: Runaway 1,200-char LLM repetition loop missing closing quote
+        bj::object{
+            {"index", 6},
+            {"type", "dialogue"},
+            {"text", "美弥香\r\n「ああああああああああああああああああああッッ！！！」\r\n"},
+            {"translated", runaway_scream},
+        },
+    };
+
+    const std::string translated_path =
+        (tmp.path() / "script_output" / "translated_text.json").u8string();
+    write_file(translated_path,
+               json_pretty(bj::value(bj::object{
+                               {"s100.spt", bj::object{{"strings", strings_arr}}}}),
+                           2));
+
+    SpotCheckConfig cfg;
+    cfg.game_dir = tmp.str();
+    cfg.mode = SpotCheckMode::Hotspot;
+    cfg.window_size = 10;
+    cfg.max_windows = 1;
+    cfg.z_threshold = 0.0;
+    cfg.radar_calls = 0;  // 1 direct Stage-2 live API call on the window
+
+    // Verify default config has review_all_in_window == true!
+    EXPECT_TRUE(cfg.review_all_in_window);
+
+    SpotChecker live_checker(cfg);
+    SpotCheckReport rep;
+    try {
+        rep = live_checker.run();
+    } catch (const std::exception& ex) {
+        const std::string msg = ex.what();
+        if (msg.find("HTTP 429") != std::string::npos ||
+            msg.find("RESOURCE_EXHAUSTED") != std::string::npos) {
+            GTEST_SKIP() << "Skipping live API test due to API quota/spend cap: "
+                         << msg;
+        }
+        throw;
+    }
+
+    EXPECT_EQ(rep.windows_checked, 1u);
+    // Out of 7 entries, entry 1 ("「？」") is a symbol passthrough -> 6 unlocked lines!
+    EXPECT_EQ(rep.editable_lines_unlocked, 6u);
+    EXPECT_GE(rep.improvements_found, 4u);
+
+    const bj::value updated_root = json_parse_file(translated_path);
+    const auto& out_arr =
+        updated_root.as_object().at("s100.spt").as_object().at("strings").as_array();
+
+    // Index 0 (clean) and Index 1 (symbol passthrough) and Index 2 (■ Window Display ■) untouched:
+    EXPECT_EQ(out_arr[0].as_object().at("translated").as_string(),
+              "Ren\r\n\"It's a quiet night. Shall we rest for a bit?\"\r\n");
+    EXPECT_EQ(out_arr[1].as_object().at("translated").as_string(),
+              "Miyaka\r\n「？」\r\n");
+    EXPECT_EQ(out_arr[2].as_object().at("translated").as_string(),
+              "■ Window Display ■\r\n");
+
+    // Index 3 ("父はどこですか？" -> must fix "hospital" to "father"/"Father" and keep "Ren\r\n"):
+    const std::string fixed_3(out_arr[3].as_object().at("translated").as_string());
+    EXPECT_EQ(fixed_3.rfind("Ren\r\n\"", 0), 0u) << "Fixed 3: " << fixed_3;
+    EXPECT_EQ(fixed_3.find("hospital"), std::string::npos) << "Fixed 3: " << fixed_3;
+
+    // Index 4 (Kyou gender -> must fix "he"/"his" to female pronoun "she"/"her"):
+    const std::string fixed_4(out_arr[4].as_object().at("translated").as_string());
+    EXPECT_EQ(fixed_4.find(" he "), std::string::npos) << "Fixed 4: " << fixed_4;
+    EXPECT_EQ(fixed_4.find(" his "), std::string::npos) << "Fixed 4: " << fixed_4;
+    EXPECT_TRUE(fixed_4.find("she") != std::string::npos ||
+                fixed_4.find("She") != std::string::npos ||
+                fixed_4.find("her") != std::string::npos ||
+                fixed_4.find("Her") != std::string::npos)
+        << "Fixed 4: " << fixed_4;
+
+    // Index 5 (2-line narrative -> must fix "everyone came" to "no one came" WITHOUT duplicating first line):
+    const std::string fixed_5(out_arr[5].as_object().at("translated").as_string());
+    EXPECT_EQ(fixed_5.find("everyone"), std::string::npos) << "Fixed 5: " << fixed_5;
+    EXPECT_EQ(fixed_5.find("Even if you wait,\r\nEven if"), std::string::npos)
+        << "Fixed 5 duplicated first line: " << fixed_5;
+
+    // Index 6 (1,200-char runaway loop -> must be compressed < 200 chars with "Miyaka\r\n\""):
+    const std::string fixed_6(out_arr[6].as_object().at("translated").as_string());
+    EXPECT_EQ(fixed_6.rfind("Miyaka\r\n\"", 0), 0u) << "Fixed 6: " << fixed_6;
+    EXPECT_LT(fixed_6.size(), 200u) << "Fixed 6 length: " << fixed_6.size();
 }

@@ -750,6 +750,12 @@ struct BoxLineBudget::Impl {
         std::string last_wire;    // that segment's full wire buffer
         bool        has_last = false;
         bool        open = false;
+        bool        positioned = false;   // opened by iMessage* ("\x81\x40")
+        bool        redraw_pass = false;  // msgwndctrl._bp redraw (no 0x05)
+        int         last_raw_x = -1;
+        int         last_raw_y = -1;
+        int         before_last_raw_x = -1;
+        int         before_last_raw_y = -1;
         bool        used = false;
     };
 
@@ -757,6 +763,7 @@ struct BoxLineBudget::Impl {
     static const size_t kSlots = 8;
     Box   slots[kSlots];
     size_t next = 0;
+    bool  saw_save_load_preview = false;
 
     Box& Find(uintptr_t id) {
         for (Box& b : slots)
@@ -767,6 +774,21 @@ struct BoxLineBudget::Impl {
         b.id = id;
         b.used = true;
         return b;
+    }
+
+    void OpenPositioned(uintptr_t id, const char* wire) {
+        Box& b = Find(id);
+        b.state = BoxState();
+        b.before_last = b.state;
+        b.last_wire = wire ? wire : "";
+        b.has_last = wire != nullptr;
+        b.open = true;
+        b.positioned = true;
+        b.redraw_pass = false;
+        b.last_raw_x = -1;
+        b.last_raw_y = -1;
+        b.before_last_raw_x = -1;
+        b.before_last_raw_y = -1;
     }
 };
 
@@ -783,7 +805,11 @@ BoxState BoxLineBudget::Begin(uintptr_t box, bool continues,
         b.state = b.before_last;
         return b.state;
     }
-    if (!continues || !b.open) b.state = BoxState();
+    if (!continues || !b.open) {
+        b.state = BoxState();
+        b.positioned = false;
+        b.redraw_pass = false;
+    }
     b.before_last = b.state;
     b.last_wire = wire ? wire : "";
     b.has_last = wire != nullptr;
@@ -795,16 +821,220 @@ void BoxLineBudget::Commit(uintptr_t box, const BoxState& state,
     Impl::Box& b = impl_->Find(box);
     b.state = state;
     b.open = stays_open;
+    if (!stays_open) {
+        b.positioned = false;
+        b.redraw_pass = false;
+    }
+}
+
+BoxState BoxLineBudget::BeginPositionedBox(uintptr_t box, const char* wire,
+                                           const int* cursor_xy,
+                                           int left_x, int top_y) {
+    Impl::Box& b = impl_->Find(box);
+    const bool cursor_not_at_top_left =
+        cursor_xy != nullptr &&
+        (cursor_xy[0] != left_x || cursor_xy[1] != top_y);
+    if (cursor_not_at_top_left && b.positioned && b.open &&
+        b.state.lines > 0 && !impl_->saw_save_load_preview) {
+        b.before_last = b.state;
+        b.last_wire = wire ? wire : "";
+        b.has_last = wire != nullptr;
+        b.redraw_pass = false;
+        return b.state;
+    }
+    impl_->saw_save_load_preview = false;
+    impl_->OpenPositioned(box, wire);
+    return b.state;
+}
+
+void BoxLineBudget::NoteNoClearNewline() {
+    impl_->saw_save_load_preview = false;
+}
+
+void BoxLineBudget::NoteSaveLoadPreview() {
+    impl_->saw_save_load_preview = true;
+}
+
+BoxState BoxLineBudget::BeginSegment(uintptr_t box, bool has_prefix,
+                                     const char* wire, const int* cursor_xy,
+                                     int left_x, int top_y, bool flows,
+                                     bool& out_is_positioned,
+                                     bool& out_keep_positioned) {
+    out_is_positioned = false;
+    out_keep_positioned = false;
+
+    const int raw_x = cursor_xy ? cursor_xy[0] : left_x;
+    const int raw_y = cursor_xy ? cursor_xy[1] : top_y;
+
+    if (!flows) return Begin(box, has_prefix, wire);
+
+    Impl::Box& b = impl_->Find(box);
+    if (b.positioned && b.open) {
+        const bool is_rerender =
+            b.has_last && wire && b.last_wire == wire &&
+            (!cursor_xy || (raw_x == b.last_raw_x && raw_y == b.last_raw_y));
+        if (is_rerender) {
+            b.state = b.before_last;
+            out_is_positioned = true;
+            out_keep_positioned = true;
+            return b.state;
+        }
+        bool continues_pos = false;
+        if (b.state.lines == 0) {
+            continues_pos = true;
+            b.redraw_pass = !has_prefix;
+        } else if (!b.redraw_pass) {
+            continues_pos = has_prefix;
+        } else {
+            continues_pos =
+                !has_prefix && cursor_xy != nullptr && b.last_raw_y >= 0 &&
+                (raw_y > b.last_raw_y ||
+                 (raw_y == b.last_raw_y && raw_x > b.last_raw_x));
+        }
+        if (continues_pos) {
+            b.before_last = b.state;
+            b.before_last_raw_x = b.last_raw_x;
+            b.before_last_raw_y = b.last_raw_y;
+            b.last_wire = wire ? wire : "";
+            b.has_last = wire != nullptr;
+            b.last_raw_x = raw_x;
+            b.last_raw_y = raw_y;
+            out_is_positioned = true;
+            out_keep_positioned = true;
+            return b.state;
+        }
+        b.positioned = false;
+        b.redraw_pass = false;
+        b.open = false;
+        b.state = BoxState();
+        b.last_raw_x = -1;
+        b.last_raw_y = -1;
+    }
+
+    if (!has_prefix && cursor_xy != nullptr &&
+        (raw_x != left_x || raw_y != top_y)) {
+        // Standalone SET_CURSOR segment (e.g. MessageCenter without iMessage*).
+        b.state = BoxState();
+        b.before_last = b.state;
+        b.before_last_raw_x = -1;
+        b.before_last_raw_y = -1;
+        b.last_wire = wire ? wire : "";
+        b.has_last = wire != nullptr;
+        b.last_raw_x = raw_x;
+        b.last_raw_y = raw_y;
+        out_is_positioned = true;
+        out_keep_positioned = false;
+        return b.state;
+    }
+
+    return Begin(box, has_prefix, wire);
+}
+
+void BoxLineBudget::CommitSegment(uintptr_t box, const BoxState& state,
+                                  bool stays_open, bool keep_positioned) {
+    if (keep_positioned) {
+        Impl::Box& b = impl_->Find(box);
+        b.state = state;
+        b.open = true;
+        b.positioned = true;
+    } else {
+        Commit(box, state, stays_open);
+    }
 }
 
 void BoxLineBudget::Clear() {
     for (Impl::Box& b : impl_->slots) b = Impl::Box();
     impl_->next = 0;
+    impl_->saw_save_load_preview = false;
 }
 
 // --- Substitution ----------------------------------------------------
 
 namespace {
+
+// Look up `effective` in `translations` with fallbacks for yuzu_2g / backlog:
+// 1. Exact match on (effective, len) or (effective, key_len).
+// 2. Strip leading CP932 fullwidth space "\x81\x40" (logwnd._bp concatenates
+//    the dummy "　" segment from iMessage* before the real text).
+// 3. Greedy multi-segment prefix decomposition (logwnd._bp concatenates all
+//    segments of a multi-call yuzu_2g box into a single string).
+bool LookupTranslation(const char* effective, size_t len, size_t key_len,
+                       const TranslationMap& translations,
+                       std::string& out_value) {
+    auto it = translations.find(std::string(effective, len));
+    if (it == translations.end() && key_len != len)
+        it = translations.find(std::string(effective, key_len));
+    if (it != translations.end()) {
+        out_value = it->second;
+        return true;
+    }
+
+    auto starts_with_fw_space = [](const char* s, size_t n) {
+        return n > 2 &&
+               static_cast<unsigned char>(s[0]) == 0x81 &&
+               static_cast<unsigned char>(s[1]) == 0x40;
+    };
+
+    if (starts_with_fw_space(effective, key_len)) {
+        it = translations.find(std::string(effective + 2, len - 2));
+        if (it == translations.end() && key_len != len)
+            it = translations.find(std::string(effective + 2, key_len - 2));
+        if (it != translations.end()) {
+            out_value = it->second;
+            return true;
+        }
+    }
+
+    // Multi-segment backlog concatenation fallback.
+    const char* cur = effective;
+    size_t rem = key_len;
+    if (starts_with_fw_space(cur, rem)) {
+        cur += 2;
+        rem -= 2;
+    }
+    std::string joined;
+    size_t segments_matched = 0;
+    const size_t kMaxConcatSegments = 8;
+    while (rem > 0 && segments_matched < kMaxConcatSegments) {
+        if (starts_with_fw_space(cur, rem)) {
+            cur += 2;
+            rem -= 2;
+            if (rem == 0) break;
+        }
+        size_t best_len = 0;
+        const std::string* best_val = nullptr;
+        for (size_t pos = 0; pos < rem; ) {
+            unsigned char b = static_cast<unsigned char>(cur[pos]);
+            size_t w = (IsCp932LeadByte(b) && pos + 1 < rem) ? 2 : 1;
+            pos += w;
+            auto seg_it = translations.find(std::string(cur, pos));
+            if (seg_it != translations.end()) {
+                best_len = pos;
+                best_val = &seg_it->second;
+            }
+        }
+        if (!best_val || best_len == 0) {
+            segments_matched = 0;
+            break;
+        }
+        std::string part = *best_val;
+        while (!part.empty() && (part.back() == '\n' || part.back() == '\r'))
+            part.pop_back();
+        if (!part.empty()) {
+            if (!joined.empty() && joined.back() != ' ' && part.front() != ' ')
+                joined += ' ';
+            joined += part;
+        }
+        cur += best_len;
+        rem -= best_len;
+        ++segments_matched;
+    }
+    if (segments_matched >= 2 && rem == 0 && !joined.empty()) {
+        out_value = std::move(joined);
+        return true;
+    }
+    return false;
+}
 
 // --- what the engine draws for a buffer it renders itself --------------
 
@@ -916,7 +1146,10 @@ size_t EngineDrawnLines(const char* text, size_t len, size_t reserved_columns) {
 SubstitutionStatus Build(const char* wire_text,
                          const TranslationMap& translations,
                          BoxLineBudget* budget, uintptr_t box,
-                         const Surface& surface, Substitution& out) {
+                         const Surface& surface, Substitution& out,
+                         int* cursor_xy = nullptr,
+                         const int* box_rect = nullptr,
+                         int line_pitch = DIALOGUE_LINE_PITCH_PX) {
     const size_t surface_lines = surface.lines;
     out = Substitution();
     if (!wire_text) return SubstitutionStatus::EmptyKey;
@@ -944,15 +1177,66 @@ SubstitutionStatus Build(const char* wire_text,
         return SubstitutionStatus::EmptyKey;
     }
 
-    // Prefixed segments lose CHAIN_INDENT columns to the engine's indent.
-    const size_t reserved = has_prefix ? CHAIN_INDENT : 0;
+    const int left_x   = box_rect ? box_rect[0] : DIALOGUE_BOX_LEFT_X;
+    const int top_y    = box_rect ? box_rect[1] : DIALOGUE_BOX_TOP_Y;
+    const int pitch_px = line_pitch > 0 ? line_pitch : DIALOGUE_LINE_PITCH_PX;
+    const int raw_x    = cursor_xy ? cursor_xy[0] : left_x;
+    const int raw_y    = cursor_xy ? cursor_xy[1] : top_y;
+
+    // yuzu_2g's iMessage* helpers open every positioned box with a dummy
+    // op140(0, 0, 0, speaker, "　") ("\x81\x40") at (48, 24) before calling
+    // SET_CURSOR (0x146) and op140(1, ...) for the actual segments.
+    // After a *NC ("No Clear") wait, the next iMessage* helper emits "\x81\x40"
+    // without clearing the box, so cursor_xy arrives below top_y (e.g. (48, 54)
+    // or (48, 84)) and continues the already-open positioned box.
+    const bool is_dummy_fw_space =
+        surface.flows && !has_prefix && out.tail == 0 && key_len == 2 &&
+        static_cast<unsigned char>(effective[0]) == 0x81 &&
+        static_cast<unsigned char>(effective[1]) == 0x40 &&
+        translations.find(std::string(effective, key_len)) == translations.end();
+    if (is_dummy_fw_space) {
+        BoxState pos_st;
+        if (budget) {
+            pos_st = budget->BeginPositionedBox(box, wire_text, cursor_xy,
+                                                left_x, top_y);
+        }
+        if (cursor_xy) {
+            cursor_xy[0] = left_x;
+            cursor_xy[1] = top_y + static_cast<int>(pos_st.lines) * pitch_px;
+        }
+        out.bytes.clear();
+        out.lines = 0;
+        out.more_follows = true;
+        out.box_lines_before = pos_st.lines;
+        out.box_lines_after = pos_st.lines;
+        return SubstitutionStatus::Substituted;
+    }
+
+    if (budget && !surface.flows && surface_lines == 1) {
+        budget->NoteSaveLoadPreview();
+    }
 
     const bool flow = surface.flows && budget != nullptr;
+    bool is_positioned = false;
+    bool keep_positioned = false;
     BoxState st;
-    if (budget) st = budget->Begin(box, has_prefix, wire_text);
+
+    if (budget) {
+        st = budget->BeginSegment(box, has_prefix, wire_text, cursor_xy,
+                                  left_x, top_y, surface.flows,
+                                  is_positioned, keep_positioned);
+    } else if (surface.flows && !has_prefix && cursor_xy != nullptr &&
+               (raw_x != left_x || raw_y != top_y)) {
+        is_positioned = true;
+    }
+
+    // Positioned segments strip the bogus 0x05 prefix induced by "\x81\x40",
+    // reclaiming the full 71-column width and left margin.
+    const size_t reserved = (has_prefix && !is_positioned) ? CHAIN_INDENT : 0;
+
     const size_t used = st.lines;
-    // A continuation keeps filling the line its box left open.
-    const bool joins_line = flow && has_prefix && st.line_open;
+    // A normal continuation keeps filling the line its box left open.
+    const bool joins_line = flow && !is_positioned && has_prefix && st.line_open;
     const size_t start_col = joins_line ? st.column : 0;
     const size_t avail = used >= surface_lines ? 0 : surface_lines - used;
     out.box_lines_before = used;
@@ -966,21 +1250,22 @@ SubstitutionStatus Build(const char* wire_text,
             next.lines = used + added;
             next.column = column;
             next.line_open = line_open;
-            budget->Commit(box, next, out.more_follows);
+            budget->CommitSegment(box, next, out.more_follows, keep_positioned);
         }
     };
 
     if (key_len == 0) {
+        if (budget && surface.flows && !has_prefix && out.tail > 0) {
+            budget->NoteNoClearNewline();
+        }
         // Control bytes only: the break ends the open line, or draws a blank
         // one when no line was open.
         commit(flow && st.line_open ? 0 : 1, 0, false);
         return SubstitutionStatus::EmptyKey;
     }
 
-    auto it = translations.find(std::string(effective, len));
-    if (it == translations.end() && key_len != len)
-        it = translations.find(std::string(effective, key_len));
-    if (it == translations.end()) {
+    std::string value;
+    if (!LookupTranslation(effective, len, key_len, translations, value)) {
         // Miss: strip furigana (would overlap at this pitch); otherwise leave
         // the engine's own buffer alone.
         const std::string wire(effective, len);
@@ -993,6 +1278,76 @@ SubstitutionStatus Build(const char* wire_text,
         return SubstitutionStatus::NotFound;
     }
 
+    // Strip value's trailing breaks; the wire's own 0x0A chains the box.
+    while (!value.empty() && (value.back() == '\n' || value.back() == '\r'))
+        value.pop_back();
+
+    if (is_positioned) {
+        // SET_CURSOR-positioned segment (yuzu_2g): flow multi-segment boxes as
+        // a continuous paragraph by joining the open line with a 1-column space
+        // gap when room remains, or start a fresh left-aligned 30 px row when
+        // opening the box (or when the previous line filled all 71 columns).
+        const bool can_join_open =
+            used > 0 && st.line_open && st.column + 2 <= SINGLE_LINE_MAX;
+
+        if (avail == 0 && !can_join_open) {
+            out.dropped = true;
+            out.truncated = true;
+            out.bytes.append(effective + key_len, out.tail);
+            commit(0, 0, false);
+            return SubstitutionStatus::Substituted;
+        }
+
+        bool join_open = can_join_open;
+        WrappedText wrapped =
+            join_open
+                ? WrapForMessageBox(value, avail + 1, 0, st.column + 1, true)
+                : WrapForMessageBox(value, avail, 0, 0, false);
+
+        if (join_open && !wrapped.text.empty() && wrapped.text[0] == '\n') {
+            // The first word was wider than the open line's remaining columns,
+            // so WrapForMessageBox moved the entire segment to the next row.
+            wrapped.text.erase(0, 1);
+            if (wrapped.lines > 0) --wrapped.lines;
+            join_open = false;
+        }
+
+        if (cursor_xy) {
+            if (join_open) {
+                cursor_xy[0] = left_x +
+                               static_cast<int>(st.column + 1) * HALFWIDTH_GLYPH_PX;
+                cursor_xy[1] = top_y + static_cast<int>(used - 1) * pitch_px;
+            } else {
+                cursor_xy[0] = left_x;
+                cursor_xy[1] = top_y + static_cast<int>(used) * pitch_px;
+            }
+        } else if (join_open) {
+            out.bytes += ' ';
+        } else if (used > 0) {
+            out.bytes += '\n';
+        }
+
+        out.truncated = wrapped.truncated;
+        out.bytes.append(wrapped.text);
+
+        size_t lines_drawn = wrapped.lines;
+        if (surface.max_bytes) {
+            const size_t room = surface.max_bytes > out.tail
+                                ? surface.max_bytes - out.tail : 0;
+            if (TrimToBytes(out.bytes, room)) {
+                out.truncated = true;
+                lines_drawn = LinesIn(out.bytes);
+            }
+        }
+        out.bytes.append(effective + key_len, out.tail);
+
+        const size_t added = lines_drawn - (join_open ? 1 : 0);
+        const size_t column = wrapped.end_columns;
+        const bool line_open = !out.truncated && (column + 2 <= SINGLE_LINE_MAX);
+        commit(added, column, line_open);
+        return SubstitutionStatus::Substituted;
+    }
+
     if (has_prefix) out.bytes.assign(1, *wire_text);
 
     if (avail == 0 && !joins_line) {
@@ -1003,11 +1358,6 @@ SubstitutionStatus Build(const char* wire_text,
         commit(0, 0, false);
         return SubstitutionStatus::Substituted;
     }
-
-    // Strip value's trailing breaks; the wire's own 0x0A chains the box.
-    std::string value = it->second;
-    while (!value.empty() && (value.back() == '\n' || value.back() == '\r'))
-        value.pop_back();
 
     const size_t wrap_lines = avail + (joins_line ? 1 : 0);
     WrappedText wrapped = WrapForMessageBox(value, wrap_lines, reserved,
@@ -1101,6 +1451,17 @@ SubstitutionStatus BuildSubstitution(const char* wire_text,
                                      BoxLineBudget& budget, uintptr_t box,
                                      const Surface& surface, Substitution& out) {
     return Build(wire_text, translations, &budget, box, surface, out);
+}
+
+SubstitutionStatus BuildSubstitution(const char* wire_text,
+                                     const TranslationMap& translations,
+                                     BoxLineBudget& budget, uintptr_t box,
+                                     const Surface& surface, Substitution& out,
+                                     int* cursor_xy,
+                                     const int* box_rect,
+                                     int line_pitch) {
+    return Build(wire_text, translations, &budget, box, surface, out,
+                 cursor_xy, box_rect, line_pitch);
 }
 
 }  // namespace translator_logic

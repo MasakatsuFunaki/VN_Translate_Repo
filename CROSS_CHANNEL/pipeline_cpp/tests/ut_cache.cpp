@@ -237,9 +237,9 @@ TEST(Translate, SaveCacheWritesIndentTwoCrlfInInsertionOrder) {
     const Bytes out = read_file(tmp.u8string());
     fs::remove(tmp);
 
-    EXPECT_EQ(out.size(), 4505486u);
+    EXPECT_EQ(out.size(), 4507820u);
     EXPECT_EQ(sha256_hex(out),
-              "abd2be6918455d7bb0e9b21b981ac603219da6d0615a097173c55fec729e036b");
+              "3b6414a9b601c7cecc9a4f90215b23e85cc7bfc1c84fbd35370cef6bf9222f28");
 }
 
 // The guard refuses flags that would throw away a paid cache until

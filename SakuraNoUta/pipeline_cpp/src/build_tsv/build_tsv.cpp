@@ -218,6 +218,13 @@ std::string normalize_leading_space(const std::string& jp, const std::string& en
     return jp.substr(0, want) + en.substr(have);
 }
 
+std::string shipped_english(const std::string& jp, const std::string& en) {
+    std::string value = apply_pinned_terms(jp, en);
+    if (value != jp && translator_logic::CarriesEngineMarkup(value))
+        value = translator_logic::StripEngineMarkup(value);
+    return run_together(normalize_leading_space(jp, value));
+}
+
 int run_build(const std::string& translated_file, const std::string& out_tsv,
               bool include_untranslated) {
     bj::value root = json_parse_file(translated_file);

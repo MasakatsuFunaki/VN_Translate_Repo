@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <map>
 #include <set>
+#include <string_view>
 #include <unordered_map>
 
 #include "bgi/bgi_archive.h"
@@ -33,6 +34,7 @@ namespace {
 constexpr std::size_t HDR_SIZE = 0x1C;
 constexpr std::size_t HDRAS_POS = 0x1C;
 constexpr std::uint32_t STR_TYPE = 0x03;
+constexpr std::uint32_t CALL_FCN = 0x1C;
 constexpr std::uint32_t TEXT_FCN = 0x140;
 constexpr std::uint32_t BKLG_FCN = 0x143;
 constexpr std::uint32_t RUBY_FCN = 0x14B;
@@ -41,7 +43,35 @@ constexpr std::int64_t TEXT_POS = 0x04;
 constexpr std::int64_t RUBYK_POS = 0x04;
 constexpr std::int64_t RUBYF_POS = 0x0C;
 constexpr std::int64_t BKLG_POS = 0x0C;
+// yuzu_2g positioned-message helper call layout (op 0x1C call_func by name):
+//   [pos-4] 0x03 [pos] text_addr
+//   [pos+4] 0x03 [pos+8] speaker_addr
+//   [pos+12] 0x00 [pos+16] ruby_bytes
+//   [pos+20] 0x00 [pos+24] y_row
+//   [pos+28] 0x03 [pos+32] func_name_addr
+//   [pos+36] 0x1C
+constexpr std::int64_t YUZU_TEXT_CALL_POS = 0x24;
+constexpr std::int64_t YUZU_TEXT_FN_MARKER_POS = 0x1C;
+constexpr std::int64_t YUZU_TEXT_FN_ADDR_POS = 0x20;
+constexpr std::int64_t YUZU_TEXT_SPK_MARKER_POS = 0x04;
+constexpr std::int64_t YUZU_TEXT_SPK_ADDR_POS = 0x08;
+constexpr std::int64_t YUZU_SPK_CALL_POS = 0x1C;
+constexpr std::int64_t YUZU_SPK_FN_MARKER_POS = 0x14;
+constexpr std::int64_t YUZU_SPK_FN_ADDR_POS = 0x18;
 const Bytes SECTION_BOUNDARY_MARKER = {0x1B, 0x00, 0x00, 0x00};
+
+bool is_yuzu_message_helper(std::string_view sv) {
+    if (sv.rfind("iMessage", 0) == 0) sv.remove_prefix(8);
+    else if (sv.rfind("Message", 0) == 0) sv.remove_prefix(7);
+    else return false;
+
+    if (sv.rfind("Left", 0) == 0) sv.remove_prefix(4);
+    else if (sv.rfind("Center", 0) == 0) sv.remove_prefix(6);
+    else if (sv.rfind("Right", 0) == 0) sv.remove_prefix(5);
+    else return false;
+
+    return sv.empty() || sv == "Ig" || sv == "NC";
+}
 
 // _get_dword: nullopt outside [0, len-4].
 std::optional<std::uint32_t> get_dword(const Bytes& d, std::int64_t off) {
@@ -128,13 +158,29 @@ std::optional<std::vector<Entry>> extract_one(const Bytes& data) {
     const std::int64_t text_section_file_offset =
         static_cast<std::int64_t>(parts.hdr_size) + code_size;
 
+    auto is_yuzu_call_at = [&](std::int64_t pos, std::int64_t call_off,
+                               std::int64_t fn_marker_off,
+                               std::int64_t fn_addr_off) -> bool {
+        if (!check(code, pos, CALL_FCN, call_off)) return false;
+        auto fn_marker = get_dword(code, pos + fn_marker_off);
+        auto fn_dword = get_dword(code, pos + fn_addr_off);
+        if (!fn_marker || *fn_marker != STR_TYPE || !fn_dword) return false;
+        auto fn_it = text_section.find(
+            static_cast<std::int64_t>(*fn_dword) - code_size);
+        return fn_it != text_section.end() && fn_it->second.text &&
+               is_yuzu_message_helper(*fn_it->second.text);
+    };
+
     // Collect message-function addresses so backlog-only strings can be kept.
     std::set<std::int64_t> message_addrs;
     for (std::int64_t pos = 4; pos < code_size; pos += 4) {
         auto type_marker = get_dword(code, pos - 4);
         auto dword = get_dword(code, pos);
         if (!dword || !type_marker || *type_marker != STR_TYPE) continue;
-        if (check(code, pos, TEXT_FCN, NAME_POS) || check(code, pos, TEXT_FCN, TEXT_POS))
+        if (check(code, pos, TEXT_FCN, NAME_POS) ||
+            check(code, pos, TEXT_FCN, TEXT_POS) ||
+            is_yuzu_call_at(pos, YUZU_TEXT_CALL_POS,
+                            YUZU_TEXT_FN_MARKER_POS, YUZU_TEXT_FN_ADDR_POS))
             message_addrs.insert(static_cast<std::int64_t>(*dword) - code_size);
     }
 
@@ -152,7 +198,8 @@ std::optional<std::vector<Entry>> extract_one(const Bytes& data) {
         if (!slot.text || seen_text_addrs.count(text_addr)) continue;
         const std::string& text = *slot.text;
 
-        // Identify the role via TEXT_FCN+offset patterns (kingshriek's check()).
+        // Identify the role via TEXT_FCN+offset patterns (kingshriek's check())
+        // or yuzu_2g positioned-message helper calls (op 0x1C).
         std::optional<std::string> speaker;
         std::string entry_type;
         if (check(code, pos, TEXT_FCN, NAME_POS)) {
@@ -168,6 +215,24 @@ std::optional<std::vector<Entry>> extract_one(const Bytes& data) {
                     speaker = *spk_it->second.text;
             }
             entry_type = speaker ? "dialogue" : "narrative";
+        } else if (is_yuzu_call_at(pos, YUZU_TEXT_CALL_POS,
+                                   YUZU_TEXT_FN_MARKER_POS,
+                                   YUZU_TEXT_FN_ADDR_POS)) {
+            auto spk_marker = get_dword(code, pos + YUZU_TEXT_SPK_MARKER_POS);
+            auto spk_dword = get_dword(code, pos + YUZU_TEXT_SPK_ADDR_POS);
+            if (spk_marker && *spk_marker == STR_TYPE && spk_dword) {
+                auto spk_it = text_section.find(
+                    static_cast<std::int64_t>(*spk_dword) - code_size);
+                if (spk_it != text_section.end() && spk_it->second.text &&
+                    !spk_it->second.text->empty())
+                    speaker = *spk_it->second.text;
+            }
+            entry_type = speaker ? "dialogue" : "narrative";
+        } else if (!text.empty() &&
+                   is_yuzu_call_at(pos, YUZU_SPK_CALL_POS,
+                                   YUZU_SPK_FN_MARKER_POS,
+                                   YUZU_SPK_FN_ADDR_POS)) {
+            entry_type = "name";
         } else if (check(code, pos, RUBY_FCN, RUBYK_POS) ||
                    check(code, pos, RUBY_FCN, RUBYF_POS)) {
             continue;  // ruby annotations

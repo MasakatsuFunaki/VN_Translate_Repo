@@ -1191,3 +1191,187 @@ TEST(BuildTsv, run_build_flows_every_break_inside_the_english) {
     fs::remove(fs::u8path(out));
     fs::remove(fs::u8path(snu::coverage_report_path(in)));
 }
+
+namespace {
+
+// Boundary Value Analysis (BVA) index selector for a sequence of length `n`:
+// lower bound (0, 1), quartiles (n/4 +- 1), midpoint (n/2 +- 1),
+// three-quarter mark (3n/4 +- 1), and upper bound (n-2, n-1).
+std::vector<std::size_t> boundary_indices(std::size_t n) {
+    if (n == 0) return {};
+    const std::size_t candidates[] = {
+        0,
+        1,
+        n / 4 > 0 ? n / 4 - 1 : 0,
+        n / 4,
+        n / 4 + 1,
+        n / 2 > 0 ? n / 2 - 1 : 0,
+        n / 2,
+        n / 2 + 1,
+        (3 * n) / 4 > 0 ? (3 * n) / 4 - 1 : 0,
+        (3 * n) / 4,
+        (3 * n) / 4 + 1,
+        n > 1 ? n - 2 : 0,
+        n - 1,
+    };
+    std::set<std::size_t> unique;
+    for (std::size_t idx : candidates) {
+        if (idx < n) unique.insert(idx);
+    }
+    return {unique.begin(), unique.end()};
+}
+
+}  // namespace
+
+// Updating translated_text.json entries at boundary indices (first, second,
+// midpoint, penultimate, last, and single-entry script) and rebuilding must
+// replace those exact TSV rows while keeping untouched interior rows intact.
+TEST(BuildTsv, updated_json_entries_at_boundary_positions_replace_tsv_rows) {
+    static constexpr std::size_t kEntryCount = 9;
+    auto make_root = [](const std::set<std::size_t>& updated_indices,
+                        bool update_singleton) {
+        bj::array strings;
+        for (std::size_t i = 0; i < kEntryCount; ++i) {
+            bj::object entry;
+            entry["text"] = "境界テスト文_" + std::to_string(i);
+            const bool is_updated = updated_indices.count(i) != 0;
+            entry["translated"] =
+                (is_updated ? "Updated boundary line " : "Initial line ") +
+                std::to_string(i);
+            strings.push_back(std::move(entry));
+        }
+        bj::object sc01;
+        sc01["strings"] = std::move(strings);
+
+        bj::object singleton_entry;
+        singleton_entry["text"] = "単一スクリプト文";
+        singleton_entry["translated"] =
+            update_singleton ? "Updated singleton script." : "Initial singleton script.";
+        bj::object sc02;
+        sc02["strings"] = bj::array{std::move(singleton_entry)};
+
+        bj::object root;
+        root["sc01"] = std::move(sc01);
+        root["sc02"] = std::move(sc02);
+        return root;
+    };
+
+    const std::string in =
+        (fs::temp_directory_path() / "snu_ut_bva_update.json").u8string();
+    const std::string out =
+        (fs::temp_directory_path() / "snu_ut_bva_update.tsv").u8string();
+
+    snu::write_file(in, bj::serialize(bj::value(make_root({}, false))));
+    ASSERT_EQ(bt::run_build(in, out, /*include_untranslated=*/false), 0);
+
+    const std::vector<std::size_t> bva = boundary_indices(kEntryCount);
+    const std::set<std::size_t> updated(bva.begin(), bva.end());
+    snu::write_file(in, bj::serialize(bj::value(make_root(updated, true))));
+    ASSERT_EQ(bt::run_build(in, out, /*include_untranslated=*/false), 0);
+
+    const auto rows = read_tsv(out);
+    for (std::size_t i = 0; i < kEntryCount; ++i) {
+        const std::string jp = "境界テスト文_" + std::to_string(i);
+        ASSERT_EQ(rows.count(jp), 1u) << "missing key at index " << i;
+        const std::string expected =
+            (updated.count(i) ? "Updated boundary line " : "Initial line ") +
+            std::to_string(i);
+        EXPECT_EQ(rows.at(jp).front(), expected) << "mismatch at index " << i;
+    }
+    ASSERT_EQ(rows.count("単一スクリプト文"), 1u);
+    EXPECT_EQ(rows.at("単一スクリプト文").front(), "Updated singleton script.");
+
+    fs::remove(fs::u8path(in));
+    fs::remove(fs::u8path(out));
+    fs::remove(fs::u8path(snu::coverage_report_path(in)));
+}
+
+// Synchronization gate between script_output/translated_text.json and
+// translations.tsv using Boundary Value Analysis across script positions,
+// deduplicated-table positions, and byte-length extremes (min/median/max).
+TEST(BuildTsv, deployed_tsv_matches_translated_text_boundary_samples) {
+    const std::string root_dir = SNU_PROJECT_DIR;
+    const fs::path tsv_path = fs::u8path(root_dir + "/translations.tsv");
+    const fs::path doc_path =
+        fs::u8path(root_dir + "/script_output/translated_text.json");
+    if (!fs::exists(tsv_path) || !fs::exists(doc_path))
+        GTEST_SKIP() << "translations.tsv or translated_text.json not built yet";
+
+    const auto tsv_rows = read_tsv(tsv_path.u8string());
+    ASSERT_FALSE(tsv_rows.empty());
+
+    const bj::object doc = snu::json_parse_file(doc_path.u8string()).get_object();
+    std::vector<std::pair<std::string, std::string>> order;
+    std::unordered_map<std::string, std::size_t> index;
+    std::vector<std::vector<std::string>> per_script_keys;
+    per_script_keys.reserve(doc.size());
+
+    for (const auto& kv : doc) {
+        if (!kv.value().is_object()) continue;
+        const auto& script = kv.value().get_object();
+        auto it = script.find("strings");
+        if (it == script.end() || !it->value().is_array()) continue;
+        std::vector<std::string> script_keys;
+        for (const auto& ev : it->value().get_array()) {
+            const auto& entry = ev.get_object();
+            std::string jp(entry.at("text").get_string());
+            std::string en = jp;
+            if (const auto* t = entry.if_contains("translated")) {
+                if (t->is_string()) en = std::string(t->get_string());
+            }
+            if (en == jp) continue;
+            script_keys.push_back(jp);
+            auto idx_it = index.find(jp);
+            if (idx_it != index.end()) {
+                order[idx_it->second].second = en;
+            } else {
+                index.emplace(jp, order.size());
+                order.emplace_back(jp, en);
+            }
+        }
+        if (!script_keys.empty())
+            per_script_keys.push_back(std::move(script_keys));
+    }
+    ASSERT_FALSE(order.empty());
+
+    std::set<std::size_t> sample_indices;
+    // 1. Global deduplicated-table positional boundaries.
+    for (std::size_t idx : boundary_indices(order.size()))
+        sample_indices.insert(idx);
+
+    // 2. Per-script positional boundaries across every script in translated_text.json.
+    for (const auto& keys : per_script_keys) {
+        for (std::size_t k_idx : boundary_indices(keys.size()))
+            sample_indices.insert(index.at(keys[k_idx]));
+    }
+
+    // 3. Byte-length boundaries (shortest, median, longest JP keys and EN values).
+    std::vector<std::size_t> by_jp_len(order.size());
+    std::vector<std::size_t> by_en_len(order.size());
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        by_jp_len[i] = i;
+        by_en_len[i] = i;
+    }
+    std::sort(by_jp_len.begin(), by_jp_len.end(), [&](std::size_t a, std::size_t b) {
+        return order[a].first.size() < order[b].first.size();
+    });
+    std::sort(by_en_len.begin(), by_en_len.end(), [&](std::size_t a, std::size_t b) {
+        return order[a].second.size() < order[b].second.size();
+    });
+    for (std::size_t idx : boundary_indices(order.size())) {
+        sample_indices.insert(by_jp_len[idx]);
+        sample_indices.insert(by_en_len[idx]);
+    }
+
+    for (std::size_t idx : sample_indices) {
+        const auto& [jp, en] = order[idx];
+        const std::string escaped_key = bt::esc(jp);
+        const std::string expected_val = bt::esc(bt::shipped_english(jp, en));
+        auto tsv_it = tsv_rows.find(escaped_key);
+        ASSERT_NE(tsv_it, tsv_rows.end())
+            << "missing TSV row for boundary sample idx=" << idx << " jp=" << jp;
+        EXPECT_EQ(tsv_it->second.front(), expected_val)
+            << "stale TSV value at boundary sample idx=" << idx << " jp=" << jp
+            << " (run 02_build_tsv.exe --rebuild-table)";
+    }
+}
