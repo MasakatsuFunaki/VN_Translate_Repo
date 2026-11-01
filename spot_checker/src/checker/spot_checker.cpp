@@ -1255,6 +1255,53 @@ struct SpotChecker::Impl {
         return map;
     }
 
+    struct CheckpointCounters {
+        std::size_t h_windows_skipped = 0;
+        std::size_t radar_calls_made = 0;
+        std::size_t radar_passages_triaged = 0;
+        std::size_t adaptive_expansions = 0;
+        std::size_t windows_checked = 0;
+        std::size_t lines_checked = 0;
+        std::size_t editable_lines_unlocked = 0;
+        std::size_t candidates_rejected_by_validator = 0;
+        std::size_t script_entries_updated = 0;
+        std::size_t cache_entries_updated = 0;
+    };
+
+    CheckpointCounters load_existing_counters() const {
+        CheckpointCounters c;
+        if (!fs::exists(fs::u8path(cfg.out_path))) return c;
+        try {
+            const bj::value v = json_parse_file(cfg.out_path);
+            if (!v.is_object()) return c;
+            const auto& o = v.as_object();
+            auto get_sz = [&o](const char* key) -> std::size_t {
+                if (const auto* f = o.if_contains(key)) {
+                    if (f->is_int64() && f->as_int64() >= 0) {
+                        return static_cast<std::size_t>(f->as_int64());
+                    }
+                    if (f->is_uint64()) {
+                        return static_cast<std::size_t>(f->as_uint64());
+                    }
+                }
+                return 0;
+            };
+            c.h_windows_skipped = get_sz("h_windows_skipped");
+            c.radar_calls_made = get_sz("radar_calls_made");
+            c.radar_passages_triaged = get_sz("radar_passages_triaged");
+            c.adaptive_expansions = get_sz("adaptive_expansions");
+            c.windows_checked = get_sz("windows_checked");
+            c.lines_checked = get_sz("lines_checked");
+            c.editable_lines_unlocked = get_sz("editable_lines_unlocked");
+            c.candidates_rejected_by_validator =
+                get_sz("candidates_rejected_by_validator");
+            c.script_entries_updated = get_sz("script_entries_updated");
+            c.cache_entries_updated = get_sz("cache_entries_updated");
+        } catch (...) {
+        }
+        return c;
+    }
+
     std::set<std::size_t> load_existing_checked_offsets() const {
         std::set<std::size_t> offsets;
         if (!fs::exists(fs::u8path(cfg.out_path))) return offsets;
@@ -1472,9 +1519,33 @@ struct SpotChecker::Impl {
 
         std::map<std::size_t, Improvement> merged = load_existing_improvements();
         std::set<std::size_t> visited_offsets = load_existing_checked_offsets();
+        const CheckpointCounters prev = load_existing_counters();
         std::set<std::size_t> repaired_indices;
-        for (const auto& [g_idx, _] : merged) {
+        for (const auto& [g_idx, imp] : merged) {
             repaired_indices.insert(g_idx);
+            if (g_idx < script_entries.size()) {
+                script_entries[g_idx].current_en = imp.improved_en;
+            }
+        }
+
+        const bool resuming_incomplete_checkpoint =
+            (prev.windows_checked > 0 || prev.radar_calls_made > 0) &&
+            (cfg.max_windows == 0 || prev.windows_checked < cfg.max_windows);
+        if (resuming_incomplete_checkpoint) {
+            rep.h_windows_skipped = prev.h_windows_skipped;
+            rep.radar_calls_made = prev.radar_calls_made;
+            rep.radar_passages_triaged = prev.radar_passages_triaged;
+            rep.adaptive_expansions = prev.adaptive_expansions;
+            rep.windows_checked = prev.windows_checked;
+            rep.lines_checked = prev.lines_checked;
+            rep.editable_lines_unlocked = prev.editable_lines_unlocked;
+            rep.candidates_rejected_by_validator =
+                prev.candidates_rejected_by_validator;
+            checkpoint_applied_.improvements_loaded = merged.size();
+            checkpoint_applied_.script_entries_updated = prev.script_entries_updated;
+            checkpoint_applied_.cache_entries_updated = prev.cache_entries_updated;
+            rep.script_entries_updated = prev.script_entries_updated;
+            rep.cache_entries_updated = prev.cache_entries_updated;
         }
 
         HotspotConfig hcfg;
@@ -1507,6 +1578,15 @@ struct SpotChecker::Impl {
                          " previously checked, " +
                          std::to_string(repaired_indices.size()) +
                          " lines already repaired)");
+                if (resuming_incomplete_checkpoint) {
+                    log_info("Resuming checkpoint:   " +
+                             std::to_string(rep.windows_checked) + "/" +
+                             std::to_string(cfg.max_windows) +
+                             " windows checked, " +
+                             std::to_string(rep.radar_calls_made) + "/" +
+                             std::to_string(cfg.radar_calls) +
+                             " radar calls made");
+                }
             }
         } else {
             novel_scores = detector.score_entries(script_entries);
@@ -1523,12 +1603,14 @@ struct SpotChecker::Impl {
         // Pack up to 6 candidate passages per Radar API call and prioritize high-MQM
         // passages for Stage 2 repair without discarding or marking unflagged passages
         // as visited before Stage 2 actually reviews them.
-        if (cfg.radar_calls > 0 && !work_queue.empty()) {
+        if (cfg.radar_calls > rep.radar_calls_made && !work_queue.empty()) {
             constexpr std::size_t kPassagesPerRadarCall = 6;
             std::vector<RadarPassageResult> flagged_passages;
             std::vector<std::pair<std::size_t, std::size_t>> unflagged_passages;
 
-            for (std::size_t r = 0; r < cfg.radar_calls && !work_queue.empty(); ++r) {
+            for (std::size_t r = rep.radar_calls_made;
+                 r < cfg.radar_calls && !work_queue.empty();
+                 ++r) {
                 std::vector<WindowSlice> pack;
                 pack.reserve(kPassagesPerRadarCall);
                 while (pack.size() < kPassagesPerRadarCall && !work_queue.empty()) {

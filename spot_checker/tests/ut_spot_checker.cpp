@@ -1001,7 +1001,7 @@ TEST(SpotCheckerSystemTests, SystemTest10_MultiRunCheckedOffsetsAndRepairedLineL
         (tmp.path() / "script_output" / "translated_text.json").u8string();
     write_json_preserving_style(
         translated_path,
-        bj::value(bj::object{{"sn.bin", bj::object{{"strings", std::move(strings_arr)}}}}),
+        bj::value(bj::object{{"sn.bin", bj::object{{"strings", strings_arr}}}}),
         1,
         true);
 
@@ -1092,6 +1092,51 @@ TEST(SpotCheckerSystemTests, SystemTest10_MultiRunCheckedOffsetsAndRepairedLineL
         ws, {}, /*review_all_in_window=*/true, /*skip_h_scenes=*/true, repaired_set);
     EXPECT_EQ(unlocked.count(1), 0u);  // global_index 5 is locked because it was already repaired!
     EXPECT_EQ(unlocked.count(2), 1u);
+
+    // 4. Verify resuming an incomplete checkpoint (windows_checked < max_windows)
+    //    restores cumulative counters, skips already-completed Radar calls, and runs
+    //    only the remaining windows needed to reach max_windows:
+    {
+        TempDir cp_tmp;
+        write_json_preserving_style(
+            (cp_tmp.path() / "script_output" / "translated_text.json").u8string(),
+            bj::value(bj::object{{"sn.bin", bj::object{{"strings", strings_arr}}}}),
+            1,
+            true);
+
+        SpotCheckConfig cp_cfg = cfg;
+        cp_cfg.game_dir = cp_tmp.str();
+        cp_cfg.radar_calls = 1;
+        cp_cfg.max_windows = 1;
+        SpotChecker partial_run(cp_cfg, [](const std::string&, const std::string& p) {
+            if (p.find("<radar_triage_mandate>") != std::string::npos) {
+                return std::string(R"([{"passage_id": 1, "mqm_score": 10, "suspect_ids": [6]}])");
+            }
+            return std::string("[]");
+        });
+        const SpotCheckReport partial_rep = partial_run.run();
+        EXPECT_EQ(partial_rep.radar_calls_made, 1u);
+        EXPECT_EQ(partial_rep.windows_checked, 1u);
+
+        // Resume with max_windows = 2 and radar_calls = 1:
+        cp_cfg.max_windows = 2;
+        std::size_t resumed_radar_calls = 0;
+        std::size_t resumed_stage2_calls = 0;
+        SpotChecker resumed_run(cp_cfg, [&](const std::string&, const std::string& p) {
+            if (p.find("<radar_triage_mandate>") != std::string::npos) {
+                ++resumed_radar_calls;
+                return std::string("[]");
+            }
+            ++resumed_stage2_calls;
+            return std::string("[]");
+        });
+        const SpotCheckReport resumed_rep = resumed_run.run();
+        EXPECT_EQ(resumed_radar_calls, 0u);   // Radar already completed in checkpoint!
+        EXPECT_EQ(resumed_stage2_calls, 1u);  // Only 1 remaining window checked (2 - 1 = 1)!
+        EXPECT_EQ(resumed_rep.radar_calls_made, 1u);
+        EXPECT_EQ(resumed_rep.windows_checked, 2u);
+        EXPECT_EQ(resumed_rep.lines_checked, 20u);
+    }
 }
 
 // ============================================================================

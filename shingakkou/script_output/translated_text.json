@@ -328,7 +328,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「は――」",
-    "translated": "\"Ha--\""
+    "translated": "\"Y--\""
    },
    {
     "offset": 9325,
@@ -1931,7 +1931,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「そうだな……」",
-    "translated": "\"You're right...\""
+    "translated": "\"Let's see...\""
    },
    {
     "offset": 52384,
@@ -4735,7 +4735,7 @@
     "type": "narration",
     "speaker": "",
     "text": "こうして鼓動を感じていないと、彼が生きていることのほうが幻なんじゃないかって、疑ってしまいそうになる。",
-    "translated": "If I couldn't feel his heartbeat like this, I might start doubting that him being alive was the illusion."
+    "translated": "If I couldn't feel his heartbeat like this, I might start suspecting that his being alive was just an illusion."
    },
    {
     "offset": 47393,
@@ -5484,7 +5484,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕は大人しくニールにもたれ掛かった。",
-    "translated": "I let myself slump quietly against Neil."
+    "translated": "I leaned quietly against Neil."
    },
    {
     "offset": 58874,
@@ -7325,7 +7325,7 @@
     "type": "narration",
     "speaker": "",
     "text": "相変わらず、僕の肩に顎を乗せたニールの視線は、床に転がった肉の塊やナイフに向かっている。",
-    "translated": "As always, Neil's gaze, with his chin on my shoulder, was directed toward the lump of flesh and the knife lying on the floor."
+    "translated": "With his chin still resting on my shoulder, Neil's gaze was directed toward the lump of flesh and the knife lying on the floor."
    },
    {
     "offset": 90897,
@@ -7500,7 +7500,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ニールに手を引かれて立ち上がったときに、青臭い臭いが鼻についた気がした。さっき自分が放ったものの臭いだと気付いて、赤くなる。",
-    "translated": "When I stood up with Neil pulling on my hand, I caught a whiff of a green, raw smell. Realizing it was the scent of what I'd released, I turned red."
+    "translated": "When Neil pulled me by the hand and I stood up, a sharp, musky scent hit my nose. Realizing it was the smell of what I'd released earlier, my face turned red."
    },
    {
     "offset": 94277,
@@ -8036,7 +8036,7 @@
     "type": "narration",
     "speaker": "",
     "text": "アベルは急に眉をつり上げる。小さな手を振り上げたかと思うと、呆然としている僕の頬を叩いた。",
-    "translated": "Abel's eyebrows suddenly shot up. He raised his small hand and slapped me across the cheek as I sat there stunned."
+    "translated": "Abel's eyebrows suddenly shot up in anger. He raised his small hand and slapped me across the cheek as I lay there stunned."
    },
    {
     "offset": 2157,
@@ -8274,7 +8274,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「君にしては珍しいねぇ、居眠りだなんて。こーんな顔をしてたけど、悪い夢でも見てたのかい？」",
-    "translated": "\"It's unusual for you, dozing off like that. You were making the strangest face -- were you having a bad dream?\""
+    "translated": "\"It's unusual for you, dozing off like that. You were making a face like *this* -- were you having a bad dream?\""
    },
    {
     "offset": 7354,
@@ -8540,7 +8540,7 @@
     "type": "narration",
     "speaker": "",
     "text": "近付いてくる校長先生の方から、饐えた汗の臭いがする。額や鼻の頭にも、びっしりと玉のような汗が浮いている。",
-    "translated": "As the Headmaster drew nearer, I caught the sour smell of sweat. Beads of perspiration covered his forehead and the bridge of his nose."
+    "translated": "As the Headmaster drew nearer, I caught the sour smell of sweat. Beads of perspiration covered his forehead and the tip of his nose."
    },
    {
     "offset": 12218,
@@ -11046,7 +11046,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いや……」",
-    "translated": "\"No...\""
+    "translated": "\"Oh, it's nothing...\""
    },
    {
     "offset": 70041,
@@ -11725,7 +11725,7 @@
     "type": "narration",
     "speaker": "",
     "text": "オーガスト神父の腕の中で仰け反りながら、自問自答する。",
-    "translated": "Arched back in Father August's arms, I asked myself, and answered myself."
+    "translated": "Arched back in Father August's arms, I questioned myself silently."
    },
    {
     "offset": 84249,
@@ -11879,7 +11879,7 @@
     "type": "narration",
     "speaker": "",
     "text": "耳元で囁かれると、もう抗う気力も無くなった。",
-    "translated": "Whispered into my ear, I lost the will to resist."
+    "translated": "Hearing him whisper that into my ear drained away my last will to resist."
    },
    {
     "offset": 87493,
@@ -12733,7 +12733,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 106527,
@@ -13027,7 +13027,7 @@
     "type": "dialogue",
     "speaker": "ベンジャミン",
     "text": "「ジャ、ジャックは拗ねてるんだ！　マイケルが居なくなるから」",
-    "translated": "\"J-Jack's sulking! Because Michael is leaving.\""
+    "translated": "\"J-Jack's sulking! Because you're leaving, Michael.\""
    },
    {
     "offset": 113353,
@@ -13489,7 +13489,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「なに言ってんのさ。マイケルがいるところが僕のいるところだって。僕らはずっと一緒」",
-    "translated": "\"What are you talking about? Wherever Michael is, that's where I'll be. We'll always be together.\""
+    "translated": "\"What are you talking about? Wherever you are, that's where I belong. We'll always be together.\""
    },
    {
     "offset": 123208,
@@ -13608,7 +13608,7 @@
     "type": "narration",
     "speaker": "",
     "text": "セシルを殺すなんてあり得ないけど……そうさ、絶対にあり得ないけど、そう分かっている筈だけど。",
-    "translated": "There's no way I would kill Cecil... yes, absolutely no way, I know that..."
+    "translated": "There's no way I would kill Cecil... yes, absolutely no way, and I know that, and yet..."
    },
    {
     "offset": 125136,
@@ -13734,7 +13734,7 @@
     "type": "narration",
     "speaker": "",
     "text": "思い出しただけで、身体がぞくりと震え、溜息を漏らしていた。",
-    "translated": "Just remembering made my body shudder, and a sigh escape my lips."
+    "translated": "Just remembering made my body shudder, and a sigh escaped my lips."
    },
    {
     "offset": 127038,
@@ -13790,7 +13790,7 @@
     "type": "narration",
     "speaker": "",
     "text": "急に話しかけられて、心臓が止まった。ガビィは無表情に、澄んだ瞳で僕を捉えている。",
-    "translated": "Being suddenly addressed made my heart stop. With a blank expression and clear eyes, Gabby was fixing me with his gaze."
+    "translated": "When he spoke to me out of nowhere, my heart nearly stopped. Expressionless, Gabby fixed me with his clear gaze."
    },
    {
     "offset": 127771,
@@ -13832,7 +13832,7 @@
     "type": "narration",
     "speaker": "",
     "text": "窓の外に目を向ける。",
-    "translated": "I turned my eyes to the window outside."
+    "translated": "I looked out the window."
    },
    {
     "offset": 128290,
@@ -14112,7 +14112,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 132647,
@@ -15057,7 +15057,7 @@
     "type": "narration",
     "speaker": "",
     "text": "セシルとは……退学してから、あまり会っていない。",
-    "translated": "As for Cecil... I haven't seen him much since I withdrew from school."
+    "translated": "I haven't seen Cecil much since I withdrew from school."
    },
    {
     "offset": 150806,
@@ -15071,7 +15071,7 @@
     "type": "narration",
     "speaker": "",
     "text": "休みの日には一緒に過ごすようにしているけど……気のせいか、僕らの仲は、少しよそよそしくなった。",
-    "translated": "I try to spend holidays with him... but maybe I'm imagining things, our relationship has grown a little distant."
+    "translated": "I try to spend holidays with him... but maybe I'm imagining things, or maybe our relationship has grown a little distant."
    },
    {
     "offset": 151034,
@@ -16496,7 +16496,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 11008,
@@ -17077,7 +17077,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 20966,
@@ -17427,7 +17427,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 27104,
@@ -19426,7 +19426,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「うわっ！」",
-    "translated": "\"Yikes!\""
+    "translated": "\"Whoa!\""
    },
    {
     "offset": 15069,
@@ -20098,7 +20098,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ミスター？」",
-    "translated": "\"Sir?\""
+    "translated": "\"Mr. Moran?\""
    },
    {
     "offset": 31837,
@@ -23563,7 +23563,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 99805,
@@ -24249,7 +24249,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 115629,
@@ -25579,7 +25579,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ミスター？」",
-    "translated": "\"Sir?\""
+    "translated": "\"Mr. Moran?\""
    },
    {
     "offset": 150714,
@@ -26682,7 +26682,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いや……」",
-    "translated": "\"No...\""
+    "translated": "\"Oh, it's nothing...\""
    },
    {
     "offset": 6878,
@@ -26906,7 +26906,7 @@
     "type": "narration",
     "speaker": "",
     "text": "見落とした可能性は、無論ゼロではない。でも僕は目を皿のようにして、上級生達を見ていたのだ。",
-    "translated": "Of course it wasn't zero -- the chance that I'd overlooked him. But I had watched the seniors with eyes as wide as saucers."
+    "translated": "Of course, the chance that I'd overlooked him wasn't zero. But I had watched the seniors with eyes as wide as saucers."
    },
    {
     "offset": 11974,
@@ -27018,7 +27018,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「どういうことだ？　アスタロトはジュニアの学生じゃなかったってことか……っ！？」",
-    "translated": "\"What does this mean? Are you saying Astaroth wasn't a junior student after all...!?\""
+    "translated": "\"What does this mean? Don't tell me Astaroth wasn't a junior student after all...!?\""
    },
    {
     "offset": 14769,
@@ -27151,7 +27151,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 18337,
@@ -27494,7 +27494,7 @@
     "type": "dialogue",
     "speaker": "アベル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 25087,
@@ -28670,7 +28670,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 52771,
@@ -28887,7 +28887,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「いや」",
-    "translated": "\"No.\""
+    "translated": "\"Don't mention it.\""
    },
    {
     "offset": 58374,
@@ -31092,7 +31092,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 112704,
@@ -32111,7 +32111,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……でもその人は僕の前からいなくなってしまった。僕のことを思って」",
-    "translated": "\"...But that person disappeared from in front of me. Out of concern for me.\""
+    "translated": "\"...But that person disappeared from my life. Out of concern for me.\""
    },
    {
     "offset": 15409,
@@ -32167,7 +32167,7 @@
     "type": "dialogue",
     "speaker": "女の子",
     "text": "「ねえねえ。おにいちゃんはニールのおともだち？」",
-    "translated": "\"Hey, hey. Is the big brother a friend of Neil's?\""
+    "translated": "\"Hey, mister, are you a friend of Neil's?\""
    },
    {
     "offset": 16846,
@@ -32209,7 +32209,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「そうだよ、お兄ちゃんはね、ニールの昔からのお友達だよ」",
-    "translated": "\"That's right. Your big brother here is an old friend of Neil's.\""
+    "translated": "\"That's right. I'm an old friend of Neil's.\""
    },
    {
     "offset": 17461,
@@ -35083,7 +35083,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 49990,
@@ -36963,7 +36963,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 1541,
@@ -43015,7 +43015,7 @@
     "type": "narration",
     "speaker": "",
     "text": "なんだかあちこちがむず痒い。じっとしていられない気分だ。",
-    "translated": "Somehow it felt itchy all over. I couldn't sit still."
+    "translated": "Somehow I felt restless and itchy all over. I couldn't sit still."
    },
    {
     "offset": 78873,
@@ -43295,7 +43295,7 @@
     "type": "narration",
     "speaker": "",
     "text": "言われて初めて気付く。僕には何だかんだ言っても、ガビィがいてセシルがいて、同室者達がいて。",
-    "translated": "Only when he said it did I realize. For all my complaining, I had Gabby, and Cecil, and my roommates."
+    "translated": "Only when he said it did I realize. At the end of the day, I had Gabby, and Cecil, and my roommates."
    },
    {
     "offset": 83233,
@@ -45325,7 +45325,7 @@
     "type": "narration",
     "speaker": "",
     "text": "レオニードの小さな声。",
-    "translated": "Leonid let out a small voice."
+    "translated": "Leonid let out a quiet groan."
    },
    {
     "offset": 113602,
@@ -45465,7 +45465,7 @@
     "type": "narration",
     "speaker": "",
     "text": "いつ来るかも分からない終末より、今こうして、ここにいる相手を慈しむことの方が、僕にとっては大事なことなんだ。",
-    "translated": "More than some end of days that might come at any time, this--cherishing the one who was here with me now--was what mattered to me."
+    "translated": "More than some end of days when I didn't even know when it might come, this--cherishing the one who was here with me now--was what mattered to me."
    },
    {
     "offset": 115738,
@@ -45703,7 +45703,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 119132,
@@ -45836,7 +45836,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "（……駄目かなあ。相手は最上級生で、その上総監督生だしなあ）",
-    "translated": "(...I suppose it's no good. He's the most senior student, and the Head Prefect on top of that.)"
+    "translated": "(...I suppose it's no good. He's a top-year student, and the Head Prefect on top of that.)"
    },
    {
     "offset": 121140,
@@ -46445,7 +46445,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 129187,
@@ -46977,7 +46977,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 137047,
@@ -46991,7 +46991,7 @@
     "type": "narration",
     "speaker": "",
     "text": "痛くしていないだろうか。僕のこの触れ方は、どんな感覚をレオニードに与えている？",
-    "translated": "Was I hurting him? What kind of sensations were the way I touched him giving Leonid?"
+    "translated": "Was I hurting him? What kind of sensations was my touch giving Leonid?"
    },
    {
     "offset": 137245,
@@ -47194,7 +47194,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 139987,
@@ -48790,7 +48790,7 @@
     "type": "narration",
     "speaker": "",
     "text": "先走った物が僕の手を温かく濡らして、ぬるぬると良く滑った。",
-    "translated": "His precome wet my hand warmly, and slid slick and smooth."
+    "translated": "His precome wet my hand warmly, making my fingers slide slick and smooth."
    },
    {
     "offset": 162892,
@@ -48825,7 +48825,7 @@
     "type": "narration",
     "speaker": "",
     "text": "息が上がってる。……気持ちいいんだ。",
-    "translated": "His breath was ragged. ...He felt good."
+    "translated": "His breath was ragged. ...It felt good for him, too."
    },
    {
     "offset": 163353,
@@ -49385,7 +49385,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「そんな目ってどんな目ですか」",
-    "translated": "\"Like what?\""
+    "translated": "\"'Like that'? What kind of look is that supposed to be?\""
    },
    {
     "offset": 173608,
@@ -49448,7 +49448,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 174945,
@@ -50505,7 +50505,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 194172,
@@ -53561,7 +53561,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 56645,
@@ -55605,7 +55605,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「……でも、マイケルは俺の友達になってくれるって言ったから。……だから俺、言うのをやめた」",
-    "translated": "\"...But Michael said he'd be my friend. ...So I decided not to say it.\""
+    "translated": "\"...But you said you'd be my friend. ...So I decided not to say it.\""
    },
    {
     "offset": 103961,
@@ -55668,7 +55668,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「うわっ！」",
-    "translated": "\"Yikes!\""
+    "translated": "\"Whoa!\""
    },
    {
     "offset": 105826,
@@ -55815,7 +55815,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「へえ、マイケルはそんなのだったのか。嫌な預言だなあ」",
-    "translated": "\"Heh, so that's what yours was, Michael. That's an unpleasant prophecy.\""
+    "translated": "\"Whoa, so that's what yours was, Michael. What an awful prophecy.\""
    },
    {
     "offset": 110185,
@@ -56645,7 +56645,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 5283,
@@ -60086,7 +60086,7 @@
     "type": "narration",
     "speaker": "",
     "text": "隣のベッドに横たわるセシルは、胎児のように丸まっていて、僕の位置からは、どんな顔をして眠っているのかは分からなかった。",
-    "translated": "Cecil, lying in the bed next to mine, was curled up like a fetus, and from my angle I couldn't see what kind of face he was sleeping with."
+    "translated": "Cecil, lying in the bed next to mine, was curled up like a fetus, and from where I was I couldn't see his expression as he slept."
    },
    {
     "offset": 35480,
@@ -61203,7 +61203,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 21724,
@@ -62628,7 +62628,7 @@
     "type": "choice",
     "speaker": "",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 20935,
@@ -62642,7 +62642,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 21177,
@@ -63990,7 +63990,7 @@
     "type": "narration",
     "speaker": "",
     "text": "でも、視界の端に映る小さな足には、赤いエナメルの靴。……ミニーが大好きだった靴。",
-    "translated": "But at the edge of my vision, I could see small feet in red enameled shoes. ...The shoes Minnie had loved."
+    "translated": "But at the edge of my vision, I caught sight of small feet in red patent-leather shoes. ...The shoes Minnie had loved."
    },
    {
     "offset": 18650,
@@ -64102,7 +64102,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕は再び歩き出そうと、足を踏み出す。",
-    "translated": "I started to step forward again to begin walking."
+    "translated": "I took a step forward to start walking again."
    },
    {
     "offset": 20804,
@@ -65481,7 +65481,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 43713,
@@ -67399,7 +67399,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「うわっ！」",
-    "translated": "\"Yikes!\""
+    "translated": "\"Whoa!\""
    },
    {
     "offset": 84639,
@@ -67854,7 +67854,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……人を」",
-    "translated": "\"...Judge not.\""
+    "translated": "\"...Judge...\""
    },
    {
     "offset": 92979,
@@ -67924,7 +67924,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「僕はミカエルじゃない――貴方を討たない」",
-    "translated": "\"I am not Mikhael the Archangel--I will not strike you down.\""
+    "translated": "\"I am not Mikhael--I will not strike you down.\""
    },
    {
     "offset": 94116,
@@ -68015,7 +68015,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「何か方法があるはずだ。僕はまだ諦めない」",
-    "translated": "\"There has to be some method. I haven't given up yet.\""
+    "translated": "\"There has to be some other way. I haven't given up yet.\""
    },
    {
     "offset": 95611,
@@ -68295,7 +68295,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 100484,
@@ -69286,7 +69286,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ジャックは監督生を下ろされたし、僕らを白眼視する学生は珍しくない。退学を免れたことだけが、不幸中の幸いだった。",
-    "translated": "Jack was stripped of his prefect status, and students who looked down on us were not unusual. The one mercy in this misfortune was that we escaped expulsion."
+    "translated": "Jack was stripped of his prefect status, and plenty of students gave us cold stares. The one silver lining in all this misfortune was that we escaped expulsion."
    },
    {
     "offset": 9516,
@@ -70707,7 +70707,7 @@
     "type": "narration",
     "speaker": "",
     "text": "こんなに世話を焼かせる癖に。今更――。",
-    "translated": "After making me worry over you so much. After all this--."
+    "translated": "After going to all this trouble to look out for me. After all this--."
    },
    {
     "offset": 42226,
@@ -72923,7 +72923,7 @@
     "type": "dialogue",
     "speaker": "アスタロト",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 42091,
@@ -74393,7 +74393,7 @@
     "type": "narration",
     "speaker": "",
     "text": "思わず訊ねていた。アスタロトは僕の方へ顔を向けると、小さな肩をそびやかす。",
-    "translated": "I'd asked before I knew it. Astaroth turned his face toward me and shrugged his small shoulders."
+    "translated": "I'd asked before I knew it. Astaroth turned his face toward me and squared his small shoulders."
    },
    {
     "offset": 71651,
@@ -74519,7 +74519,7 @@
     "type": "dialogue",
     "speaker": "ルシフェル",
     "text": "「ではそう言うエリゴールは、どんな預言を聞かせてくれるんだい？」",
-    "translated": "\"Then what kind of prophecy will Eligos, who says such things, share with us?\""
+    "translated": "\"And what sort of prophecy will you share with us, Eligos, after talking like that?\""
    },
    {
     "offset": 74072,
@@ -74673,7 +74673,7 @@
     "type": "dialogue",
     "speaker": "エリゴール",
     "text": "「か――」",
-    "translated": "\"Mi--\""
+    "translated": "\"Ka--\""
    },
    {
     "offset": 76855,
@@ -74687,14 +74687,14 @@
     "type": "dialogue",
     "speaker": "ルシフェル",
     "text": "「か、の後はなんだい？」",
-    "translated": "\"What comes after 'mi'?\""
+    "translated": "\"What comes after 'ka'?\""
    },
    {
     "offset": 77073,
     "type": "dialogue",
     "speaker": "エリゴール",
     "text": "「…………いや、えっと、『か』じゃなくて。えっと、そうだ。お、俺は大人になったら、牧場で働くんだ」",
-    "translated": "\"...No, uh, it's not 'mi.' Um, that's right. Wh-when I grow up, I'll work on a ranch.\""
+    "translated": "\"...No, uh, it's not 'ka.' Um, that's right. Wh-when I grow up, I'll work on a ranch.\""
    },
    {
     "offset": 77254,
@@ -76766,14 +76766,14 @@
     "type": "narration",
     "speaker": "",
     "text": "硬直する僕に、ルシフェルはそっと顔を近付け――そして、小さく笑う。",
-    "translated": "As I froze in place, Lucifer leaned his face close -- and gave a small smile."
+    "translated": "As I froze in place, Lucifer leaned his face close -- and gave a quiet chuckle."
    },
    {
     "offset": 117413,
     "type": "dialogue",
     "speaker": "ルシフェル",
     "text": "「くく……っ」",
-    "translated": "\"Kuku...!\""
+    "translated": "\"Heh heh...\""
    },
    {
     "offset": 117555,
@@ -76801,7 +76801,7 @@
     "type": "narration",
     "speaker": "",
     "text": "そうさ。きっとただ思わせぶりな態度を取ってみせただけだ。いつものあいつのやり口じゃないか。意味なんか無い。",
-    "translated": "Of course. He was just putting on a suggestive act. That was his usual trick, wasn't it? It meant nothing."
+    "translated": "Of course. He was just acting like he knew something. That was his usual trick, wasn't it? It meant nothing."
    },
    {
     "offset": 118139,
@@ -76871,7 +76871,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「おい、監督生、どうした」",
-    "translated": "\"Oi, Prefect, what's wrong?\""
+    "translated": "\"Hey, Prefect, what's wrong?\""
    },
    {
     "offset": 119622,
@@ -76920,7 +76920,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「何だ、熱があるのかと思ったんだがな」",
-    "translated": "\"What's this. I thought you might have a fever.\""
+    "translated": "\"Huh, here I thought you might have a fever.\""
    },
    {
     "offset": 120674,
@@ -76962,7 +76962,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「こっちの方が、人の気配が分かりやすい」",
-    "translated": "\"It's easier to sense if anyone's around from over here.\""
+    "translated": "\"It's easier to tell if anyone's approaching like this.\""
    },
    {
     "offset": 121442,
@@ -77102,7 +77102,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 124738,
@@ -78495,7 +78495,7 @@
     "type": "narration",
     "speaker": "",
     "text": "鼠の足音だとしたら、結構大きな鼠だろうな。ミスター・マコーリーに、ねずみ取りを仕掛けてもらった方がいいのかもしれない――。",
-    "translated": "If those were a rat's footsteps, it would have to be a pretty big rat. Maybe I should ask Mr. Macauley to set up a mousetrap--."
+    "translated": "If those were a rat's footsteps, it would have to be a pretty big rat. Maybe I should ask Mr. Macauley to set a rattrap--."
    }
   ]
  },
@@ -78730,7 +78730,7 @@
     "type": "narration",
     "speaker": "",
     "text": "もう一度左を抓られる。その間も、右の方への、オーガスト神父の愛撫は止まない。翻弄される僕を見て、アベルがけたたましい笑い声を上げた。",
-    "translated": "He pinched my left side again. All the while, Father August's caresses on my right side never stopped. Watching me being tossed back and forth between them, Abel burst into shrill laughter."
+    "translated": "He pinched my left one again. All the while, Father August's caresses on the right never stopped. Watching me at the mercy of their touch, Abel burst into shrill laughter."
    },
    {
     "offset": 3643,
@@ -78779,7 +78779,7 @@
     "type": "dialogue",
     "speaker": "アベル",
     "text": "「そういえば、まだ最後までやってないんだっけ？……へえ」",
-    "translated": "\"Come to think of it, you haven't gone all the way yet, right? ...Hmph.\""
+    "translated": "\"Come to think of it, you haven't gone all the way yet, right? ...Oh?\""
    },
    {
     "offset": 4485,
@@ -78891,7 +78891,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「彼さ。私にしたがっていたんだよね。今日はその望みを叶えて、挿れさせてあげようかなぁ」",
-    "translated": "\"He wanted to do it with me, you know. Today I might just grant his wish and let him put it in.\""
+    "translated": "\"He's been wanting to do it to me, you know. Today I might just grant his wish and let him put it in.\""
    },
    {
     "offset": 6329,
@@ -79087,7 +79087,7 @@
     "type": "narration",
     "speaker": "",
     "text": "足の裏でさすられるなんて、すごく屈辱的なことの筈なのに。……それなのに、どうしようもなく感じてしまう。",
-    "translated": "Being rubbed with the sole of his foot should have been utterly humiliating. ...And yet, I couldn't help but feel it."
+    "translated": "Being rubbed with the sole of his foot should have been utterly humiliating. ...And yet, I couldn't help getting aroused by it."
    },
    {
     "offset": 9821,
@@ -80977,7 +80977,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 41112,
@@ -83771,7 +83771,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 19700,
@@ -84303,7 +84303,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 28760,
@@ -84443,7 +84443,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "（扉を開けて……オーガスト神父を置いて、ここを出なきゃ――！）",
-    "translated": "(Open the door... leave Father August behind, and get out of here--!)"
+    "translated": "(I have to open the door... leave Father August behind, and get out of here--!)"
    },
    {
     "offset": 31470,
@@ -85493,7 +85493,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「可愛かったよ、マイケル。恥じらいながら反応する君は初々しくて従順で……とても愛らしかった」",
-    "translated": "\"You were adorable, Michael. The way you reacted with such shyness was so fresh and obedient... so very lovely.\""
+    "translated": "\"You were adorable, Michael. The way you reacted with such shyness was so innocent and obedient... so very lovely.\""
    },
    {
     "offset": 50066,
@@ -86211,7 +86211,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 5645,
@@ -87674,7 +87674,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 31437,
@@ -87744,7 +87744,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 32881,
@@ -87912,7 +87912,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 36298,
@@ -89788,7 +89788,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「はは――でもねぇ、マイケル。従順な君はつまらないけど、今の君は大好きだよ」",
-    "translated": "\"Haha--but you know, Michael. An obedient you is dull, but the you of right now--I love.\""
+    "translated": "\"Haha--but you know, Michael, an obedient you is dull, whereas I love the way you are right now.\""
    },
    {
     "offset": 71548,
@@ -89837,7 +89837,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「触るなっ！　穢らわしい！！」",
-    "translated": "\"Don't touch me! It's filthy!!\""
+    "translated": "\"Don't touch me! You're filthy!!\""
    },
    {
     "offset": 72641,
@@ -90005,7 +90005,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕のすぐ傍で、突然、扉が開いた。",
-    "translated": "Right beside me, a door suddenly opened."
+    "translated": "Right beside me, the door suddenly opened."
    },
    {
     "offset": 75953,
@@ -90702,7 +90702,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 3431,
@@ -92134,7 +92134,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「声が変わったのが、去年の秋でさ。だから俺、自分が総監督生になったから、開き直って作り声を止めたんだと思ったんだ」",
-    "translated": "\"The voice changed last autumn. So I figured -- since he'd become Head Prefect, he'd given up and stopped using his fake voice.\""
+    "translated": "\"The voice changed last autumn. So I figured that once he became Head Prefect, he stopped caring about hiding it and dropped the fake voice.\""
    },
    {
     "offset": 18667,
@@ -93846,7 +93846,7 @@
     "type": "narration",
     "speaker": "",
     "text": "せめてもう一度だけ、ちゃんと話がしたい。前みたいに二人だけの時間を持てたら、どんなにか――。",
-    "translated": "If only we could talk properly, just one more time. If we could have time alone together like before, how much--"
+    "translated": "If only we could talk properly, just one more time. How wonderful it would be if we could have time alone together like before--"
    },
    {
     "offset": 17052,
@@ -94063,7 +94063,7 @@
     "type": "narration",
     "speaker": "",
     "text": "――でも僕は、既に一度、牧師である彼に、やらせてはならないことをやらせてしまった。",
-    "translated": "--But I had already once made him, a pastor, do something he never should have done."
+    "translated": "--Even so, I had already once made him -- a priest -- do something he never should have done."
    },
    {
     "offset": 20546,
@@ -95617,7 +95617,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ニールは？」",
-    "translated": "\"Where's Neil?\""
+    "translated": "\"What about you, Neil?\""
    },
    {
     "offset": 48961,
@@ -97171,7 +97171,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ニールは？」",
-    "translated": "\"Where's Neil?\""
+    "translated": "\"What about you, Neil?\""
    },
    {
     "offset": 73444,
@@ -98837,7 +98837,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「い、いや、そりゃそうかもしれねえが――じゃなくてだな」",
-    "translated": "\"W-well, that might be true, but -- that's not the point.\""
+    "translated": "\"W-well, no, you might be allowed, but -- wait, that's not the point.\""
    },
    {
     "offset": 99078,
@@ -101091,7 +101091,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 138717,
@@ -101224,7 +101224,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 141630,
@@ -102558,7 +102558,7 @@
     "type": "narration",
     "speaker": "",
     "text": "――でも、二人だから乗り越えて来られた。大好きな君が僕を好きになってくれた。",
-    "translated": "--But because we had each other, we made it through. The you I love so much loved me back."
+    "translated": "--But because we had each other, we made it through. The boy I loved so much came to love me back."
    },
    {
     "offset": 16584,
@@ -102586,7 +102586,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕が校長先生に呼び出されたことや、その他のたくさんの出来事。話している間に、ラザラス神父に僕らの事を気付かれてしまった。",
-    "translated": "About my being summoned by the Headmaster, and a great many other things. While we talked, Father Lazarus noticed what was between us."
+    "translated": "We talked about my being summoned by the Headmaster, and so many other things. While we were talking, Father Lazarus realized what was between us."
    },
    {
     "offset": 17221,
@@ -102922,7 +102922,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「あ、朝になったら、きっと窓の外の景色が綺麗だと思うな！　ほら、見晴らしがいいし！　朝日がこっちの窓から差し込むって話だし！」",
-    "translated": "\"I-in the morning, the view outside the window should be beautiful, don't you think! I mean, the lookout's good! And they said the morning sun comes in through that window!\""
+    "translated": "\"I-in the morning, the view outside the window should be beautiful, don't you think! I mean, it's got a great view! And they said the morning sun comes in through this window!\""
    },
    {
     "offset": 24715,
@@ -102957,7 +102957,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「だ……だよな。さすがにもう寝てるよな」",
-    "translated": "\"Y-yeah. So they'll already be asleep, of course.\""
+    "translated": "\"Y-yeah. I guess we'd already be asleep by then.\""
    },
    {
     "offset": 25754,
@@ -102971,7 +102971,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「――じゃなくて！　もう寝てるじゃなくて、ま、まだ寝てるよなって言おうとしたんだ、今のはっ！」",
-    "translated": "\"--I mean, no! Not 'already asleep' -- I-I meant to say they'll 'still be asleep,' just now!\""
+    "translated": "\"--I mean, no! Not 'already asleep' -- I-I meant to say we'd 'still be asleep' then!\""
    },
    {
     "offset": 26262,
@@ -103055,7 +103055,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕は意を決して、とにかくベッドに腰掛けてみた。",
-    "translated": "Steeling my resolve, I just tried sitting down on the bed."
+    "translated": "Steeling my resolve, I went ahead and sat down on the bed."
    },
    {
     "offset": 28110,
@@ -103279,7 +103279,7 @@
     "type": "dialogue",
     "speaker": "セシル",
     "text": "「君が僕に？　僕が君に？　それともこうた――いや、えっと」",
-    "translated": "\"You to me? Me to you? Or is it the kind where--... no, um.\""
+    "translated": "\"You to me? Me to you? Or taking tur--... no, um.\""
    },
    {
     "offset": 32003,
@@ -103335,7 +103335,7 @@
     "type": "dialogue",
     "speaker": "セシル",
     "text": "「――分かった」",
-    "translated": "\"--Understood.\""
+    "translated": "\"--Got it.\""
    },
    {
     "offset": 33186,
@@ -103356,7 +103356,7 @@
     "type": "dialogue",
     "speaker": "セシル",
     "text": "「いいよ」",
-    "translated": "\"It's all right.\""
+    "translated": "\"Okay.\""
    },
    {
     "offset": 33709,
@@ -103706,7 +103706,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 40273,
@@ -112110,7 +112110,7 @@
     "type": "narration",
     "speaker": "",
     "text": "デニスは急に長い叫びを上げると、周りを煽っていた上級生に、猛烈な勢いで突っ込んだ。",
-    "translated": "With a sudden, drawn-out scream, Dennis charged with tremendous force into the senior student who had been goading him."
+    "translated": "With a sudden, drawn-out scream, Dennis charged with tremendous force into the senior student who had been egging everyone on."
    },
    {
     "offset": 58504,
@@ -112145,7 +112145,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ニールが止めようとしたが、起きあがった上級生が鼻血を流しているのを見ると、デニスは顔色をさらに変えた。",
-    "translated": "Neil tried to stop him, but when Dennis saw that the senior student, now back on his feet, was bleeding from the nose, his face changed even further."
+    "translated": "Neil tried to stop him, but when Dennis saw that the senior student, now back on his feet, was bleeding from the nose, the color drained from his face even further."
    },
    {
     "offset": 59399,
@@ -112341,7 +112341,7 @@
     "type": "narration",
     "speaker": "",
     "text": "デニスはその時、確かに足を止めた。そして身体をひねった。",
-    "translated": "He certainly stopped his feet in that instant. And he twisted his body around."
+    "translated": "He definitely planted his feet in that instant. And he twisted his body around."
    },
    {
     "offset": 62995,
@@ -114980,7 +114980,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ニールは？」",
-    "translated": "\"Where's Neil?\""
+    "translated": "\"What about you, Neil?\""
    },
    {
     "offset": 112623,
@@ -115883,7 +115883,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 128552,
@@ -117304,7 +117304,7 @@
     "type": "narration",
     "speaker": "",
     "text": "セシルは勝手に約束を取り付けると、柔らかに笑みを浮かべて出て行った。",
-    "translated": "Cecil extracted his promise on his own terms, then left with a soft smile."
+    "translated": "Having secured the promise all on his own, Cecil left with a soft smile."
    },
    {
     "offset": 154669,
@@ -117409,7 +117409,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「違う」",
-    "translated": "\"I didn't.\""
+    "translated": "\"No, it's not.\""
    },
    {
     "offset": 156552,
@@ -117486,7 +117486,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 158243,
@@ -117633,7 +117633,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ジャックは喘ぐような呼吸を繰り返した後、震える声を漏らし始めた。",
-    "translated": "After repeating gasping breaths, Jack began to let out a trembling voice."
+    "translated": "After a few ragged gasps, Jack began to speak in a trembling voice."
    },
    {
     "offset": 160840,
@@ -117675,7 +117675,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ジャックは息を呑んで身を翻すと、部屋を飛び出していく。",
-    "translated": "Jack caught his breath, turned on his heel, and bolted from the room."
+    "translated": "Jack gasped, spun on his heel, and bolted from the room."
    },
    {
     "offset": 161556,
@@ -118144,7 +118144,7 @@
     "type": "narration",
     "speaker": "",
     "text": "天井裏を駆け抜ける何かの足音が聞こえた。",
-    "translated": "The footsteps of something racing across the ceiling sounded."
+    "translated": "We heard the footsteps of something racing above the ceiling."
    },
    {
     "offset": 169765,
@@ -118403,7 +118403,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いや……」",
-    "translated": "\"No...\""
+    "translated": "\"Oh, it's nothing...\""
    },
    {
     "offset": 174681,
@@ -121554,7 +121554,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 1093,
@@ -122289,7 +122289,7 @@
     "type": "narration",
     "speaker": "",
     "text": "オーガスト神父はオーバーアクション気味に手を振ったあと、やれやれと肩を竦めた。",
-    "translated": "After waving his hands theatrically, Father August shrugged with an air of \"good grief.\""
+    "translated": "After waving his hands with theatrical exaggeration, Father August gave an exasperated shrug."
    },
    {
     "offset": 13873,
@@ -122324,7 +122324,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 14888,
@@ -122436,7 +122436,7 @@
     "type": "narration",
     "speaker": "",
     "text": "なんだろう、今の言い方。ガビィの言葉は、どこか癇に障る。",
-    "translated": "What was that, just now? Gabby's words rubbed me the wrong way somehow."
+    "translated": "What was with the way he just said that? Something about Gabby's tone rubbed me the wrong way."
    },
    {
     "offset": 17176,
@@ -123112,7 +123112,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 9806,
@@ -125720,7 +125720,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 17290,
@@ -126035,7 +126035,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 23411,
@@ -126700,7 +126700,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ひ……っ！！」",
-    "translated": "\"Eek...!!\""
+    "translated": "\"Ghk...!!\""
    },
    {
     "offset": 37351,
@@ -127911,14 +127911,14 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「違う」",
-    "translated": "\"I didn't.\""
+    "translated": "\"No, it's not.\""
    },
    {
     "offset": 60151,
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「違うって、でも、あれは確かにセシルの声――」",
-    "translated": "\"No, but that's definitely Cecil's voice --\""
+    "translated": "\"What do you mean, it's not? That's definitely Cecil's voice --\""
    },
    {
     "offset": 60274,
@@ -130564,7 +130564,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「――分かった」",
-    "translated": "\"--Understood.\""
+    "translated": "\"--Got it.\""
    },
    {
     "offset": 111340,
@@ -132846,7 +132846,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 159749,
@@ -134694,7 +134694,7 @@
     "type": "narration",
     "speaker": "",
     "text": "……そうさ。肌も髪も瞳も、一見、冷たそうな色合いの人だけど、彼はとても温かい。",
-    "translated": "That's right. With his skin and hair and eyes, he looked like such a cold person at first glance, but really he was so very warm."
+    "translated": "That's right. With the pale, icy tones of his skin, hair, and eyes, he looked cold at first glance, yet he was so very warm."
    },
    {
     "offset": 193718,
@@ -134708,7 +134708,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「あんなところまで裸足で飛び出して行った君に、そんなことは言われたくない」",
-    "translated": "\"I don't want to hear that from someone who ran barefoot to a place like this himself.\""
+    "translated": "\"I don't want to hear that from someone who ran barefoot all the way out there himself.\""
    },
    {
     "offset": 193992,
@@ -134946,7 +134946,7 @@
     "type": "narration",
     "speaker": "",
     "text": "でも翌日、死体となって、凍った湖の上で発見された。僕がよく釣りをしていた、あの湖だ。",
-    "translated": "But the next day, he was discovered as a corpse, atop the frozen lake. The very lake where I used to go fishing."
+    "translated": "But the next day, he was found dead out on the frozen lake. The very lake where I used to go fishing."
    },
    {
     "offset": 198084,
@@ -135097,7 +135097,7 @@
     "type": "narration",
     "speaker": "",
     "text": "あいつ、神出鬼没だからなあ。いつもの図書館か上級生の談話室にでも居てくれればいいんだけど。",
-    "translated": "The guy is unpredictable. I just hoped he'd be at the usual library or the upperclassmen's common room."
+    "translated": "That guy turns up in the most unpredictable places. I just hoped he'd be in the library or the upperclassmen's common room like usual."
    },
    {
     "offset": 2063,
@@ -135307,7 +135307,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ラザラス神父達は、こちらを伺っている様子だったけど、見に来ようとまではなさらなかった。その代わり、話を切り上げることに決めたようだ。",
-    "translated": "Father Lazarus and the others seemed to be peering in our direction, but they didn't come to investigate. Instead, they apparently decided to cut their conversation short."
+    "translated": "Father Lazarus and Mr. Macauley seemed to be peering in our direction, but they didn't come to investigate. Instead, they apparently decided to cut their conversation short."
    },
    {
     "offset": 5181,
@@ -135370,7 +135370,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「いつからって、来たばっかりに決まってんだろ。黙ってお前さんの後ろ姿を眺める趣味はねえぞ」",
-    "translated": "\"Since when? Just now, obviously. I don't have a hobby of silently staring at the back of your head.\""
+    "translated": "\"Since when? Just now, obviously. I don't make a hobby of silently staring at your back.\""
    },
    {
     "offset": 6792,
@@ -135783,7 +135783,7 @@
     "type": "dialogue",
     "speaker": "ルシフェル",
     "text": "『きづた、毒ニンジン、かのこ草、しゃぐま百合、は虫類の歯、ヒキガエルの脂、梟の糞、雄山羊の胆汁、死刑囚の臓腑、それから――』",
-    "translated": "\"Ivy, hemlock, valerian, shaggy mane lily, reptile teeth, toad's fat, owl dung, billy goat's bile, the entrails of an executed criminal, and--\""
+    "translated": "\"Ivy, hemlock, valerian, torch lily, reptile teeth, toad's fat, owl dung, billy goat's bile, the entrails of an executed criminal, and--\""
    },
    {
     "offset": 15256,
@@ -137586,7 +137586,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 6708,
@@ -138167,7 +138167,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 16890,
@@ -142483,7 +142483,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 101886,
@@ -144167,21 +144167,21 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "（いつまで……？　好きだって気持ちを捨てるまで？）",
-    "translated": "(Until when...? Until we abandon these feelings?)"
+    "translated": "(Until when...? Until they abandon their feelings for each other?)"
    },
    {
     "offset": 32825,
     "type": "narration",
     "speaker": "",
     "text": "そのうち忘れてしまえるのだろうか。それで楽になるのだろうか。",
-    "translated": "Would we forget eventually? Would that make it easier?"
+    "translated": "Would they forget eventually? Would that make it easier?"
    },
    {
     "offset": 32922,
     "type": "narration",
     "speaker": "",
     "text": "――それとも、ずっと思い続けて、気持ちを押し殺し続けて……会いたくて、でも我慢して。そんなふうに一生を過ごしていくのか？",
-    "translated": "--Or would we keep loving them, keep crushing it down inside... longing to see them, but enduring it. Was that how we'd spend the rest of our lives?"
+    "translated": "--Or would they keep loving each other, keep crushing their feelings down... longing to see one another, yet holding back? Was that how they'd spend the rest of their lives?"
    },
    {
     "offset": 33079,
@@ -146684,7 +146684,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 25559,
@@ -149141,7 +149141,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 80158,
@@ -149169,7 +149169,7 @@
     "type": "narration",
     "speaker": "",
     "text": "『赤蛇の土』に入れと言われても、僕は既に結社のメンバーだ。もう一度反省室入りしたって、誘いは来ない。",
-    "translated": "Even if he tells me to join the \"Red Serpent's Soil,\" I'm already a member of the society. No matter how many times I enter the reflection room, no invitation will come."
+    "translated": "Even if he tells me to join the \"Red Serpent's Soil,\" I'm already a member of the society. Even if I enter the reflection room one more time, no invitation will come."
    },
    {
     "offset": 80644,
@@ -149337,7 +149337,7 @@
     "type": "narration",
     "speaker": "",
     "text": "でも、今更？　……どの面下げて？",
-    "translated": "But now? ...With what face?"
+    "translated": "But now? ...How could I even look him in the eye?"
    },
    {
     "offset": 84158,
@@ -149603,7 +149603,7 @@
     "type": "dialogue",
     "speaker": "？？？",
     "text": "「……ケル」",
-    "translated": "\"...kel.\""
+    "translated": "\"...chael.\""
    },
    {
     "offset": 89043,
@@ -149666,7 +149666,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「は――」",
-    "translated": "\"Ha--\""
+    "translated": "\"Y--\""
    },
    {
     "offset": 89840,
@@ -149771,7 +149771,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いえ、結構です」",
-    "translated": "\"No, thank you.\""
+    "translated": "\"No, that won't be necessary.\""
    },
    {
     "offset": 91585,
@@ -150345,21 +150345,21 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「酷い言われようだ」",
-    "translated": "\"What a terrible way to put it.\""
+    "translated": "\"What a harsh thing to say.\""
    },
    {
     "offset": 102952,
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ええ、わざと酷く言ってますから。大体、支障がないって思ってる？　本気なら驚きですよ！」",
-    "translated": "\"Yes, I'm saying it terribly on purpose. And besides, you really think it causes no problems? If you're serious, that's astonishing!\""
+    "translated": "\"Yes, I'm being harsh on purpose. And besides, you really think it causes no inconvenience? If you're serious, that's astonishing!\""
    },
    {
     "offset": 103181,
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「どこに支障があると？　私は感じたことがないが」",
-    "translated": "\"What problems? I've never felt any.\""
+    "translated": "\"What inconvenience? I've never felt any.\""
    },
    {
     "offset": 103388,
@@ -153359,7 +153359,7 @@
     "type": "dialogue",
     "speaker": "男２",
     "text": "「うわっ！」",
-    "translated": "\"Yikes!\""
+    "translated": "\"Whoa!\""
    },
    {
     "offset": 60939,
@@ -154574,7 +154574,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 15834,
@@ -155362,7 +155362,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 2943,
@@ -156111,7 +156111,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 20800,
@@ -156808,7 +156808,7 @@
     "type": "dialogue",
     "speaker": "セシル",
     "text": "「いいよ」",
-    "translated": "\"It's all right.\""
+    "translated": "\"Okay.\""
    },
    {
     "offset": 11317,
@@ -158156,7 +158156,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 16821,
@@ -158261,7 +158261,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「この……っ、ちまちま転がって逃げやがって！　丸いヤツはこれだから……！」",
-    "translated": "\"Why you--! Rolling around like that to get away! That's why fat guys are--!\""
+    "translated": "\"Why you--! Rolling around like that to get away! That's why round guys are--!\""
    },
    {
     "offset": 19031,
@@ -158296,7 +158296,7 @@
     "type": "narration",
     "speaker": "",
     "text": "声を出して笑ってはいけない――そんな校則のことなんか、寮にいる間は、みんなすっかり忘れている。",
-    "translated": "Don't laugh out loud--that school rule was completely forgotten by all of us when we were in the dormitory."
+    "translated": "Do not laugh out loud--while we're in the dormitory, everyone completely forgets about that school rule."
    },
    {
     "offset": 19533,
@@ -158541,7 +158541,7 @@
     "type": "dialogue",
     "speaker": "ジョシュア",
     "text": "「まさか、悪魔が立てる物音ってことなのかな……？」",
-    "translated": "\"Could it be... the sound of a demon's footsteps?\""
+    "translated": "\"Could it be... a noise made by a demon...?\""
    },
    {
     "offset": 24315,
@@ -160368,7 +160368,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 63291,
@@ -163662,7 +163662,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 26575,
@@ -165129,7 +165129,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 3979,
@@ -168847,7 +168847,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ジャックは眉をつり上げている。",
-    "translated": "Jack's brows shot up."
+    "translated": "Jack's eyebrows shot up in anger."
    },
    {
     "offset": 6483,
@@ -168889,7 +168889,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いや」",
-    "translated": "\"No.\""
+    "translated": "\"Don't mention it.\""
    },
    {
     "offset": 7521,
@@ -169001,7 +169001,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ジャックはベンジャミンを軽く小突いて、弁解がましく僕に言った。",
-    "translated": "Jack gave Benjamin a light shove and said to me, as though making excuses,"
+    "translated": "Jack gave Benjamin a light shove and started making excuses to me."
    },
    {
     "offset": 10177,
@@ -169022,7 +169022,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「へっ、お前が来なけりゃ、何の問題もなかったんだよ。ペンダントをちょっと借りただけだってのに、大げさに騒ぎやがってさ」",
-    "translated": "\"Tch, if you hadn't come, there wouldn't've been any problem at all. I was just borrowing the pendant a little, and you have to make a big fuss about it.\""
+    "translated": "\"Tch, if you hadn't shown up, there wouldn't've been any problem at all. I was just borrowing the pendant for a sec, and he had to make a big fuss about it.\""
    },
    {
     "offset": 10795,
@@ -169337,7 +169337,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「暴れたのは君だ。やるのが当たり前だろう」",
-    "translated": "\"You're the one who tore the place up. Of course you do.\""
+    "translated": "\"You're the one who tore the place up. Of course you have to.\""
    },
    {
     "offset": 17524,
@@ -171525,7 +171525,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 17374,
@@ -171784,7 +171784,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 22146,
@@ -172148,7 +172148,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 28131,
@@ -172379,7 +172379,7 @@
     "type": "narration",
     "speaker": "",
     "text": "――口の中に、出している。",
-    "translated": "--Into his mouth, I was releasing."
+    "translated": "--I was coming inside his mouth."
    },
    {
     "offset": 31622,
@@ -173233,7 +173233,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 47178,
@@ -174518,7 +174518,7 @@
     "type": "narration",
     "speaker": "",
     "text": "戦争中の話――親を空襲で亡くした少女と、少女を引き取った貧しい家の少年と。それに、次々に盗まれていく十字架と些細な嘘から始まる諍い。",
-    "translated": "A wartime story--a girl who lost her parents in an air raid, and the boy from the poor family who took her in. And the crucifixes that go on being stolen one after another, and the quarrel that starts from a trivial lie."
+    "translated": "A wartime story--a girl who lost her parents in an air raid, and a boy from the poor family that took her in. Then, crucifixes stolen one after another, and a quarrel sparked by a trivial lie."
    },
    {
     "offset": 25843,
@@ -176898,7 +176898,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「違うよ」",
-    "translated": "\"That's wrong.\""
+    "translated": "\"No, I'm not.\""
    },
    {
     "offset": 62892,
@@ -176919,7 +176919,7 @@
     "type": "narration",
     "speaker": "",
     "text": "この調子で怯えてる相手に、僕から手を出すってのも、ちょっと……な。",
-    "translated": "To go and put my own hand on him while he was this frightened, it was a bit... no."
+    "translated": "Making a move on him myself when he was already this frightened was a bit much..."
    },
    {
     "offset": 63156,
@@ -177444,7 +177444,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いや……」",
-    "translated": "\"No...\""
+    "translated": "\"Oh, it's nothing...\""
    },
    {
     "offset": 72863,
@@ -182782,7 +182782,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 4706,
@@ -183258,7 +183258,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 12774,
@@ -184385,7 +184385,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「胸騒ぎがしたからさ。マイケルが泣いてんじゃないかって」",
-    "translated": "\"I had a bad feeling. Like maybe Michael was crying.\""
+    "translated": "\"I had a bad feeling. Like maybe you were crying, Michael.\""
    },
    {
     "offset": 34086,
@@ -184420,7 +184420,7 @@
     "type": "narration",
     "speaker": "",
     "text": "……自分と同じ顔が笑っている。そう言えばガビィは、あの事件の後も、ずっと笑みを絶やさない。",
-    "translated": "A face like my own, laughing. Come to think of it, Gabby hadn't stopped smiling since that incident either."
+    "translated": "A face identical to my own was smiling. Come to think of it, even after that incident, Gabby had never stopped smiling."
    },
    {
     "offset": 34720,
@@ -184476,7 +184476,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「思い出してみなよ。もしマイケルが笑いもせず、外出日にも学校に閉じこもってばかりいたら、母さんは何て言うと思う？」",
-    "translated": "\"Just think about it. If Michael never laughed and stayed shut up in school even on outing days, what do you think mother would say?\""
+    "translated": "\"Just think about it. If you never laughed and stayed shut up in school even on outing days, what do you think Mother would say?\""
    },
    {
     "offset": 36003,
@@ -184518,7 +184518,7 @@
     "type": "narration",
     "speaker": "",
     "text": "父さんも母さんもミニーも。みんな、本当にごめん。",
-    "translated": "Father, mother, and Minnie. I'm truly sorry to all of them."
+    "translated": "Father, Mother, and Minnie. I'm truly sorry to you all."
    },
    {
     "offset": 36717,
@@ -184567,7 +184567,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「やってみないと分からない。そう思ったから、マイケルだって学校に戻ってきたんだろ？」",
-    "translated": "\"You won't know unless you try. That's why Michael came back to school, isn't it?\""
+    "translated": "\"You won't know unless you try. That's why you came back to school, isn't it?\""
    },
    {
     "offset": 37694,
@@ -184588,7 +184588,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな。ガビィの言う通りだ。やってみないと分からないって思ったから、学校に戻ってきたんだよな」",
-    "translated": "\"...You're right. Just as Gabby says. I came back to school because I thought I wouldn't know unless I tried.\""
+    "translated": "\"...That's right. It's just like you say, Gabby. I came back to school because I figured I wouldn't know unless I tried.\""
    },
    {
     "offset": 38120,
@@ -185260,7 +185260,7 @@
     "type": "narration",
     "speaker": "",
     "text": "『一説によると、一家を殺害したのは、被害者と思われた、当の――』",
-    "translated": "\"According to one theory, the one who murdered the family was none other than the supposed victim himself--\""
+    "translated": "\"According to one theory, the one who murdered the family was none other than the supposed victim--\""
    },
    {
     "offset": 51073,
@@ -185281,7 +185281,7 @@
     "type": "narration",
     "speaker": "",
     "text": "『当のダニエル牧師ではないかというのである』",
-    "translated": "\"--Pastor Daniel himself.\""
+    "translated": "\"--none other than Pastor Daniel himself.\""
    },
    {
     "offset": 51395,
@@ -186912,7 +186912,7 @@
     "type": "choice",
     "speaker": "",
     "text": "図書館へ行ってみようかと思った。",
-    "translated": "I thought about heading to the library."
+    "translated": "thought about heading to the library."
    },
    {
     "offset": 82000,
@@ -186933,7 +186933,7 @@
     "type": "narration",
     "speaker": "",
     "text": "図書館へ行ってみようかと思った。",
-    "translated": "I thought about heading to the library."
+    "translated": "thought about heading to the library."
    },
    {
     "offset": 82184,
@@ -187073,7 +187073,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「馬鹿野郎！　でかい声出すんじゃねえよっ！　見つかったら罰則だろうが！」",
-    "translated": "\"You idiot! Don't shout like that! If we get caught, it'll be punishment!\""
+    "translated": "\"You idiot! Keep your voice down! If we get caught, we'll be punished!\""
    },
    {
     "offset": 85151,
@@ -187164,7 +187164,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「おう、飽きないぜ。最初のヒントはこれだったからな」",
-    "translated": "\"Nope, never get tired of 'em. They were my first clue, after all.\""
+    "translated": "\"Yeah, never get tired of 'em. They were my first hint, after all.\""
    },
    {
     "offset": 87401,
@@ -187304,7 +187304,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「だが曾祖父さんには、その時もう国に残した曾祖母さんが居たんだ。曾祖母さんは嫉妬深くて、浮気がばれたら殺されかねない」",
-    "translated": "\"But my great-grandfather had already left a great-grandmother back home. She was a jealous woman, and if she found out he'd cheated, she might've killed him.\""
+    "translated": "\"But my great-grandfather already had a wife--my great-grandmother--waiting for him back home. She was a jealous woman, and if she found out he'd cheated, she might've killed him.\""
    },
    {
     "offset": 91575,
@@ -189131,7 +189131,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 126675,
@@ -189257,7 +189257,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 129060,
@@ -191939,7 +191939,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 17368,
@@ -192443,7 +192443,7 @@
     "type": "dialogue",
     "speaker": "アベル",
     "text": "「…………で、マイケルに……」",
-    "translated": "\"...so, Michael did it...\""
+    "translated": "\"......and then, Michael......\""
    },
    {
     "offset": 26721,
@@ -197539,7 +197539,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ひ……っ！！」",
-    "translated": "\"Eek...!!\""
+    "translated": "\"Ghk...!!\""
    },
    {
     "offset": 116641,
@@ -198232,7 +198232,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 128057,
@@ -198470,7 +198470,7 @@
     "type": "narration",
     "speaker": "",
     "text": "まるで、父さんを――。",
-    "translated": "As if my father were--."
+    "translated": "As if I were doing this to my father--."
    },
    {
     "offset": 131855,
@@ -198554,7 +198554,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 133350,
@@ -198701,7 +198701,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「あ……っ、……ふふっ、可愛いねぇ、マイケル……。君はなんてみっともなくて、可愛いんだろう……ねぇ」",
-    "translated": "\"Ah...! Heheh, how cute, Michael... How pathetic and adorable you are... hey.\""
+    "translated": "\"Ah...! Heheh, how cute, Michael... How pathetic and adorable you are... isn't it so?\""
    },
    {
     "offset": 135926,
@@ -199030,7 +199030,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 141845,
@@ -204148,7 +204148,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 46899,
@@ -204316,7 +204316,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 49896,
@@ -206178,7 +206178,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「くく……っ」",
-    "translated": "\"Kuku...!\""
+    "translated": "\"Heh heh...\""
    },
    {
     "offset": 80487,
@@ -206500,14 +206500,14 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……今度は文句かよ」",
-    "translated": "\"...Now you're complaining?\""
+    "translated": "\"...Now it's complaints?\""
    },
    {
     "offset": 85866,
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「ああ、そうだ。文句だ！」",
-    "translated": "\"Yes, that's right. Complaining!\""
+    "translated": "\"Yes, that's right. A complaint!\""
    },
    {
     "offset": 85971,
@@ -207557,7 +207557,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕は必死になって訴えた。レオニードの腕に手をかけ、指を食い込ませて、その動きを何とか止めようと試みた。",
-    "translated": "I pleaded desperately. I gripped his arm, dug my fingers in, somehow tried to stop his motion."
+    "translated": "I pleaded desperately. I gripped his arm and dug my fingers in, trying somehow to stop his movements."
    },
    {
     "offset": 102732,
@@ -207648,7 +207648,7 @@
     "type": "narration",
     "speaker": "",
     "text": "神なんか、知らない。",
-    "translated": "I didn't know any god."
+    "translated": "Who cared about God?"
    },
    {
     "offset": 104106,
@@ -208208,7 +208208,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 112144,
@@ -212979,7 +212979,7 @@
     "type": "dialogue",
     "speaker": "男",
     "text": "「ひ……っ！！」",
-    "translated": "\"Eek...!!\""
+    "translated": "\"Ghk...!!\""
    },
    {
     "offset": 36202,
@@ -214575,7 +214575,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 63975,
@@ -215391,7 +215391,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「ひ……っ！！」",
-    "translated": "\"Eek...!!\""
+    "translated": "\"Ghk...!!\""
    },
    {
     "offset": 3994,
@@ -217176,7 +217176,7 @@
     "type": "dialogue",
     "speaker": "ロバート",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 39952,
@@ -217456,7 +217456,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「そうだな……」",
-    "translated": "\"You're right...\""
+    "translated": "\"Let's see...\""
    },
    {
     "offset": 44721,
@@ -220319,7 +220319,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 107233,
@@ -221999,7 +221999,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「フン、どうせ俺に拒否権はねえんだろ？　じゃあ俺の意見なんてどうでもいいじゃねえか」",
-    "translated": "\"Hmph, it's not like I have any right to refuse anyway, right? So my opinion doesn't matter.\""
+    "translated": "\"Hmph, it's not like I get to veto anything anyway, right? So my opinion doesn't matter.\""
    },
    {
     "offset": 145963,
@@ -222346,7 +222346,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「どうだか。レオは時々、目を開けていても寝てるからなぁ。寝ぼけたことばっかり言ってさ」",
-    "translated": "\"I wonder. Sometimes you're asleep even with your eyes open, Leo. Always saying nonsense like you're half-dreaming.\""
+    "translated": "\"I wonder. Sometimes you're asleep even with your eyes open, Leo. Always spouting half-asleep nonsense.\""
    },
    {
     "offset": 5517,
@@ -222598,7 +222598,7 @@
     "type": "dialogue",
     "speaker": "レオニード",
     "text": "「来ない日を作る方が悪い。毎日来ていれば問題ない」",
-    "translated": "\"It's your fault for making a day where you don't come. There's no problem if you come every day.\""
+    "translated": "\"It's your fault for skipping a day. If you came every day, there wouldn't be a problem.\""
    },
    {
     "offset": 10415,
@@ -222703,7 +222703,7 @@
     "type": "narration",
     "speaker": "",
     "text": "何しろ私は、こうして世話を焼かれるのが、嬉しくて仕方がないのだ。怒られるのも楽しいのだから、困りものだ。",
-    "translated": "The truth is, I find this being looked after so unbearably delightful. I even enjoy being scolded, which is troublesome indeed."
+    "translated": "The truth is, I can't help being delighted when he fusses over me like this. I even enjoy being scolded, which is troublesome indeed."
    },
    {
     "offset": 12280,
@@ -225234,7 +225234,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……自分で何とかするから、ニールはしばらく僕の前に顔を出さないでくれ」",
-    "translated": "\"...I'll handle it myself, so Neil, please don't show your face in front of me for a while.\""
+    "translated": "\"...I'll handle it myself, so Neil, please stay away from me for a while.\""
    },
    {
     "offset": 43184,
@@ -225339,7 +225339,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 45266,
@@ -225486,7 +225486,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「セシル・カワードだっけ。お前さんの友達に聞いたぞ。夕べあんまり寝てないそうじゃないか」",
-    "translated": "\"Cecil Coward, was it? Your friend told me. Seems you haven't been sleeping much.\""
+    "translated": "\"Cecil Coward, was it? Your friend told me. Sounds like you didn't get much sleep last night.\""
    },
    {
     "offset": 48475,
@@ -226361,7 +226361,7 @@
     "type": "dialogue",
     "speaker": "同級生",
     "text": "「母親と妹がかわいそうだなどうして彼女たちの為に父親を憎まないんだ？」",
-    "translated": "\"His mother and sister were pitiful, why doesn't he hate his father for their sake?\""
+    "translated": "\"I feel sorry for his mother and sister, why doesn't he hate his father for their sake?\""
    },
    {
     "offset": 63858,
@@ -227334,7 +227334,7 @@
     "type": "narration",
     "speaker": "",
     "text": "だが少しも幻聴や幻覚は消えてくれない。",
-    "translated": "But the hallucinations didn't fade in the slightest."
+    "translated": "Yet neither the phantom sounds nor the visions faded in the slightest."
    },
    {
     "offset": 79858,
@@ -227474,14 +227474,14 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "（ニールを殺して僕も死ぬんだその方がいいよ）",
-    "translated": "(Kill Neil and die yourself that's better.)"
+    "translated": "(I'll kill Neil and die too it's better that way.)"
    },
    {
     "offset": 82656,
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「嫌だ……っ、そんなことだけはさせない……！」",
-    "translated": "\"No...! That's the one thing I won't do...!\""
+    "translated": "\"No...! I won't let you make me do that...!\""
    },
    {
     "offset": 82840,
@@ -227831,7 +227831,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ひ……っ！！」",
-    "translated": "\"Eek...!!\""
+    "translated": "\"Ghk...!!\""
    },
    {
     "offset": 89018,
@@ -228734,7 +228734,7 @@
     "type": "dialogue",
     "speaker": "ニール",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 106139,
@@ -228881,7 +228881,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 109308,
@@ -228972,7 +228972,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「～だから、一度離れてって言っただろ！　僕がいいって言ったら戻ってきて鍵をかけてくれよ！」",
-    "translated": "\"I-- I just said go away for a bit! When I say it's okay, come back and lock it!\""
+    "translated": "\"That's why I told you to step away first! When I say it's okay, come back and lock it!\""
    },
    {
     "offset": 110659,
@@ -229259,7 +229259,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕は唇を尖らせた。",
-    "translated": "I pursed my lips."
+    "translated": "I pouted."
    },
    {
     "offset": 115396,
@@ -231713,7 +231713,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 5531,
@@ -233652,7 +233652,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 48093,
@@ -236148,7 +236148,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 55314,
@@ -237531,7 +237531,7 @@
     "type": "narration",
     "speaker": "",
     "text": "――それはとても、きっと哀しいことだ。",
-    "translated": "--That would be very, very sad."
+    "translated": "--That would surely be very sad."
    },
    {
     "offset": 23461,
@@ -238256,7 +238256,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 12893,
@@ -240132,7 +240132,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 43984,
@@ -242698,7 +242698,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 41690,
@@ -242971,7 +242971,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 47232,
@@ -244350,7 +244350,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 74502,
@@ -248379,7 +248379,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 29656,
@@ -250423,7 +250423,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 68232,
@@ -251669,7 +251669,7 @@
     "type": "dialogue",
     "speaker": "ラザラス",
     "text": "「そう、私達……クラスメイトの」",
-    "translated": "\"Yes, ours... his classmates.\""
+    "translated": "\"Yes, our hero... his classmates'.\""
    },
    {
     "offset": 92486,
@@ -253392,7 +253392,7 @@
     "type": "dialogue",
     "speaker": "校長",
     "text": "『ふひっ、ふひひひひっ、お尻ぃ……ひははっ、お尻気持ち良いでちゅねえ……！』",
-    "translated": "\"Heh-heh, heh-heh-heh-heh, your bottom... ha-ha-ha, your bottom feels so good...!\""
+    "translated": "\"Fuhi, fuhihihihi, your little bottom... hihaha, your bottom feels so gooood, doesn't it...?\""
    },
    {
     "offset": 9295,
@@ -253427,7 +253427,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 10183,
@@ -253532,7 +253532,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 12219,
@@ -257204,7 +257204,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 18166,
@@ -257519,7 +257519,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「お陰で目が覚めた。――ベンジャミン、手紙の内容を教えてくれるか？」",
-    "translated": "\"Thanks to you, I'm awake again. --Benjamin, will you tell me what was in the letter?\""
+    "translated": "\"Thanks to you, I came to my senses. --Benjamin, will you tell me what was in the letter?\""
    },
    {
     "offset": 25213,
@@ -257666,7 +257666,7 @@
     "type": "narration",
     "speaker": "",
     "text": "ジョシュアが大人びた口調で言い、ベンジャミンに目を向けた。",
-    "translated": "Joshua said with a mature air, and turned his eyes toward Benjamin."
+    "translated": "Speaking in a mature tone, Joshua turned his eyes toward Benjamin."
    },
    {
     "offset": 28420,
@@ -258548,7 +258548,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 49992,
@@ -260064,7 +260064,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 25794,
@@ -260512,7 +260512,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 36068,
@@ -261079,7 +261079,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 48075,
@@ -261737,7 +261737,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 60986,
@@ -263393,7 +263393,7 @@
     "type": "narration",
     "speaker": "",
     "text": "学校の前庭をそぞろ歩く親子連れの姿が見える。久し振りに会った両親に甘えているジュニア生だ。",
-    "translated": "Parents and children strolled through the school's front garden. The junior students were doting on their parents, whom they hadn't seen in a long while."
+    "translated": "Parents and children strolled through the school's front garden. They were junior students, clinging to their parents whom they hadn't seen in a long while."
    },
    {
     "offset": 546,
@@ -263435,7 +263435,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「僕さあ、みんなに母さんが美人だって羨ましがられるのが、ちょっと自慢だった」",
-    "translated": "\"You know, I was kinda proud when everyone said how pretty my mom was.\""
+    "translated": "\"You know, I was kinda proud when everyone was jealous of how pretty Mom was.\""
    },
    {
     "offset": 1871,
@@ -263582,7 +263582,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いいことないだろ。一緒に来いよ」",
-    "translated": "\"What's the point in that? Come with me.\""
+    "translated": "\"Come on, don't be like that. Come with me.\""
    },
    {
     "offset": 5845,
@@ -266571,7 +266571,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 67975,
@@ -268276,7 +268276,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「違う」",
-    "translated": "\"I didn't.\""
+    "translated": "\"No, it's not.\""
    },
    {
     "offset": 33882,
@@ -268528,7 +268528,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「多分。週の頭に、選手の発表があったはずだ」",
-    "translated": "\"Probably. They should've announced the players at the start of the week.\""
+    "translated": "\"Probably. They should be announcing the players at the start of the week.\""
    },
    {
     "offset": 40210,
@@ -268563,7 +268563,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「まあ、ね」",
-    "translated": "\"Well, no.\""
+    "translated": "\"Pretty much, yeah.\""
    },
    {
     "offset": 41203,
@@ -268661,7 +268661,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……なあ、ニール。さっきからニールは、預言が当たるって前提で話をしてないか？」",
-    "translated": "\"...Hey, Neil. From earlier, you've been talking like the prophecies will come true, haven't you?\""
+    "translated": "\"...Hey, Neil. Haven't you been talking this whole time assuming the prophecies are going to come true?\""
    },
    {
     "offset": 43679,
@@ -268976,7 +268976,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「ニールは？」",
-    "translated": "\"Where's Neil?\""
+    "translated": "\"What about you, Neil?\""
    },
    {
     "offset": 51601,
@@ -269365,7 +269365,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「さっさと話しちゃいなよ。注射から逃げ出してた、子供の頃じゃないんだからさあ」",
-    "translated": "\"Just hurry up and tell him already. We're not kids anymore, running away from getting our shots.\""
+    "translated": "\"Just hurry up and tell him already. You're not a kid anymore, running away from getting your shots.\""
    },
    {
     "offset": 744,
@@ -271084,7 +271084,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 23843,
@@ -271168,7 +271168,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 25747,
@@ -271343,7 +271343,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 30180,
@@ -273989,7 +273989,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 75309,
@@ -275284,7 +275284,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 100240,
@@ -277580,7 +277580,7 @@
     "type": "narration",
     "speaker": "",
     "text": "――子供の頃の僕が、鏡に向かって話をしている。",
-    "translated": "--The child me was talking to a mirror."
+    "translated": "--My younger self was talking to a mirror."
    },
    {
     "offset": 139910,
@@ -277657,7 +277657,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "『もう……！　ちゃんとしないといけないんだぞ。僕が代わりに片付けておいてやるからさあ――』",
-    "translated": "\"Honestly...! You have to behave properly. I'll clean it up for you, this time--\""
+    "translated": "\"Honestly...! You have to behave properly. Come on, I'll clean it up for you instead--\""
    },
    {
     "offset": 141358,
@@ -278753,7 +278753,7 @@
     "type": "narration",
     "speaker": "",
     "text": "セシルはやっぱりつんと顔を背けたままだ。",
-    "translated": "Cecil kept his face turned away."
+    "translated": "Cecil kept his face stubbornly turned away."
    },
    {
     "offset": 17861,
@@ -278858,7 +278858,7 @@
     "type": "dialogue",
     "speaker": "セシル",
     "text": "「………………んだ？」",
-    "translated": "\"...........really?\""
+    "translated": "\"...........together?\""
    },
    {
     "offset": 20146,
@@ -278879,7 +278879,7 @@
     "type": "dialogue",
     "speaker": "セシル",
     "text": "「……反省室で。一晩一緒に過ごすんだ？　ふうん？」",
-    "translated": "\"...In the reflection room. You'll spend a whole night together? Really?\""
+    "translated": "\"...In the reflection room. You're going to spend a whole night together? Oh, really?\""
    },
    {
     "offset": 20713,
@@ -279005,7 +279005,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いやあ――」",
-    "translated": "\"Well, I--\""
+    "translated": "\"Haha, well--\""
    },
    {
     "offset": 23744,
@@ -280356,7 +280356,7 @@
     "type": "narration",
     "speaker": "",
     "text": "背後からべったりと貼り付かれて、僕は慌てて飛び上がった。",
-    "translated": "The voice clung to me from behind, and I jumped in startled alarm."
+    "translated": "Someone plastered themselves right against my back, and I jumped in startled alarm."
    },
    {
     "offset": 54419,
@@ -281896,7 +281896,7 @@
     "type": "dialogue",
     "speaker": "ベンジャミン",
     "text": "「ひ……っ！！」",
-    "translated": "\"Eek...!!\""
+    "translated": "\"Ghk...!!\""
    },
    {
     "offset": 87681,
@@ -282204,7 +282204,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 93108,
@@ -287556,7 +287556,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 54770,
@@ -288610,7 +288610,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「違うよ」",
-    "translated": "\"That's wrong.\""
+    "translated": "\"No, I'm not.\""
    },
    {
     "offset": 11826,
@@ -291131,7 +291131,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「いや……」",
-    "translated": "\"No...\""
+    "translated": "\"Oh, it's nothing...\""
    },
    {
     "offset": 3787,
@@ -291838,7 +291838,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 18169,
@@ -292720,7 +292720,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 36630,
@@ -295006,7 +295006,7 @@
     "type": "narration",
     "speaker": "",
     "text": "手を握った。起きあがることが出来なかった。それでもせめて、瓦礫の下から掘り起こしたかった。",
-    "translated": "I grabbed his hand. I couldn't manage to stand up. Still, at the very least, I wanted to dig him out from under the rubble."
+    "translated": "I squeezed his hand. He didn't stir. Still, at the very least, I wanted to dig him out from under the rubble."
    },
    {
     "offset": 47772,
@@ -301566,7 +301566,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 90704,
@@ -303138,7 +303138,7 @@
     "type": "dialogue",
     "speaker": "セシル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 26081,
@@ -311626,7 +311626,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「その神が、僕らから家族を取り上げた。でなければ、取り上げられるのを見過ごしたんだ。……なにもせずに」",
-    "translated": "\"That God of his is the one who took my family from us. Or, if not that, He stood by and watched as they were taken. ...Doing nothing.\""
+    "translated": "\"That God is the one who took our family from us. Or, if not that, He stood by and watched as they were taken. ...Doing nothing.\""
    },
    {
     "offset": 71905,
@@ -311906,7 +311906,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「そうだな……」",
-    "translated": "\"You're right...\""
+    "translated": "\"Let's see...\""
    },
    {
     "offset": 78156,
@@ -312382,7 +312382,7 @@
     "type": "dialogue",
     "speaker": "アベル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 89056,
@@ -316768,7 +316768,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕の前に跪き、僕自身を唇に含んだことを話したら――。",
-    "translated": "If I told him how he had knelt before me and taken me into his lips--."
+    "translated": "If I told him how you had knelt before me and taken me between your lips--."
    },
    {
     "offset": 82701,
@@ -316824,7 +316824,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕はベッドの中で横になり、キルトで首の辺りまでを覆う。キルトの端を左手でぎゅっと握りしめ、右手を股間に伸ばす。",
-    "translated": "I lay on my side in bed, pulling the quilt up to my neck. I clenched the edge of the quilt tightly with my left hand and slipped my right hand down between my legs."
+    "translated": "I lay in bed, pulling the quilt up to my neck. I clenched the edge of the quilt tightly with my left hand and slipped my right hand down between my legs."
    },
    {
     "offset": 83987,
@@ -318655,7 +318655,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 26861,
@@ -319033,7 +319033,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 35341,
@@ -319089,7 +319089,7 @@
     "type": "dialogue",
     "speaker": "オーガスト",
     "text": "「ああ、嫌だ嫌だ。考えるだけでぞっとするね」",
-    "translated": "\"Ah, no, no. Just thinking about it makes me shudder.\""
+    "translated": "\"Ugh, I hate it, I really do. Just thinking about it makes me shudder.\""
    },
    {
     "offset": 37139,
@@ -321882,7 +321882,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 100824,
@@ -323468,7 +323468,7 @@
     "type": "narration",
     "speaker": "",
     "text": "僕は鼻で嗤った。……まったく、どいつもこいつも油断が出来ないってことだな。",
-    "translated": "I snorted with derision. ...Honestly, every last one of them was someone you couldn't let your guard down around."
+    "translated": "I snorted with derision. ...Honestly, I couldn't let my guard down around a single one of them."
    },
    {
     "offset": 33575,
@@ -323909,7 +323909,7 @@
     "type": "dialogue",
     "speaker": "上級生",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 41517,
@@ -326517,7 +326517,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「勝手な思い込みは迷惑だ。僕は黒ミサ以外の場でルシフェルと会ったことなんかないし、監督生の件だって、校長に言いがかりをつけられて――」",
-    "translated": "\"Your wild assumptions are a nuisance. I've never met Lucifer anywhere except at the Black Mass, and as for being prefect, the Headmaster picked a fight with me and--\""
+    "translated": "\"Your wild assumptions are a nuisance. I've never met Lucifer anywhere except at the Black Mass, and as for being prefect, the Headmaster trumped up a charge against me and--\""
    },
    {
     "offset": 5335,
@@ -326629,7 +326629,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 8661,
@@ -332611,7 +332611,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 67050,
@@ -335303,7 +335303,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 6519,
@@ -335359,7 +335359,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 7360,
@@ -335562,7 +335562,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 10940,
@@ -336542,7 +336542,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 26458,
@@ -337634,7 +337634,7 @@
     "type": "narration",
     "speaker": "",
     "text": "抓られて真っ赤になった胸の紅点の上にも、オーガスト神父の濡れた手が這った。",
-    "translated": "Father August's wet hand also slid over the bright red marks on my chest from where he had pinched it."
+    "translated": "Father August's wet hand also slid over the bud on my chest, swollen bright red from where he had pinched it."
    },
    {
     "offset": 46005,
@@ -337676,7 +337676,7 @@
     "type": "narration",
     "speaker": "",
     "text": "自分が塗った物を、今度は舌で辿りながら、オーガスト神父は続けた。",
-    "translated": "Tracing what he had smeared this time with his tongue, Father August continued."
+    "translated": "Tracing what he had smeared with his tongue this time, Father August continued."
    },
    {
     "offset": 46948,
@@ -338656,7 +338656,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 62616,
@@ -340042,7 +340042,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 86033,
@@ -343287,7 +343287,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 66272,
@@ -343840,7 +343840,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 78080,
@@ -344862,7 +344862,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "（……何をどうやったらこうなるんだ…………）",
-    "translated": "(...How does one even arrive at this state...?)"
+    "translated": "(...How on earth does it even get like this...?)"
    },
    {
     "offset": 98941,
@@ -345247,7 +345247,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 105804,
@@ -349668,7 +349668,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 85498,
@@ -353963,7 +353963,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 96004,
@@ -354243,7 +354243,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 102610,
@@ -355440,7 +355440,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 128272,
@@ -358269,7 +358269,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「あ、ごめん！　あんまり嬉しかったから、つい」",
-    "translated": "\"Ah, sorry! I was just so happy, it slipped out.\""
+    "translated": "\"Ah, sorry! I was just so happy, I couldn't help myself.\""
    },
    {
     "offset": 6192,
@@ -358976,7 +358976,7 @@
     "type": "dialogue",
     "speaker": "ガビィ",
     "text": "「でももし僕の言ってることが当たってたら、マイケルは変態の仲間入りだよ」",
-    "translated": "\"But if I'm right, then Michael's about to become one of the perverts.\""
+    "translated": "\"But if I'm right, then you're about to become one of the perverts, Michael.\""
    },
    {
     "offset": 19383,
@@ -359130,7 +359130,7 @@
     "type": "narration",
     "speaker": "",
     "text": "やはりしっくり来ないのだ。制服をかぶって、口にマスクをした連中が集まり、悪魔崇拝の集会を開く。これじゃまるでコミックだ。裸で集まるのと大差ない。",
-    "translated": "It still didn't feel right. A bunch of guys with uniforms over their heads, masks over their mouths, gathering for a devil-worship meeting--this was starting to sound like a comic book. Not much different from gathering naked."
+    "translated": "It still didn't feel right. A bunch of guys throwing uniforms on, covering their mouths with masks, and gathering for a devil-worship meeting--it was pure comedy. Not much different from gathering naked."
    },
    {
     "offset": 22319,
@@ -359347,7 +359347,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「そうだな……」",
-    "translated": "\"You're right...\""
+    "translated": "\"Let's see...\""
    },
    {
     "offset": 26782,
@@ -359732,7 +359732,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 36095,
@@ -364576,7 +364576,7 @@
     "type": "narration",
     "speaker": "",
     "text": "そうしていないと、どうしても荒くなる息遣いに気付かれてしまう。",
-    "translated": "If I didn't, they would notice the breath that I couldn't help letting grow ragged."
+    "translated": "If I didn't, they would notice my breathing growing ragged in spite of myself."
    },
    {
     "offset": 135997,
@@ -364681,7 +364681,7 @@
     "type": "narration",
     "speaker": "",
     "text": "耳元で囁かれて、僕の背が勝手に仰け反った。",
-    "translated": "Whispered against my ear, my back arched of its own accord."
+    "translated": "As he whispered against my ear, my back arched of its own accord."
    },
    {
     "offset": 137364,
@@ -364989,7 +364989,7 @@
     "type": "dialogue",
     "speaker": "ルシフェル",
     "text": "「くく……っ」",
-    "translated": "\"Kuku...!\""
+    "translated": "\"Heh heh...\""
    },
    {
     "offset": 142661,
@@ -365283,7 +365283,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 148587,
@@ -365773,7 +365773,7 @@
     "type": "dialogue",
     "speaker": "ルシフェル",
     "text": "『きづた、毒ニンジン、かのこ草、しゃぐま百合、は虫類の歯、ヒキガエルの脂、梟の糞、雄山羊の胆汁、死刑囚の臓腑、それから――』",
-    "translated": "\"Ivy, hemlock, valerian, shaggy mane lily, reptile teeth, toad's fat, owl dung, billy goat's bile, the entrails of an executed criminal, and--\""
+    "translated": "\"Ivy, hemlock, valerian, torch lily, reptile teeth, toad's fat, owl dung, billy goat's bile, the entrails of an executed criminal, and--\""
    },
    {
     "offset": 158834,
@@ -365808,7 +365808,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "（七つの大罪のうちのいくつかを、今日だけでクリアしてしまったのは確かだな）",
-    "translated": "(I've definitely cleared a few of the seven deadly sins just today, that's for sure.)"
+    "translated": "(I've definitely checked off a few of the seven deadly sins just today, that's for sure.)"
    },
    {
     "offset": 159449,
@@ -367404,7 +367404,7 @@
     "type": "narration",
     "speaker": "",
     "text": "上級生の席を、懸命に見る。校長に気付かれて罰則を食らったって構わない。今はルシフェルの正体を知ることの方が最優先だ。",
-    "translated": "I stared hard at the seniors' seats. I didn't care if the Headmaster noticed and gave me punishment. Right now, finding out Lucifer's identity took priority above all else."
+    "translated": "I stared hard at the seniors' seats. I didn't care if the Headmaster noticed and punished me. Right now, finding out Lucifer's identity took priority above all else."
    },
    {
     "offset": 192660,
@@ -368524,7 +368524,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「…………っ」",
-    "translated": "\"...Pfft.\""
+    "translated": "\"...Kh.\""
    },
    {
     "offset": 215694,
@@ -368734,7 +368734,7 @@
     "type": "dialogue",
     "speaker": "ジャック",
     "text": "「いや」",
-    "translated": "\"No.\""
+    "translated": "\"Don't mention it.\""
    },
    {
     "offset": 221024,
@@ -369105,7 +369105,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「どういうことだ？　アスタロトはジュニアの学生じゃなかったってことか……っ！？」",
-    "translated": "\"What does this mean? Are you saying Astaroth wasn't a junior student after all...!?\""
+    "translated": "\"What does this mean? Don't tell me Astaroth wasn't a junior student after all...!?\""
    },
    {
     "offset": 228867,
@@ -369238,7 +369238,7 @@
     "type": "dialogue",
     "speaker": "マイケル",
     "text": "「……そうだな」",
-    "translated": "\"...All right.\""
+    "translated": "\"...Yeah, I hope so.\""
    },
    {
     "offset": 232360,
@@ -369574,7 +369574,7 @@
     "type": "dialogue",
     "speaker": "アベル",
     "text": "「……はい」",
-    "translated": "\"...Yes, sir.\""
+    "translated": "\"...Yes?\""
    },
    {
     "offset": 238747,

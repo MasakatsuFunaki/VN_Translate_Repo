@@ -167,8 +167,8 @@ TEST(BuildTsv, golden_tsv_matches_reference_sha256) {
 
     const std::string out = (fs::temp_directory_path() / "shin_ut_golden.tsv").u8string();
     ASSERT_EQ(bt::run_build(translated, out), 0);
-    EXPECT_EQ(fs::file_size(fs::u8path(out)), 6863843u);
+    EXPECT_EQ(fs::file_size(fs::u8path(out)), 6864235u);
     EXPECT_EQ(sha256_file(out),
-              "8d02d7eafce3077f6b9f62454e9452b1809935a60bca056be00bdb8307b97419");
+              "a016754c834fe37580d0258cbfdaca9236f1e4c86e35215a0b7dee7880861549");
     fs::remove(fs::u8path(out));
 }
