@@ -101,29 +101,33 @@ def test():
 
 
 def stage_translations():
-    """Stage .enc artifacts and the decrypt batch into install/."""
+    """Stage unencrypted translation JSON artifacts into install/script_output/."""
     src = os.path.join(ROOT, "script_output")
     dst = os.path.join(INSTALL_DIR, "script_output")
-    names = ["translated_text.json.enc", "translation_cache_anthropic.json.enc"]
+    names = ["translated_text.json", "translation_cache_anthropic.json"]
+    had_plain = {n: os.path.isfile(os.path.join(src, n)) for n in names}
 
-    present = [n for n in names if os.path.isfile(os.path.join(src, n))]
-    if not present:
-        print("  script_output: no .enc to stage — run "
-              "encrypt_translations.bat --encrypt first")
-        return
+    if not all(had_plain.values()):
+        enc_present = any(os.path.isfile(os.path.join(src, n + ".enc")) for n in names)
+        if enc_present:
+            run(["cmd", "/c", os.path.join(ROOT, "decrypt_translations.bat")], ROOT)
 
-    os.makedirs(dst, exist_ok=True)
-    for name in present:
-        shutil.copyfile(os.path.join(src, name), os.path.join(dst, name))
-        print(f"  script_output/{name}")
+    try:
+        present = [n for n in names if os.path.isfile(os.path.join(src, n))]
+        if not present:
+            print("  script_output: no translation JSONs to stage")
+            return
 
-    for name in ("decrypt_translations.bat", "translations_key.txt"):
-        path = os.path.join(ROOT, name)
-        if os.path.isfile(path):
-            shutil.copyfile(path, os.path.join(INSTALL_DIR, name))
-            print(f"  {name}")
-        else:
-            print(f"  MISSING {name} at {path} — the install cannot be decrypted")
+        os.makedirs(dst, exist_ok=True)
+        for name in present:
+            shutil.copyfile(os.path.join(src, name), os.path.join(dst, name))
+            print(f"  script_output/{name}")
+    finally:
+        for name, existed in had_plain.items():
+            if not existed:
+                p = os.path.join(src, name)
+                if os.path.isfile(p):
+                    os.remove(p)
 
 
 def install():

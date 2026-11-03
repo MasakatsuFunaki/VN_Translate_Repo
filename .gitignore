@@ -66,6 +66,7 @@ sakuranotoki/build/
 EXTRAVAGANZA_CE/build/
 EXTRAVAGANZA_MATSURO_CE/build/
 mushigurui_HD10/build/
+oretsuba/build/
 spot_checker/build/
 **/pipeline_cpp/build/
 **/proxy_dll/build/
@@ -116,7 +117,13 @@ sakuranotoki/script_output/translation_cache_gemini.json
 sakuranotoki/script_output/*.log
 sakuranotoki/proxy_dll/iarsys_orig.dll
 
+oretsuba/script_output/translated_text.json
+oretsuba/script_output/translation_cache_gemini.json
+
 # SakuraNoUta's translate step writes every raw API answer here on each run.
 # It repeats the script line by line, and nothing reads it back.
 SakuraNoUta/script_output/anthropic_raw_answers.log
 _specs*
+resume.md
+fraternite_hd_box_art_*.png
+*.mp4

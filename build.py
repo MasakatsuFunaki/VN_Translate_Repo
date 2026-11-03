@@ -134,10 +134,24 @@ def collect(game):
         for name in sorted(os.listdir(text_src)):
             f = os.path.join(text_src, name)
             rel = os.path.join(game, "script_output", name)
-            if os.path.isfile(f) and not git_ignores(rel):
+            if os.path.isfile(f) and not name.endswith(".enc") and not git_ignores(rel):
                 shutil.copy2(f, os.path.join(text_dst, name))
     else:
         print(f"  {game}: no script_output -- shipping binaries only")
+
+    staged_doc = os.path.join(dst, "script_output", "translated_text.json")
+    if not os.path.isfile(staged_doc) or os.path.getsize(staged_doc) == 0:
+        print(f"  [ERROR] {game}: missing or empty translated_text.json in "
+              f"{os.path.relpath(os.path.dirname(staged_doc), ROOT)}")
+        return False
+
+    enc_leaks = [os.path.join(b, f)
+                 for b, _, fs in os.walk(dst)
+                 for f in fs if f.endswith(".enc")]
+    if enc_leaks:
+        print(f"  [ERROR] {game}: .enc files leaked into staged install: "
+              f"{', '.join(os.path.relpath(p, ROOT) for p in enc_leaks)}")
+        return False
 
     # Verify that <game>/build.py staged the runtime table into game/ and that
     # it is at least as new as script_output/translated_text.json(.enc).

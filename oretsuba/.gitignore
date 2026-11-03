@@ -1,0 +1,5 @@
+build/
+pipeline_cpp/CMakeUserPresets.json
+proxy_dll/CMakeUserPresets.json
+script_output/last_gemini_translate/
+*.tmp
