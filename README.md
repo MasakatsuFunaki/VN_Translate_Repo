@@ -15,6 +15,7 @@ runtime — the original game files stay untouched.
 | Shingakkou ~Noli me tangere~ DL | Shipped |
 | Fraternite HD | Shipped |
 | Sakura no Uta | Shipped |
+| Sakura, Moyu. -as the Night's, Reincarnation- | Shipped |
 | Sakura no Toki | In progress |
 | Adieu | In progress |
 | 夜、灯す。 | In progress |

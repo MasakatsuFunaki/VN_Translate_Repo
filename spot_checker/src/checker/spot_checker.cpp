@@ -200,6 +200,14 @@ std::string unescape_prompt_newlines(const std::string& old_en,
     return raw;
 }
 
+constexpr const char* kSoftWrapEscape = "\\n";
+constexpr std::size_t kSoftWrapEscapeLen = 2;
+constexpr const char* kPageBreakEscape = "\\@";
+constexpr std::size_t kPageBreakEscapeLen = 2;
+constexpr const char* kQuotedPageBreakSuffix = "\"\\@";
+constexpr std::size_t kQuotedPageBreakSuffixLen = 3;
+constexpr std::size_t kCrlfLen = 2;
+
 std::string normalize_restored_translation(const std::string& old_en,
                                            const std::string& candidate_en) {
     const std::string raw = unescape_prompt_newlines(old_en, candidate_en);
@@ -220,9 +228,50 @@ std::string normalize_restored_translation(const std::string& old_en,
         }
     }
 
+    // Preserve leading literal \n soft-wrap escape when present in `old_en`
+    if (old_en.rfind(kSoftWrapEscape, 0) == 0 &&
+        clean.rfind(kSoftWrapEscape, 0) != 0) {
+        clean = kSoftWrapEscape + clean;
+    }
+
+    // Preserve trailing literal \@ page-break escape when present in `old_en`
+    const bool old_ends_page_break =
+        old_en.size() >= kPageBreakEscapeLen &&
+        old_en.compare(old_en.size() - kPageBreakEscapeLen,
+                       kPageBreakEscapeLen,
+                       kPageBreakEscape) == 0;
+    if (old_ends_page_break &&
+        (clean.size() < kPageBreakEscapeLen ||
+         clean.compare(clean.size() - kPageBreakEscapeLen,
+                       kPageBreakEscapeLen,
+                       kPageBreakEscape) != 0)) {
+        clean = trim_right(clean) + kPageBreakEscape;
+    }
+
+    // Normalize split-dialogue quotes across CatSystem2 \@ / \n continuations
+    if (old_ends_page_break && old_en.front() == '"' &&
+        (old_en.size() < kQuotedPageBreakSuffixLen ||
+         old_en[old_en.size() - kQuotedPageBreakSuffixLen] != '"') &&
+        clean.size() >= kQuotedPageBreakSuffixLen &&
+        clean.compare(clean.size() - kQuotedPageBreakSuffixLen,
+                      kQuotedPageBreakSuffixLen,
+                      kQuotedPageBreakSuffix) == 0) {
+        clean.erase(clean.size() - kQuotedPageBreakSuffixLen, 1);
+    } else if (!old_en.empty() && old_en.back() == '"') {
+        const std::size_t old_body_pos =
+            (old_en.rfind(kSoftWrapEscape, 0) == 0) ? kSoftWrapEscapeLen : 0;
+        const std::size_t new_body_pos =
+            (clean.rfind(kSoftWrapEscape, 0) == 0) ? kSoftWrapEscapeLen : 0;
+        if (old_body_pos < old_en.size() && old_en[old_body_pos] != '"' &&
+            new_body_pos + 1 < clean.size() && clean[new_body_pos] == '"' &&
+            clean.back() == '"') {
+            clean.erase(new_body_pos, 1);
+        }
+    }
+
     // Preserve trailing \r\n if `old_en` ended with \r\n
-    if (old_en.size() >= 2 &&
-        old_en.compare(old_en.size() - 2, 2, "\r\n") == 0) {
+    if (old_en.size() >= kCrlfLen &&
+        old_en.compare(old_en.size() - kCrlfLen, kCrlfLen, "\r\n") == 0) {
         clean = trim_right(clean) + "\r\n";
     }
     return clean;
@@ -495,6 +544,7 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
         if (!arr_ptr) continue;
 
         std::string active_speaker = "NARRATION";
+        bool in_dialogue = false;
         for (std::size_t i = 0; i < arr_ptr->size(); ++i) {
             if (!(*arr_ptr)[i].is_object()) continue;
             const auto& entry_obj = (*arr_ptr)[i].as_object();
@@ -515,11 +565,13 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
                 } else {
                     active_speaker = "NARRATION";
                 }
+                in_dialogue = false;
                 continue;
             }
             if (type == "name") {
                 if (is_standalone_speaker_tag(jp_text, translated)) {
                     active_speaker = trim(!translated.empty() ? translated : jp_text);
+                    in_dialogue = false;
                     continue;
                 }
                 // In .spt games (EXTRAVAGANZA_CE / Adieu), some short translated story
@@ -532,6 +584,7 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
             }
             if (type == "COMMAND" && jp_text == "fw 0") {
                 active_speaker = "NARRATION";
+                in_dialogue = false;
                 continue;
             }
             if (is_excluded_entry_type(type) && type != "name") continue;
@@ -549,15 +602,29 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
             std::string speaker = trim(json_str(entry_obj, "speaker"));
             if (type == "narration" || type == "narrative") {
                 active_speaker = "NARRATION";
+                in_dialogue = false;
                 if (speaker.empty()) speaker = "NARRATION";
             } else if (type == "MESSAGE" && speaker.empty()) {
-                const std::string t_jp = trim(jp_text);
-                const bool is_spoken_or_thought =
+                std::string t_jp = trim(jp_text);
+                while (t_jp.rfind(kSoftWrapEscape, 0) == 0) {
+                    t_jp = trim(t_jp.substr(kSoftWrapEscapeLen));
+                }
+                const bool opens_spoken_or_thought =
                     t_jp.rfind("「", 0) == 0 || t_jp.rfind("『", 0) == 0 ||
                     t_jp.rfind("（", 0) == 0;
-                if (!is_spoken_or_thought) {
+                if (opens_spoken_or_thought) {
+                    in_dialogue = true;
+                }
+                if (!in_dialogue) {
                     active_speaker = "NARRATION";
                     speaker = "NARRATION";
+                } else {
+                    speaker = active_speaker;
+                }
+                if (jp_text.find("」") != std::string::npos ||
+                    jp_text.find("』") != std::string::npos ||
+                    jp_text.find("）") != std::string::npos) {
+                    in_dialogue = false;
                 }
             }
             if (speaker.empty()) {
@@ -937,8 +1004,8 @@ ValidationResult validate_proposed_fix(
         return res;
     }
 
-    // 3. Engine Tag / Placeholder Preservation (%s, %d, literal \n escapes)
-    for (const char* tag : {"%s", "%d", "\\n"}) {
+    // 3. Engine Tag / Placeholder Preservation (%s, %d, literal \n and \@ escapes, $strNN vars)
+    for (const char* tag : {"%s", "%d", "\\n", "\\@", "$str10", "$str20"}) {
         if (count_substring(old_body, tag) > count_substring(new_body, tag)) {
             res.rejection_reason = std::string("dropped engine placeholder ") + tag;
             return res;

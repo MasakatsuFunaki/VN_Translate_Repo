@@ -1,0 +1,5 @@
+# CMake build tree (also covered by the repo-level .gitignore)
+build/
+
+# Conan 2 / CMake generated user presets (never committed)
+CMakeUserPresets.json

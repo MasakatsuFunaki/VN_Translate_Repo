@@ -1205,6 +1205,42 @@ TEST(SpotCheckerSystemTests,
         "Tone guide.\n<formatting_rules>\nDrop speaker name.\n</formatting_rules>\nGlossary.");
     EXPECT_EQ(sys_stripped.find("Drop speaker name"), std::string::npos);
     EXPECT_NE(sys_stripped.find("Tone guide."), std::string::npos);
+
+    // 6. CatSystem2 (amakano2pe) split-dialogue speaker tracking, leading \n / trailing \@
+    //    escape preservation, and $str20 placeholder enforcement:
+    const bj::value cs2_root = bj::parse(R"json({
+        "01_test.Hqo": {
+            "lines": [
+                {"type": "NAME", "content": "結灯＠少女", "translated": "Yuuhi (Girl)"},
+                {"type": "MESSAGE", "content": "「はい。荷物は上にあげちゃいま――\\@", "translated": "\"Okay. Let me put my bag up--\\@"},
+                {"type": "MESSAGE", "content": "きゃっ」", "translated": "Ah!\""},
+                {"type": "MESSAGE", "content": "\\n大きなカートを引っ張って席を探す。", "translated": "\\nShe dragged a large suitcase looking for her seat."}
+            ]
+        }
+    })json");
+    const auto cs2_entries = extract_script_entries(cs2_root);
+    ASSERT_EQ(cs2_entries.size(), 3u);
+    EXPECT_EQ(cs2_entries[0].speaker, "Yuuhi (Girl)");
+    EXPECT_EQ(cs2_entries[1].speaker, "Yuuhi (Girl)");  // Continuation of split 「...」 dialogue!
+    EXPECT_EQ(cs2_entries[2].speaker, "NARRATION");     // Post-quote line reverts to NARRATION!
+
+    const WindowSlice cs2_ws = build_window_slice(cs2_entries, 0, 3, 0, 0);
+    const auto cs2_fixed = parse_spot_check_response(
+        R"([
+            {"id": 1, "new_en": "\"Okay. Let me just lift my luggage up--\"", "category": "stiff_translationese", "confidence": 0.95, "reason": "natural"},
+            {"id": 3, "new_en": "She pulled a large suitcase behind her, searching for her seat.", "category": "stiff_translationese", "confidence": 0.95, "reason": "natural"}
+        ])",
+        cs2_ws, 0.85, {}, {}, nullptr, /*fix_punctuation=*/false);
+    ASSERT_EQ(cs2_fixed.size(), 2u);
+    EXPECT_EQ(cs2_fixed[0].improved_en, "\"Okay. Let me just lift my luggage up--\\@");
+    EXPECT_EQ(cs2_fixed[1].improved_en, "\\nShe pulled a large suitcase behind her, searching for her seat.");
+
+    const ScriptEntry var_entry = make_entry(
+        0, "Chitose", "「おはよう、$str20」", "\"Good morning, $str20.\"");
+    const ValidationResult v_dropped_var =
+        validate_proposed_fix(var_entry, "\"Good morning, Kenichi.\"");
+    EXPECT_FALSE(v_dropped_var.accepted);
+    EXPECT_NE(v_dropped_var.rejection_reason.find("$str20"), std::string::npos);
 }
 
 // ============================================================================
