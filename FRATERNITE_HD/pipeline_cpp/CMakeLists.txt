@@ -41,6 +41,8 @@ add_library(frat_core STATIC
     src/cache/speaker_gate.h
     src/cache/cache_core.cpp
     src/cache/cache_core.h
+    src/menu_patcher/menu_patcher.cpp
+    src/menu_patcher/menu_patcher.h
 )
 target_include_directories(frat_core PUBLIC src)
 target_compile_definitions(frat_core PUBLIC
@@ -66,9 +68,10 @@ endfunction()
 frat_app(00_run_all    src/apps/run_all_main.cpp)
 frat_app(01_extract    src/apps/extract_main.cpp)
 frat_app(02_build_tsv  src/apps/build_tsv_main.cpp)
+frat_app(03_patch_menus src/apps/patch_menus_main.cpp)
 
-# Install: just the three apps; all deps are static.
-install(TARGETS 00_run_all 01_extract 02_build_tsv
+# Install: the pipeline apps; all deps are static.
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_patch_menus
         RUNTIME DESTINATION bin)
 
 # Tests

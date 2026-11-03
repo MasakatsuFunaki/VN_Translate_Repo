@@ -170,6 +170,12 @@ def collect(game):
                 print(f"  [ERROR] {game}: staged table {os.path.basename(tables[0])} "
                       f"is older than script_output/{src_name}")
                 return False
+        if game == "FRATERNITE_HD":
+            cgsys = os.path.join(game_dir, "pac", "cgsys.ypf")
+            if not os.path.isfile(cgsys) or os.path.getsize(cgsys) == 0:
+                print(f"  [ERROR] {game}: missing or empty pac/cgsys.ypf in "
+                      f"{os.path.relpath(game_dir, ROOT)}")
+                return False
     elif game == "kishin_hisho":
         game_dir = os.path.join(dst, "game")
         for req_name in ("0script.pak", "alpharom_helper.dll", "launch.exe"):

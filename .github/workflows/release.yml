@@ -86,7 +86,16 @@ jobs:
                 throw "$($g.Name): no runtime .tsv table staged in game/"
               }
               $tsvMb = [math]::Round($tsv[0].Length / 1MB, 1)
-              Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB)"
+              if ($g.Name -eq 'FRATERNITE_HD') {
+                $cgsys = Join-Path $gameDir 'pac\cgsys.ypf'
+                if (-not (Test-Path $cgsys) -or (Get-Item $cgsys).Length -le 0) {
+                  throw "$($g.Name): missing or empty game/pac/cgsys.ypf"
+                }
+                $cgsysMb = [math]::Round((Get-Item $cgsys).Length / 1MB, 1)
+                Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB), pac/cgsys.ypf ($cgsysMb MB)"
+              } else {
+                Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB)"
+              }
             }
           }
         shell: pwsh

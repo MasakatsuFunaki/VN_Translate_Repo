@@ -194,3 +194,63 @@ TEST(YpfArchive, Basename_SplitsOnBothSeparators) {
     EXPECT_EQ(basename("a/b\\c.ybn"), "c.ybn");
     EXPECT_EQ(basename("plain.ybn"), "plain.ybn");
 }
+
+TEST(YpfArchive, ParseIndex_Cp932FilenameWithPermutedLengthByte_PreservesRawMetadata) {
+    const std::string utf8_name =
+        u8"cgsys\\extra\\cgmode\\bgv\\\u7D17\u82F1\u5B50_a.png";
+    const auto cp932_opt = utf8_to_cp932_strict(utf8_name);
+    ASSERT_TRUE(cp932_opt.has_value());
+    const Bytes& name_cp932 = *cp932_opt;
+
+    const Bytes payload = body("raw png payload bytes");
+    const std::uint32_t expected_nhash = ypf_murmur_hash2(name_cp932);
+    const std::uint32_t expected_dhash = ypf_murmur_hash2(payload);
+    // Simulate YU-RIS v490 length-table permutation (0xF9 -> hinted 6, real length > 30).
+    constexpr std::uint8_t kPermutedRawSize = 0xF9u;
+    constexpr std::uint8_t kPngEntryType = 2u;
+    constexpr std::uint8_t kUncompressedFlag = 0u;
+    constexpr std::uint64_t kFooterRemainBytes = 12u;
+    constexpr std::uint32_t kYpfVersion490 = 490u;
+    constexpr std::uint32_t kSingleEntryCount = 1u;
+    constexpr std::size_t kReservedHeaderZeros = 16u;
+
+    Bytes index;
+    put_u32(index, expected_nhash);
+    index.push_back(kPermutedRawSize);
+    for (const std::uint8_t b : name_cp932) {
+        index.push_back(static_cast<std::uint8_t>(b ^ YPF_NAME_XOR_KEY));
+    }
+    index.push_back(kPngEntryType);
+    index.push_back(kUncompressedFlag);
+    put_u32(index, static_cast<std::uint32_t>(payload.size()));
+    put_u32(index, static_cast<std::uint32_t>(payload.size()));
+    const std::uint64_t data_offset = YPF_HEADER_SIZE + index.size() + kFooterRemainBytes;
+    put_u64(index, data_offset);
+    put_u32(index, expected_dhash);
+
+    Bytes image;
+    for (char c : std::string("YPF")) {
+        image.push_back(static_cast<std::uint8_t>(c));
+    }
+    image.push_back(0);
+    put_u32(image, kYpfVersion490);
+    put_u32(image, kSingleEntryCount);
+    put_u32(image, static_cast<std::uint32_t>(YPF_HEADER_SIZE + index.size()));
+    image.insert(image.end(), kReservedHeaderZeros, 0);
+    image.insert(image.end(), index.begin(), index.end());
+    image.insert(image.end(), payload.begin(), payload.end());
+
+    const auto entries = parse_ypf_index_bytes(image, "cgsys.ypf");
+    ASSERT_EQ(entries.size(), kSingleEntryCount);
+    EXPECT_EQ(entries[0].name, utf8_name);
+    EXPECT_EQ(entries[0].name_hash, expected_nhash);
+    EXPECT_EQ(entries[0].name_size_raw, kPermutedRawSize);
+    EXPECT_EQ(entries[0].name_bytes_xor.size(), name_cp932.size());
+    EXPECT_EQ(entries[0].type, kPngEntryType);
+    EXPECT_EQ(entries[0].compressed, kUncompressedFlag);
+    EXPECT_EQ(entries[0].raw_size, payload.size());
+    EXPECT_EQ(entries[0].packed_size, payload.size());
+    EXPECT_EQ(entries[0].data_offset, data_offset);
+    EXPECT_EQ(entries[0].data_hash, expected_dhash);
+    EXPECT_EQ(read_entry(image, entries[0]), payload);
+}
