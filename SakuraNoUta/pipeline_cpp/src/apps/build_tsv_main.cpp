@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
          "smoke run: N batches then stop (bare --test = 1)")
         ("max-batches", po::value(&max_batches)->default_value(0),
          "stop after N API requests, keeping the cache and outputs (0 = no limit)")
-        ("out", po::value(&out_tsv), "translation table path (default <dir>\\translations.tsv)")
+        ("out", po::value(&out_tsv), "translation table path (default <dir>\\build\\install\\game\\translations.tsv)")
         ("include-untranslated", po::bool_switch(&include_untranslated),
          "emit table rows whose translation is still the raw Japanese")
         ("box-audit", po::bool_switch(&box_audit),
@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
     if (box_audit || rebuild_table) {
         const std::string doc = project + "\\script_output\\translated_text.json";
         const std::string tsv =
-            out_tsv.empty() ? project + "\\translations.tsv" : out_tsv;
+            out_tsv.empty() ? project + "\\build\\install\\game\\translations.tsv" : out_tsv;
         if (!fs::exists(fs::u8path(doc))) {
             log_info("[ERROR] no translated document at " + doc);
             return 2;
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     opt.cache_file = cache_file;
     opt.output_file = out_dir + "\\translated_text.json";
     // --out defaults off --dir, so it cannot be a static default_value.
-    opt.tsv_file = out_tsv.empty() ? project + "\\translations.tsv" : out_tsv;
+    opt.tsv_file = out_tsv.empty() ? project + "\\build\\install\\game\\translations.tsv" : out_tsv;
     opt.batch_size = batch;
     opt.retranslate = retranslate;
     opt.include_untranslated = include_untranslated;

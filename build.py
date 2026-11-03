@@ -41,10 +41,13 @@ import sys
 ROOT = os.path.dirname(os.path.realpath(__file__))
 INSTALL_DIR = os.path.join(ROOT, "install")
 
-# The runtime table, wherever a game keeps it.  It goes beside the proxy in
-# game/, because that pair is the drop-in patch: copy game/ into the game
-# folder and it speaks English.
+# The runtime table, staged into <game>/build/install/game/ by <game>/build.py.
+# It sits beside the proxy in game/, because that pair is the drop-in patch:
+# copy game/ into the game folder and it speaks English.
 RUNTIME_TABLES = ("translations.tsv", "translation_table.tsv")
+
+# Archive-repack games that patch .spt/.xtx/.fxf directly and do not use a runtime TSV.
+REPACK_ONLY_GAMES = ("EXTRAVAGANZA_CE",)
 
 
 def run(cmd, cwd, check=True):
@@ -136,15 +139,23 @@ def collect(game):
     else:
         print(f"  {game}: no script_output -- shipping binaries only")
 
-    # The table lives at the game's root (it is what --deploy copies), so it
-    # is not part of the install target and has to be picked up by name.
-    for name in RUNTIME_TABLES:
-        table = os.path.join(ROOT, game, name)
-        rel = os.path.join(game, name)
-        if os.path.isfile(table) and not git_ignores(rel):
-            game_dir = os.path.join(dst, "game")
-            os.makedirs(game_dir, exist_ok=True)
-            shutil.copy2(table, os.path.join(game_dir, name))
+    # Verify that <game>/build.py staged the runtime table into game/ and that
+    # it is at least as new as script_output/translated_text.json(.enc).
+    if game not in REPACK_ONLY_GAMES:
+        game_dir = os.path.join(dst, "game")
+        tables = [os.path.join(game_dir, n) for n in RUNTIME_TABLES
+                  if os.path.isfile(os.path.join(game_dir, n))]
+        if not tables or os.path.getsize(tables[0]) == 0:
+            print(f"  [ERROR] {game}: missing runtime TSV table in "
+                  f"{os.path.relpath(game_dir, ROOT)}")
+            return False
+        table_mtime = os.path.getmtime(tables[0])
+        for src_name in ("translated_text.json", "translated_text.json.enc"):
+            src_doc = os.path.join(ROOT, game, "script_output", src_name)
+            if os.path.isfile(src_doc) and table_mtime < os.path.getmtime(src_doc):
+                print(f"  [ERROR] {game}: staged table {os.path.basename(tables[0])} "
+                      f"is older than script_output/{src_name}")
+                return False
 
     files = sum(len(f) for _, _, f in os.walk(dst))
     size = sum(os.path.getsize(os.path.join(b, f))
@@ -207,12 +218,17 @@ def main():
         clean(shipped)
         if not (args.install or args.test):
             return 0
+    elif args.install and not args.only and os.path.isdir(INSTALL_DIR):
+        print(f"Removing {os.path.relpath(INSTALL_DIR, ROOT)}")
+        shutil.rmtree(INSTALL_DIR)
 
     results = []
     for game in shipped:
         print(f"\n{'=' * 70}\n== {game}\n{'=' * 70}")
         rc = build_game(game, args.test)
         staged = collect(game) if rc == 0 and args.install else False
+        if args.install and rc == 0 and not staged:
+            rc = 1
         results.append((game, rc, staged))
         if rc != 0 and not args.keep_going:
             print(f"\n{game} failed (rc={rc}) -- stopping.  "

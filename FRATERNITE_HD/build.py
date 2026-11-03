@@ -52,9 +52,32 @@ def clean():
             os.remove(user_presets)
 
 
+def build_table():
+    out_dir = os.path.join(ROOT, "script_output")
+    doc = os.path.join(out_dir, "translated_text.json")
+    cache = os.path.join(out_dir, "translation_cache_anthropic.json")
+    enc = doc + ".enc"
+    had_plain = os.path.isfile(doc)
+    if not had_plain:
+        if not os.path.isfile(enc):
+            return
+        run(["cmd", "/c", os.path.join(ROOT, "decrypt_translations.bat")], ROOT)
+    try:
+        exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
+        tsv = os.path.join(INSTALL_DIR, "game", TABLE_NAME)
+        run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
+    finally:
+        if not had_plain:
+            for p in (doc, cache):
+                if os.path.isfile(p):
+                    os.remove(p)
+
+
 def build():
+    clean()
     run(["cmake", "--preset", PRESET], ROOT)
     run(["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
+    build_table()
 
 
 def has_test_preset(source_dir, preset):
@@ -106,6 +129,7 @@ def stage_translations():
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
+    build_table()
 
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
@@ -131,8 +155,14 @@ def deploy(game_dir):
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # Soft failure: 02_build_tsv writes the table; missing just means it hasn't run.
-    if not os.path.exists(os.path.join(game_dir, TABLE_NAME)):
+    tsv = os.path.join(INSTALL_DIR, "game", TABLE_NAME)
+    if os.path.exists(tsv):
+        try:
+            shutil.copyfile(tsv, os.path.join(game_dir, TABLE_NAME))
+        except OSError as exc:
+            print(f"COPY {TABLE_NAME} FAILED ({exc})")
+            sys.exit(1)
+    elif not os.path.exists(os.path.join(game_dir, TABLE_NAME)):
         print(f"WARN: {TABLE_NAME} not in the game folder — run 02_build_tsv.exe first.")
 
     print(f"\nDeployed to {game_dir}.")

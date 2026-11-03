@@ -16,8 +16,9 @@ The pipeline is **C++** (`pipeline_cpp/`, Conan 2 + Boost + CMake).
 |------|-------|
 | `01_extract.exe` (Sakura.hcb → 61,164 strings) | ✅ working |
 | `02_translate.exe` (cast gate, Gemini, resume-safe, writes `translation_table.tsv`) | ✅ working |
-| `proxy_dll/` (winmm forwarding + TSV loader + inline hook) | ✅ live, English visible in-game |
-| Translation corpus | ⏳ run `00_run_all.exe` to translate all ~55K JP lines |
+| `03_patch_ui.exe` (`graph.bin` Options & System UI English composite patcher) | ✅ working |
+| `proxy_dll/` (winmm forwarding + TSV loader + inline hook + 58-col word wrap) | ✅ live, English visible in-game |
+| Translation corpus (`script_output/translated_text.json`) | ✅ 100% translated (`61,164` lines) |
 
 ## Prerequisites
 
@@ -43,13 +44,14 @@ build\install\bin\00_run_all.exe           :: full run, ~55K JP lines
 into one build tree, and takes exactly four flags: `--test`, `--install`,
 `--deploy`, `--clean`.
 
-The pipeline is three steps, and `00_run_all.exe` performs all three:
+The pipeline is four steps, and `00_run_all.exe` performs all four:
 
 | Step | Command | Description |
 |------|---------|-------------|
 | 1 | `01_extract.exe` | Walk `Sakura.hcb` → `script_output/extracted_text.json` |
 | 2 | `02_translate.exe` | Cast-roster gate, then translate JP → EN via Gemini (resume-safe, cached in `translation_cache_gemini.json`), then write `translation_table.tsv` |
-| 3 | `python build.py --deploy` | Copy `winmm.dll` into the game folder |
+| 3 | `03_patch_ui.exe` | Patch Options & System UI textures in `graph.bin` (backs up original to `graph.bin.bak`) |
+| 4 | `python build.py --deploy` | Copy `winmm.dll` into the game folder |
 
 ## Options
 

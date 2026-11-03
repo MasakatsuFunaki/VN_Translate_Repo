@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <string>
 
+#include "build_tsv/build_tsv.h"
 #include "cache/cache_core.h"
 #include "common/util.h"
 
@@ -28,7 +29,7 @@ int main(int argc, char** argv) {
 
     std::string project, game, out_tsv;
     int test_n = 0;
-    bool discard_cache = false;
+    bool rebuild_table = false, discard_cache = false;
     po::options_description desc(
         "02_build_tsv -- speaker gate, translate, build translations.tsv");
     desc.add(crc::apps::common_options(project, game));
@@ -37,11 +38,24 @@ int main(int argc, char** argv) {
          "run only N API batches then stop (bare --test = 1)")
         ("out", po::value(&out_tsv),
          "translation table path (default <dir>\\translations.tsv)")
+        ("rebuild-table", po::bool_switch(&rebuild_table),
+         "rebuild translations.tsv from the translated document already on "
+         "disk and stop; no API request is made")
         ("discard-cache", po::bool_switch(&discard_cache),
          "allow --test to delete a cache that already holds "
          "paid work");
     po::variables_map vm;
     if (auto rc = crc::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
+
+    if (rebuild_table) {
+        const std::string doc = crc::apps::translated_json(project);
+        const std::string tsv = out_tsv.empty() ? crc::apps::out_tsv(project) : out_tsv;
+        if (!fs::exists(fs::u8path(doc))) {
+            crc::log_info("[ERROR] no translated document at " + doc);
+            return 2;
+        }
+        return crc::build_tsv::run_build(doc, tsv, "");
+    }
 
     // Validated before anything is created, deleted or authenticated: a
     // mistyped cap must cost nothing.

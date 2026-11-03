@@ -20,7 +20,7 @@ target_include_directories(translation_pipeline_ct PRIVATE
 # typed on, and the tests would then GTEST_SKIP() everywhere else while ctest
 # still reported a full pass.
 get_filename_component(GAME_TSV_FILE
-    "${CMAKE_SOURCE_DIR}/../translations.tsv" ABSOLUTE)
+    "${CMAKE_SOURCE_DIR}/../build/install/game/translations.tsv" ABSOLUTE)
 
 target_compile_definitions(translation_pipeline_ct PRIVATE
     _CRT_SECURE_NO_WARNINGS

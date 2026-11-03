@@ -142,12 +142,14 @@ int run_build(const std::string& translated_file, const std::string& out_tsv,
     log_info("  Untranslated (skip): " + comma(untranslated));
     log_info("  Conflicting pairs:   " + comma(skipped_pairs) + "  (last EN kept)");
 
-    const fs::path game_path = fs::u8path(game_tsv);
-    if (!fs::is_directory(game_path.parent_path())) {
-        log_info("WARN: game dir not found, skipping deploy: " + game_tsv);
-    } else {
-        fs::copy_file(out_path, game_path, fs::copy_options::overwrite_existing);
-        log_info("Deployed -> " + game_tsv);
+    if (!game_tsv.empty()) {
+        const fs::path game_path = fs::u8path(game_tsv);
+        if (!fs::is_directory(game_path.parent_path())) {
+            log_info("WARN: game dir not found, skipping deploy: " + game_tsv);
+        } else {
+            fs::copy_file(out_path, game_path, fs::copy_options::overwrite_existing);
+            log_info("Deployed -> " + game_tsv);
+        }
     }
     return 0;
 }

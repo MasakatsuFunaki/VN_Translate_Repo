@@ -109,8 +109,10 @@ inline std::string translated_json(const std::string& project) {
     return output_dir(project) + "\\translated_text.json";
 }
 inline std::string test_dir(const std::string& project) { return project + "\\test"; }
-// NOTE: the TSV sits in the project root, not in script_output.
-inline std::string out_tsv(const std::string& project) { return project + "\\translations.tsv"; }
+// NOTE: the TSV sits in build\install\game, not in the project root.
+inline std::string out_tsv(const std::string& project) {
+    return project + "\\build\\install\\game\\translations.tsv";
+}
 inline std::string game_tsv(const std::string& game) { return game + "\\translations.tsv"; }
 
 }  // namespace crc::apps

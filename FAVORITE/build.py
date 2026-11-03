@@ -86,12 +86,23 @@ def clean():
             os.remove(user_presets)
 
 
+def build_table():
+    doc = os.path.join(ROOT, "script_output", "translated_text.json")
+    if not os.path.isfile(doc):
+        return
+    exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_translate.exe")
+    tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
+    run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
+
+
 def build():
+    clean()
     # The root project configures and builds both halves: it runs Conan for
     # each, configures each through its own preset, and builds each in its
     # own binary dir under build/.
     run(["cmake", "--preset", PRESET], ROOT)
     run(["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
+    build_table()
 
 
 def has_test_preset(source_dir, preset):
@@ -122,6 +133,7 @@ def test():
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
+    build_table()
 
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
@@ -158,10 +170,14 @@ def deploy(game_dir):
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # The table is a soft failure: it is generated straight into the game
-    # folder, so a missing one just means the pipeline has not been run yet.
-    tsv = os.path.join(game_dir, "translation_table.tsv")
-    if not os.path.exists(tsv):
+    tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
+    if os.path.exists(tsv):
+        try:
+            shutil.copyfile(tsv, os.path.join(game_dir, "translation_table.tsv"))
+        except OSError as exc:
+            print(f"COPY translation_table.tsv FAILED ({exc})")
+            sys.exit(1)
+    elif not os.path.exists(os.path.join(game_dir, "translation_table.tsv")):
         print("WARN: translation_table.tsv not in the game folder — "
               "run 02_translate.exe first.")
 

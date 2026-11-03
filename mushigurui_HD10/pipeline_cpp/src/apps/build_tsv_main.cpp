@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <string>
 
+#include "build_tsv/build_tsv.h"
 #include "common/util.h"
 #include "cache/cache_core.h"
 
@@ -33,7 +34,7 @@ int main(int argc, char** argv) {
 
     std::string project, game, only, out_tsv;
     int batch = 0, test_n = 0;
-    bool retranslate = false, discard_cache = false;
+    bool retranslate = false, rebuild_table = false, discard_cache = false;
     po::options_description desc(
         "02_build_tsv -- speaker gate, translate script, build translation_table.tsv");
     desc.add(apps::common_options(project, game));
@@ -45,11 +46,25 @@ int main(int argc, char** argv) {
          "run only N API batches then stop (bare --test = 1)")
         ("out", po::value(&out_tsv),
          "translation table path (default <game-dir>\\translation_table.tsv)")
+        ("rebuild-table", po::bool_switch(&rebuild_table),
+         "rebuild translation_table.tsv from the translated document already on "
+         "disk and stop; no API request is made")
         ("discard-cache", po::bool_switch(&discard_cache),
          "allow --retranslate to discard a cache that already holds "
          "paid work");
     po::variables_map vm;
     if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
+
+    if (rebuild_table) {
+        const std::string doc = project + "\\script_output\\translated_text.json";
+        const std::string tsv =
+            out_tsv.empty() ? project + "\\build\\install\\game\\translation_table.tsv" : out_tsv;
+        if (!fs::exists(fs::u8path(doc))) {
+            log_info("[ERROR] no translated document at " + doc);
+            return 2;
+        }
+        return build_tsv::run_build(doc, tsv);
+    }
 
     // Validate before anything is created or authenticated: a mistyped cap
     // must cost nothing.

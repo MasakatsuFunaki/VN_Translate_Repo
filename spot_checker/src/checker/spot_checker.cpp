@@ -88,11 +88,15 @@ bool is_standalone_speaker_tag(const std::string& jp, const std::string& en) {
     return true;
 }
 
-// Extracts "Speaker" if `text` begins with `Speaker\r\n` where `Speaker` is a
-// short name header rather than narrative prose.
-std::string extract_speaker_prefix(const std::string& text) {
+constexpr std::size_t kMaxCrlfSpeakerBytes = 35;
+constexpr std::size_t kMaxCrlfSpeakerChars = 20;
+constexpr std::size_t kMaxInlineSpeakerBytes = 45;
+constexpr std::size_t kMaxInlineSpeakerChars = 25;
+constexpr std::size_t kUtf8ThreeByteLen = 3;
+
+std::string extract_crlf_speaker_prefix(const std::string& text) {
     const std::size_t crlf = text.find("\r\n");
-    if (crlf == std::string::npos || crlf == 0 || crlf > 35) return {};
+    if (crlf == std::string::npos || crlf == 0 || crlf > kMaxCrlfSpeakerBytes) return {};
     const std::string rest = trim(text.substr(crlf + 2));
     if (rest.empty()) return {};
     // Real dialogue/thought lines after a speaker header open with a quote,
@@ -106,7 +110,7 @@ std::string extract_speaker_prefix(const std::string& text) {
     if (!valid_body_open) return {};
 
     const std::string prefix = trim(text.substr(0, crlf));
-    if (prefix.empty() || utf8_char_len(prefix) > 20) return {};
+    if (prefix.empty() || utf8_char_len(prefix) > kMaxCrlfSpeakerChars) return {};
     for (char c : prefix) {
         if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
             c == ':' || c == '!' || c == '[' || c == '(') {
@@ -123,11 +127,61 @@ std::string extract_speaker_prefix(const std::string& text) {
     return prefix;
 }
 
+std::string extract_inline_kaku_raw_prefix(const std::string& text) {
+    const std::size_t pos = text.find("「");
+    if (pos == std::string::npos || pos == 0 || pos > kMaxInlineSpeakerBytes) return {};
+    const std::string rest = trim(text.substr(pos));
+    if (rest.find("」") != std::string::npos &&
+        (rest.size() < kUtf8ThreeByteLen ||
+         rest.compare(rest.size() - kUtf8ThreeByteLen, kUtf8ThreeByteLen, "」") != 0)) {
+        return {};
+    }
+    const std::string prefix = trim(text.substr(0, pos));
+    if (prefix.empty() || utf8_char_len(prefix) > kMaxInlineSpeakerChars) return {};
+    if (prefix.rfind("「", 0) == 0 ||
+        prefix.rfind("『", 0) == 0 ||
+        prefix.rfind("（", 0) == 0 ||
+        prefix.rfind("　", 0) == 0) {
+        return {};
+    }
+    if (prefix.find("。") != std::string::npos ||
+        prefix.find("、") != std::string::npos ||
+        prefix.find("！") != std::string::npos) {
+        return {};
+    }
+    for (char c : prefix) {
+        if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
+            c == ':' || c == '!' || c == '[' || c == '\r' || c == '\n') {
+            return {};
+        }
+    }
+    return prefix;
+}
+
+std::string strip_leading_fullwidth_slash(const std::string& s) {
+    if (s.rfind("／", 0) == 0) {
+        return trim(s.substr(kUtf8ThreeByteLen));
+    }
+    return s;
+}
+
+// Extracts speaker name from `Speaker\r\n"Quote"` or inline `Speaker「Quote」`.
+std::string extract_speaker_prefix(const std::string& text) {
+    const std::string crlf_prefix = extract_crlf_speaker_prefix(text);
+    if (!crlf_prefix.empty()) return crlf_prefix;
+    return strip_leading_fullwidth_slash(extract_inline_kaku_raw_prefix(text));
+}
+
 std::string strip_speaker_prefix_only(const std::string& text) {
-    const std::string prefix = extract_speaker_prefix(text);
-    if (prefix.empty()) return trim(text);
-    const std::size_t crlf = text.find("\r\n");
-    return (crlf != std::string::npos) ? trim(text.substr(crlf + 2)) : trim(text);
+    if (!extract_crlf_speaker_prefix(text).empty()) {
+        const std::size_t crlf = text.find("\r\n");
+        return (crlf != std::string::npos) ? trim(text.substr(crlf + 2)) : trim(text);
+    }
+    if (!extract_inline_kaku_raw_prefix(text).empty()) {
+        const std::size_t pos = text.find("「");
+        return (pos != std::string::npos) ? trim(text.substr(pos)) : trim(text);
+    }
+    return trim(text);
 }
 
 std::string escape_for_prompt(const std::string& s) {
@@ -215,16 +269,83 @@ std::string normalize_restored_translation(const std::string& old_en,
     if (clean.empty()) return {};
 
     // Restore Speaker\r\n prefix if `old_en` had one and `candidate_en` omitted it
-    const std::string old_prefix = extract_speaker_prefix(old_en);
-    if (!old_prefix.empty()) {
-        const std::string want_crlf = old_prefix + "\r\n";
-        const std::string want_lf = old_prefix + "\n";
+    const std::string old_crlf_prefix = extract_crlf_speaker_prefix(old_en);
+    if (!old_crlf_prefix.empty()) {
+        const std::string want_crlf = old_crlf_prefix + "\r\n";
+        const std::string want_lf = old_crlf_prefix + "\n";
         if (clean.rfind(want_crlf, 0) == 0) {
             // Already has exact Speaker\r\n
         } else if (clean.rfind(want_lf, 0) == 0) {
             clean = want_crlf + clean.substr(want_lf.size());
         } else {
             clean = want_crlf + clean;
+        }
+    } else {
+        const std::string inline_raw_prefix = extract_inline_kaku_raw_prefix(old_en);
+        const std::string old_left_trimmed = trim_left(old_en);
+        if (!inline_raw_prefix.empty() || old_left_trimmed.rfind("「", 0) == 0) {
+            const std::string old_right_trimmed = trim_right(old_en);
+            const bool old_ends_with_close_kaku =
+                old_right_trimmed.size() >= kUtf8ThreeByteLen &&
+                old_right_trimmed.compare(old_right_trimmed.size() - kUtf8ThreeByteLen,
+                                          kUtf8ThreeByteLen,
+                                          "」") == 0;
+            const std::string speaker_no_slash =
+                strip_leading_fullwidth_slash(inline_raw_prefix);
+            auto try_strip_speaker_head = [](std::string& s,
+                                             const std::string& spk) -> bool {
+                if (spk.empty() || s.rfind(spk, 0) != 0) return false;
+                const std::string rest = s.substr(spk.size());
+                if (rest.rfind("「", 0) == 0 || rest.rfind("\r\n", 0) == 0 ||
+                    rest.rfind("\n", 0) == 0) {
+                    s = trim(rest);
+                    return true;
+                }
+                if (!rest.empty() && rest.front() == ':') {
+                    s = trim(rest.substr(1));
+                    return true;
+                }
+                if (!rest.empty() && (rest.front() == ' ' || rest.front() == '\t')) {
+                    const std::string trimmed_rest = trim(rest);
+                    if (trimmed_rest.rfind("「", 0) == 0 ||
+                        (!trimmed_rest.empty() && trimmed_rest.front() == '"')) {
+                        s = trimmed_rest;
+                        return true;
+                    }
+                }
+                return false;
+            };
+            if (!try_strip_speaker_head(clean, inline_raw_prefix)) {
+                try_strip_speaker_head(clean, speaker_no_slash);
+            }
+            if (clean.rfind("「", 0) == 0) {
+                clean = clean.substr(kUtf8ThreeByteLen);
+            }
+            if (clean.size() >= kUtf8ThreeByteLen &&
+                clean.compare(clean.size() - kUtf8ThreeByteLen,
+                              kUtf8ThreeByteLen,
+                              "」") == 0) {
+                clean = clean.substr(0, clean.size() - kUtf8ThreeByteLen);
+            }
+            clean = trim(clean);
+            if (clean.size() >= 2 && clean.front() == '"' && clean.back() == '"') {
+                clean = clean.substr(1, clean.size() - 2);
+            } else if (!old_ends_with_close_kaku && !clean.empty() &&
+                       clean.front() == '"') {
+                clean = clean.substr(1);
+                if (!clean.empty() && clean.back() == '"') {
+                    clean.pop_back();
+                }
+            }
+            clean = trim(clean);
+            if (clean.empty()) return {};
+            clean = inline_raw_prefix + "「" + clean +
+                    (old_ends_with_close_kaku ? "」" : "");
+            if (old_en.size() >= kCrlfLen &&
+                old_en.compare(old_en.size() - kCrlfLen, kCrlfLen, "\r\n") == 0) {
+                clean = trim_right(clean) + "\r\n";
+            }
+            return clean;
         }
     }
 
@@ -957,12 +1078,16 @@ ValidationResult validate_proposed_fix(
     }
 
     // 1. Zero Leftover CJK / Full-Width Punctuation / Romaji Glosses
-    if (has_japanese(new_body)) {
+    const bool old_uses_kaku = (old_body.rfind("「", 0) == 0);
+    if (old_uses_kaku ? has_real_japanese(new_body) : has_japanese(new_body)) {
         res.rejection_reason = "contains leftover Japanese/CJK characters";
         return res;
     }
-    if (new_body.find("「") != std::string::npos ||
-        new_body.find("」") != std::string::npos ||
+    const bool has_disallowed_kaku =
+        !old_uses_kaku &&
+        (new_body.find("「") != std::string::npos ||
+         new_body.find("」") != std::string::npos);
+    if (has_disallowed_kaku ||
         new_body.find("『") != std::string::npos ||
         new_body.find("』") != std::string::npos ||
         new_body.find("…") != std::string::npos ||
@@ -978,30 +1103,66 @@ ValidationResult validate_proposed_fix(
     }
 
     // 2. Quote Envelope Invariant
-    const bool jp_spoken =
-        jp_body.rfind("「", 0) == 0 ||
-        jp_body.rfind("『", 0) == 0;
-    const bool old_outer_quoted =
-        old_body.size() >= 2 && old_body.front() == '"' && old_body.back() == '"';
-    const bool new_has_quote = new_body.find('"') != std::string::npos;
-    const bool new_outer_quoted =
-        new_body.size() >= 2 && new_body.front() == '"' && new_body.back() == '"';
+    if (old_uses_kaku) {
+        if (new_body.rfind("「", 0) != 0) {
+            res.rejection_reason = "dropped spoken dialogue quotation marks";
+            return res;
+        }
+        const bool old_ends_kaku =
+            old_body.size() >= kUtf8ThreeByteLen &&
+            old_body.compare(old_body.size() - kUtf8ThreeByteLen,
+                             kUtf8ThreeByteLen,
+                             "」") == 0;
+        const bool new_ends_kaku =
+            new_body.size() >= kUtf8ThreeByteLen &&
+            new_body.compare(new_body.size() - kUtf8ThreeByteLen,
+                             kUtf8ThreeByteLen,
+                             "」") == 0;
+        if (old_ends_kaku != new_ends_kaku) {
+            res.rejection_reason =
+                "broke outer quotation mark envelope on spoken dialogue";
+            return res;
+        }
+        const std::size_t inner_len =
+            new_body.size() - kUtf8ThreeByteLen -
+            (new_ends_kaku ? kUtf8ThreeByteLen : 0);
+        const std::string inner =
+            trim(new_body.substr(kUtf8ThreeByteLen, inner_len));
+        if (inner.empty()) {
+            res.rejection_reason = "empty translation body";
+            return res;
+        }
+        if (inner.size() >= 2 && inner.front() == '"' && inner.back() == '"') {
+            res.rejection_reason =
+                "double-wrapped ASCII quotes inside corner brackets";
+            return res;
+        }
+    } else {
+        const bool jp_spoken =
+            jp_body.rfind("「", 0) == 0 ||
+            jp_body.rfind("『", 0) == 0;
+        const bool old_outer_quoted =
+            old_body.size() >= 2 && old_body.front() == '"' && old_body.back() == '"';
+        const bool new_has_quote = new_body.find('"') != std::string::npos;
+        const bool new_outer_quoted =
+            new_body.size() >= 2 && new_body.front() == '"' && new_body.back() == '"';
 
-    if ((jp_spoken || old_outer_quoted) && !new_has_quote) {
-        res.rejection_reason = "dropped spoken dialogue quotation marks";
-        return res;
-    }
-    if (old_outer_quoted && jp_spoken && !new_outer_quoted) {
-        res.rejection_reason = "broke outer quotation mark envelope on spoken dialogue";
-        return res;
-    }
-    const bool jp_has_any_quote =
-        jp_body.find("「") != std::string::npos ||
-        jp_body.find("『") != std::string::npos;
-    const bool old_has_any_quote = old_body.find('"') != std::string::npos;
-    if (!jp_has_any_quote && !old_has_any_quote && new_outer_quoted) {
-        res.rejection_reason = "invented outer spoken quotes on pure narration";
-        return res;
+        if ((jp_spoken || old_outer_quoted) && !new_has_quote) {
+            res.rejection_reason = "dropped spoken dialogue quotation marks";
+            return res;
+        }
+        if (old_outer_quoted && jp_spoken && !new_outer_quoted) {
+            res.rejection_reason = "broke outer quotation mark envelope on spoken dialogue";
+            return res;
+        }
+        const bool jp_has_any_quote =
+            jp_body.find("「") != std::string::npos ||
+            jp_body.find("『") != std::string::npos;
+        const bool old_has_any_quote = old_body.find('"') != std::string::npos;
+        if (!jp_has_any_quote && !old_has_any_quote && new_outer_quoted) {
+            res.rejection_reason = "invented outer spoken quotes on pure narration";
+            return res;
+        }
     }
 
     // 3. Engine Tag / Placeholder Preservation (%s, %d, literal \n and \@ escapes, $strNN vars)
@@ -1561,7 +1722,7 @@ struct SpotChecker::Impl {
     }
 
     static bool is_h_scene_window(const WindowSlice& slice,
-                                  std::size_t max_h_lines = 3) {
+                                  std::size_t max_h_lines = 2) {
         std::size_t h_count = 0;
         for (const auto& e : slice.target) {
             if (e.current_en.size() > 500 &&
@@ -1573,6 +1734,32 @@ struct SpotChecker::Impl {
             }
         }
         return h_count >= max_h_lines;
+    }
+
+    static void sanitize_slice_for_non_h_prompt(WindowSlice& slice) {
+        slice.context_before.erase(
+            std::remove_if(slice.context_before.begin(),
+                           slice.context_before.end(),
+                           [](const ScriptEntry& e) {
+                               return is_h_scene_line(e.jp_text, e.current_en);
+                           }),
+            slice.context_before.end());
+        slice.context_after.erase(
+            std::remove_if(slice.context_after.begin(),
+                           slice.context_after.end(),
+                           [](const ScriptEntry& e) {
+                               return is_h_scene_line(e.jp_text, e.current_en);
+                           }),
+            slice.context_after.end());
+        for (std::size_t i = 0; i < slice.target.size(); ++i) {
+            const int id = static_cast<int>(i + 1);
+            if (slice.editable_ids.count(id) == 0 &&
+                is_h_scene_line(slice.target[i].jp_text, slice.target[i].current_en)) {
+                slice.target[i].speaker = "NARRATION";
+                slice.target[i].jp_text = "……";
+                slice.target[i].current_en = "...";
+            }
+        }
     }
 
     SpotCheckReport run() {
@@ -1690,6 +1877,9 @@ struct SpotChecker::Impl {
                         ++rep.h_windows_skipped;
                         continue;
                     }
+                    if (cfg.skip_h_scenes) {
+                        sanitize_slice_for_non_h_prompt(ws);
+                    }
                     if (!ws.target.empty()) {
                         pack.push_back(std::move(ws));
                     }
@@ -1781,6 +1971,9 @@ struct SpotChecker::Impl {
                         }
                     }
                 }
+            }
+            if (cfg.skip_h_scenes) {
+                sanitize_slice_for_non_h_prompt(slice);
             }
             rep.editable_lines_unlocked += slice.editable_ids.size();
 

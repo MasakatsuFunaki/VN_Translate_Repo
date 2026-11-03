@@ -65,7 +65,17 @@ jobs:
               throw "$($g.Name): no translated_text.json or .json.enc staged"
             }
             $mb = [math]::Round((Get-Item $file).Length / 1MB, 1)
-            Write-Host "$($g.Name): translation $mb MB ($form)"
+            $gameDir = Join-Path $g.FullName 'game'
+            if ($g.Name -ne 'EXTRAVAGANZA_CE') {
+              $tsv = Get-ChildItem -Path $gameDir -Filter '*.tsv' -File -ErrorAction SilentlyContinue
+              if (-not $tsv -or $tsv[0].Length -eq 0) {
+                throw "$($g.Name): no runtime .tsv table staged in game/"
+              }
+              $tsvMb = [math]::Round($tsv[0].Length / 1MB, 1)
+              Write-Host "$($g.Name): translation $mb MB ($form), runtime table $($tsv[0].Name) ($tsvMb MB)"
+            } else {
+              Write-Host "$($g.Name): translation $mb MB ($form, archive-repack)"
+            }
           }
         shell: pwsh
 

@@ -17,7 +17,7 @@ target_include_directories(translation_pipeline_ct PRIVATE
 )
 target_compile_definitions(translation_pipeline_ct PRIVATE
     _CRT_SECURE_NO_WARNINGS
-    GAME_TSV_PATH="C:/Games/FAVORITE/translations.tsv"
+    GAME_TSV_PATH="${CMAKE_SOURCE_DIR}/../build/install/game/translation_table.tsv"
 )
 gtest_discover_tests(translation_pipeline_ct PROPERTIES LABELS "CT")
 

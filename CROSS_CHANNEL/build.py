@@ -94,12 +94,23 @@ def clean():
             os.remove(user_presets)
 
 
+def build_table():
+    doc = os.path.join(ROOT, "script_output", "translated_text.json")
+    if not os.path.isfile(doc):
+        return
+    exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
+    tsv = os.path.join(INSTALL_DIR, "game", "translations.tsv")
+    run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
+
+
 def build():
+    clean()
     # The root project configures and builds both halves: it runs Conan for
     # each, configures each through its own preset, and builds each in its
     # own binary dir under build/.
     run(["cmake", "--preset", PRESET], ROOT)
     run(["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
+    build_table()
 
 
 def has_test_preset(source_dir, preset):
@@ -130,6 +141,7 @@ def test():
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
+    build_table()
 
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
@@ -156,9 +168,8 @@ def deploy(game_dir):
         print(f"COPY xinput1_3.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
 
-    # The table is a soft failure: it is generated, so a missing one just
-    # means the translation pipeline has not been run yet.
-    tsv = os.path.join(ROOT, "translations.tsv")
+    # The table is generated into build/install/game/translations.tsv during build.
+    tsv = os.path.join(INSTALL_DIR, "game", "translations.tsv")
     if os.path.exists(tsv):
         try:
             shutil.copyfile(tsv, os.path.join(game_dir, "translations.tsv"))

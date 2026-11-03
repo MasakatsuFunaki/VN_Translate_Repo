@@ -89,6 +89,7 @@ def clean():
 
 
 def build():
+    clean()
     # The root project configures and builds both halves: it runs Conan for
     # each, configures each through its own preset, and builds each in its
     # own binary dir under build/.

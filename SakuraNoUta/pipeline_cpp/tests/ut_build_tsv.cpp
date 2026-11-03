@@ -203,7 +203,7 @@ TEST(BuildTsv, run_build_takes_ruby_markup_out_of_the_english) {
 }
 
 TEST(BuildTsv, deployed_tsv_carries_no_ruby_markup) {
-    fs::path tsv = fs::u8path(std::string(SNU_PROJECT_DIR) + "/translations.tsv");
+    fs::path tsv = fs::u8path(std::string(SNU_PROJECT_DIR) + "/build/install/game/translations.tsv");
     if (!fs::exists(tsv)) GTEST_SKIP() << "translations.tsv not built yet";
     std::ifstream f(tsv, std::ios::binary);
     std::string line;
@@ -357,7 +357,7 @@ TEST(BuildTsv, no_two_glossary_names_are_spelled_alike) {
 // The backlog's rows are the plates' rows inside the engine's brackets, so the
 // shipped table carries the check's answer in a form that needs no glossary.
 TEST(BuildTsv, deployed_tsv_draws_no_two_names_alike) {
-    fs::path tsv = fs::u8path(std::string(SNU_PROJECT_DIR) + "/translations.tsv");
+    fs::path tsv = fs::u8path(std::string(SNU_PROJECT_DIR) + "/build/install/game/translations.tsv");
     if (!fs::exists(tsv)) GTEST_SKIP() << "translations.tsv not built yet";
     std::vector<std::pair<std::string, std::string>> name_rows;
     std::ifstream f(tsv, std::ios::binary);
@@ -780,7 +780,7 @@ TEST(BuildTsv, coverage_separates_exempt_lines_from_real_misses) {
 // Deployed-TSV gate: every non-empty line of the real translations.tsv is
 // <jp>\t<en>.  Skips when the TSV hasn't been built yet.
 TEST(BuildTsv, deployed_tsv_has_one_tab_per_line) {
-    fs::path tsv = fs::u8path(std::string(SNU_PROJECT_DIR) + "\\translations.tsv");
+    fs::path tsv = fs::u8path(std::string(SNU_PROJECT_DIR) + "\\build\\install\\game\\translations.tsv");
     if (!fs::exists(tsv)) {
         GTEST_SKIP() << "translations.tsv not built yet";
     }
@@ -922,7 +922,7 @@ TEST(BoxBudget, an_untranslated_string_still_spends_its_lines) {
 // Skips when either is absent.
 TEST(BoxBudget, the_deployed_table_fits_the_boxes_it_is_drawn_in) {
     const std::string root = SNU_PROJECT_DIR;
-    fs::path tsv = fs::u8path(root + "/translations.tsv");
+    fs::path tsv = fs::u8path(root + "/build/install/game/translations.tsv");
     fs::path doc = fs::u8path(root + "/script_output/translated_text.json");
     if (!fs::exists(tsv) || !fs::exists(doc))
         GTEST_SKIP() << "the table or the translated document is not built yet";
@@ -1291,7 +1291,7 @@ TEST(BuildTsv, updated_json_entries_at_boundary_positions_replace_tsv_rows) {
 // deduplicated-table positions, and byte-length extremes (min/median/max).
 TEST(BuildTsv, deployed_tsv_matches_translated_text_boundary_samples) {
     const std::string root_dir = SNU_PROJECT_DIR;
-    const fs::path tsv_path = fs::u8path(root_dir + "/translations.tsv");
+    const fs::path tsv_path = fs::u8path(root_dir + "/build/install/game/translations.tsv");
     const fs::path doc_path =
         fs::u8path(root_dir + "/script_output/translated_text.json");
     if (!fs::exists(tsv_path) || !fs::exists(doc_path))

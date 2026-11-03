@@ -1393,3 +1393,111 @@ TEST(SpotCheckerSystemTests, SystemTest12_LiveApiEndToEndOnSyntheticCorruptedNov
     EXPECT_EQ(fixed_6.rfind("Miyaka\r\n\"", 0), 0u) << "Fixed 6: " << fixed_6;
     EXPECT_LT(fixed_6.size(), 200u) << "Fixed 6 length: " << fixed_6.size();
 }
+
+TEST(SpotCheckerSystemTests, SpotCheckerFraterniteYuRisAndHFilter) {
+    // 1. Verify inline Speaker「Quote」 and ／Speaker「Quote extraction
+    const bj::value yuris_root = bj::parse(R"json({
+        "yst00100.ybn": {
+            "strings": [
+                {"type": "dialogue", "text": "大智「もしもし……聞こえるか？」", "translated": "Daichi「As for that, hello... can you hear me?」"},
+                {"type": "dialogue", "text": "／≪美桜／姉さん≫「大智、終わった？」", "translated": "／Mio「Daichi, is it that you are done?」"},
+                {"type": "dialogue", "text": "／美桜「まだ少し残ってる", "translated": "／Mio「There is still a bit left"}
+            ]
+        }
+    })json");
+    const auto yuris_entries = extract_script_entries(yuris_root);
+    ASSERT_EQ(yuris_entries.size(), 3u);
+    EXPECT_EQ(yuris_entries[0].speaker, "Daichi");
+    EXPECT_EQ(yuris_entries[1].speaker, "Mio");
+    EXPECT_EQ(yuris_entries[2].speaker, "Mio");
+
+    const WindowSlice yuris_slice = build_window_slice(yuris_entries, 0, 3, 0, 0);
+    const std::string yuris_prompt = build_spot_check_user_prompt(yuris_slice);
+    EXPECT_NE(yuris_prompt.find("1. [Daichi]"), std::string::npos);
+    EXPECT_NE(yuris_prompt.find("2. [Mio]"), std::string::npos);
+
+    // Verify normalize_restored_translation and validate_proposed_fix for:
+    // - LLM returning ASCII quotes "\"Hello... can you hear me?\"" -> restored to "Daichi「Hello... can you hear me?」"
+    // - LLM returning inline kaku "Mio「Daichi, are you done?」" -> restored to "／Mio「Daichi, are you done?」"
+    // - LLM returning unclosed inline kaku -> restored without closing 」
+    const auto yuris_fixed = parse_spot_check_response(
+        R"json([
+            {"id": 1, "new_en": "\"Hello... can you hear me?\"", "category": "stiff_translationese", "confidence": 0.95, "reason": "Remove stiff calque"},
+            {"id": 2, "new_en": "Mio「Daichi, are you done?」", "category": "stiff_translationese", "confidence": 0.95, "reason": "Natural question"},
+            {"id": 3, "new_en": "\"There's still a little left", "category": "stiff_translationese", "confidence": 0.95, "reason": "Natural phrasing"}
+        ])json",
+        yuris_slice);
+    ASSERT_EQ(yuris_fixed.size(), 3u);
+    EXPECT_EQ(yuris_fixed[0].improved_en, "Daichi「Hello... can you hear me?」");
+    EXPECT_EQ(yuris_fixed[1].improved_en, "／Mio「Daichi, are you done?」");
+    EXPECT_EQ(yuris_fixed[2].improved_en, "／Mio「There's still a little left");
+
+    // 2. Verify FRATERNITE_HD speaker markers & ClockUp H-terms in is_h_scene_line
+    EXPECT_TRUE(is_h_scene_line("／大智Ｈ「静かにしろ」", "／Daichi (H)「Be quiet.」"));
+    EXPECT_TRUE(is_h_scene_line("／園田Ｈ「こっちへ来い」", "／Middle-aged Man (Sonoda H)「Come here.」"));
+    EXPECT_TRUE(is_h_scene_line("「輪姦されて苗床に……」", "「...」"));
+    EXPECT_TRUE(is_h_scene_line("「……」", "「The gangrape continued in the bowels.」"));
+
+    // 3. Verify H-scene lines are stripped from context_before / context_after and
+    //    isolated H-lines in target are redacted when skip_h_scenes == true
+    TempDir tmp;
+    const bj::array frat_strings = {
+        bj::object{
+            {"index", 0},
+            {"type", "dialogue"},
+            {"text", "／大智Ｈ「ぐちゅぐちゅと音が響く」"},
+            {"translated", "／Daichi (H)「Wet sounds echoed in her womb.」"},
+        },
+        bj::object{
+            {"index", 1},
+            {"type", "dialogue"},
+            {"text", "大智「彼女が俺を助けてくれたのだ」"},
+            {"translated", "Daichi「As for that, I helped her out of the 生徒会 trouble.」"},
+        },
+        bj::object{
+            {"index", 2},
+            {"type", "dialogue"},
+            {"text", "／大智Ｈ「中出ししてやる」"},
+            {"translated", "／Daichi (H)「I'll inseminate you inside.」"},
+        },
+        bj::object{
+            {"index", 3},
+            {"type", "dialogue"},
+            {"text", "／園田Ｈ「輪姦の時間だ」"},
+            {"translated", "／Sonoda (H)「It's gangbang time.」"},
+        },
+    };
+    write_file((tmp.path() / "script_output" / "translated_text.json").u8string(),
+               json_pretty(bj::value(bj::object{
+                               {"yst00100.ybn", bj::object{{"strings", frat_strings}}}}),
+                           2));
+
+    SpotCheckConfig cfg;
+    cfg.game_dir = tmp.str();
+    cfg.mode = SpotCheckMode::Linear;
+    cfg.offset = 1;
+    cfg.window_size = 2;       // Target = [1, 2] (only 1 H-line in target, < max_h_lines=2)
+    cfg.context_before = 1;    // Context before = [0] (H-line -> must be stripped!)
+    cfg.context_after = 1;     // Context after = [3] (H-line -> must be stripped!)
+    cfg.max_windows = 1;
+    cfg.skip_h_scenes = true;
+
+    std::string captured_prompt;
+    SpotChecker checker(cfg, [&](const std::string&, const std::string& user_prompt) {
+        captured_prompt = user_prompt;
+        return R"json([
+            {"id": 1, "new_en": "\"She was the one who saved me from the student council trouble.\"", "category": "mistranslation", "confidence": 0.98, "reason": "Fix benefactive and leaked kanji"}
+        ])json";
+    });
+
+    const SpotCheckReport rep = checker.run();
+    EXPECT_EQ(captured_prompt.find("Daichi (H)"), std::string::npos);
+    EXPECT_EQ(captured_prompt.find("Sonoda (H)"), std::string::npos);
+    EXPECT_EQ(captured_prompt.find("ぐちゅ"), std::string::npos);
+    EXPECT_EQ(captured_prompt.find("中出し"), std::string::npos);
+    EXPECT_EQ(captured_prompt.find("inseminate"), std::string::npos);
+    EXPECT_EQ(captured_prompt.find("gangbang"), std::string::npos);
+    ASSERT_EQ(rep.improvements_found, 1u);
+    EXPECT_EQ(rep.improvements[0].improved_en,
+              "Daichi「She was the one who saved me from the student council trouble.」");
+}

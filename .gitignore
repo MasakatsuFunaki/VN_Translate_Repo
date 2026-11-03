@@ -86,6 +86,8 @@ amakano2pe/map_images/
 **/_debug_title_originals/
 **/script_output/extracted_text.json
 **/script_output/argon_spot_check.json
+**/translations.tsv
+**/translation_table.tsv
 # Restored on demand by mushigurui_HD10/analysys/retired_py.py
 mushigurui_HD10/analysys/_retired/
 
@@ -117,10 +119,4 @@ sakuranotoki/proxy_dll/iarsys_orig.dll
 # SakuraNoUta's translate step writes every raw API answer here on each run.
 # It repeats the script line by line, and nothing reads it back.
 SakuraNoUta/script_output/anthropic_raw_answers.log
-_specs/x_internal_implem_specs/favorite/01_pipeline_fixes_and_batch_run.md
-_specs/x_internal_implem_specs/favorite/02_full_translation_pipeline.md
-_specs/x_internal_implem_specs/favorite/03_translate_ui_graph_bin.md
-_specs/x_internal_implem_specs/favorite/04_full_serial_translation_run.md
-_specs/x_internal_implem_specs/favorite/05_cpp_architecture_cleanup.md
-_specs/x_internal_implem_specs/favorite/product_spec.md
-_specs/x_internal_implem_specs/favorite/README.md
+_specs*

@@ -33,6 +33,43 @@ bool is_hiragana(char32_t cp) {
     return cp >= 0x3040 && cp <= 0x309F;
 }
 
+constexpr std::size_t kMaxInlineSpeakerBytes = 45;
+constexpr std::size_t kMaxInlineSpeakerChars = 25;
+constexpr std::size_t kKakuCloseLen = 3;
+
+bool has_inline_kaku_speaker_prefix(const std::string& text) {
+    const std::size_t pos = text.find("「");
+    if (pos == std::string::npos || pos == 0 || pos > kMaxInlineSpeakerBytes) {
+        return false;
+    }
+    const std::string rest = trim(text.substr(pos));
+    if (rest.find("」") != std::string::npos &&
+        (rest.size() < kKakuCloseLen ||
+         rest.compare(rest.size() - kKakuCloseLen, kKakuCloseLen, "」") != 0)) {
+        return false;
+    }
+    const std::string prefix = trim(text.substr(0, pos));
+    if (prefix.empty() || utf8_char_len(prefix) > kMaxInlineSpeakerChars) {
+        return false;
+    }
+    if (prefix.rfind("「", 0) == 0 || prefix.rfind("『", 0) == 0 ||
+        prefix.rfind("（", 0) == 0 || prefix.rfind("　", 0) == 0) {
+        return false;
+    }
+    if (prefix.find("。") != std::string::npos ||
+        prefix.find("、") != std::string::npos ||
+        prefix.find("！") != std::string::npos) {
+        return false;
+    }
+    for (char c : prefix) {
+        if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
+            c == ':' || c == '!' || c == '[' || c == '\r' || c == '\n') {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::string strip_speaker_prefix_body(const std::string& s) {
     const std::size_t crlf = s.find("\r\n");
     if (crlf != std::string::npos && crlf > 0 && crlf <= 35) {
@@ -58,6 +95,10 @@ std::string strip_speaker_prefix_body(const std::string& s) {
                 return rest;
             }
         }
+    }
+    if (has_inline_kaku_speaker_prefix(s)) {
+        const std::size_t pos = s.find("「");
+        return trim(s.substr(pos));
     }
     return trim(s);
 }
@@ -345,10 +386,30 @@ bool is_h_scene_line(const std::string& jp_text, const std::string& en_text) {
         return false;
     }
 
+    for (const char* jp_speaker_marker : {"大智Ｈ", "園田Ｈ"}) {
+        if (jp_text.find(jp_speaker_marker) != std::string::npos) {
+            return true;
+        }
+    }
+    const std::string lower_raw_en = to_lower_ascii(en_text);
+    for (const char* en_speaker_marker : {
+             "daichi (h)", "sonoda (h)", "sonoda h)", "daichi h)"}) {
+        if (lower_raw_en.find(en_speaker_marker) != std::string::npos) {
+            return true;
+        }
+    }
+
     for (const char* jp_term : {
              "肉棒", "秘部", "秘裂", "膣", "子宮", "精液", "射精", "絶頂",
              "陰茎", "亀頭", "乳首", "愛液", "淫乱", "陵辱", "挿入", "結合",
              "ペニス", "アナル", "フェラ",
+             "輪姦", "強姦", "凌辱", "肉便器", "性器", "陰部", "膣内", "中出し",
+             "イラマ", "パイズリ", "菊門", "腸内", "直腸", "排泄", "脱糞", "糞尿",
+             "尿道", "ザーメン", "勃起", "巨根", "男根", "女陰", "蜜壺", "肉壺",
+             "処女膜", "破瓜", "喘ぎ", "よがり", "苗床", "交尾", "獣姦", "姦通",
+             "淫売", "売春", "娼婦", "しゃぶ", "ちんぽ", "まんこ", "おまんこ",
+             "ちんちん", "おっぱい", "ずぷ", "ずぶ", "ぐちゅ", "どぷ", "びゅる",
+             "びゅっ", "ちゅぱ", "れろ",
              "んっ……", "あんっ", "はぁ、はぁ", "ひゃん", "くちゅ", "ぬちゅ",
              "じゅる", "びくびく", "あ、ああっ", "んぅ", "ふぁ"}) {
         if (jp_body.find(jp_term) != std::string::npos) {
@@ -360,6 +421,13 @@ bool is_h_scene_line(const std::string& jp_text, const std::string& en_text) {
     for (const char* en_word : {
              "cock", "pussy", "dick", "cum", "cumming", "climax", "orgasm",
              "nipple", "clit", "vagina", "penis", "semen", "thrusting",
+             "rape", "raped", "raping", "gangrape", "gangbang", "whore", "slut",
+             "fellatio", "irrumatio", "blowjob", "handjob", "paizuri", "anus",
+             "anal", "rectum", "bowels", "enema", "feces", "excrement", "urine",
+             "urinate", "urethra", "piss", "erection", "phallus", "genitals",
+             "genitalia", "crotch", "hymen", "defloration", "seedbed",
+             "inseminate", "impregnate", "masturbate", "dildo", "vibrator",
+             "panties", "breasts", "tits", "boobs", "asshole",
              "nngh", "mmph", "aaah", "haaah"}) {
         if (contains_word_ci(lower_en, en_word)) {
             return true;
@@ -443,7 +511,7 @@ struct HotspotDetector::Impl {
             sc.dominant_signal = "clean";
             return sc;
         }
-        if (cfg.skip_h_scenes && is_h_scene_line(jp_body, en_body)) {
+        if (cfg.skip_h_scenes && is_h_scene_line(jp_text, en_text)) {
             sc.dominant_signal = "clean";
             return sc;
         }
@@ -474,8 +542,15 @@ struct HotspotDetector::Impl {
             sc.artifact_score += 5.0;  // Actual untranslated CJK/kana leaked into English
         }
         if (cfg.fix_punctuation) {
-            if (en_body.find("「") != std::string::npos ||
-                en_body.find("」") != std::string::npos ||
+            const bool jp_has_spoken_quote =
+                jp_body.find("「") != std::string::npos ||
+                jp_body.find("『") != std::string::npos;
+            const bool en_uses_kaku = (en_body.rfind("「", 0) == 0);
+            const bool bad_kaku =
+                !en_uses_kaku &&
+                (en_body.find("「") != std::string::npos ||
+                 en_body.find("」") != std::string::npos);
+            if (bad_kaku ||
                 en_body.find("『") != std::string::npos ||
                 en_body.find("』") != std::string::npos ||
                 en_body.find("…") != std::string::npos ||
@@ -487,10 +562,8 @@ struct HotspotDetector::Impl {
             if (has_parenthetical_romaji_or_note(en_body)) {
                 sc.artifact_score += 4.5;  // Inline romaji gloss like "(hippu)" or "[TL:"
             }
-            const bool jp_has_spoken_quote =
-                jp_body.find("「") != std::string::npos ||
-                jp_body.find("『") != std::string::npos;
-            const bool en_has_double_quote = en_body.find('"') != std::string::npos;
+            const bool en_has_double_quote =
+                en_uses_kaku || en_body.find('"') != std::string::npos;
             if (jp_has_spoken_quote && !en_has_double_quote && l_jp >= 4.0) {
                 sc.artifact_score += 3.5;  // Spoken dialogue lost its quotes
             } else if (!jp_has_spoken_quote && !en_body.empty() &&
@@ -587,7 +660,8 @@ struct HotspotDetector::Impl {
                 !has_real_japanese(jp_bodies[i]) || en_bodies[i] == jp_bodies[i] ||
                 trim(entries[i].current_en) == trim(entries[i].jp_text);
             h_line[i] = is_passthrough ||
-                        (cfg.skip_h_scenes && is_h_scene_line(jp_bodies[i], en_bodies[i]));
+                        (cfg.skip_h_scenes &&
+                         is_h_scene_line(entries[i].jp_text, entries[i].current_en));
             jp_tokens[i] = extract_jp_callback_tokens(jp_bodies[i]);
             jp_kanji2[i] = extract_kanji_stems(jp_bodies[i]);
             en_stems[i] = extract_en_stems(en_bodies[i]);

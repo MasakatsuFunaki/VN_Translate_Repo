@@ -384,6 +384,8 @@ int run_build(const std::string& translated_file, const std::string& out_tsv,
         emit(key, value);
         ++box_rows;
     }
+    if (const auto parent = fs::u8path(out_tsv).parent_path(); !parent.empty())
+        fs::create_directories(parent);
     write_file(out_tsv, out);
 
     log_info("Total entries seen:      " + std::to_string(total_seen));

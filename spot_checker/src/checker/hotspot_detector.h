@@ -73,7 +73,7 @@ struct HotspotConfig {
     double cusum_drift_k = 0.5;         // Page's CUSUM reference drift allowance
     bool skip_h_scenes = true;          // Skip explicit H-scene lines and windows by default
     bool fix_punctuation = false;       // Do not score punctuation/parentheses/brackets by default
-    std::size_t max_h_lines_per_window = 3;
+    std::size_t max_h_lines_per_window = 2;
 };
 
 struct NeighborExpansion {
