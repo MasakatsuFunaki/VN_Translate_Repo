@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
          "smoke run: N batches then stop (bare --test = 1)")
         ("max-batches", po::value(&max_batches)->default_value(0),
          "stop after N API requests, keeping the cache and outputs (0 = no limit)")
-        ("out", po::value(&out_tsv), "translation table path (default <dir>\\translations.tsv)")
+        ("out", po::value(&out_tsv), "translation table path (default <dir>\\build\\install\\game\\translations.tsv)")
         ("include-untranslated", po::bool_switch(&include_untranslated),
          "emit table rows whose translation is still the raw Japanese")
         ("gate-only", po::bool_switch(&gate_only),
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
             return 2;
         }
         const std::string tsv =
-            out_tsv.empty() ? project + "\\translations.tsv" : out_tsv;
+            out_tsv.empty() ? project + "\\build\\install\\game\\translations.tsv" : out_tsv;
         try {
             const int rc = build_tsv::run_build(doc, cache_file, tsv,
                                                 include_untranslated, flow_breaks);
@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
     opt.cache_file = cache_file;
     opt.output_file = out_dir + "\\translated_text.json";
     // --out defaults off --dir, so it cannot be a static default_value.
-    opt.tsv_file = out_tsv.empty() ? project + "\\translations.tsv" : out_tsv;
+    opt.tsv_file = out_tsv.empty() ? project + "\\build\\install\\game\\translations.tsv" : out_tsv;
     opt.batch_size = batch;
     opt.retranslate = retranslate;
     opt.include_untranslated = include_untranslated;

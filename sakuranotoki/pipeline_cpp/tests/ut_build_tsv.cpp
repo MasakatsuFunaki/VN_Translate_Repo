@@ -525,7 +525,7 @@ TEST(BuildTsv, the_flow_switch_keeps_breaks_by_default_and_flows_when_asked) {
 // Deployed-TSV gate: every non-empty line of the real translations.tsv is
 // <jp>\t<en>.  Skips when the TSV hasn't been built yet.
 TEST(BuildTsv, deployed_tsv_has_one_tab_per_line) {
-    fs::path tsv = fs::u8path(std::string(SNT_PROJECT_DIR) + "\\translations.tsv");
+    fs::path tsv = fs::u8path(std::string(SNT_PROJECT_DIR) + "\\build\\install\\game\\translations.tsv");
     if (!fs::exists(tsv)) GTEST_SKIP() << "translations.tsv not built yet";
     std::ifstream f(tsv, std::ios::binary);
     std::string line;

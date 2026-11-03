@@ -99,14 +99,17 @@ bool deploy(const std::string& project, const std::string& game) {
     }
     log_info("  version.dll -> " + game);
 
-    const fs::path tsv = fs::u8path(project + "\\translations.tsv");
-    const bool have_table = fs::exists(tsv, ec);
-    if (ec) {
-        log_info("  WARN: cannot check " + tsv.u8string() + ": " +
-                 ec.message());
-        return true;
+    fs::path tsv;
+    for (const auto& candidate : {project + "\\build\\install\\game\\translations.tsv",
+                                  apps::exe_dir() + "\\..\\game\\translations.tsv"}) {
+        if (fs::exists(fs::u8path(candidate), ec)) {
+            tsv = fs::u8path(candidate);
+            break;
+        }
+        if (ec)
+            log_info("  WARN: cannot check " + candidate + ": " + ec.message());
     }
-    if (!have_table) {
+    if (tsv.empty()) {
         log_info("  WARN: translations.tsv not found -- 02_translate produces it.");
         return true;
     }

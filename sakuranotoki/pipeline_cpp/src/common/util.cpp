@@ -35,7 +35,12 @@ Bytes read_file(const std::string& path) {
 }
 
 void write_file(const std::string& path, const void* data, std::size_t size) {
-    std::ofstream f(std::filesystem::u8path(path), std::ios::binary);
+    const auto p = std::filesystem::u8path(path);
+    if (p.has_parent_path()) {
+        std::error_code ec;
+        std::filesystem::create_directories(p.parent_path(), ec);
+    }
+    std::ofstream f(p, std::ios::binary);
     if (!f) throw std::runtime_error("cannot create " + path);
     if (size) f.write(static_cast<const char*>(data), size);
     if (!f) throw std::runtime_error("write failed: " + path);
