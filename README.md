@@ -19,7 +19,7 @@ runtime — the original game files stay untouched.
 | Sakura no Toki | In progress |
 | Adieu | In progress |
 | 夜、灯す。 | In progress |
-| Kishin Hishou Demonbane | Compatibility patch (not a translation) |
+| Kishin Hishou Demonbane | Shipped |
 
 ## How to use (Release Zip)
 

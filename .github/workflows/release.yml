@@ -57,15 +57,36 @@ jobs:
             }
             $mb = [math]::Round((Get-Item $plain).Length / 1MB, 1)
             $gameDir = Join-Path $g.FullName 'game'
-            if ($g.Name -ne 'EXTRAVAGANZA_CE') {
+            if ($g.Name -eq 'EXTRAVAGANZA_CE') {
+              Write-Host "$($g.Name): translation $mb MB (plain, archive-repack)"
+            } elseif ($g.Name -eq 'kishin_hisho') {
+              foreach ($req in @('0script.pak', 'alpharom_helper.dll', 'launch.exe')) {
+                $reqPath = Join-Path $gameDir $req
+                if (-not (Test-Path $reqPath) -or (Get-Item $reqPath).Length -le 0) {
+                  throw "$($g.Name): missing or empty game/$req"
+                }
+              }
+              $nps = Get-ChildItem -Path (Join-Path $gameDir 'script') -Filter '*.nps' -File -ErrorAction SilentlyContinue
+              if (-not $nps -or $nps.Count -lt 119) {
+                throw "$($g.Name): expected at least 119 .nps files in game/script/, found $($nps.Count)"
+              }
+              $recon = Join-Path $g.FullName 'script_output\nps_reconstruction_map.json'
+              if (-not (Test-Path $recon) -or (Get-Item $recon).Length -le 0) {
+                throw "$($g.Name): missing or empty script_output/nps_reconstruction_map.json"
+              }
+              $pakItem = Get-Item (Join-Path $gameDir '0script.pak')
+              if ($pakItem.LastWriteTimeUtc -lt (Get-Item $plain).LastWriteTimeUtc) {
+                throw "$($g.Name): game/0script.pak is older than script_output/translated_text.json"
+              }
+              $pakMb = [math]::Round($pakItem.Length / 1MB, 2)
+              Write-Host "$($g.Name): translation $mb MB (plain), 0script.pak ($pakMb MB), $($nps.Count) .nps scripts"
+            } else {
               $tsv = Get-ChildItem -Path $gameDir -Filter '*.tsv' -File -ErrorAction SilentlyContinue
               if (-not $tsv -or $tsv[0].Length -eq 0) {
                 throw "$($g.Name): no runtime .tsv table staged in game/"
               }
               $tsvMb = [math]::Round($tsv[0].Length / 1MB, 1)
               Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB)"
-            } else {
-              Write-Host "$($g.Name): translation $mb MB (plain, archive-repack)"
             }
           }
         shell: pwsh

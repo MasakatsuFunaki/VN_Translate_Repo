@@ -7,7 +7,6 @@
 /.vscode/
 /Adieu/
 /docs/
-/kishin_hisho/
 /TOOLS/
 
 # The aggregate install tree the root build.py stages -- build output, and the
@@ -20,6 +19,8 @@
 # Ghidra and game paths.  kishin_hisho spells it `analysis`.
 **/analysys/
 **/analysis/
+!kishin_hisho/pipeline_cpp/src/analysis/
+!kishin_hisho/pipeline_cpp/src/analysis/**
 
 # ...except FRATERNITE_HD's YBN samples, which are test fixtures rather than
 # scratch: ut_ypf_archive and ut_extract build a synthetic bn.ypf out of them

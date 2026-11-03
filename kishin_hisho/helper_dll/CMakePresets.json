@@ -1,0 +1,29 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 20,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "conan-windows-x86-release",
+            "displayName": "Conan Windows x86 Release (Ninja Multi-Config)",
+            "description": "32-bit (Win32) Release build. Binary dir and Conan toolchain both live in the game's single build tree: kishin_hisho/build/helper. Ninja takes its target architecture from the compiler environment, not from CMake, so the 32-bit target comes from the x86 Conan profile's conanvcvars.bat -- which is why there is no 'architecture' field here.",
+            "generator": "Ninja Multi-Config",
+            "toolchainFile": "${sourceDir}/../build/helper/generators/conan_toolchain.cmake",
+            "binaryDir": "${sourceDir}/../build/helper",
+            "installDir": "${sourceDir}/../build/install",
+            "cacheVariables": {
+                "CMAKE_POLICY_DEFAULT_CMP0091": "NEW"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "conan-windows-x86-release",
+            "configurePreset": "conan-windows-x86-release",
+            "configuration": "Release"
+        }
+    ]
+}

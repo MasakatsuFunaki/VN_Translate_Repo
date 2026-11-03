@@ -46,8 +46,8 @@ INSTALL_DIR = os.path.join(ROOT, "install")
 # copy game/ into the game folder and it speaks English.
 RUNTIME_TABLES = ("translations.tsv", "translation_table.tsv")
 
-# Archive-repack games that patch .spt/.xtx/.fxf directly and do not use a runtime TSV.
-REPACK_ONLY_GAMES = ("EXTRAVAGANZA_CE",)
+# Archive-repack games that patch .spt/.xtx/.fxf/.pak directly and do not use a runtime TSV.
+REPACK_ONLY_GAMES = ("EXTRAVAGANZA_CE", "kishin_hisho")
 
 
 def run(cmd, cwd, check=True):
@@ -170,6 +170,37 @@ def collect(game):
                 print(f"  [ERROR] {game}: staged table {os.path.basename(tables[0])} "
                       f"is older than script_output/{src_name}")
                 return False
+    elif game == "kishin_hisho":
+        game_dir = os.path.join(dst, "game")
+        for req_name in ("0script.pak", "alpharom_helper.dll", "launch.exe"):
+            req_path = os.path.join(game_dir, req_name)
+            if not os.path.isfile(req_path) or os.path.getsize(req_path) == 0:
+                print(f"  [ERROR] {game}: missing or empty {req_name} in "
+                      f"{os.path.relpath(game_dir, ROOT)}")
+                return False
+        script_dir = os.path.join(game_dir, "script")
+        if not os.path.isdir(script_dir):
+            print(f"  [ERROR] {game}: missing script/ directory in "
+                  f"{os.path.relpath(game_dir, ROOT)}")
+            return False
+        script_files = [f for f in os.listdir(script_dir)
+                        if os.path.isfile(os.path.join(script_dir, f))]
+        nps_files = [f for f in script_files if f.lower().endswith(".nps")]
+        if len(nps_files) < 119 or len(script_files) < 123:
+            print(f"  [ERROR] {game}: incomplete script/ directory "
+                  f"({len(nps_files)} .nps, {len(script_files)} total)")
+            return False
+        pak_path = os.path.join(game_dir, "0script.pak")
+        src_translated_json = os.path.join(ROOT, game, "script_output", "translated_text.json")
+        if os.path.getmtime(pak_path) < os.path.getmtime(src_translated_json):
+            print(f"  [ERROR] {game}: staged 0script.pak is older than "
+                  f"script_output/translated_text.json")
+            return False
+        staged_recon = os.path.join(dst, "script_output", "nps_reconstruction_map.json")
+        if not os.path.isfile(staged_recon) or os.path.getsize(staged_recon) == 0:
+            print(f"  [ERROR] {game}: missing or empty nps_reconstruction_map.json in "
+                  f"{os.path.relpath(os.path.dirname(staged_recon), ROOT)}")
+            return False
 
     files = sum(len(f) for _, _, f in os.walk(dst))
     size = sum(os.path.getsize(os.path.join(b, f))

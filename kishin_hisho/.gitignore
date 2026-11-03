@@ -1,0 +1,6 @@
+# CMake build output — one tree for the whole game (see the root CMakeLists.txt)
+build/
+
+# Python caches
+__pycache__/
+analysis/__pycache__/
