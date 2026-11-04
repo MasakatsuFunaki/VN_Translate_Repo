@@ -42,15 +42,22 @@ target_compile_definitions(patcher_logic PRIVATE
 
 # --------------------------------------------------------------------
 # translator_logic: pure TSV parsing ({TAB}/{CR}/{LF} tokens),
-# UTF-8 BOM detection, big-endian 16/24-bit pack/unpack, and the
-# cumulative-delta offset fixup table used by PatchDecryptedData.
+# UTF-8 BOM detection, big-endian 16/24-bit pack/unpack, the
+# cumulative-delta offset fixup table used by PatchDecryptedData, and
+# SHINMENU v1 keyless XOR-delta menu auto-patching.
 # --------------------------------------------------------------------
 add_library(translator_logic OBJECT
     src/translator_logic.cpp
     src/translator_logic.h
+    src/menu_autopatch.cpp
+    src/menu_autopatch.h
 )
 target_include_directories(translator_logic PUBLIC src)
 target_compile_definitions(translator_logic PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
     _CRT_SECURE_NO_WARNINGS
 )
 

@@ -95,6 +95,7 @@ def build_table():
     exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
     tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
     run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
+    shutil.copyfile(tsv, os.path.join(ROOT, "translation_table.tsv"))
 
 
 def build():
@@ -132,6 +133,12 @@ def install():
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
     build_table()
 
+    patch_src = os.path.join(ROOT, "menu_patch.bin")
+    if os.path.isfile(patch_src):
+        patch_dst = os.path.join(INSTALL_DIR, "game", "menu_patch.bin")
+        os.makedirs(os.path.dirname(patch_dst), exist_ok=True)
+        shutil.copyfile(patch_src, patch_dst)
+
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
         if os.path.isdir(path):
@@ -146,6 +153,9 @@ def deploy(game_dir):
 
     print(f"\nDeploying to {game_dir}...")
 
+    if not os.path.isdir(os.path.join(INSTALL_DIR, "bin")):
+        run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
+
     # From the build tree, not the install tree: --deploy has to work whether
     # or not --install was asked for, and the build tree is always the fresher
     # of the two.
@@ -158,6 +168,8 @@ def deploy(game_dir):
         sys.exit(1)
 
     tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
+    if not os.path.exists(tsv):
+        tsv = os.path.join(ROOT, "translation_table.tsv")
     if os.path.exists(tsv):
         try:
             shutil.copyfile(tsv, os.path.join(game_dir, "translation_table.tsv"))
@@ -167,6 +179,33 @@ def deploy(game_dir):
     elif not os.path.exists(os.path.join(game_dir, "translation_table.tsv")):
         print("WARN: translation_table.tsv not in the game folder — "
               "run 02_build_tsv.exe first.")
+
+    patch_src = os.path.join(ROOT, "menu_patch.bin")
+    if os.path.isfile(patch_src):
+        patch_stage = os.path.join(INSTALL_DIR, "game", "menu_patch.bin")
+        os.makedirs(os.path.dirname(patch_stage), exist_ok=True)
+        shutil.copyfile(patch_src, patch_stage)
+        try:
+            shutil.copyfile(patch_src, os.path.join(game_dir, "menu_patch.bin"))
+        except OSError as exc:
+            print(f"COPY menu_patch.bin FAILED ({exc})")
+            sys.exit(1)
+
+    menu_assets_dir = os.path.join(ROOT, "menu_assets")
+    sin_sysd = os.path.join(game_dir, "Data", "sin_sysd.dat")
+    if (os.path.isdir(menu_assets_dir) or os.path.isfile(patch_src)) and os.path.isfile(sin_sysd):
+        patch_menus_exe = os.path.join(INSTALL_DIR, "bin", "04_patch_menus.exe")
+        if not os.path.isfile(patch_menus_exe):
+            patch_menus_exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "04_patch_menus.exe")
+        cmd = [
+            patch_menus_exe,
+            "--dir", ROOT,
+            "--game-dir", game_dir,
+            "--verify",
+        ]
+        if os.path.isdir(menu_assets_dir):
+            cmd.extend(["--assets-dir", menu_assets_dir])
+        run(cmd, ROOT)
 
     print(f"\nDeployed to {game_dir}.")
 

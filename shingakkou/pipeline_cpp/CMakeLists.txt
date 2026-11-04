@@ -51,6 +51,8 @@ add_library(shin_core STATIC
     src/cg/text_render.h
     src/cg/cg_pipeline.cpp
     src/cg/cg_pipeline.h
+    src/menu/menu_archive_patcher.cpp
+    src/menu/menu_archive_patcher.h
 )
 target_include_directories(shin_core PUBLIC src)
 target_compile_definitions(shin_core PUBLIC
@@ -91,6 +93,7 @@ shin_app(00_run_all             src/apps/run_all_main.cpp)
 shin_app(01_extract             src/apps/extract_main.cpp)
 shin_app(02_build_tsv           src/apps/build_tsv_main.cpp)
 shin_app(03_find_narrative_cg   src/apps/find_narrative_cg_main.cpp)
+shin_app(04_patch_menus         src/apps/patch_menus_main.cpp)
 
 # Verification-only: dumps the DDP entry table and drives the repacker so a
 # rebuilt archive can be byte-compared.  Not part of the pipeline, and not
@@ -99,12 +102,12 @@ add_executable(cg_parity src/apps/cg_parity_main.cpp)
 target_link_libraries(cg_parity PRIVATE shin_core)
 
 # --------------------------------------------------------------------
-# Install: the four executables a user runs, and nothing else.  shin_core,
+# Install: the executables a user runs, and nothing else.  shin_core,
 # cg_parity and the test binaries exist to produce and check these, and stay
 # in the build tree.  Every dependency is a static library, so there is no
 # runtime to carry.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg 04_patch_menus
         RUNTIME DESTINATION bin)
 
 # --------------------------------------------------------------------

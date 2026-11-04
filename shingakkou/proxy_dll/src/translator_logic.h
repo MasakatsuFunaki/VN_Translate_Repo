@@ -298,4 +298,73 @@ int WordWrapMessage(std::wstring& text, int budgetPx);
 int PatchMessageWindowRefreshTop(unsigned char* data, std::size_t dataSize,
                                  unsigned char newTopOffset);
 
+// --- System-script translation table & HXB bytecode relocation -----------
+// Populates `out` with the built-in Japanese -> English translations for
+// Bootup.dat system scripts (disc prompt, right-click context menu, config
+// preview texts, save/load/voice/extra confirmation prompts, and locked
+// slot placeholders). Existing keys in `out` are preserved so external TSV
+// entries can override defaults if needed. Returns the number of entries
+// inserted.
+int PopulateSystemTranslations(Utf8TranslationMap& out);
+
+// OS-independent UTF-8 <-> UTF-16LE conversion helpers for reading and
+// encoding wide strings inside decrypted HXB script buffers.
+std::u16string Utf8ToUtf16Le(const std::string& utf8);
+std::string    Utf16LeToUtf8(const std::u16string& utf16);
+
+// Returns true when `markerPos` in `data` (of length `dataSize`) begins a
+// 3-byte string marker whose UTF-16LE payload starts at `markerPos + 3`.
+// Covers both standard 'FF 01 80' text records (preByte 0x36 dialogue,
+// 0x07 speaker/misc, 0x01 choice/confirm, 0x02 error modal, 0xB0..0xBA
+// context-menu labels) and Bootup.dat inline string markers ('02 01 80'
+// config preview args, '7E 80' choice header, '60 80' suffix strings,
+// '1F 80' and 'A0 80' locked-item placeholders). Writes the logical
+// pre-byte into `outPreByte`.
+bool IsSupportedTextMarker(const unsigned char* data,
+                           std::size_t dataSize,
+                           std::size_t markerPos,
+                           unsigned char& outPreByte);
+
+// Walks DDW bytecode statements from offset 0x10 to the end of the code
+// section and relocates in-place all 24-bit big-endian jump targets for
+// opcodes 0x02 (GOSUB), 0x26 (JZ), 0x27 (JNZ), 0x28 (two-way branch), and
+// 0x29 (JMP) using `cumulative`. Returns the number of jump targets
+// relocated, or -1 if the bytecode stream could not be parsed cleanly.
+int RelocateBytecodeJumps(const unsigned char* data,
+                          std::size_t dataSize,
+                          unsigned char* newData,
+                          std::size_t newDataSize,
+                          const std::vector<CumulativeDelta>& cumulative);
+
+// Verifies that the DDW bytecode stream in `data` parses cleanly from the
+// 0x10 script body start to the end of the code section and that every
+// 24-bit jump target (opcodes 0x02, 0x26, 0x27, 0x28, 0x29) lands on a
+// valid statement boundary. Writes the total number of verified jump
+// targets to `outJumpCount`.
+bool VerifyBytecodeJumps(const unsigned char* data,
+                         std::size_t dataSize,
+                         int& outJumpCount);
+
+struct HxbTranslationResult {
+    std::vector<unsigned char> data;
+    std::vector<CumulativeDelta> cumulative;
+    int strings_replaced = 0;
+    int offset_table_entries_relocated = 0;
+    int choice_entries_relocated = 0;
+    int bytecode_jumps_relocated = 0;
+};
+
+constexpr int kDefaultMessageWrapBudgetPx = 536;
+
+// Translates a complete decrypted HXB script buffer (`data`, `dataSize`)
+// against `translations` (UTF-8 JP -> UTF-8 EN), performing UTF-16LE string
+// replacement, dialogue word-wrapping (when wrapBudgetPx > 0), tail
+// offset-table relocation, header table-pointer relocation, choice-table
+// relocation, bytecode jump-target relocation, and HXB header length update.
+HxbTranslationResult TranslateHxbScript(
+    const unsigned char* data,
+    std::size_t dataSize,
+    const Utf8TranslationMap& translations,
+    int wrapBudgetPx = kDefaultMessageWrapBudgetPx);
+
 }  // namespace translator_logic

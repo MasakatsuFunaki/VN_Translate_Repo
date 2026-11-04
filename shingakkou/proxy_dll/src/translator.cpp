@@ -6,6 +6,7 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "translator.h"
+#include "menu_autopatch.h"
 #include "translator_logic.h"
 #include "patcher_logic.h"
 #include "log.h"
@@ -446,6 +447,7 @@ static bool LoadTranslations()
         buf.data() + bomLen,
         nread - bomLen,
         utf8Map);
+    translator_logic::PopulateSystemTranslations(utf8Map);
 
     int count = 0;
     for (const auto& kv : utf8Map) {
@@ -536,12 +538,8 @@ static LPVOID __cdecl PatchDecryptedData(LPVOID structPtr)
     std::vector<StringReplacement> replacements;
 
     for (DWORD i = 0x11; i + 4 < dataSize; i++) {
-        if (data[i] != 0xFF || data[i + 1] != 0x01 || data[i + 2] != 0x80)
-            continue;
-
-        BYTE preByte = data[i - 1];
-        // 0x36 = dialogue/narration, 0x07 = misc, 0x01 = choice
-        if (preByte != 0x36 && preByte != 0x07 && preByte != 0x01)
+        BYTE preByte = 0;
+        if (!translator_logic::IsSupportedTextMarker(data, dataSize, i, preByte))
             continue;
 
         DWORD strStart = i + 3;
@@ -574,6 +572,7 @@ static LPVOID __cdecl PatchDecryptedData(LPVOID structPtr)
 
         int delta = (int)newBytes.size() - (int)(strEnd - strStart);
         replacements.push_back({i, strStart, strEnd, std::move(newBytes), delta});
+        i = strEnd + 1;
     }
 
     if (replacements.empty()) {
@@ -672,6 +671,15 @@ static LPVOID __cdecl PatchDecryptedData(LPVOID structPtr)
     const int relocatedChoices = translator_logic::RelocateChoiceTables(
         data, dataSize, newData, newDataSize, cumulative);
 
+    // For table-less system scripts (Bootup.dat), relocate all bytecode jump
+    // operands (0x02/0x26/0x27/0x28/0x29) directly inside newData so cloned
+    // op0x03 sub-contexts also inherit relocated jump targets.
+    int relocatedJumps = 0;
+    if (tbl.count == 0) {
+        relocatedJumps = translator_logic::RelocateBytecodeJumps(
+            data, dataSize, newData, newDataSize, cumulative);
+    }
+
     // ── Fix table pointer in script header ──
     // The header holds a 3-byte big-endian pointer at offset 0x16 (after
     // the 0xFF marker at 0x15) equal to (table_start - 5); it must shift
@@ -681,8 +689,17 @@ static LPVOID __cdecl PatchDecryptedData(LPVOID structPtr)
     // failed exactly where the fix was needed. Reading the full 24-bit
     // pointer collapses to the old value on small scripts (high byte
     // 0x00), so they are unaffected.
-    if (newDataSize > 0x29 && newData[0x10 + 0x05] == 0xFF) {
-        const DWORD ptrOff = 0x10 + 0x06;   // 0x16
+    constexpr DWORD kHxbBodyStartOffset         = 0x10;
+    constexpr DWORD kHxbHeaderTableFlagOffset   = 0x15;
+    constexpr DWORD kHxbHeaderTablePtrOffset    = 0x16;
+    constexpr DWORD kHxbMinHeaderTablePatchSize = 0x2A;
+    constexpr BYTE  kOpJumpZero                 = 0x26;
+    constexpr BYTE  kExprTerminatorByte         = 0xFF;
+
+    if (tbl.count > 0 && newDataSize >= kHxbMinHeaderTablePatchSize &&
+        newData[kHxbBodyStartOffset] == kOpJumpZero &&
+        newData[kHxbHeaderTableFlagOffset] == kExprTerminatorByte) {
+        const DWORD ptrOff = kHxbHeaderTablePtrOffset;
         const std::uint32_t oldPtr =
             translator_logic::ReadBE24(newData + ptrOff);
         const std::uint32_t newPtr =
@@ -701,9 +718,9 @@ static LPVOID __cdecl PatchDecryptedData(LPVOID structPtr)
     g_stringsReplaced += replaced;
 
     Log("Translator: script #%d: replaced %d strings (delta=%+d, %u->%u bytes), "
-        "relocated %d choice-table entries",
+        "relocated %d choice-table entries, %d bytecode jumps",
         g_decryptCalls, replaced, totalDelta, dataSize, newDataSize,
-        relocatedChoices);
+        relocatedChoices, relocatedJumps);
 
     // Register the relocated buffer so the crash handler can map a
     // faulting pointer back to a script offset. First drop any stale slot at
@@ -711,9 +728,13 @@ static LPVOID __cdecl PatchDecryptedData(LPVOID structPtr)
     // so newData (= newStruct + 0x406E0) may collide with a registered base
     // whose buffer is already dead (the patched-on-patched reuse case).
     InvalidatePatchedSlot(newData, "new patched buffer reused a freed base");
-    g_patchedBase[g_patchedRing & (kMaxPatchedBufs - 1)] = newData;
-    g_patchedSize[g_patchedRing & (kMaxPatchedBufs - 1)] = newDataSize;
-    g_patchedCum[g_patchedRing & (kMaxPatchedBufs - 1)]  = cumulative;
+    const int ringSlot = g_patchedRing & (kMaxPatchedBufs - 1);
+    g_patchedBase[ringSlot] = newData;
+    g_patchedSize[ringSlot] = newDataSize;
+    g_patchedCum[ringSlot].clear();
+    if (tbl.count > 0 || relocatedJumps < 0) {
+        g_patchedCum[ringSlot] = cumulative;
+    }
     g_patchedRing++;
     Log("Translator: patched buf base=0x%08X size=%u (struct=0x%08X)",
         (DWORD)newData, newDataSize, (DWORD)newStruct);
@@ -1180,6 +1201,7 @@ static PVOID g_vehHandle = nullptr;
 
 void TranslatorInit()
 {
+    menu_autopatch::EnsureMenuArchivePatched();
     g_vehHandle = AddVectoredExceptionHandler(1, TranslatorVEH);
     g_translatorThread = CreateThread(nullptr, 0, TranslatorThread, nullptr, 0, nullptr);
 }

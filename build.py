@@ -176,6 +176,12 @@ def collect(game):
                 print(f"  [ERROR] {game}: missing or empty cgsys_patch.bin in "
                       f"{os.path.relpath(game_dir, ROOT)}")
                 return False
+        elif game == "shingakkou":
+            patch_bin = os.path.join(game_dir, "menu_patch.bin")
+            if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:
+                print(f"  [ERROR] {game}: missing or empty menu_patch.bin in "
+                      f"{os.path.relpath(game_dir, ROOT)}")
+                return False
     elif game == "kishin_hisho":
         game_dir = os.path.join(dst, "game")
         for req_name in ("0script.pak", "alpharom_helper.dll", "launch.exe"):
