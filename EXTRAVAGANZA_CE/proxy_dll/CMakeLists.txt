@@ -33,16 +33,22 @@ option(ENABLE_TESTS "Build the Google Test suite for patcher_logic" ON)
 # --------------------------------------------------------------------
 # patcher_logic: pure (OS-independent) byte-level helpers used by the
 # runtime patcher (rel32 encoding, NOP fill, byte-prefix verification,
-# trampoline emission). Built as an OBJECT library so both the DLL
-# target and the test binary can compile it once and link the same
-# object files.
+# trampoline emission) plus the keyless XOR-delta auto-patcher. Built
+# as an OBJECT library so both the DLL target and the test binary can
+# compile it once and link the same object files.
 # --------------------------------------------------------------------
 add_library(patcher_logic OBJECT
     src/patcher_logic.cpp
     src/patcher_logic.h
+    src/menu_autopatch.cpp
+    src/menu_autopatch.h
 )
 target_include_directories(patcher_logic PUBLIC src)
 target_compile_definitions(patcher_logic PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
     _CRT_SECURE_NO_WARNINGS
 )
 

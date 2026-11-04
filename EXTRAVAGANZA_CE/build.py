@@ -126,6 +126,12 @@ def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
 
+    patch_bin = os.path.join(ROOT, "extravaganza_patch.bin")
+    if os.path.isfile(patch_bin):
+        game_install_dir = os.path.join(INSTALL_DIR, "game")
+        os.makedirs(game_install_dir, exist_ok=True)
+        shutil.copy2(patch_bin, os.path.join(game_install_dir, "extravaganza_patch.bin"))
+
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
         if os.path.isdir(path):
@@ -150,6 +156,10 @@ def deploy(game_dir):
     except OSError as exc:
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
+
+    patch_bin = os.path.join(ROOT, "extravaganza_patch.bin")
+    if os.path.isfile(patch_bin):
+        shutil.copy2(patch_bin, os.path.join(game_dir, "extravaganza_patch.bin"))
 
     print(f"\nDeployed to {game_dir}.")
 

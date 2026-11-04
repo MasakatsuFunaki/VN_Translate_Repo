@@ -54,15 +54,15 @@ int translate_xtx_file(const std::string& filepath,
         return 0;
     }
 
-    const Bytes raw = read_file(filepath);
-    auto strict = cp932_to_utf8_strict(raw);
-    const std::string content =
-        strict ? *strict : cp932_to_utf8_replace(raw.data(), raw.size());
-
     const std::string fname = fs::u8path(filepath).filename().u8string();
     const std::string backup_path = backup_dir + "\\" + fname;
     if (!fs::exists(fs::u8path(backup_path)))
         fs::copy_file(fs::u8path(filepath), fs::u8path(backup_path));
+
+    const Bytes raw = read_file(backup_path);
+    auto strict = cp932_to_utf8_strict(raw);
+    const std::string content =
+        strict ? *strict : cp932_to_utf8_replace(raw.data(), raw.size());
 
     std::unordered_map<std::string, std::string> map;
     for (const auto& [jp, en] : translations) map.emplace(jp, en);

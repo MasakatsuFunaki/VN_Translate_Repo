@@ -44,6 +44,8 @@ add_library(exc_core STATIC
     src/xtx/xtx.cpp
     src/xtx/xtx.h
     src/xtx/xtx_tables.cpp
+    src/menus/menu_patcher.cpp
+    src/menus/menu_patcher.h
 )
 target_include_directories(exc_core PUBLIC src)
 target_compile_definitions(exc_core PUBLIC
@@ -58,6 +60,8 @@ target_link_libraries(exc_core PUBLIC
     # test_main symbol the GoogleTest suites don't define.
     Boost::headers
     openssl::openssl
+    windowscodecs
+    ole32
     ws2_32
     crypt32
 )
@@ -67,7 +71,7 @@ target_link_libraries(exc_core PUBLIC
 #
 # The spine is 01_extract -> 02_build_tsv -> deploy; the speaker gate is part
 # of the translation step rather than an app of its own, so it cannot be
-# forgotten before a paid run.  03..05 write the English into the game's own
+# forgotten before a paid run.  03..06 write the English into the game's own
 # files and 00_run_all runs them between translation and the deploy copy.
 # --------------------------------------------------------------------
 # Only the app mains parse a command line (src/apps/paths.h), so
@@ -83,6 +87,7 @@ exc_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 exc_app(03_repack               src/apps/repack_main.cpp)
 exc_app(04_build_xtx            src/apps/build_xtx_main.cpp)
 exc_app(05_build_charts         src/apps/build_charts_main.cpp)
+exc_app(06_build_menus          src/apps/build_menus_main.cpp)
 
 # --------------------------------------------------------------------
 # Install: what the USER runs.  bin/ only -- exc_core and the test binaries
@@ -90,7 +95,7 @@ exc_app(05_build_charts         src/apps/build_charts_main.cpp)
 # winmm.dll never lands beside these x64 executables.
 # --------------------------------------------------------------------
 install(TARGETS 00_run_all 01_extract 02_build_tsv 03_repack 04_build_xtx
-                05_build_charts
+                05_build_charts 06_build_menus
         RUNTIME DESTINATION bin)
 
 # --------------------------------------------------------------------

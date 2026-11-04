@@ -14,6 +14,25 @@
 #   ctest -L CT
 #   ctest -L SYSTEM
 
+include(GoogleTest)
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/patcher_logic_ut.cpp")
+    add_executable(patcher_logic_ut
+        patcher_logic_ut.cpp
+        $<TARGET_OBJECTS:patcher_logic>
+    )
+    target_link_libraries(patcher_logic_ut PRIVATE GTest::gtest GTest::gtest_main)
+    target_include_directories(patcher_logic_ut PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(patcher_logic_ut PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        UNICODE
+        _UNICODE
+        _CRT_SECURE_NO_WARNINGS
+    )
+    gtest_discover_tests(patcher_logic_ut PROPERTIES LABELS "UT")
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/UT/CMakeLists.txt")
     add_subdirectory(UT)
 endif()

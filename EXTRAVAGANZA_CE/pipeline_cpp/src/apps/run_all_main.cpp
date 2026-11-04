@@ -98,6 +98,20 @@ bool deploy(const std::string& project, const std::string& game) {
         return false;
     }
     log_info("  winmm.dll -> " + game);
+
+    for (const auto& candidate : {project + "\\extravaganza_patch.bin",
+                                  apps::exe_dir() + "\\..\\game\\extravaganza_patch.bin"}) {
+        std::error_code patch_ec;
+        if (fs::exists(fs::u8path(candidate), patch_ec)) {
+            fs::copy_file(fs::u8path(candidate),
+                          fs::u8path(game + "\\extravaganza_patch.bin"),
+                          fs::copy_options::overwrite_existing, patch_ec);
+            if (!patch_ec) {
+                log_info("  extravaganza_patch.bin -> " + game);
+            }
+            break;
+        }
+    }
     return true;
 }
 
