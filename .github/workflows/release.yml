@@ -98,7 +98,7 @@ jobs:
                 }
                 $patchMb = [math]::Round((Get-Item $patchBin).Length / 1MB, 1)
                 Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB), cgsys_patch.bin ($patchMb MB)"
-              } elseif ($g.Name -eq 'shingakkou') {
+              } elseif ($g.Name -in @('shingakkou', 'AGEHA_CE')) {
                 $patchBin = Join-Path $gameDir 'menu_patch.bin'
                 if (-not (Test-Path $patchBin) -or (Get-Item $patchBin).Length -le 0) {
                   throw "$($g.Name): missing or empty game/menu_patch.bin"

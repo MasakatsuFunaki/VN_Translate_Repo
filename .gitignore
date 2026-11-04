@@ -66,6 +66,7 @@ kishin_hisho/build/
 sakuranotoki/build/
 EXTRAVAGANZA_CE/build/
 EXTRAVAGANZA_MATSURO_CE/build/
+AGEHA_CE/build/
 mushigurui_HD10/build/
 oretsuba/build/
 spot_checker/build/
@@ -88,6 +89,8 @@ amakano2pe/map_images/
 **/_debug_title_originals/
 **/script_output/extracted_text.json
 **/script_output/argon_spot_check.json
+**/script_output/last_gemini_translate/
+**/script_output/last_anthropic_translate/
 **/translations.tsv
 **/translation_table.tsv
 # Restored on demand by mushigurui_HD10/analysys/retired_py.py

@@ -176,7 +176,7 @@ def collect(game):
                 print(f"  [ERROR] {game}: missing or empty cgsys_patch.bin in "
                       f"{os.path.relpath(game_dir, ROOT)}")
                 return False
-        elif game == "shingakkou":
+        elif game in ("shingakkou", "AGEHA_CE"):
             patch_bin = os.path.join(game_dir, "menu_patch.bin")
             if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:
                 print(f"  [ERROR] {game}: missing or empty menu_patch.bin in "

@@ -9,6 +9,7 @@ runtime — the original game files stay untouched.
 |------|--------|
 | EXTRAVAGANZA ~Mushi Mederu Shoujo~ CE | Shipped |
 | EXTRAVAGANZA ~Matsuro~ CE | Shipped |
+| AGEHA ~EXTRAVAGANZA~ CE | Shipped |
 | Mushigurui HD10 | Shipped |
 | Amakano 2 PE | Shipped |
 | CROSS†CHANNEL FC | Shipped |
@@ -33,6 +34,7 @@ runtime — the original game files stay untouched.
 | `SakuraNoUta` | Copy everything inside `SakuraNoUta\game\` (`winmm.dll` + `translations.tsv`) into your game's install directory (or run `SakuraNoUta\bin\00_run_all.exe --game-dir "C:\path\to\game"`). |
 | `EXTRAVAGANZA_CE` | Run `EXTRAVAGANZA_CE\bin\00_run_all.exe --game-dir "C:\path\to\game"` (repacks `.spt`, `.xtx`, and `chart\*.fxf` from bundled caches with automatic backups in `spt_backup\` and `chart_backup\`, and copies `winmm.dll`). |
 | `EXTRAVAGANZA_MATSURO_CE` | Copy everything inside `EXTRAVAGANZA_MATSURO_CE\game\` (`winmm.dll` + `translation_table.tsv`) into your game's install directory and run `EXTRAVAGANZA_MATSURO_CE\bin\03_build_xtx.exe --game-dir "C:\path\to\game"` (or run `00_run_all.exe` + `03_build_xtx.exe`). |
+| `AGEHA_CE` | Copy everything inside `AGEHA_CE\game\` (`winmm.dll` + `translation_table.tsv` + `menu_patch.bin`) into your game's install directory (`winmm.dll` automatically patches `dwq\sys0.gpk`, `dwq\sys0.gtb`, `init2\*.fxf`, and `spt\charaname.xtx` on first launch with `.bak` backups, or run `AGEHA_CE\bin\04_patch_menus.exe --game-dir "C:\path\to\game"`). |
 | `mushigurui_HD10` | Copy everything inside `mushigurui_HD10\game\` (`winmm.dll` + `translation_table.tsv`) into your game's install directory and run `mushigurui_HD10\bin\03_build_xtx.exe --game-dir "C:\path\to\game"` (or run `00_run_all.exe` + `03_build_xtx.exe`). |
 | `amakano2pe` | Copy everything inside `amakano2pe\game\` (`winmm.dll` + `translation_table.tsv`) into your game's install directory (or run `amakano2pe\bin\00_run_all.exe --game-dir "C:\path\to\game"`). |
 | `shingakkou` | Copy everything inside `shingakkou\game\` (`winmm.dll` + `translation_table.tsv` + `menu_patch.bin`) into your game's install directory (`winmm.dll` automatically patches `Data\sin_sysd.dat` and `Bootup.dat` on first launch with `.bak` backups, or run `shingakkou\bin\04_patch_menus.exe --game-dir "C:\path\to\game"` / `00_run_all.exe --game-dir "C:\path\to\game"`). In-game font is automatically defaulted to **UD デジタル 教科書体 N**. |
