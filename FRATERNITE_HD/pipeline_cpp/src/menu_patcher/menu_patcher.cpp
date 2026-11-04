@@ -48,6 +48,43 @@ constexpr std::size_t kU32Bytes = 4u;
 constexpr std::size_t kU64Bytes = 8u;
 constexpr int kZlibBestCompression = 9;
 
+constexpr std::size_t kPatchMagicSize = 8u;
+constexpr char kPatchMagic[kPatchMagicSize] = {'F', 'R', 'A', 'T', 'M', 'E', 'N', 'U'};
+constexpr std::uint32_t kPatchFormatVersion = 1u;
+constexpr std::size_t kPatchHeaderSize = 24u;
+constexpr std::size_t kPatchVersionOffset = 8u;
+constexpr std::size_t kPatchTotalEntriesOffset = 12u;
+constexpr std::size_t kPatchOrigSizeOffset = 16u;
+constexpr std::size_t kPatchEntryCountOffset = 20u;
+constexpr std::size_t kPatchRecordHeaderSize = 16u;
+constexpr std::size_t kRecordOrigHashOffset = 4u;
+constexpr std::size_t kRecordNewSizeOffset = 8u;
+constexpr std::size_t kRecordNewHashOffset = 12u;
+constexpr std::uint32_t kXorStreamMultiplier = 0x9Eu;
+constexpr std::uint32_t kXorStreamAddend = 0x37u;
+constexpr std::uint32_t kHashByteIndexMask = 3u;
+constexpr std::uint32_t kLowByteMask = 0xFFu;
+
+std::uint32_t rd_le_u32(const Bytes& b, std::size_t off) {
+    return static_cast<std::uint32_t>(b[off]) |
+           (static_cast<std::uint32_t>(b[off + kByteOffset1]) << kShiftByte1) |
+           (static_cast<std::uint32_t>(b[off + kByteOffset2]) << kShiftByte2) |
+           (static_cast<std::uint32_t>(b[off + kByteOffset3]) << kShiftByte3);
+}
+
+std::uint8_t compute_xor_mask_byte(const Bytes& orig_payload,
+                                   std::uint32_t orig_data_hash,
+                                   std::size_t byte_index) {
+    const std::uint32_t idx32 = static_cast<std::uint32_t>(byte_index);
+    const std::uint32_t shift = (idx32 & kHashByteIndexMask) * static_cast<std::uint32_t>(kBitsPerByte);
+    const std::uint8_t hash_byte =
+        static_cast<std::uint8_t>((orig_data_hash >> shift) & kLowByteMask);
+    const std::uint8_t stream_byte =
+        static_cast<std::uint8_t>((idx32 * kXorStreamMultiplier + kXorStreamAddend) & kLowByteMask);
+    return static_cast<std::uint8_t>(
+        orig_payload[byte_index % orig_payload.size()] ^ hash_byte ^ stream_byte);
+}
+
 std::uint32_t rd_be_u32(const Bytes& b, std::size_t off) {
     return (static_cast<std::uint32_t>(b[off]) << kShiftByte3) |
            (static_cast<std::uint32_t>(b[off + kByteOffset1]) << kShiftByte2) |
@@ -325,6 +362,185 @@ struct MenuArchivePatcher::Impl {
         }
         return out;
     }
+
+    Bytes build_xor_patch(const Bytes& orig_ypf, const Bytes& patched_ypf) const {
+        const std::vector<yuris::YpfEntry> orig_entries =
+            yuris::parse_ypf_index_bytes(orig_ypf, "orig.ypf");
+        const std::vector<yuris::YpfEntry> patched_entries =
+            yuris::parse_ypf_index_bytes(patched_ypf, "patched.ypf");
+        if (orig_entries.empty() || orig_entries.size() != patched_entries.size()) {
+            throw std::runtime_error("YPF entry count mismatch when building XOR menu patch");
+        }
+
+        struct PatchRecord {
+            std::uint32_t entry_index = 0;
+            std::uint32_t orig_data_hash = 0;
+            std::uint32_t new_raw_size = 0;
+            std::uint32_t new_data_hash = 0;
+            Bytes xor_payload;
+        };
+
+        std::vector<PatchRecord> records;
+        std::size_t total_payload_bytes = 0;
+
+        for (std::size_t i = 0; i < orig_entries.size(); ++i) {
+            const yuris::YpfEntry& oe = orig_entries[i];
+            const yuris::YpfEntry& pe = patched_entries[i];
+            if (oe.name != pe.name) {
+                throw std::runtime_error("YPF entry name order mismatch at index " +
+                                         std::to_string(i));
+            }
+            const Bytes orig_payload = yuris::read_entry(orig_ypf, oe);
+            const Bytes patched_payload = yuris::read_entry(patched_ypf, pe);
+            if (orig_payload.empty() || patched_payload.empty()) {
+                throw std::runtime_error("empty YPF entry payload at index " +
+                                         std::to_string(i));
+            }
+            const PngHeaderInfo orig_ihdr = parse_png_ihdr(orig_payload, oe.name);
+            const PngHeaderInfo patched_ihdr = parse_png_ihdr(patched_payload, pe.name);
+            if (orig_ihdr.width != patched_ihdr.width ||
+                orig_ihdr.height != patched_ihdr.height ||
+                orig_ihdr.bit_depth != patched_ihdr.bit_depth ||
+                orig_ihdr.color_type != patched_ihdr.color_type) {
+                throw std::runtime_error("PNG IHDR mismatch while building XOR patch for " +
+                                         oe.name);
+            }
+            if (patched_payload == orig_payload) {
+                continue;
+            }
+
+            PatchRecord rec;
+            rec.entry_index = static_cast<std::uint32_t>(i);
+            rec.orig_data_hash = yuris::ypf_murmur_hash2(orig_payload);
+            rec.new_raw_size = static_cast<std::uint32_t>(patched_payload.size());
+            rec.new_data_hash = yuris::ypf_murmur_hash2(patched_payload);
+            rec.xor_payload.resize(patched_payload.size());
+            for (std::size_t k = 0; k < patched_payload.size(); ++k) {
+                const std::uint8_t mask =
+                    compute_xor_mask_byte(orig_payload, rec.orig_data_hash, k);
+                rec.xor_payload[k] = static_cast<std::uint8_t>(patched_payload[k] ^ mask);
+            }
+            total_payload_bytes += kPatchRecordHeaderSize + rec.xor_payload.size();
+            records.push_back(std::move(rec));
+        }
+
+        Bytes out;
+        out.reserve(kPatchHeaderSize + total_payload_bytes);
+        out.insert(out.end(), kPatchMagic, kPatchMagic + kPatchMagicSize);
+        append_le_u32(out, kPatchFormatVersion);
+        append_le_u32(out, static_cast<std::uint32_t>(orig_entries.size()));
+        append_le_u32(out, static_cast<std::uint32_t>(orig_ypf.size()));
+        append_le_u32(out, static_cast<std::uint32_t>(records.size()));
+
+        for (const PatchRecord& rec : records) {
+            append_le_u32(out, rec.entry_index);
+            append_le_u32(out, rec.orig_data_hash);
+            append_le_u32(out, rec.new_raw_size);
+            append_le_u32(out, rec.new_data_hash);
+            out.insert(out.end(), rec.xor_payload.begin(), rec.xor_payload.end());
+        }
+        return out;
+    }
+
+    Bytes apply_xor_patch(const Bytes& orig_ypf,
+                          const Bytes& patch_blob,
+                          PatchSummary* summary) const {
+        if (patch_blob.size() < kPatchHeaderSize ||
+            std::memcmp(patch_blob.data(), kPatchMagic, kPatchMagicSize) != 0) {
+            throw std::runtime_error("invalid FRATMENU patch magic");
+        }
+        const std::uint32_t version = rd_le_u32(patch_blob, kPatchVersionOffset);
+        if (version != kPatchFormatVersion) {
+            throw std::runtime_error("unsupported FRATMENU patch version: " +
+                                     std::to_string(version));
+        }
+        const std::uint32_t expected_entries =
+            rd_le_u32(patch_blob, kPatchTotalEntriesOffset);
+        const std::uint32_t expected_orig_size =
+            rd_le_u32(patch_blob, kPatchOrigSizeOffset);
+        const std::uint32_t patch_entry_count =
+            rd_le_u32(patch_blob, kPatchEntryCountOffset);
+
+        if (orig_ypf.size() != expected_orig_size) {
+            throw std::runtime_error("original YPF size mismatch: expected " +
+                                     std::to_string(expected_orig_size) + ", got " +
+                                     std::to_string(orig_ypf.size()));
+        }
+
+        const std::vector<yuris::YpfEntry> orig_entries =
+            yuris::parse_ypf_index_bytes(orig_ypf, "cgsys.ypf");
+        if (orig_entries.size() != expected_entries) {
+            throw std::runtime_error("original YPF entry count mismatch: expected " +
+                                     std::to_string(expected_entries) + ", got " +
+                                     std::to_string(orig_entries.size()));
+        }
+
+        std::unordered_map<std::string, Bytes> replacements;
+        replacements.reserve(patch_entry_count);
+        std::size_t off = kPatchHeaderSize;
+
+        for (std::uint32_t r = 0; r < patch_entry_count; ++r) {
+            if (off + kPatchRecordHeaderSize > patch_blob.size()) {
+                throw std::runtime_error("truncated FRATMENU record header");
+            }
+            const std::uint32_t entry_index = rd_le_u32(patch_blob, off);
+            const std::uint32_t orig_data_hash =
+                rd_le_u32(patch_blob, off + kRecordOrigHashOffset);
+            const std::uint32_t new_raw_size =
+                rd_le_u32(patch_blob, off + kRecordNewSizeOffset);
+            const std::uint32_t new_data_hash =
+                rd_le_u32(patch_blob, off + kRecordNewHashOffset);
+            off += kPatchRecordHeaderSize;
+
+            if (entry_index >= orig_entries.size()) {
+                throw std::runtime_error("FRATMENU entry_index out of range: " +
+                                         std::to_string(entry_index));
+            }
+            if (new_raw_size == 0 || off + new_raw_size > patch_blob.size()) {
+                throw std::runtime_error("truncated or zero-length FRATMENU payload");
+            }
+
+            const yuris::YpfEntry& oe = orig_entries[entry_index];
+            const Bytes orig_payload = yuris::read_entry(orig_ypf, oe);
+            if (orig_payload.empty()) {
+                throw std::runtime_error("empty original YPF entry at index " +
+                                         std::to_string(entry_index));
+            }
+            const std::uint32_t actual_orig_hash = yuris::ypf_murmur_hash2(orig_payload);
+            if (actual_orig_hash != orig_data_hash ||
+                (oe.data_hash != 0 && oe.data_hash != orig_data_hash)) {
+                throw std::runtime_error("original entry hash mismatch for " + oe.name);
+            }
+
+            Bytes unmasked(new_raw_size);
+            for (std::size_t k = 0; k < new_raw_size; ++k) {
+                const std::uint8_t mask =
+                    compute_xor_mask_byte(orig_payload, orig_data_hash, k);
+                unmasked[k] = static_cast<std::uint8_t>(patch_blob[off + k] ^ mask);
+            }
+            off += new_raw_size;
+
+            const std::uint32_t actual_new_hash = yuris::ypf_murmur_hash2(unmasked);
+            if (actual_new_hash != new_data_hash) {
+                throw std::runtime_error("unmasked entry hash mismatch for " + oe.name);
+            }
+            parse_png_ihdr(unmasked, oe.name);
+
+            const auto [it, inserted] = replacements.emplace(oe.name, std::move(unmasked));
+            if (!inserted) {
+                throw std::runtime_error("duplicate FRATMENU entry for " + oe.name);
+            }
+        }
+
+        if (off != patch_blob.size()) {
+            throw std::runtime_error("unexpected trailing bytes in FRATMENU patch");
+        }
+
+        if (summary != nullptr) {
+            summary->discovered_assets = patch_entry_count;
+        }
+        return repack_bytes(orig_ypf, replacements, summary);
+    }
 };
 
 MenuArchivePatcher::MenuArchivePatcher() : impl_(std::make_unique<Impl>()) {}
@@ -337,6 +553,19 @@ Bytes MenuArchivePatcher::repack_archive_bytes(
     const std::unordered_map<std::string, Bytes>& replacements,
     PatchSummary* summary) const {
     return impl_->repack_bytes(original_archive, replacements, summary);
+}
+
+Bytes MenuArchivePatcher::build_xor_patch_bytes(
+    const Bytes& orig_ypf,
+    const Bytes& patched_ypf) const {
+    return impl_->build_xor_patch(orig_ypf, patched_ypf);
+}
+
+Bytes MenuArchivePatcher::apply_xor_patch_bytes(
+    const Bytes& orig_ypf,
+    const Bytes& patch_blob,
+    PatchSummary* summary) const {
+    return impl_->apply_xor_patch(orig_ypf, patch_blob, summary);
 }
 
 PatchSummary MenuArchivePatcher::patch_archive(const PatchConfig& config) const {
@@ -363,6 +592,14 @@ PatchSummary MenuArchivePatcher::patch_archive(const PatchConfig& config) const 
     }
 
     const Bytes original_archive = read_file(backup_path);
+    if (replacements.empty() && !config.patch_file_path.empty() &&
+        std::filesystem::exists(std::filesystem::u8path(config.patch_file_path))) {
+        const Bytes patch_blob = read_file(config.patch_file_path);
+        const Bytes repacked = impl_->apply_xor_patch(original_archive, patch_blob, &summary);
+        write_bytes_atomic(archive_path, repacked);
+        return summary;
+    }
+
     const Bytes repacked = impl_->repack_bytes(original_archive, replacements, &summary);
     write_bytes_atomic(archive_path, repacked);
     return summary;

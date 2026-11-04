@@ -171,9 +171,9 @@ def collect(game):
                       f"is older than script_output/{src_name}")
                 return False
         if game == "FRATERNITE_HD":
-            cgsys = os.path.join(game_dir, "pac", "cgsys.ypf")
-            if not os.path.isfile(cgsys) or os.path.getsize(cgsys) == 0:
-                print(f"  [ERROR] {game}: missing or empty pac/cgsys.ypf in "
+            patch_bin = os.path.join(game_dir, "cgsys_patch.bin")
+            if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:
+                print(f"  [ERROR] {game}: missing or empty cgsys_patch.bin in "
                       f"{os.path.relpath(game_dir, ROOT)}")
                 return False
     elif game == "kishin_hisho":

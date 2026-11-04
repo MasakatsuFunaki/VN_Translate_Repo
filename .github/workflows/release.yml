@@ -87,12 +87,12 @@ jobs:
               }
               $tsvMb = [math]::Round($tsv[0].Length / 1MB, 1)
               if ($g.Name -eq 'FRATERNITE_HD') {
-                $cgsys = Join-Path $gameDir 'pac\cgsys.ypf'
-                if (-not (Test-Path $cgsys) -or (Get-Item $cgsys).Length -le 0) {
-                  throw "$($g.Name): missing or empty game/pac/cgsys.ypf"
+                $patchBin = Join-Path $gameDir 'cgsys_patch.bin'
+                if (-not (Test-Path $patchBin) -or (Get-Item $patchBin).Length -le 0) {
+                  throw "$($g.Name): missing or empty game/cgsys_patch.bin"
                 }
-                $cgsysMb = [math]::Round((Get-Item $cgsys).Length / 1MB, 1)
-                Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB), pac/cgsys.ypf ($cgsysMb MB)"
+                $patchMb = [math]::Round((Get-Item $patchBin).Length / 1MB, 1)
+                Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB), cgsys_patch.bin ($patchMb MB)"
               } else {
                 Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB)"
               }

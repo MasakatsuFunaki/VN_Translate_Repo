@@ -135,19 +135,18 @@ def install():
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
     build_table()
 
+    patch_src = os.path.join(ROOT, "cgsys_patch.bin")
+    if os.path.isfile(patch_src):
+        patch_dst = os.path.join(INSTALL_DIR, "game", "cgsys_patch.bin")
+        os.makedirs(os.path.dirname(patch_dst), exist_ok=True)
+        shutil.copyfile(patch_src, patch_dst)
+
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
         if os.path.isdir(path):
             for name in sorted(os.listdir(path)):
                 if os.path.isfile(os.path.join(path, name)):
                     print(f"  {folder}/{name}")
-
-    cgsys_src = os.path.join(ROOT, "pac", "cgsys.ypf")
-    if os.path.isfile(cgsys_src):
-        cgsys_dst = os.path.join(INSTALL_DIR, "game", "pac", "cgsys.ypf")
-        os.makedirs(os.path.dirname(cgsys_dst), exist_ok=True)
-        shutil.copyfile(cgsys_src, cgsys_dst)
-        print("  game/pac/cgsys.ypf")
 
     stage_translations()
 
@@ -177,24 +176,25 @@ def deploy(game_dir):
     elif not os.path.exists(os.path.join(game_dir, TABLE_NAME)):
         print(f"WARN: {TABLE_NAME} not in the game folder — run 02_build_tsv.exe first.")
 
+    patch_src = os.path.join(ROOT, "cgsys_patch.bin")
+    if os.path.isfile(patch_src):
+        try:
+            shutil.copyfile(patch_src, os.path.join(game_dir, "cgsys_patch.bin"))
+        except OSError as exc:
+            print(f"COPY cgsys_patch.bin FAILED ({exc})")
+            sys.exit(1)
+
     cgsys = os.path.join(game_dir, "pac", "cgsys.ypf")
     cgsys_bak = cgsys + ".bak"
     if os.path.isfile(cgsys) and not os.path.isfile(cgsys_bak):
         shutil.copyfile(cgsys, cgsys_bak)
 
     menu_assets = os.path.join(ROOT, "menu_assets")
-    tracked_cgsys = os.path.join(ROOT, "pac", "cgsys.ypf")
-    if os.path.isdir(menu_assets) and os.path.isfile(cgsys):
+    if (os.path.isdir(menu_assets) or os.path.isfile(patch_src)) and os.path.isfile(cgsys):
         patcher = os.path.join(INSTALL_DIR, "bin", "03_patch_menus.exe")
         if not os.path.isfile(patcher):
             patcher = os.path.join(BUILD_DIR, "pipeline", CONFIG, "03_patch_menus.exe")
         run([patcher, "--dir", ROOT, "--game-dir", game_dir], ROOT)
-    elif os.path.isfile(tracked_cgsys) and os.path.isdir(os.path.join(game_dir, "pac")):
-        try:
-            shutil.copyfile(tracked_cgsys, cgsys)
-        except OSError as exc:
-            print(f"COPY pac/cgsys.ypf FAILED ({exc})")
-            sys.exit(1)
 
     print(f"\nDeployed to {game_dir}.")
 

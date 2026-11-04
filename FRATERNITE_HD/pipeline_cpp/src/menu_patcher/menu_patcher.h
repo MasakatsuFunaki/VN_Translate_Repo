@@ -28,6 +28,7 @@ struct PngHeaderInfo {
 struct PatchConfig {
     std::string game_dir;
     std::string assets_dir;
+    std::string patch_file_path;
     std::string archive_rel_path = "pac\\cgsys.ypf";
 };
 
@@ -57,6 +58,15 @@ public:
     Bytes repack_archive_bytes(
         const Bytes& original_archive,
         const std::unordered_map<std::string, Bytes>& replacements,
+        PatchSummary* summary = nullptr) const;
+
+    Bytes build_xor_patch_bytes(
+        const Bytes& orig_ypf,
+        const Bytes& patched_ypf) const;
+
+    Bytes apply_xor_patch_bytes(
+        const Bytes& orig_ypf,
+        const Bytes& patch_blob,
         PatchSummary* summary = nullptr) const;
 
     PatchSummary patch_archive(const PatchConfig& config) const;

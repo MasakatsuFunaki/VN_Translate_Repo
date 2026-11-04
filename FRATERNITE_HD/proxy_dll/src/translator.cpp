@@ -7,6 +7,7 @@
 
 #include "translator.h"
 #include "translator_logic.h"
+#include "menu_autopatch.h"
 #include "iat_hook.h"
 #include "log.h"
 #include "corpus.h"
@@ -332,6 +333,8 @@ static int ReadEngineMsgLen()
 
 void TranslatorInit()
 {
+    menu_autopatch::EnsureMenuArchivePatched();
+
     g_exeBase = (BYTE*)GetModuleHandleW(nullptr);
     Log("Translator (TextOutA IAT hook + render plan): "
         "fraternite_hd.exe base=%p, state pp RVA=0x%X",

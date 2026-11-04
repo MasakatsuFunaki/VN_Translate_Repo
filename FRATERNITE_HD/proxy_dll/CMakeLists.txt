@@ -25,9 +25,15 @@ option(ENABLE_TESTS "Build the Google Test suite for translator_logic" ON)
 add_library(translator_logic OBJECT
     src/translator_logic.cpp
     src/translator_logic.h
+    src/menu_autopatch.cpp
+    src/menu_autopatch.h
 )
 target_include_directories(translator_logic PUBLIC src)
 target_compile_definitions(translator_logic PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
     _CRT_SECURE_NO_WARNINGS
 )
 
