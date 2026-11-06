@@ -1,0 +1,7054 @@
+{
+ "backscript.spt": {
+  "file": "backscript.spt",
+  "file_size": 15948,
+  "header_string_count": 56,
+  "strings_found": 189,
+  "jp_strings": 46,
+  "strings": [
+   {
+    "offset": 168,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 916,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 944,
+    "byte_len": 5,
+    "text": "2",
+    "has_jp": false,
+    "type": "other",
+    "translated": "2"
+   },
+   {
+    "offset": 1032,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 1100,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 1248,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 1300,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 1712,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 1788,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 2228,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 2304,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 2592,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 2644,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 2932,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 2984,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 3272,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 3324,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 3612,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 3664,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 3952,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 4004,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 4324,
+    "byte_len": 1,
+    "text": "ﾆ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾆ"
+   },
+   {
+    "offset": 4340,
+    "byte_len": 1,
+    "text": "ﾆ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾆ"
+   },
+   {
+    "offset": 4420,
+    "byte_len": 1,
+    "text": "ｽ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｽ"
+   },
+   {
+    "offset": 4436,
+    "byte_len": 1,
+    "text": "ｽ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｽ"
+   },
+   {
+    "offset": 4484,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 4536,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 4900,
+    "byte_len": 1,
+    "text": "ｰ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｰ"
+   },
+   {
+    "offset": 4904,
+    "byte_len": 1,
+    "text": "ﾆ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾆ"
+   },
+   {
+    "offset": 4916,
+    "byte_len": 1,
+    "text": "ｰ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｰ"
+   },
+   {
+    "offset": 4920,
+    "byte_len": 1,
+    "text": "ﾆ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾆ"
+   },
+   {
+    "offset": 5012,
+    "byte_len": 1,
+    "text": "ｽ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｽ"
+   },
+   {
+    "offset": 5028,
+    "byte_len": 1,
+    "text": "ｽ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｽ"
+   },
+   {
+    "offset": 5088,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 5140,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 5500,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 5552,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 5912,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 5964,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 6324,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 6376,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 6580,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 6648,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 6804,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 6956,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 7116,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7132,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7180,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 7240,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 7392,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 7552,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7568,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7616,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 7676,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 7828,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 7984,
+    "byte_len": 24,
+    "text": "\u000188\u0001.8",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u000188\u0001.8"
+   },
+   {
+    "offset": 8016,
+    "byte_len": 25,
+    "text": "\u000188\u000188\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u000188\u000188\u0005"
+   },
+   {
+    "offset": 8092,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 8108,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 8316,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 8368,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 8492,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 8644,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 8800,
+    "byte_len": 24,
+    "text": "\u000188\u0001.8",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u000188\u0001.8"
+   },
+   {
+    "offset": 8832,
+    "byte_len": 25,
+    "text": "\u000188\u000188\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u000188\u000188\u0005"
+   },
+   {
+    "offset": 8908,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 8924,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 9132,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 9184,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 9308,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 9460,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 9616,
+    "byte_len": 24,
+    "text": "\u000188\u0001.8",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u000188\u0001.8"
+   },
+   {
+    "offset": 9648,
+    "byte_len": 25,
+    "text": "\u000188\u000188\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u000188\u000188\u0005"
+   },
+   {
+    "offset": 9724,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 9740,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 9948,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 10000,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 10124,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 10176,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 10300,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 10352,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 10476,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 10528,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 10652,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 10704,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 10828,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 10880,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11004,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 11056,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11180,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 11232,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11356,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 11408,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11532,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 11584,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11708,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 11760,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11884,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 12036,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 12492,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 12508,
+    "byte_len": 2,
+    "text": "ｼ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ\u0002"
+   },
+   {
+    "offset": 12716,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 12768,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 12940,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 12992,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 13164,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 13216,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 13388,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 13440,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 13612,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 13664,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 13836,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 13888,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 14060,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 14112,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 14284,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 14336,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 14508,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 14560,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 14732,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 14832,
+    "byte_len": 1,
+    "text": "ﾓ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾓ"
+   },
+   {
+    "offset": 14836,
+    "byte_len": 2,
+    "text": "ｹ\u0006",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｹ\u0006"
+   },
+   {
+    "offset": 14856,
+    "byte_len": 2,
+    "text": "ｯ\u000b",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｯ\u000b"
+   },
+   {
+    "offset": 14932,
+    "byte_len": 2,
+    "text": "ｻ\u0001",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｻ\u0001"
+   },
+   {
+    "offset": 14972,
+    "byte_len": 2,
+    "text": "ﾏ\u0005",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾏ\u0005"
+   },
+   {
+    "offset": 14984,
+    "byte_len": 2,
+    "text": "ﾇ\u0006",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾇ\u0006"
+   },
+   {
+    "offset": 14992,
+    "byte_len": 2,
+    "text": "｡\u0007",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｡\u0007"
+   },
+   {
+    "offset": 15012,
+    "byte_len": 2,
+    "text": "ﾀ\t",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾀ\t"
+   },
+   {
+    "offset": 15036,
+    "byte_len": 2,
+    "text": "ﾈ\n",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ\n"
+   },
+   {
+    "offset": 15056,
+    "byte_len": 2,
+    "text": "ｽ\u000b",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｽ\u000b"
+   },
+   {
+    "offset": 15064,
+    "byte_len": 2,
+    "text": "ｬ\f",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｬ\f"
+   },
+   {
+    "offset": 15084,
+    "byte_len": 2,
+    "text": "ﾄ\r",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾄ\r"
+   },
+   {
+    "offset": 15112,
+    "byte_len": 1,
+    "text": "ﾍ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾍ"
+   },
+   {
+    "offset": 15352,
+    "byte_len": 8,
+    "text": "★トップ",
+    "has_jp": true,
+    "type": "menu",
+    "translated": "*Top"
+   },
+   {
+    "offset": 15364,
+    "byte_len": 8,
+    "text": "ＢＣロゴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ＢＣロゴ"
+   },
+   {
+    "offset": 15376,
+    "byte_len": 6,
+    "text": "bgop01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop01"
+   },
+   {
+    "offset": 15384,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15392,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 15400,
+    "byte_len": 7,
+    "text": "ta_op02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op02"
+   },
+   {
+    "offset": 15408,
+    "byte_len": 7,
+    "text": "ta_op03",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op03"
+   },
+   {
+    "offset": 15416,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15424,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 15432,
+    "byte_len": 11,
+    "text": "ta_xtg_kami",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_kami"
+   },
+   {
+    "offset": 15444,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15452,
+    "byte_len": 7,
+    "text": "ta_op02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op02"
+   },
+   {
+    "offset": 15460,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15468,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 15476,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15484,
+    "byte_len": 7,
+    "text": "ta_op02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op02"
+   },
+   {
+    "offset": 15492,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15500,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 15508,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15516,
+    "byte_len": 7,
+    "text": "ta_op02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op02"
+   },
+   {
+    "offset": 15524,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15532,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 15540,
+    "byte_len": 7,
+    "text": "ta_bcyc",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_bcyc"
+   },
+   {
+    "offset": 15548,
+    "byte_len": 6,
+    "text": "ta_nnn",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_nnn"
+   },
+   {
+    "offset": 15556,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15564,
+    "byte_len": 7,
+    "text": "ta_op02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op02"
+   },
+   {
+    "offset": 15572,
+    "byte_len": 7,
+    "text": "ta_bcyc",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_bcyc"
+   },
+   {
+    "offset": 15580,
+    "byte_len": 6,
+    "text": "ta_nnn",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_nnn"
+   },
+   {
+    "offset": 15588,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15596,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 15604,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15612,
+    "byte_len": 7,
+    "text": "ta_op02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op02"
+   },
+   {
+    "offset": 15620,
+    "byte_len": 6,
+    "text": "bgop02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bgop02"
+   },
+   {
+    "offset": 15628,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 15636,
+    "byte_len": 8,
+    "text": "タイトル",
+    "has_jp": true,
+    "type": "name",
+    "translated": "タイトル"
+   },
+   {
+    "offset": 15648,
+    "byte_len": 8,
+    "text": "bg_title",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg_title"
+   },
+   {
+    "offset": 15660,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 15672,
+    "byte_len": 18,
+    "text": "タイトル２回目以降",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Title (2nd Time Onward)"
+   },
+   {
+    "offset": 15692,
+    "byte_len": 8,
+    "text": "bg_title",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg_title"
+   },
+   {
+    "offset": 15704,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 15716,
+    "byte_len": 6,
+    "text": "ロード",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ロード"
+   },
+   {
+    "offset": 15724,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 15732,
+    "byte_len": 14,
+    "text": "ta_xtg_titbg02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_titbg02"
+   },
+   {
+    "offset": 15748,
+    "byte_len": 15,
+    "text": "ta_xtg_loadbg01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_loadbg01"
+   },
+   {
+    "offset": 15764,
+    "byte_len": 6,
+    "text": "セーブ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "セーブ"
+   },
+   {
+    "offset": 15772,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 15780,
+    "byte_len": 14,
+    "text": "ta_xtg_titbg02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_titbg02"
+   },
+   {
+    "offset": 15796,
+    "byte_len": 15,
+    "text": "ta_xtg_savebg01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_savebg01"
+   },
+   {
+    "offset": 15812,
+    "byte_len": 10,
+    "text": "コンフィグ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "コンフィグ"
+   },
+   {
+    "offset": 15824,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 15832,
+    "byte_len": 14,
+    "text": "ta_xtg_titbg02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_titbg02"
+   },
+   {
+    "offset": 15848,
+    "byte_len": 13,
+    "text": "ta_xtg_conf01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_conf01"
+   },
+   {
+    "offset": 15864,
+    "byte_len": 16,
+    "text": "システムメニュー",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "System Menu"
+   },
+   {
+    "offset": 15884,
+    "byte_len": 14,
+    "text": "ta_xtg_bgblack",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_bgblack"
+   },
+   {
+    "offset": 15900,
+    "byte_len": 14,
+    "text": "ta_xtg_titbg02",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_titbg02"
+   },
+   {
+    "offset": 15916,
+    "byte_len": 14,
+    "text": "ta_xtg_sysbg01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_xtg_sysbg01"
+   }
+  ]
+ },
+ "mushi.spt": {
+  "file": "mushi.spt",
+  "file_size": 41940,
+  "header_string_count": 115,
+  "strings_found": 629,
+  "jp_strings": 432,
+  "strings": [
+   {
+    "offset": 204,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 232,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 296,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 348,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 440,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 752,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 1048,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 1064,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 1144,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 1160,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 1616,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 1632,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 1840,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 1988,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 2004,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 2096,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2112,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2140,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 2224,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 2448,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 2464,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 2544,
+    "byte_len": 2,
+    "text": "ﾇ\u0001",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾇ\u0001"
+   },
+   {
+    "offset": 2556,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2560,
+    "byte_len": 2,
+    "text": "ﾇ\u0001",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾇ\u0001"
+   },
+   {
+    "offset": 2572,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2600,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 2684,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 2704,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 2856,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 3004,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 3020,
+    "byte_len": 4,
+    "text": "L",
+    "has_jp": false,
+    "type": "other",
+    "translated": "L"
+   },
+   {
+    "offset": 3112,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 3180,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 3368,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 4268,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 4488,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 4556,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 4672,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 4692,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 4888,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 5696,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 5792,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 5808,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 5836,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 5920,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 6156,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 6320,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 6412,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 6428,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 6472,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 6728,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 7252,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 7416,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7500,
+    "byte_len": 5,
+    "text": "ｾ}",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｾ}"
+   },
+   {
+    "offset": 7512,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7516,
+    "byte_len": 5,
+    "text": "ｾ}",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｾ}"
+   },
+   {
+    "offset": 7528,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7640,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 7856,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7940,
+    "byte_len": 5,
+    "text": "ﾐs",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾐs"
+   },
+   {
+    "offset": 7952,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 7968,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 8080,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 8332,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 8520,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 8832,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 9124,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 9344,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 9412,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 9528,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 9548,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 9840,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 10496,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 10592,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 10608,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 10636,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 10720,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 11160,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 11252,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 11268,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 11564,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11728,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 11820,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 11836,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 11880,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 11948,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 11976,
+    "byte_len": 5,
+    "text": "d",
+    "has_jp": false,
+    "type": "other",
+    "translated": "d"
+   },
+   {
+    "offset": 12108,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 12128,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 12160,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 12252,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 12272,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 12468,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 12960,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 12976,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 13004,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 13088,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 14244,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 14404,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 14420,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 14488,
+    "byte_len": 5,
+    "text": "ﾎd",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾎd"
+   },
+   {
+    "offset": 14532,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 14744,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 14760,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 14828,
+    "byte_len": 5,
+    "text": "ﾎd",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾎd"
+   },
+   {
+    "offset": 16312,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 16408,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 16424,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 16452,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 16536,
+    "byte_len": 5,
+    "text": "\u0006",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0006"
+   },
+   {
+    "offset": 16880,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 16896,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 16996,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17012,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17080,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17096,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17512,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17528,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17620,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17636,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17704,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17720,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 17864,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 18004,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18020,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18112,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18128,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18680,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18696,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18788,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18804,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 18832,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 19260,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 19276,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 19368,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 19384,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 19852,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 20000,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 20016,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 20108,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 20124,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 20168,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 20236,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 20372,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 20392,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 20588,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 20960,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 20976,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 21004,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 23172,
+    "byte_len": 1,
+    "text": "｣",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｣"
+   },
+   {
+    "offset": 23496,
+    "byte_len": 1,
+    "text": "｡",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｡"
+   },
+   {
+    "offset": 23516,
+    "byte_len": 1,
+    "text": "｡",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｡"
+   },
+   {
+    "offset": 23536,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 23552,
+    "byte_len": 1,
+    "text": "｡",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｡"
+   },
+   {
+    "offset": 23556,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 23576,
+    "byte_len": 1,
+    "text": "｣",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｣"
+   },
+   {
+    "offset": 23592,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 23596,
+    "byte_len": 1,
+    "text": "｣",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｣"
+   },
+   {
+    "offset": 23644,
+    "byte_len": 1,
+    "text": "ｦ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｦ"
+   },
+   {
+    "offset": 23812,
+    "byte_len": 1,
+    "text": "､",
+    "has_jp": true,
+    "type": "name",
+    "translated": "､"
+   },
+   {
+    "offset": 23828,
+    "byte_len": 1,
+    "text": "｣",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｣"
+   },
+   {
+    "offset": 23832,
+    "byte_len": 1,
+    "text": "､",
+    "has_jp": true,
+    "type": "name",
+    "translated": "､"
+   },
+   {
+    "offset": 23852,
+    "byte_len": 1,
+    "text": "･",
+    "has_jp": true,
+    "type": "name",
+    "translated": "･"
+   },
+   {
+    "offset": 23868,
+    "byte_len": 1,
+    "text": "､",
+    "has_jp": true,
+    "type": "name",
+    "translated": "､"
+   },
+   {
+    "offset": 23872,
+    "byte_len": 1,
+    "text": "･",
+    "has_jp": true,
+    "type": "name",
+    "translated": "･"
+   },
+   {
+    "offset": 23892,
+    "byte_len": 1,
+    "text": "ｦ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｦ"
+   },
+   {
+    "offset": 23908,
+    "byte_len": 1,
+    "text": "･",
+    "has_jp": true,
+    "type": "name",
+    "translated": "･"
+   },
+   {
+    "offset": 23912,
+    "byte_len": 1,
+    "text": "ｦ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｦ"
+   },
+   {
+    "offset": 23944,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 24068,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 24136,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 24212,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 24232,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 24284,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 24312,
+    "byte_len": 5,
+    "text": "d",
+    "has_jp": false,
+    "type": "other",
+    "translated": "d"
+   },
+   {
+    "offset": 24380,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 24400,
+    "byte_len": 1,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 24432,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 24464,
+    "byte_len": 4,
+    "text": "",
+    "has_jp": false,
+    "type": "other",
+    "translated": ""
+   },
+   {
+    "offset": 24472,
+    "byte_len": 5,
+    "text": "d",
+    "has_jp": false,
+    "type": "other",
+    "translated": "d"
+   },
+   {
+    "offset": 24540,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 24608,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 24756,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 24824,
+    "byte_len": 1,
+    "text": "ｪ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｪ"
+   },
+   {
+    "offset": 25068,
+    "byte_len": 1,
+    "text": "ｧ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｧ"
+   },
+   {
+    "offset": 25084,
+    "byte_len": 1,
+    "text": "ｦ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｦ"
+   },
+   {
+    "offset": 25088,
+    "byte_len": 1,
+    "text": "ｧ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｧ"
+   },
+   {
+    "offset": 25108,
+    "byte_len": 1,
+    "text": "ｨ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｨ"
+   },
+   {
+    "offset": 25124,
+    "byte_len": 1,
+    "text": "ｧ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｧ"
+   },
+   {
+    "offset": 25128,
+    "byte_len": 1,
+    "text": "ｨ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｨ"
+   },
+   {
+    "offset": 25148,
+    "byte_len": 1,
+    "text": "ｩ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｩ"
+   },
+   {
+    "offset": 25164,
+    "byte_len": 1,
+    "text": "ｨ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｨ"
+   },
+   {
+    "offset": 25168,
+    "byte_len": 1,
+    "text": "ｩ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｩ"
+   },
+   {
+    "offset": 25188,
+    "byte_len": 1,
+    "text": "ｪ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｪ"
+   },
+   {
+    "offset": 25204,
+    "byte_len": 1,
+    "text": "ｩ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｩ"
+   },
+   {
+    "offset": 25208,
+    "byte_len": 1,
+    "text": "ｪ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｪ"
+   },
+   {
+    "offset": 25256,
+    "byte_len": 1,
+    "text": "ｯ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｯ"
+   },
+   {
+    "offset": 25500,
+    "byte_len": 1,
+    "text": "ｫ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｫ"
+   },
+   {
+    "offset": 25516,
+    "byte_len": 1,
+    "text": "ｪ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｪ"
+   },
+   {
+    "offset": 25520,
+    "byte_len": 1,
+    "text": "ｫ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｫ"
+   },
+   {
+    "offset": 25540,
+    "byte_len": 1,
+    "text": "ｬ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｬ"
+   },
+   {
+    "offset": 25556,
+    "byte_len": 1,
+    "text": "ｫ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｫ"
+   },
+   {
+    "offset": 25560,
+    "byte_len": 1,
+    "text": "ｬ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｬ"
+   },
+   {
+    "offset": 25580,
+    "byte_len": 1,
+    "text": "ｭ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｭ"
+   },
+   {
+    "offset": 25596,
+    "byte_len": 1,
+    "text": "ｬ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｬ"
+   },
+   {
+    "offset": 25600,
+    "byte_len": 1,
+    "text": "ｭ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｭ"
+   },
+   {
+    "offset": 25620,
+    "byte_len": 1,
+    "text": "ｮ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｮ"
+   },
+   {
+    "offset": 25636,
+    "byte_len": 1,
+    "text": "ｭ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｭ"
+   },
+   {
+    "offset": 25640,
+    "byte_len": 1,
+    "text": "ｮ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｮ"
+   },
+   {
+    "offset": 25660,
+    "byte_len": 1,
+    "text": "ｯ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｯ"
+   },
+   {
+    "offset": 25676,
+    "byte_len": 1,
+    "text": "ｮ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｮ"
+   },
+   {
+    "offset": 25680,
+    "byte_len": 1,
+    "text": "ｯ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｯ"
+   },
+   {
+    "offset": 25728,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 25756,
+    "byte_len": 5,
+    "text": "d",
+    "has_jp": false,
+    "type": "other",
+    "translated": "d"
+   },
+   {
+    "offset": 25868,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 25936,
+    "byte_len": 1,
+    "text": "ｶ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｶ"
+   },
+   {
+    "offset": 26012,
+    "byte_len": 6,
+    "text": "} \u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "} \u0003"
+   },
+   {
+    "offset": 26020,
+    "byte_len": 2,
+    "text": "ﾛ\u0003",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾛ\u0003"
+   },
+   {
+    "offset": 26036,
+    "byte_len": 2,
+    "text": "ﾛ\u0003",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾛ\u0003"
+   },
+   {
+    "offset": 26176,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 26216,
+    "byte_len": 1,
+    "text": "ｱ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｱ"
+   },
+   {
+    "offset": 26232,
+    "byte_len": 1,
+    "text": "ｯ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｯ"
+   },
+   {
+    "offset": 26236,
+    "byte_len": 1,
+    "text": "ｱ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｱ"
+   },
+   {
+    "offset": 26256,
+    "byte_len": 1,
+    "text": "ｲ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｲ"
+   },
+   {
+    "offset": 26272,
+    "byte_len": 1,
+    "text": "ｰ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｰ"
+   },
+   {
+    "offset": 26276,
+    "byte_len": 1,
+    "text": "ｲ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｲ"
+   },
+   {
+    "offset": 26296,
+    "byte_len": 1,
+    "text": "ｳ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｳ"
+   },
+   {
+    "offset": 26312,
+    "byte_len": 1,
+    "text": "ｱ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｱ"
+   },
+   {
+    "offset": 26316,
+    "byte_len": 1,
+    "text": "ｳ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｳ"
+   },
+   {
+    "offset": 26336,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 26352,
+    "byte_len": 1,
+    "text": "ｲ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｲ"
+   },
+   {
+    "offset": 26356,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 26376,
+    "byte_len": 1,
+    "text": "ｵ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｵ"
+   },
+   {
+    "offset": 26392,
+    "byte_len": 1,
+    "text": "ｳ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｳ"
+   },
+   {
+    "offset": 26396,
+    "byte_len": 1,
+    "text": "ｵ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｵ"
+   },
+   {
+    "offset": 26416,
+    "byte_len": 1,
+    "text": "ｶ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｶ"
+   },
+   {
+    "offset": 26432,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 26436,
+    "byte_len": 1,
+    "text": "ｶ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｶ"
+   },
+   {
+    "offset": 26468,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 26564,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 26632,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 26728,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 26880,
+    "byte_len": 1,
+    "text": "ﾙ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾙ"
+   },
+   {
+    "offset": 26888,
+    "byte_len": 2,
+    "text": "ﾄ\u0001",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾄ\u0001"
+   },
+   {
+    "offset": 26896,
+    "byte_len": 2,
+    "text": "ﾆ\u0002",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾆ\u0002"
+   },
+   {
+    "offset": 26940,
+    "byte_len": 2,
+    "text": "ｹ\u0006",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｹ\u0006"
+   },
+   {
+    "offset": 26976,
+    "byte_len": 2,
+    "text": "ｹ\n",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｹ\n"
+   },
+   {
+    "offset": 26984,
+    "byte_len": 2,
+    "text": "｣\u000b",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｣\u000b"
+   },
+   {
+    "offset": 26988,
+    "byte_len": 2,
+    "text": "ﾜ\u000b",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾜ\u000b"
+   },
+   {
+    "offset": 27008,
+    "byte_len": 2,
+    "text": "ｦ\r",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｦ\r"
+   },
+   {
+    "offset": 27020,
+    "byte_len": 2,
+    "text": "ﾇ\u000e",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾇ\u000e"
+   },
+   {
+    "offset": 27032,
+    "byte_len": 2,
+    "text": "ﾁ\u000f",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾁ\u000f"
+   },
+   {
+    "offset": 27052,
+    "byte_len": 2,
+    "text": "｡\u0012",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｡\u0012"
+   },
+   {
+    "offset": 27060,
+    "byte_len": 2,
+    "text": "ｻ\u0013",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｻ\u0013"
+   },
+   {
+    "offset": 27072,
+    "byte_len": 2,
+    "text": "ﾉ\u0014",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾉ\u0014"
+   },
+   {
+    "offset": 27104,
+    "byte_len": 2,
+    "text": "ｳ\u0017",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｳ\u0017"
+   },
+   {
+    "offset": 27108,
+    "byte_len": 2,
+    "text": "ﾘ\u0017",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾘ\u0017"
+   },
+   {
+    "offset": 27120,
+    "byte_len": 2,
+    "text": "｢\u0018",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢\u0018"
+   },
+   {
+    "offset": 27132,
+    "byte_len": 2,
+    "text": "ﾕ\u0019",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾕ\u0019"
+   },
+   {
+    "offset": 27140,
+    "byte_len": 2,
+    "text": "ﾖ\f",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾖ\f"
+   },
+   {
+    "offset": 27192,
+    "byte_len": 2,
+    "text": "ｮ\u001b",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｮ\u001b"
+   },
+   {
+    "offset": 27196,
+    "byte_len": 2,
+    "text": "ﾂ\u001b",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾂ\u001b"
+   },
+   {
+    "offset": 27200,
+    "byte_len": 2,
+    "text": "ﾔ\u001b",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾔ\u001b"
+   },
+   {
+    "offset": 27248,
+    "byte_len": 2,
+    "text": "･\u001c",
+    "has_jp": true,
+    "type": "name",
+    "translated": "･\u001c"
+   },
+   {
+    "offset": 27252,
+    "byte_len": 2,
+    "text": "ｿ\u001c",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｿ\u001c"
+   },
+   {
+    "offset": 27256,
+    "byte_len": 2,
+    "text": "ﾗ\u001c",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾗ\u001c"
+   },
+   {
+    "offset": 27300,
+    "byte_len": 2,
+    "text": "ｪ\u001d",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｪ\u001d"
+   },
+   {
+    "offset": 27304,
+    "byte_len": 2,
+    "text": "ｾ\u001d",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｾ\u001d"
+   },
+   {
+    "offset": 27308,
+    "byte_len": 2,
+    "text": "ﾅ\u001d",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾅ\u001d"
+   },
+   {
+    "offset": 27312,
+    "byte_len": 2,
+    "text": "ﾕ\u001d",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾕ\u001d"
+   },
+   {
+    "offset": 27360,
+    "byte_len": 2,
+    "text": "ｫ\u001e",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｫ\u001e"
+   },
+   {
+    "offset": 27364,
+    "byte_len": 2,
+    "text": "ｽ\u001e",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｽ\u001e"
+   },
+   {
+    "offset": 27368,
+    "byte_len": 2,
+    "text": "ﾓ\u001e",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾓ\u001e"
+   },
+   {
+    "offset": 27420,
+    "byte_len": 2,
+    "text": "ｯ\u001f",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｯ\u001f"
+   },
+   {
+    "offset": 27424,
+    "byte_len": 2,
+    "text": "ｽ\u001f",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｽ\u001f"
+   },
+   {
+    "offset": 27428,
+    "byte_len": 2,
+    "text": "ﾎ\u001f",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾎ\u001f"
+   },
+   {
+    "offset": 27472,
+    "byte_len": 2,
+    "text": "ｪ ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｪ "
+   },
+   {
+    "offset": 27476,
+    "byte_len": 2,
+    "text": "ｾ ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｾ "
+   },
+   {
+    "offset": 27480,
+    "byte_len": 2,
+    "text": "ﾄ ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾄ "
+   },
+   {
+    "offset": 27484,
+    "byte_len": 2,
+    "text": "ﾔ ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾔ "
+   },
+   {
+    "offset": 27536,
+    "byte_len": 2,
+    "text": "ｰ!",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｰ!"
+   },
+   {
+    "offset": 27540,
+    "byte_len": 2,
+    "text": "ﾇ!",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾇ!"
+   },
+   {
+    "offset": 27544,
+    "byte_len": 2,
+    "text": "ﾘ!",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾘ!"
+   },
+   {
+    "offset": 27592,
+    "byte_len": 2,
+    "text": "ｭ\"",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｭ\""
+   },
+   {
+    "offset": 27596,
+    "byte_len": 2,
+    "text": "ｱ\"",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｱ\""
+   },
+   {
+    "offset": 27600,
+    "byte_len": 2,
+    "text": "ﾀ\"",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾀ\""
+   },
+   {
+    "offset": 27604,
+    "byte_len": 2,
+    "text": "ﾑ\"",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾑ\""
+   },
+   {
+    "offset": 27652,
+    "byte_len": 2,
+    "text": "ﾀ#",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾀ#"
+   },
+   {
+    "offset": 27656,
+    "byte_len": 2,
+    "text": "ﾏ#",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾏ#"
+   },
+   {
+    "offset": 27704,
+    "byte_len": 2,
+    "text": "ｦ$",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｦ$"
+   },
+   {
+    "offset": 27708,
+    "byte_len": 2,
+    "text": "ｵ$",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｵ$"
+   },
+   {
+    "offset": 27712,
+    "byte_len": 2,
+    "text": "ﾇ$",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾇ$"
+   },
+   {
+    "offset": 27716,
+    "byte_len": 2,
+    "text": "ﾙ$",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾙ$"
+   },
+   {
+    "offset": 27720,
+    "byte_len": 2,
+    "text": "ﾟ$",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾟ$"
+   },
+   {
+    "offset": 27768,
+    "byte_len": 2,
+    "text": "ｷ%",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｷ%"
+   },
+   {
+    "offset": 27772,
+    "byte_len": 2,
+    "text": "ﾋ%",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾋ%"
+   },
+   {
+    "offset": 27776,
+    "byte_len": 2,
+    "text": "ﾐ%",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾐ%"
+   },
+   {
+    "offset": 27836,
+    "byte_len": 2,
+    "text": "ｲ&",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｲ&"
+   },
+   {
+    "offset": 27840,
+    "byte_len": 2,
+    "text": "ｹ&",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｹ&"
+   },
+   {
+    "offset": 27844,
+    "byte_len": 2,
+    "text": "ﾇ&",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾇ&"
+   },
+   {
+    "offset": 27848,
+    "byte_len": 2,
+    "text": "ﾓ&",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾓ&"
+   },
+   {
+    "offset": 27880,
+    "byte_len": 38,
+    "text": "夢美\r\n「それじゃあ、行ってきまーす」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Yumemi\r\n\"Well then, I'm heading out!\"\r\n"
+   },
+   {
+    "offset": 27920,
+    "byte_len": 62,
+    "text": "玄関で靴を履きながら、夢美が部屋の中に向かって声\r\nを掛けた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Slipping on her shoes at the front door, Yumemi called\r\nout into the room.\r\n"
+   },
+   {
+    "offset": 27984,
+    "byte_len": 28,
+    "text": "レン\r\n「行ってらっしゃい」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Have a good day.\"\r\n"
+   },
+   {
+    "offset": 28016,
+    "byte_len": 92,
+    "text": "部屋のソファーに腰掛けながら、書類らしきものを\r\n読んでいたレンが、顔だけ上げて言葉を返す。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Sitting on the sofa reading what looked like documents,\r\nRen merely lifted his head to reply.\r\n"
+   },
+   {
+    "offset": 28112,
+    "byte_len": 18,
+    "text": "いつも通りの朝。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Just an ordinary morning.\r\n"
+   },
+   {
+    "offset": 28132,
+    "byte_len": 38,
+    "text": "アルバイト先のＡｎｚＵへの出勤風景。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The usual routine of her heading off to her part-time\r\njob at AnzU.\r\n"
+   },
+   {
+    "offset": 28172,
+    "byte_len": 64,
+    "text": "櫻井家の一日の始まりは、今日も穏やかな平和に満た\r\nされていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Today, too, the start of the day at the Sakurai household\r\nwas filled with gentle peace.\r\n"
+   },
+   {
+    "offset": 28240,
+    "byte_len": 44,
+    "text": "夢美\r\n「行ってきます。いいコにしてるのよ」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Yumemi\r\n\"I'm off. Be a good boy while I'm gone.\"\r\n"
+   },
+   {
+    "offset": 28288,
+    "byte_len": 52,
+    "text": "夢美が、もう一度、今度は足元に向かって声を掛ける。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Yumemi called out once more, this time toward her feet.\r\n"
+   },
+   {
+    "offset": 28344,
+    "byte_len": 78,
+    "text": "そこには一匹の蟲がちょこんといて、ピンク色の触手\r\nをゆらゆらと揺らしていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Sitting right there was a single insect, swaying its\r\npink tentacles back and forth.\r\n"
+   },
+   {
+    "offset": 28424,
+    "byte_len": 70,
+    "text": "背中は凹凸のついたメタリックブルーで、実は見た目\r\nよりも体温が低い。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Its bumpy back was metallic blue, and its body\r\ntemperature was actually lower than it looked.\r\n"
+   },
+   {
+    "offset": 28496,
+    "byte_len": 60,
+    "text": "夢美に優しく撫でられると、嬉しそうに触手の動きを\r\n速めた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "When Yumemi gently petted it, its tentacles wiggled\r\nfaster with delight.\r\n"
+   },
+   {
+    "offset": 28560,
+    "byte_len": 62,
+    "text": "夢美が出て行くと、蟲はくるりとリビングのほうへ\r\n引き返した。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Once Yumemi left, the insect spun around and headed\r\nback toward the living room.\r\n"
+   },
+   {
+    "offset": 28624,
+    "byte_len": 72,
+    "text": "ちらりとレンを見るような仕草をしたが、それ以上\r\n反応らしいものはない。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "It seemed to spare Ren a brief glance, but gave no\r\nfurther reaction beyond that.\r\n"
+   },
+   {
+    "offset": 28700,
+    "byte_len": 88,
+    "text": "短い脚を動かしてフローリングの床を這うと、レンの\r\n座っているソファーの下に潜り込んだ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Crawling across the hardwood floor on its short legs,\r\nit slipped underneath the sofa where Ren was sitting.\r\n"
+   },
+   {
+    "offset": 28792,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 28852,
+    "byte_len": 90,
+    "text": "仕事――他の蟲使いからまとめられた報告書に目を通\r\nしていたレンが、ちらりと視線を落とす。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Ren, who was going over his work--reports compiled from\r\nother bug users--briefly lowered his gaze.\r\n"
+   },
+   {
+    "offset": 28944,
+    "byte_len": 92,
+    "text": "ソファーの下を覗き込むような事はしなかったが、\r\n自分の真下に蟲がいるのは気配で感じられた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He didn't bother peeking under the sofa, though he\r\ncould sense the insect's presence right beneath him.\r\n"
+   },
+   {
+    "offset": 29040,
+    "byte_len": 32,
+    "text": "違和感があるかと言えば、ある。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "If asked whether it felt strange, it certainly did.\r\n"
+   },
+   {
+    "offset": 29076,
+    "byte_len": 82,
+    "text": "何しろ蟲使いの村において、蟲が家の中を自由に動き\r\n回るよう飼い方はしないからだ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "After all, in the bug users' village, no one ever kept\r\ninsects loose inside the house.\r\n"
+   },
+   {
+    "offset": 29160,
+    "byte_len": 28,
+    "text": "蟲は飼育場で管理するもの。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Insects were meant to be managed in breeding grounds.\r\n"
+   },
+   {
+    "offset": 29192,
+    "byte_len": 64,
+    "text": "少なくともレンにとっては、蟲はそうして育てるのが\r\n自然だった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "At least to Ren, raising insects that way was only\r\nnatural.\r\n"
+   },
+   {
+    "offset": 29260,
+    "byte_len": 68,
+    "text": "正午を過ぎた頃になって、レンはようやく全ての報告\r\n書を読み終えた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Shortly after noon, Ren finally finished reading through\r\nall the reports.\r\n"
+   },
+   {
+    "offset": 29332,
+    "byte_len": 100,
+    "text": "内容は神武に関しての事が主だったが、それ以外にも\r\n夢美の事、Ｄｒ．Ｗｅｓｔの事などが書かれている。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "They mainly concerned Jinmu, though there were also\r\nnotes on Yumemi, Dr. West, and others.\r\n"
+   },
+   {
+    "offset": 29436,
+    "byte_len": 94,
+    "text": "今のところ、レンの任務に変わりは無かったものの、\r\nいつ事態が変化するとも知れない状況だった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "For now, Ren's mission remained unchanged, though there\r\nwas no telling when the situation might shift.\r\n"
+   },
+   {
+    "offset": 29532,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 29592,
+    "byte_len": 68,
+    "text": "一息ついて室内をぐるりと見回して、何か食べるもの\r\nはないかと探す。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Taking a breather, he looked around the room in search\r\nof something to eat.\r\n"
+   },
+   {
+    "offset": 29664,
+    "byte_len": 90,
+    "text": "一日三食きっちり摂るほうではなく、空腹を感じれば\r\n食べるというのがレンのスタイルだった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Ren wasn't one to eat three square meals a day; his\r\nstyle was simply to eat whenever he felt hungry.\r\n"
+   },
+   {
+    "offset": 29756,
+    "byte_len": 92,
+    "text": "記憶を思い返す限りでは、朝の出掛けに夢美から昼食\r\nについて何か言われていたような気がする。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Thinking back, he vaguely recalled Yumemi mentioning\r\nsomething about lunch before she left that morning.\r\n"
+   },
+   {
+    "offset": 29852,
+    "byte_len": 80,
+    "text": "とりあえず、冷蔵庫の中を覗いてみるためソファーか\r\nら立ち上がってみると――――\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "For starters, he stood up from the sofa to check inside\r\nthe fridge, when--\r\n"
+   },
+   {
+    "offset": 29936,
+    "byte_len": 22,
+    "text": "レン\r\n「…………？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...?\"\r\n"
+   },
+   {
+    "offset": 29960,
+    "byte_len": 104,
+    "text": "ずっとソファーの下で眠っていた（らしい）蟲が、\r\nひょっこりとレンの後を追いかけるようにして出て\r\n来る。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The insect, which had (apparently) been sleeping under\r\nthe sofa all this time, popped out as if following him.\r\n"
+   },
+   {
+    "offset": 30068,
+    "byte_len": 116,
+    "text": "最初はたまたま動き出したのかと思ったが、じっと\r\n様子を窺っていると、蟲もまたレンを見上げるよう\r\nにして脚を止めた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "At first he thought it had moved by coincidence, but as\r\nhe watched closely, it stopped and looked up at him too.\r\n"
+   },
+   {
+    "offset": 30188,
+    "byte_len": 30,
+    "text": "見詰め合うこと暫し――――。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "They stared at each other for a moment...\r\n"
+   },
+   {
+    "offset": 30220,
+    "byte_len": 98,
+    "text": "とりあえず、攻撃して来るような気配は感じられない\r\nため、レンは蟲をそのままにキッチンへと入った。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Sensing no hostility from it for the time being, Ren\r\nleft the insect be and stepped into the kitchen.\r\n"
+   },
+   {
+    "offset": 30320,
+    "byte_len": 52,
+    "text": "今、優先すべきなのは昼食をとって空腹を満たす事だ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Right now, his priority was eating lunch to satisfy\r\nhis hunger.\r\n"
+   },
+   {
+    "offset": 30376,
+    "byte_len": 78,
+    "text": "ひとまず、冷蔵庫の中を覗いてみると、昨日の夕食が\r\n残っているのが目に入った。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Peeking into the refrigerator, he spotted leftovers\r\nfrom last night's dinner.\r\n"
+   },
+   {
+    "offset": 30456,
+    "byte_len": 26,
+    "text": "レン\r\n「これにしますか」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"I suppose this will do.\"\r\n"
+   },
+   {
+    "offset": 30484,
+    "byte_len": 60,
+    "text": "あまり考えた様子もなく、レンがよく冷えた皿に手を\r\n伸ばす。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Without giving it much thought, Ren reached for the\r\nwell-chilled plate.\r\n"
+   },
+   {
+    "offset": 30548,
+    "byte_len": 118,
+    "text": "――と、何かの気配を感じて振り向くと、いつの間に\r\nかキッチンの入り口のところまで、蟲が出てきている\r\nことに気付いた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "--Just then, sensing a presence, he turned around to\r\nfind the insect had made its way to the kitchen entrance.\r\n"
+   },
+   {
+    "offset": 30668,
+    "byte_len": 80,
+    "text": "何かを訴えようとでもしているのか、触手を短く伸ば\r\nしてゆらゆらと揺らしている。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "As if trying to tell him something, it extended its\r\ntentacles slightly and swayed them back and forth.\r\n"
+   },
+   {
+    "offset": 30752,
+    "byte_len": 110,
+    "text": "レンは暫く様子を窺っていたが、特に何かをしてくる\r\n様子もなかったため、冷蔵庫を閉めてダイニングへと\r\n戻った。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Ren watched it for a moment, but since it didn't seem\r\nto do anything else, he shut the fridge and went back.\r\n"
+   },
+   {
+    "offset": 30864,
+    "byte_len": 102,
+    "text": "蟲は、少し引いてレンが通り過ぎるのを待ったあと、\r\n短い脚で歩きながら冷蔵庫のほうへと近付いていった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The insect backed up slightly to let Ren pass, then\r\nwalked over toward the refrigerator on its short legs.\r\n"
+   },
+   {
+    "offset": 30968,
+    "byte_len": 18,
+    "text": "レン\r\n「……？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...?\"\r\n"
+   },
+   {
+    "offset": 30988,
+    "byte_len": 52,
+    "text": "ソファーに座ったところで、レンはやや眉根を寄せた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Sitting down on the sofa, Ren furrowed his brow slightly.\r\n"
+   },
+   {
+    "offset": 31044,
+    "byte_len": 64,
+    "text": "キッチンのほうを見ると、蟲が冷蔵庫の前でじっとし\r\nているのだ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Looking toward the kitchen, he saw the insect sitting\r\ncompletely still in front of the refrigerator.\r\n"
+   },
+   {
+    "offset": 31112,
+    "byte_len": 72,
+    "text": "頭部はやや上に向けられていて、どうも冷蔵庫に視線\r\nを送っているらしい。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Its head was tilted slightly upward, seemingly staring\r\nright at the fridge.\r\n"
+   },
+   {
+    "offset": 31188,
+    "byte_len": 34,
+    "text": "いったい何をやっているのか……。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "What on earth was it doing...?\r\n"
+   },
+   {
+    "offset": 31224,
+    "byte_len": 76,
+    "text": "不思議に思いながらもレンは食事を開始し、暫くは\r\nそれに集中することにした。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Puzzled though he was, Ren began his meal and decided\r\nto focus on eating for the time being.\r\n"
+   },
+   {
+    "offset": 31304,
+    "byte_len": 26,
+    "text": "レン\r\n「ご馳走様でした」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Thank you for the meal.\"\r\n"
+   },
+   {
+    "offset": 31332,
+    "byte_len": 70,
+    "text": "ダイニングのテーブルで独り食事を終えて、レンは\r\n短い声でつぶやいた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Finishing his meal alone at the dining table, Ren\r\nmuttered quietly to himself.\r\n"
+   },
+   {
+    "offset": 31404,
+    "byte_len": 68,
+    "text": "皿を流し台に運んで水を流し、洗剤を使って洗った後\r\n食器棚へと戻す。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He carried the plate to the sink, rinsed it with water,\r\nwashed it with dish soap, and put it back in the cupboard.\r\n"
+   },
+   {
+    "offset": 31476,
+    "byte_len": 84,
+    "text": "その際、ちらりと蟲に視線を送ってみたが、やはり\r\n冷蔵庫の前から動く様子はなかった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "As he did, he cast a quick glance at the insect, which\r\nstill showed no sign of moving from the refrigerator.\r\n"
+   },
+   {
+    "offset": 31564,
+    "byte_len": 66,
+    "text": "いくら人間と長く暮らしているからといっても、相手\r\nはやはり蟲だ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "No matter how long it had lived among humans, it was\r\nstill an insect.\r\n"
+   },
+   {
+    "offset": 31632,
+    "byte_len": 86,
+    "text": "考えている事など分かるはずもなく、レンは特に意識\r\nもしないまま冷蔵庫のドアを開けた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Having no way of knowing what it was thinking, Ren\r\nopened the fridge door without paying it any mind.\r\n"
+   },
+   {
+    "offset": 31720,
+    "byte_len": 18,
+    "text": "その瞬間――――\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "At that very moment--\r\n"
+   },
+   {
+    "offset": 31740,
+    "byte_len": 30,
+    "text": "レン\r\n「……何かご用でも？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...May I help you with something?\"\r\n"
+   },
+   {
+    "offset": 31772,
+    "byte_len": 72,
+    "text": "レンが冷蔵庫を開けたのは、昼食の際に用いたソース\r\nをしまうためだった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Ren had opened the refrigerator to put away the sauce\r\nhe'd used for lunch.\r\n"
+   },
+   {
+    "offset": 31848,
+    "byte_len": 100,
+    "text": "当然、それが終わればすぐにドアを閉めてダイニング\r\nに戻るつもりだったし、それは今も変わっていない。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Naturally, he intended to shut the door right after and\r\nreturn to the dining room, and that hadn't changed.\r\n"
+   },
+   {
+    "offset": 31952,
+    "byte_len": 100,
+    "text": "だが、ドアを開けた途端に、蟲が冷蔵庫に触手を伸ば\r\nしたため、閉めるに閉めれなくなってしまったのだ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "However, the moment he opened the door, the insect\r\nreached a tentacle inside, keeping him from closing it.\r\n"
+   },
+   {
+    "offset": 32056,
+    "byte_len": 22,
+    "text": "レン\r\n「…………？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...?\"\r\n"
+   },
+   {
+    "offset": 32080,
+    "byte_len": 66,
+    "text": "ピンク色の触手が、冷蔵庫の中のある物の手前で\r\nゆらゆらと揺れる。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "A pink tentacle swayed back and forth just in front of\r\nsomething inside the fridge.\r\n"
+   },
+   {
+    "offset": 32148,
+    "byte_len": 116,
+    "text": "すぐに取るのかと思ったが、蟲の行動にはどこか躊躇\r\nいがあり、何故だかそれの表面を触手で突付く程度に\r\n留まっていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He thought it would grab it right away, but the insect\r\nhesitated, merely poking the surface with its tentacle.\r\n"
+   },
+   {
+    "offset": 32268,
+    "byte_len": 34,
+    "text": "レン\r\n「これが欲しいのですか？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Do you want this?\"\r\n"
+   },
+   {
+    "offset": 32304,
+    "byte_len": 60,
+    "text": "レンが取り出したのは、１２本がパックになった\r\nソーセージ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "What Ren pulled out was a twelve-pack of sausages.\r\n"
+   },
+   {
+    "offset": 32368,
+    "byte_len": 74,
+    "text": "蟲の視界にそれが入った瞬間、明らかに触手が活き活\r\nきとした様子で揺れた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The instant it entered the insect's field of view, its\r\ntentacles swayed with unmistakable excitement.\r\n"
+   },
+   {
+    "offset": 32444,
+    "byte_len": 52,
+    "text": "レン\r\n「相変わらず不思議なものを欲しがるのですね」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"You certainly do crave strange things as always.\"\r\n"
+   },
+   {
+    "offset": 32500,
+    "byte_len": 66,
+    "text": "ソーセージのパックを渡しながら、レンは淡々とした\r\n様子で呟いた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Handing over the pack of sausages, Ren murmured in an\r\neven tone.\r\n"
+   },
+   {
+    "offset": 32568,
+    "byte_len": 94,
+    "text": "この部屋で過ごすようになってからそれなりに時間は\r\n経つが、いまだに蟲には驚かされる事が多い。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Some time had passed since he started living here,\r\nyet this insect still surprised him often.\r\n"
+   },
+   {
+    "offset": 32664,
+    "byte_len": 110,
+    "text": "決して、目を丸くしたり、声を上げたりしているわけ\r\nではないが、レンにとっての常識は既に幾つも覆され\r\nていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He never widened his eyes or raised his voice, of course,\r\nbut his common sense had already been upended many times.\r\n"
+   },
+   {
+    "offset": 32776,
+    "byte_len": 96,
+    "text": "蟲は、レンから受け取ったソーセージのパックを器用\r\nに触手で開けて、まずは一本口へと運んだ……。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The insect deftly tore open the sausage pack with its\r\ntentacles and popped the first one into its mouth...\r\n"
+   },
+   {
+    "offset": 32876,
+    "byte_len": 58,
+    "text": "午後二時になった頃、レンは次の仕事に取り掛かって\r\nいた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "When two in the afternoon rolled around, Ren got started\r\non his next task.\r\n"
+   },
+   {
+    "offset": 32936,
+    "byte_len": 74,
+    "text": "今度は夢美や獣魔蟲のことについて、一週間ごとの\r\n報告書をまとめる作業だ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "This time, he was compiling his weekly report on Yumemi\r\nand the Demon Bug.\r\n"
+   },
+   {
+    "offset": 33012,
+    "byte_len": 106,
+    "text": "最近は、書いても信じてもらえるか怪しい内容が並ん\r\nでいるのだが、事実は事実として記録するしかなかっ\r\nた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Lately, the contents were so dubious he doubted anyone\r\nwould believe them, yet he had to record the facts.\r\n"
+   },
+   {
+    "offset": 33120,
+    "byte_len": 66,
+    "text": "レン\r\n「好物……\r\n　オレンジジュースと桃の缶詰の汁を混ぜたもの」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Favorite food...\r\n A mixture of orange juice and syrup from canned peaches.\"\r\n"
+   },
+   {
+    "offset": 33188,
+    "byte_len": 80,
+    "text": "書いている本人が疑いたくなるようなものが、ずらず\r\nらと報告書に記載されていく。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Details that made even the writer himself skeptical\r\nlined the pages of the report.\r\n"
+   },
+   {
+    "offset": 33272,
+    "byte_len": 84,
+    "text": "とても、蟲使いを滅ぼすとまで言われていた獣魔蟲の\r\n調査結果とは思えない内容だった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "It hardly read like an investigation into the Demon Bug\r\nsaid to be capable of wiping out the bug users.\r\n"
+   },
+   {
+    "offset": 33360,
+    "byte_len": 10,
+    "text": "――と、\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "--Just then,\r\n"
+   },
+   {
+    "offset": 33372,
+    "byte_len": 72,
+    "text": "いつの間にかテーブルの上に蟲がいて、つぶらな眼で\r\nレンを見つめていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Before he knew it, the insect was on the table, staring\r\nat Ren with its beady little eyes.\r\n"
+   },
+   {
+    "offset": 33448,
+    "byte_len": 78,
+    "text": "しかも触手のうちの一本がソーセージに巻きつき、\r\nそれをレンに差し出している。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Not only that, one of its tentacles was wrapped around\r\na sausage, holding it out toward Ren.\r\n"
+   },
+   {
+    "offset": 33528,
+    "byte_len": 22,
+    "text": "レン\r\n「僕に……？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"For me...?\"\r\n"
+   },
+   {
+    "offset": 33552,
+    "byte_len": 60,
+    "text": "非常識この上ないが、状況を考えるにそれしか思いつ\r\nかない。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "It was utterly absurd, yet judging by the situation,\r\nthat was the only explanation.\r\n"
+   },
+   {
+    "offset": 33616,
+    "byte_len": 64,
+    "text": "そっとソーセージを受け取ってみると、蟲はすぐに\r\n触手を離した。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "When he gingerly took the sausage, the insect promptly\r\nunwrapped its tentacle.\r\n"
+   },
+   {
+    "offset": 33684,
+    "byte_len": 36,
+    "text": "レン\r\n「……ありがとうございます」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...Thank you very much.\"\r\n"
+   },
+   {
+    "offset": 33724,
+    "byte_len": 64,
+    "text": "律儀に礼をいうのは、ひとえにレンの性格が真面目す\r\nぎるからだ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Offering such a polite thank-you was purely a result of\r\nRen's overly earnest nature.\r\n"
+   },
+   {
+    "offset": 33792,
+    "byte_len": 88,
+    "text": "蟲は、どこか嬉しそうに触手を揺らしたあと、器用に\r\nそれを使ってテーブルを下りていった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Seemingly pleased, the insect wiggled its tentacles,\r\nthen deftly used them to climb down from the table.\r\n"
+   },
+   {
+    "offset": 33884,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 33944,
+    "byte_len": 60,
+    "text": "沈黙したまま、部屋の隅に移動していく蟲をじっと\r\n見つめる。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "In silence, he watched the insect make its way over to\r\nthe corner of the room.\r\n"
+   },
+   {
+    "offset": 34008,
+    "byte_len": 96,
+    "text": "何をするのかと思っていると、人間の握り拳サイズの\r\nボールを見つけ、触手で右に左に転がし始めた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "As he wondered what it was up to, it found a fist-sized\r\nball and began rolling it left and right with its tentacles.\r\n"
+   },
+   {
+    "offset": 34108,
+    "byte_len": 18,
+    "text": "暫くは意味不明。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "For a while, he couldn't make sense of it.\r\n"
+   },
+   {
+    "offset": 34128,
+    "byte_len": 64,
+    "text": "三分近く経ったところで、レンは蟲が遊んでいること\r\nに気付いた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Nearly three minutes later, Ren realized that the insect\r\nwas playing.\r\n"
+   },
+   {
+    "offset": 34196,
+    "byte_len": 44,
+    "text": "これもまた、常識ではあり得ないことだった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "This, too, defied all common sense.\r\n"
+   },
+   {
+    "offset": 34244,
+    "byte_len": 90,
+    "text": "普通の蟲は「遊ぶ」という行為に至るほど賢くないた\r\nめ、こうした姿を見ることは絶対にない。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Ordinary insects weren't smart enough to engage in\r\n\"play,\" so you would never see one acting like this.\r\n"
+   },
+   {
+    "offset": 34336,
+    "byte_len": 90,
+    "text": "ましてやボール――つまり道具を使って遊ぶなど、\r\n少なくともレンは想像したこともなかった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Let alone playing with a ball--using a tool. At the\r\nvery least, Ren had never imagined such a thing.\r\n"
+   },
+   {
+    "offset": 34428,
+    "byte_len": 64,
+    "text": "レン\r\n「これが獣魔蟲……。\r\n　確かに普通の蟲ではありませんね」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"So this is the Demon Bug...\r\n It certainly isn't an ordinary insect.\"\r\n"
+   },
+   {
+    "offset": 34496,
+    "byte_len": 88,
+    "text": "レンが観察している事に気付いているのかいないのか、\r\n蟲は三十分ほどボールで遊び続けた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Whether it noticed Ren watching or not, the insect\r\nkept playing with the ball for about thirty minutes.\r\n"
+   },
+   {
+    "offset": 34588,
+    "byte_len": 66,
+    "text": "やることは常に同じで、触手を使ってボールを左右に\r\n転がしている。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "It did the exact same thing the whole time, rolling\r\nthe ball left and right with its tentacles.\r\n"
+   },
+   {
+    "offset": 34656,
+    "byte_len": 68,
+    "text": "それが終わりを迎えたのは、意外にもレンのある行動\r\nによってだった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Surprisingly enough, what brought this to an end was\r\nsomething Ren did.\r\n"
+   },
+   {
+    "offset": 34728,
+    "byte_len": 66,
+    "text": "司会者\r\n「それでは歌っていただきましょう。\r\n　曲は――――――」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Emcee\r\n\"Now then, let's hear a song.\r\n The title is--\"\r\n"
+   },
+   {
+    "offset": 34796,
+    "byte_len": 18,
+    "text": "レン\r\n「……？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...?\"\r\n"
+   },
+   {
+    "offset": 34816,
+    "byte_len": 116,
+    "text": "暇潰しも兼ねてテレビをつけて程なく、ふと気付くと\r\n蟲が触手をロープのようにして、テーブルによじ登ろ\r\nうとしていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Shortly after he turned on the TV to pass the time,\r\nthe insect used its tentacles like ropes to climb the table.\r\n"
+   },
+   {
+    "offset": 34936,
+    "byte_len": 68,
+    "text": "ボールは部屋の隅に転がっていて、どうやらもう遊ぶ\r\n気はないらしい。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The ball lay abandoned in the corner; apparently, it\r\nwas done playing with it.\r\n"
+   },
+   {
+    "offset": 35008,
+    "byte_len": 68,
+    "text": "何をするつもりか見ていると、やがて頭部をテレビの\r\nほうへと向けた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "As he watched to see what it would do, it turned its\r\nhead toward the television.\r\n"
+   },
+   {
+    "offset": 35080,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 35140,
+    "byte_len": 60,
+    "text": "まさか、という思いがよぎり、さすがのレンも目を\r\n丸くする。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Thinking \"No way,\" even Ren couldn't help widening\r\nhis eyes.\r\n"
+   },
+   {
+    "offset": 35204,
+    "byte_len": 88,
+    "text": "蟲使いの村にはテレビそのものが無いが、それでも\r\nテレビを見る蟲など非常識にも程がある。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The bug users' village didn't have TVs at all, yet an\r\ninsect watching television was absurd beyond belief.\r\n"
+   },
+   {
+    "offset": 35296,
+    "byte_len": 96,
+    "text": "だが、蟲はゆらゆらとピンク色の触手を揺らしながら、\r\nとても楽しそうにテレビに視線を送っていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Even so, swaying its pink tentacles, the insect stared\r\nat the TV screen as if thoroughly enjoying itself.\r\n"
+   },
+   {
+    "offset": 35396,
+    "byte_len": 32,
+    "text": "流れてくるのは女性歌手の歌声。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "A female singer's voice drifted from the speakers.\r\n"
+   },
+   {
+    "offset": 35432,
+    "byte_len": 74,
+    "text": "レンはふと、ある事を試してみたくなり、リモコンで\r\nテレビの電源を――――\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Suddenly wanting to test something out, Ren picked up\r\nthe remote and turned the TV--\r\n"
+   },
+   {
+    "offset": 35508,
+    "byte_len": 14,
+    "text": "――切った。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "--off.\r\n"
+   },
+   {
+    "offset": 35524,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 35584,
+    "byte_len": 66,
+    "text": "じっと見つめるレンの前で、蟲が揺らしていた触手の\r\n動きを止める。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Under Ren's steady gaze, the insect's swaying tentacles\r\ncame to a halt.\r\n"
+   },
+   {
+    "offset": 35652,
+    "byte_len": 88,
+    "text": "まるで、人間が驚いたときに「あっ」と声を漏らして\r\n動きを止めてしまった時のようだった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "It was just like a human letting out a surprised gasp\r\nand freezing in place.\r\n"
+   },
+   {
+    "offset": 35744,
+    "byte_len": 20,
+    "text": "沈黙すること暫し。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Silence fell for a brief moment.\r\n"
+   },
+   {
+    "offset": 35768,
+    "byte_len": 94,
+    "text": "やがて、蟲は大半の触手を引っ込めると、ずりずりと\r\n胴体を引きずりながらテーブルを降りていく。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Before long, the insect retracted most of its tentacles\r\nand dragged its body down off the table.\r\n"
+   },
+   {
+    "offset": 35864,
+    "byte_len": 90,
+    "text": "テレビを見ていたのは間違いないようで、遠ざかって\r\nいく後ろ姿は、どこか寂しそうに見えた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "There was no doubt it had been watching TV, and its\r\nretreating figure looked somewhat lonely.\r\n"
+   },
+   {
+    "offset": 35956,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 36016,
+    "byte_len": 44,
+    "text": "レンがリモコンを操作して、テレビをつける。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Ren clicked the remote and turned the TV back on.\r\n"
+   },
+   {
+    "offset": 36064,
+    "byte_len": 78,
+    "text": "――と、蟲がぴくっと反応して振り向き、いそいそと\r\nテーブルの上に戻って来た。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "--At once, the insect twitched, spun around, and eagerly\r\nclimbed right back onto the table.\r\n"
+   },
+   {
+    "offset": 36144,
+    "byte_len": 64,
+    "text": "ピンク色の触手は嬉しそうに揺れており、視線は画面\r\nに釘付けだ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Its pink tentacles swayed happily, its gaze glued to\r\nthe screen.\r\n"
+   },
+   {
+    "offset": 36212,
+    "byte_len": 44,
+    "text": "果たして、この事実をどう受け止めたものか。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "How on earth was he supposed to process this fact?\r\n"
+   },
+   {
+    "offset": 36260,
+    "byte_len": 90,
+    "text": "いや、そもそも何故今日になって、蟲がこんなにも\r\n様々な面を見せてくれるようになったのか。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Or rather, why had the insect started showing him so\r\nmany different sides of itself today of all days?\r\n"
+   },
+   {
+    "offset": 36352,
+    "byte_len": 120,
+    "text": "冷静に考えてみれば、昨日まではどこかレンを警戒し\r\nているような素振りがあり、あまり見える場所に出て\r\nは来なかったのだ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Thinking back calmly, until yesterday it had seemed\r\nwary of Ren, rarely coming out into plain sight.\r\n"
+   },
+   {
+    "offset": 36476,
+    "byte_len": 128,
+    "text": "数日過ごした事によって、少しは馴れてくれたのかも\r\nしれないが、そうなったらなったで今度はレンが馴れ\r\nなければならない事が多い。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Perhaps after a few days it had warmed up to him, though\r\nthat meant Ren now had plenty to get used to himself.\r\n"
+   },
+   {
+    "offset": 36608,
+    "byte_len": 56,
+    "text": "テレビは歌番組だったようで、その後二十分ほど続い\r\nた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The show seemed to be a music program, which continued\r\nfor another twenty minutes or so.\r\n"
+   },
+   {
+    "offset": 36668,
+    "byte_len": 86,
+    "text": "そして、番組が終わり、ニュースが始まると同時に、\r\n蟲はテーブルから降りていった……。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Then, as soon as the program ended and the news began,\r\nthe insect climbed down from the table...\r\n"
+   },
+   {
+    "offset": 36756,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 36816,
+    "byte_len": 42,
+    "text": "さらに時間は経過し、時計の針は午後三時。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "More time passed, and the hands of the clock reached\r\nthree in the afternoon.\r\n"
+   },
+   {
+    "offset": 36860,
+    "byte_len": 84,
+    "text": "西側の窓から陽光が射し込み、レンの座っている場所\r\nはちょうど明るく照らされていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Sunlight streamed through the west window, brightly\r\nilluminating the exact spot where Ren was sitting.\r\n"
+   },
+   {
+    "offset": 36948,
+    "byte_len": 72,
+    "text": "仕事は一段落して、軽く何か飲もうかと思っていたと\r\nころなのだが――――\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Having reached a stopping point in his work, he was\r\njust thinking of getting something to drink, when--\r\n"
+   },
+   {
+    "offset": 37024,
+    "byte_len": 44,
+    "text": "気が付けば、蟲がじっとレンを見つめている。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He noticed the insect staring intently at him.\r\n"
+   },
+   {
+    "offset": 37072,
+    "byte_len": 106,
+    "text": "ソファーの端にちょこんと座り（？）、ピンク色の\r\n触手を揺らしながら何かを待つようにレンを見つめ\r\nていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Perched (?) on the edge of the sofa, it swayed its pink\r\ntentacles and stared at Ren as if waiting for something.\r\n"
+   },
+   {
+    "offset": 37180,
+    "byte_len": 22,
+    "text": "レン\r\n「……何か？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...Yes?\"\r\n"
+   },
+   {
+    "offset": 37204,
+    "byte_len": 68,
+    "text": "答えが返ってくるわけでもないのに、ついそんな言葉\r\nをかけてしまう。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Knowing full well he wouldn't get an answer, he couldn't\r\nhelp asking anyway.\r\n"
+   },
+   {
+    "offset": 37276,
+    "byte_len": 100,
+    "text": "暫く見詰め合ってみたが結果は変わらず、レンはとり\r\nあえず放置する事にしてソファーから立ち上がった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Staring back at it yielded no results, so Ren decided\r\nto leave it be for now and stood up from the sofa.\r\n"
+   },
+   {
+    "offset": 37380,
+    "byte_len": 52,
+    "text": "キッチンに入り、冷蔵庫からジュースを一本取り出す。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He stepped into the kitchen and took a bottle of juice\r\nfrom the refrigerator.\r\n"
+   },
+   {
+    "offset": 37436,
+    "byte_len": 90,
+    "text": "特に考えて選んだわけではなかったが、それは偶然に\r\nも最後の一本のオレンジジュースだった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He hadn't picked it with any particular thought, but it\r\nhappened to be the very last bottle of orange juice.\r\n"
+   },
+   {
+    "offset": 37528,
+    "byte_len": 56,
+    "text": "レン\r\n「…………………………………………………………」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...\"\r\n"
+   },
+   {
+    "offset": 37588,
+    "byte_len": 68,
+    "text": "オレンジジュースを冷蔵庫に戻し、その隣にあった\r\n烏龍茶を手にする。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Putting the orange juice back in the fridge, he grabbed\r\nthe oolong tea next to it instead.\r\n"
+   },
+   {
+    "offset": 37660,
+    "byte_len": 68,
+    "text": "蓋を開けてその場で飲んでいると、レンの携帯電話が\r\n小刻みに震えた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "As he unscrewed the cap and took a sip right there,\r\nhis cell phone began to vibrate.\r\n"
+   },
+   {
+    "offset": 37732,
+    "byte_len": 22,
+    "text": "レン\r\n「もしもし？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Hello?\"\r\n"
+   },
+   {
+    "offset": 37756,
+    "byte_len": 56,
+    "text": "烏龍茶を飲むのをやめて、携帯電話の通話ボタンを押\r\nす。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "He stopped drinking the oolong tea and pressed the call\r\nbutton on his phone.\r\n"
+   },
+   {
+    "offset": 37816,
+    "byte_len": 84,
+    "text": "相手はこの町に来ている蟲使いの少女で、いつもこの\r\n時間帯に行われる定期連絡だった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "It was a young female bug user stationed in town, calling\r\nfor their regular check-in at this hour.\r\n"
+   },
+   {
+    "offset": 37904,
+    "byte_len": 54,
+    "text": "レン\r\n「了解しました。引き続きよろしくお願いします」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Understood. Please continue as you are.\"\r\n"
+   },
+   {
+    "offset": 37960,
+    "byte_len": 54,
+    "text": "レン\r\n「それと、僕のほうですが今から仮眠を取ります」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Also, I will be taking a short nap starting now.\"\r\n"
+   },
+   {
+    "offset": 38016,
+    "byte_len": 92,
+    "text": "レン\r\n「蟲を使いますので、暫くは起きれません。\r\n　何かあればあなたの判断で行動して下さい」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"I'll be using an insect, so I won't be able to wake up\r\nfor a while. If anything happens, use your own judgment.\"\r\n"
+   },
+   {
+    "offset": 38112,
+    "byte_len": 20,
+    "text": "レン\r\n「では……」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Well then...\"\r\n"
+   },
+   {
+    "offset": 38136,
+    "byte_len": 48,
+    "text": "必要最小限の事だけを伝えて、レンが電話を切る。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Conveying only the bare essentials, Ren hung up.\r\n"
+   },
+   {
+    "offset": 38188,
+    "byte_len": 78,
+    "text": "烏龍茶を飲みながら懐を確認すると、一本の蟲筒を\r\n取り出してその中身を放った。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Sipping his oolong tea, he reached into his pocket,\r\npulled out an insect tube, and released its contents.\r\n"
+   },
+   {
+    "offset": 38268,
+    "byte_len": 74,
+    "text": "出てきたのはヒルのような蟲で、レンは躊躇いなく\r\nそれを口の中に放り込む。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Out came a leech-like insect, which Ren tossed into\r\nhis mouth without a moment's hesitation.\r\n"
+   },
+   {
+    "offset": 38344,
+    "byte_len": 76,
+    "text": "奥歯で噛んで苦味のある体液を搾り出すと、烏龍茶と\r\n一緒にそれを飲み下した。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Crushing it with his back teeth to squeeze out its\r\nbitter bodily fluids, he washed it down with oolong tea.\r\n"
+   },
+   {
+    "offset": 38424,
+    "byte_len": 100,
+    "text": "傍から見れば異様な光景だが、その蟲の体液には麻酔\r\nのような効果があり、すぐに眠りにつく事ができる。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "To an onlooker it would be a bizarre sight, but the\r\ninsect's fluid acted like an anesthetic, inducing\r\nsleep almost instantly.\r\n"
+   },
+   {
+    "offset": 38528,
+    "byte_len": 88,
+    "text": "さらに、短い睡眠時間でも頭がスッキリとするため、\r\n多忙な蟲使いほどよく使う方法だった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Better yet, it left the mind refreshed even after a\r\nshort nap, making it a popular method among busy\r\nbug users.\r\n"
+   },
+   {
+    "offset": 38620,
+    "byte_len": 76,
+    "text": "烏龍茶の缶をゴミ箱に捨てて、先ほどまで仕事をして\r\nいたダイニングへと戻る。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Tossing the oolong tea can into the trash, he returned\r\nto the dining room where he had been working.\r\n"
+   },
+   {
+    "offset": 38700,
+    "byte_len": 18,
+    "text": "レン\r\n「……？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"...?\"\r\n"
+   },
+   {
+    "offset": 38720,
+    "byte_len": 88,
+    "text": "ソファーに戻ってみると、今までレンが座っていた\r\n場所に蟲がちょこんと座って（？）いた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Returning to the sofa, he found the insect perched (?)\r\nin the exact spot where he had just been sitting.\r\n"
+   },
+   {
+    "offset": 38812,
+    "byte_len": 66,
+    "text": "窓から射し込む太陽の光に、ぬくぬくとした様子で\r\nじっとしている。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Basking in the sunlight streaming through the window,\r\nit sat still, looking thoroughly cozy.\r\n"
+   },
+   {
+    "offset": 38880,
+    "byte_len": 76,
+    "text": "触手が出ていないところを見ると、どうやら気持ち良\r\nく眠っているらしかった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Given that its tentacles were retracted, it seemed to\r\nbe sleeping quite comfortably.\r\n"
+   },
+   {
+    "offset": 38960,
+    "byte_len": 52,
+    "text": "レン\r\n「先ほど見つめていたのはそういうわけですか」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"So that's why you were staring at me earlier.\"\r\n"
+   },
+   {
+    "offset": 39016,
+    "byte_len": 50,
+    "text": "要するに、陽の当たる場所で眠りたかったのだろう。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "In short, it had simply wanted to sleep in the sunny\r\nspot.\r\n"
+   },
+   {
+    "offset": 39068,
+    "byte_len": 60,
+    "text": "レンは小さく嘆息すると、他に眠れる場所がないかを\r\n考えた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Letting out a quiet sigh, Ren wondered if there was\r\nsomewhere else he could sleep.\r\n"
+   },
+   {
+    "offset": 39132,
+    "byte_len": 74,
+    "text": "だが、急速に眠気が襲ってきて、隣の部屋に入るまで\r\n意識が保ちそうにない。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "However, drowsiness was rapidly overtaking him, and he\r\ndoubted he could stay conscious long enough to reach\r\nthe next room.\r\n"
+   },
+   {
+    "offset": 39208,
+    "byte_len": 34,
+    "text": "仕方なくソファーに戻ると――――\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Left with no choice, he returned to the sofa--\r\n"
+   },
+   {
+    "offset": 39244,
+    "byte_len": 22,
+    "text": "レン\r\n「失礼します」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Ren\r\n\"Excuse me.\"\r\n"
+   },
+   {
+    "offset": 39268,
+    "byte_len": 32,
+    "text": "――蟲を押しのけて横になった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "--nudged the insect aside, and lay down.\r\n"
+   },
+   {
+    "offset": 39304,
+    "byte_len": 92,
+    "text": "蟲は、少し驚いたような仕草を見せたが、レンはその\r\nまま意識を深い闇へと落としていった……。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The insect made a slightly startled movement, but Ren's\r\nconsciousness sank straight into deep darkness...\r\n"
+   },
+   {
+    "offset": 39400,
+    "byte_len": 22,
+    "text": "夢美\r\n「ただいまー」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Yumemi\r\n\"I'm home!\"\r\n"
+   },
+   {
+    "offset": 39424,
+    "byte_len": 52,
+    "text": "午後四時を過ぎた頃、夢美が玄関を開けて帰ってきた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Just past four in the afternoon, Yumemi opened the\r\nfront door and returned.\r\n"
+   },
+   {
+    "offset": 39480,
+    "byte_len": 68,
+    "text": "仕事が終わったわけではなく、夜に向けて休憩するた\r\nめの一時帰宅だ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Her workday wasn't over yet; she had just come home\r\nfor a quick break before the evening shift.\r\n"
+   },
+   {
+    "offset": 39552,
+    "byte_len": 70,
+    "text": "靴を脱いで、ダイニングに入り、そこでぐるりと辺り\r\nを見回して――――\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Taking off her shoes, she stepped into the dining room,\r\nglanced around, and--\r\n"
+   },
+   {
+    "offset": 39624,
+    "byte_len": 26,
+    "text": "夢美\r\n「な、なにごと？」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Yumemi\r\n\"Wh-What is going on here?\"\r\n"
+   },
+   {
+    "offset": 39652,
+    "byte_len": 52,
+    "text": "ソファーのほうを見るなり、夢美は思わず足を止めた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "The moment she looked toward the sofa, Yumemi stopped\r\ndead in her tracks.\r\n"
+   },
+   {
+    "offset": 39708,
+    "byte_len": 46,
+    "text": "ぽかんと口を開け、静かに眠るレンを凝視する。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Her mouth fell open as she stared fixedly at the\r\nquietly sleeping Ren.\r\n"
+   },
+   {
+    "offset": 39756,
+    "byte_len": 122,
+    "text": "だがそれは、レンが眠っている事に驚いたわけでもな\r\nければ、眠っている場所がソファーであった事に驚い\r\nたわけでもなかった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "However, she wasn't surprised that Ren was asleep,\r\nnor was she surprised that he was sleeping on the sofa.\r\n"
+   },
+   {
+    "offset": 39880,
+    "byte_len": 20,
+    "text": "驚いたのは――――\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "What surprised her was--\r\n"
+   },
+   {
+    "offset": 39904,
+    "byte_len": 28,
+    "text": "レンの胸元にいるのは、蟲。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Resting right on Ren's chest was the insect.\r\n"
+   },
+   {
+    "offset": 39936,
+    "byte_len": 74,
+    "text": "休日、夢美に対して甘えるように、レンの胸で気持ち\r\n良さそうに眠っていた。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Just as it cuddled up to Yumemi on her days off, it was\r\nsleeping blissfully atop Ren's chest.\r\n"
+   },
+   {
+    "offset": 40012,
+    "byte_len": 50,
+    "text": "夢美\r\n「なんかすっごいレアな光景な気がする……」\r\n",
+    "has_jp": true,
+    "type": "dialogue",
+    "translated": "Yumemi\r\n\"I feel like I'm witnessing a super rare sight...\"\r\n"
+   },
+   {
+    "offset": 40064,
+    "byte_len": 60,
+    "text": "そんな事をつぶやきながらも、夢美の口元には笑みが\r\n浮かぶ。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Even as she murmured that, a smile rose to Yumemi's\r\nlips.\r\n"
+   },
+   {
+    "offset": 40128,
+    "byte_len": 106,
+    "text": "仮眠をとって仕事に戻らなければならないのだが、\r\n今はもう少しだけ、一人と一匹の姿を見つめていた\r\nかった。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "She needed to take a quick nap before heading back to\r\nwork, but right now, she wanted to watch the two of\r\nthem for just a little longer.\r\n"
+   },
+   {
+    "offset": 40236,
+    "byte_len": 44,
+    "text": "案外、悪くないコンビかもしれなかった……。\r\n",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Surprisingly enough, they might actually make a pretty\r\ngood duo...\r\n"
+   },
+   {
+    "offset": 40300,
+    "byte_len": 2,
+    "text": "ﾎ'",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾎ'"
+   },
+   {
+    "offset": 40304,
+    "byte_len": 2,
+    "text": "ﾑ'",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾑ'"
+   },
+   {
+    "offset": 40308,
+    "byte_len": 2,
+    "text": "ﾔ'",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾔ'"
+   },
+   {
+    "offset": 40312,
+    "byte_len": 2,
+    "text": "ﾖ'",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾖ'"
+   },
+   {
+    "offset": 40316,
+    "byte_len": 2,
+    "text": "ﾙ'",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾙ'"
+   },
+   {
+    "offset": 40320,
+    "byte_len": 2,
+    "text": "ﾛ'",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾛ'"
+   },
+   {
+    "offset": 40324,
+    "byte_len": 2,
+    "text": "ﾞ'",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾞ'"
+   },
+   {
+    "offset": 40632,
+    "byte_len": 2,
+    "text": "｡(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｡("
+   },
+   {
+    "offset": 40636,
+    "byte_len": 2,
+    "text": "､(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "､("
+   },
+   {
+    "offset": 40640,
+    "byte_len": 2,
+    "text": "ｦ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｦ("
+   },
+   {
+    "offset": 40644,
+    "byte_len": 2,
+    "text": "ｩ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｩ("
+   },
+   {
+    "offset": 40648,
+    "byte_len": 2,
+    "text": "ｬ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｬ("
+   },
+   {
+    "offset": 40652,
+    "byte_len": 2,
+    "text": "ｮ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｮ("
+   },
+   {
+    "offset": 40656,
+    "byte_len": 2,
+    "text": "ｱ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｱ("
+   },
+   {
+    "offset": 40660,
+    "byte_len": 2,
+    "text": "ｴ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ("
+   },
+   {
+    "offset": 40664,
+    "byte_len": 2,
+    "text": "ｶ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｶ("
+   },
+   {
+    "offset": 40668,
+    "byte_len": 2,
+    "text": "ｹ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｹ("
+   },
+   {
+    "offset": 40672,
+    "byte_len": 2,
+    "text": "ｼ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｼ("
+   },
+   {
+    "offset": 40676,
+    "byte_len": 2,
+    "text": "ｾ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｾ("
+   },
+   {
+    "offset": 40680,
+    "byte_len": 2,
+    "text": "ﾁ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾁ("
+   },
+   {
+    "offset": 40684,
+    "byte_len": 2,
+    "text": "ﾄ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾄ("
+   },
+   {
+    "offset": 40688,
+    "byte_len": 2,
+    "text": "ﾆ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾆ("
+   },
+   {
+    "offset": 40692,
+    "byte_len": 2,
+    "text": "ﾈ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ("
+   },
+   {
+    "offset": 40696,
+    "byte_len": 2,
+    "text": "ﾋ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾋ("
+   },
+   {
+    "offset": 40700,
+    "byte_len": 2,
+    "text": "ﾍ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾍ("
+   },
+   {
+    "offset": 40704,
+    "byte_len": 2,
+    "text": "ﾏ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾏ("
+   },
+   {
+    "offset": 40708,
+    "byte_len": 2,
+    "text": "ﾒ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾒ("
+   },
+   {
+    "offset": 40712,
+    "byte_len": 2,
+    "text": "ﾔ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾔ("
+   },
+   {
+    "offset": 40716,
+    "byte_len": 2,
+    "text": "ﾖ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾖ("
+   },
+   {
+    "offset": 40720,
+    "byte_len": 2,
+    "text": "ﾙ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾙ("
+   },
+   {
+    "offset": 40724,
+    "byte_len": 2,
+    "text": "ﾛ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾛ("
+   },
+   {
+    "offset": 40728,
+    "byte_len": 2,
+    "text": "ﾞ(",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾞ("
+   },
+   {
+    "offset": 40760,
+    "byte_len": 8,
+    "text": "★トップ",
+    "has_jp": true,
+    "type": "menu",
+    "translated": "*Top"
+   },
+   {
+    "offset": 40772,
+    "byte_len": 8,
+    "text": "むしくん",
+    "has_jp": true,
+    "type": "name",
+    "translated": "むしくん"
+   },
+   {
+    "offset": 40784,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40792,
+    "byte_len": 10,
+    "text": "ta0203202n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0203202n"
+   },
+   {
+    "offset": 40804,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40812,
+    "byte_len": 10,
+    "text": "ta0203202n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0203202n"
+   },
+   {
+    "offset": 40824,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 40836,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40844,
+    "byte_len": 10,
+    "text": "ta0203202n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0203202n"
+   },
+   {
+    "offset": 40856,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40864,
+    "byte_len": 10,
+    "text": "ta0203202n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0203202n"
+   },
+   {
+    "offset": 40876,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 40888,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40896,
+    "byte_len": 10,
+    "text": "ta0203202n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0203202n"
+   },
+   {
+    "offset": 40908,
+    "byte_len": 10,
+    "text": "tamushi01b",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01b"
+   },
+   {
+    "offset": 40920,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40928,
+    "byte_len": 10,
+    "text": "ta0203202n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0203202n"
+   },
+   {
+    "offset": 40940,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40948,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40956,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40964,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 40976,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 40984,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 40996,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41004,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41012,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41024,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41032,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41044,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41056,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41064,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41076,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41088,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41096,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41104,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41116,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41124,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41136,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41148,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41156,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41168,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41180,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41188,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41196,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41208,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41216,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41228,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41236,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41248,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41256,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41268,
+    "byte_len": 10,
+    "text": "tamushi00a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00a"
+   },
+   {
+    "offset": 41280,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41288,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41300,
+    "byte_len": 10,
+    "text": "tamushi00b",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00b"
+   },
+   {
+    "offset": 41312,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41320,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41332,
+    "byte_len": 10,
+    "text": "tamushi00b",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00b"
+   },
+   {
+    "offset": 41344,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41352,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41360,
+    "byte_len": 10,
+    "text": "tamushi00a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00a"
+   },
+   {
+    "offset": 41372,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41380,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41388,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41400,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41408,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41416,
+    "byte_len": 10,
+    "text": "tamushi00b",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00b"
+   },
+   {
+    "offset": 41428,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41436,
+    "byte_len": 10,
+    "text": "tamushi00b",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00b"
+   },
+   {
+    "offset": 41448,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41456,
+    "byte_len": 10,
+    "text": "ta0901106n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901106n"
+   },
+   {
+    "offset": 41468,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41476,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41484,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41496,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41504,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41516,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41528,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41536,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41548,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41560,
+    "byte_len": 10,
+    "text": "ta0901210n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901210n"
+   },
+   {
+    "offset": 41572,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41580,
+    "byte_len": 10,
+    "text": "ta0901201n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901201n"
+   },
+   {
+    "offset": 41592,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41604,
+    "byte_len": 10,
+    "text": "ta0901210n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901210n"
+   },
+   {
+    "offset": 41616,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41624,
+    "byte_len": 10,
+    "text": "ta0901201n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901201n"
+   },
+   {
+    "offset": 41636,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41648,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41656,
+    "byte_len": 10,
+    "text": "ta0901201n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901201n"
+   },
+   {
+    "offset": 41668,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 41680,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41688,
+    "byte_len": 10,
+    "text": "ta0901201n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901201n"
+   },
+   {
+    "offset": 41700,
+    "byte_len": 10,
+    "text": "tamushi00b",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00b"
+   },
+   {
+    "offset": 41712,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41720,
+    "byte_len": 10,
+    "text": "ta0901201n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901201n"
+   },
+   {
+    "offset": 41732,
+    "byte_len": 10,
+    "text": "tamushi00b",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00b"
+   },
+   {
+    "offset": 41744,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41752,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41760,
+    "byte_len": 10,
+    "text": "tamushi00a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00a"
+   },
+   {
+    "offset": 41772,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41780,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41788,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41800,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41808,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41816,
+    "byte_len": 10,
+    "text": "ta0901101n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901101n"
+   },
+   {
+    "offset": 41828,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41836,
+    "byte_len": 10,
+    "text": "ta0901109n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0901109n"
+   },
+   {
+    "offset": 41848,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41856,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41864,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41872,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41880,
+    "byte_len": 10,
+    "text": "ta0203203n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0203203n"
+   },
+   {
+    "offset": 41892,
+    "byte_len": 6,
+    "text": "bg152n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "bg152n"
+   },
+   {
+    "offset": 41900,
+    "byte_len": 10,
+    "text": "ta0204210n",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta0204210n"
+   },
+   {
+    "offset": 41912,
+    "byte_len": 9,
+    "text": "ev9999999",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ev9999999"
+   }
+  ]
+ },
+ "staff.spt": {
+  "file": "staff.spt",
+  "file_size": 3100,
+  "header_string_count": 10,
+  "strings_found": 56,
+  "jp_strings": 30,
+  "strings": [
+   {
+    "offset": 204,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 416,
+    "byte_len": 1,
+    "text": "ﾝ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾝ"
+   },
+   {
+    "offset": 432,
+    "byte_len": 1,
+    "text": "ﾝ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾝ"
+   },
+   {
+    "offset": 488,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 540,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 760,
+    "byte_len": 1,
+    "text": "ﾝ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾝ"
+   },
+   {
+    "offset": 776,
+    "byte_len": 1,
+    "text": "ﾝ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾝ"
+   },
+   {
+    "offset": 904,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 956,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 984,
+    "byte_len": 5,
+    "text": "ﾈ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾈ"
+   },
+   {
+    "offset": 1168,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 1236,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 1368,
+    "byte_len": 12,
+    "text": "ｺｺｺ",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "ｺｺｺ"
+   },
+   {
+    "offset": 1400,
+    "byte_len": 13,
+    "text": "ｺｺｺ\u0005",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "ｺｺｺ\u0005"
+   },
+   {
+    "offset": 1476,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 1484,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 1492,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 1500,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 1608,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 1660,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 1764,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 1772,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 1780,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 1788,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 1832,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 1884,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 1988,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 1996,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2004,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 2012,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2056,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 2108,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 2212,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 2220,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2228,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 2236,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2280,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 2332,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 2436,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 2444,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2452,
+    "byte_len": 1,
+    "text": "｢",
+    "has_jp": true,
+    "type": "name",
+    "translated": "｢"
+   },
+   {
+    "offset": 2460,
+    "byte_len": 1,
+    "text": "ｴ",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ｴ"
+   },
+   {
+    "offset": 2504,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 2572,
+    "byte_len": 5,
+    "text": "\u0003",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0003"
+   },
+   {
+    "offset": 2708,
+    "byte_len": 5,
+    "text": "\u0005",
+    "has_jp": false,
+    "type": "other",
+    "translated": "\u0005"
+   },
+   {
+    "offset": 2868,
+    "byte_len": 2,
+    "text": "ﾓ\u0001",
+    "has_jp": true,
+    "type": "name",
+    "translated": "ﾓ\u0001"
+   },
+   {
+    "offset": 2956,
+    "byte_len": 8,
+    "text": "★トップ",
+    "has_jp": true,
+    "type": "menu",
+    "translated": "*Top"
+   },
+   {
+    "offset": 2968,
+    "byte_len": 14,
+    "text": "スタッフロール",
+    "has_jp": true,
+    "type": "narrative",
+    "translated": "Staff Credits"
+   },
+   {
+    "offset": 2984,
+    "byte_len": 7,
+    "text": "ta_op01",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_op01"
+   },
+   {
+    "offset": 2992,
+    "byte_len": 12,
+    "text": "ta_musistaff",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_musistaff"
+   },
+   {
+    "offset": 3008,
+    "byte_len": 12,
+    "text": "ta_musistaff",
+    "has_jp": false,
+    "type": "label",
+    "translated": "ta_musistaff"
+   },
+   {
+    "offset": 3024,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 3036,
+    "byte_len": 10,
+    "text": "tamushi00a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00a"
+   },
+   {
+    "offset": 3048,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   },
+   {
+    "offset": 3060,
+    "byte_len": 10,
+    "text": "tamushi00a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi00a"
+   },
+   {
+    "offset": 3072,
+    "byte_len": 10,
+    "text": "tamushi01a",
+    "has_jp": false,
+    "type": "label",
+    "translated": "tamushi01a"
+   }
+  ]
+ },
+ "sys.spt": {
+  "file": "sys.spt",
+  "file_size": 296,
+  "header_string_count": 3,
+  "strings_found": 3,
+  "jp_strings": 1,
+  "strings": [
+   {
+    "offset": 252,
+    "byte_len": 8,
+    "text": "★トップ",
+    "has_jp": true,
+    "type": "menu",
+    "translated": "*Top"
+   },
+   {
+    "offset": 264,
+    "byte_len": 5,
+    "text": "mushi",
+    "has_jp": false,
+    "type": "label",
+    "translated": "mushi"
+   },
+   {
+    "offset": 272,
+    "byte_len": 5,
+    "text": "staff",
+    "has_jp": false,
+    "type": "label",
+    "translated": "staff"
+   }
+  ]
+ }
+}
