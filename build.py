@@ -178,6 +178,7 @@ def collect(game):
                 return False
         elif game in (
             "shingakkou",
+            "EXTRAVAGANZA_03_MATSURO_CE",
             "EXTRAVAGANZA_04_AGEHA_CE",
             "EXTRAVAGANZA_05_ANZU_CE",
             "EXTRAVAGANZA_06_YUMEMI_CE",

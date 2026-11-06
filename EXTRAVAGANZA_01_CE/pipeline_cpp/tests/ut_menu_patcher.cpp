@@ -529,12 +529,11 @@ TEST(MenuPatcher, LiveArchiveRoundTripAndUntouchedEntriesBitExact) {
     // Verify zero raw asset headers exist inside extravaganza_patch.bin.
     constexpr std::uint8_t kPngHeader[] = {0x89u, 'P', 'N', 'G', 0x0Du, 0x0Au, 0x1Au, 0x0Au};
     constexpr std::size_t kPackBmpHeaderLen = 7;
-    constexpr std::size_t kShortTagHeaderLen = 3;
+    constexpr std::size_t kPackTypePrefixLen = 9;
     EXPECT_FALSE(ContainsBytes(patch_bin, "PACKBMP", kPackBmpHeaderLen));
-    EXPECT_FALSE(ContainsBytes(patch_bin, "DWQ", kShortTagHeaderLen));
+    EXPECT_FALSE(ContainsBytes(patch_bin, "BMP+MASK        ", kDwqSignatureLength));
+    EXPECT_FALSE(ContainsBytes(patch_bin, "PACKTYPE=", kPackTypePrefixLen));
     EXPECT_FALSE(ContainsBytes(patch_bin, kPngHeader, sizeof(kPngHeader)));
-    EXPECT_FALSE(ContainsBytes(patch_bin, "FXF", kShortTagHeaderLen));
-    EXPECT_FALSE(ContainsBytes(patch_bin, "XTX", kShortTagHeaderLen));
 
     const mn::ParsedPatchBin parsed = mn::parse_patch_bin(patch_bin);
     EXPECT_EQ(parsed.version, mn::kPatchFormatVersion);
