@@ -47,7 +47,7 @@ INSTALL_DIR = os.path.join(ROOT, "install")
 RUNTIME_TABLES = ("translations.tsv", "translation_table.tsv")
 
 # Archive-repack games that patch .spt/.xtx/.fxf/.pak directly and do not use a runtime TSV.
-REPACK_ONLY_GAMES = ("EXTRAVAGANZA_CE", "kishin_hisho")
+REPACK_ONLY_GAMES = ("EXTRAVAGANZA_01_CE", "kishin_hisho")
 
 
 def run(cmd, cwd, check=True):
@@ -176,13 +176,20 @@ def collect(game):
                 print(f"  [ERROR] {game}: missing or empty cgsys_patch.bin in "
                       f"{os.path.relpath(game_dir, ROOT)}")
                 return False
-        elif game in ("shingakkou", "AGEHA_CE"):
+        elif game in (
+            "shingakkou",
+            "EXTRAVAGANZA_04_AGEHA_CE",
+            "EXTRAVAGANZA_05_ANZU_CE",
+            "EXTRAVAGANZA_06_YUMEMI_CE",
+            "EXTRAVAGANZA_07_REN_MUSHI_CE",
+            "EXTRAVAGANZA_08_MIZUNA_CE",
+        ):
             patch_bin = os.path.join(game_dir, "menu_patch.bin")
             if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:
                 print(f"  [ERROR] {game}: missing or empty menu_patch.bin in "
                       f"{os.path.relpath(game_dir, ROOT)}")
                 return False
-    elif game == "EXTRAVAGANZA_CE":
+    elif game == "EXTRAVAGANZA_01_CE":
         game_dir = os.path.join(dst, "game")
         patch_bin = os.path.join(game_dir, "extravaganza_patch.bin")
         if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:

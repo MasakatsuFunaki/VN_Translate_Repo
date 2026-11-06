@@ -64,12 +64,17 @@ FRATERNITE_HD/build/
 FAVORITE/build/
 kishin_hisho/build/
 sakuranotoki/build/
-EXTRAVAGANZA_CE/build/
-EXTRAVAGANZA_MATSURO_CE/build/
-AGEHA_CE/build/
-mushigurui_HD10/build/
+EXTRAVAGANZA_01_CE/build/
+EXTRAVAGANZA_02_MUSHIGURUI_HD10/build/
+EXTRAVAGANZA_03_MATSURO_CE/build/
+EXTRAVAGANZA_04_AGEHA_CE/build/
+EXTRAVAGANZA_05_ANZU_CE/build/
+EXTRAVAGANZA_06_YUMEMI_CE/build/
+EXTRAVAGANZA_07_REN_MUSHI_CE/build/
+EXTRAVAGANZA_08_MIZUNA_CE/build/
 oretsuba/build/
 spot_checker/build/
+**/build/
 **/pipeline_cpp/build/
 **/proxy_dll/build/
 **/helper_dll/build/
@@ -93,8 +98,8 @@ amakano2pe/map_images/
 **/script_output/last_anthropic_translate/
 **/translations.tsv
 **/translation_table.tsv
-# Restored on demand by mushigurui_HD10/analysys/retired_py.py
-mushigurui_HD10/analysys/_retired/
+# Restored on demand by EXTRAVAGANZA_02_MUSHIGURUI_HD10/analysys/retired_py.py
+EXTRAVAGANZA_02_MUSHIGURUI_HD10/analysys/_retired/
 
 # One-off model comparisons.  A shipped game publishes one translated document
 # and its cache; these are the scratch that chose the model, not the result.

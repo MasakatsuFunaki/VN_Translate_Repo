@@ -57,7 +57,7 @@ jobs:
             }
             $mb = [math]::Round((Get-Item $plain).Length / 1MB, 1)
             $gameDir = Join-Path $g.FullName 'game'
-            if ($g.Name -eq 'EXTRAVAGANZA_CE') {
+            if ($g.Name -eq 'EXTRAVAGANZA_01_CE') {
               $patchBin = Join-Path $gameDir 'extravaganza_patch.bin'
               if (-not (Test-Path $patchBin) -or (Get-Item $patchBin).Length -le 0) {
                 throw "$($g.Name): missing or empty game/extravaganza_patch.bin"
@@ -98,7 +98,7 @@ jobs:
                 }
                 $patchMb = [math]::Round((Get-Item $patchBin).Length / 1MB, 1)
                 Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB), cgsys_patch.bin ($patchMb MB)"
-              } elseif ($g.Name -in @('shingakkou', 'AGEHA_CE')) {
+              } elseif ($g.Name -in @('shingakkou', 'EXTRAVAGANZA_03_MATSURO_CE', 'EXTRAVAGANZA_04_AGEHA_CE', 'EXTRAVAGANZA_05_ANZU_CE', 'EXTRAVAGANZA_06_YUMEMI_CE', 'EXTRAVAGANZA_07_REN_MUSHI_CE', 'EXTRAVAGANZA_08_MIZUNA_CE')) {
                 $patchBin = Join-Path $gameDir 'menu_patch.bin'
                 if (-not (Test-Path $patchBin) -or (Get-Item $patchBin).Length -le 0) {
                   throw "$($g.Name): missing or empty game/menu_patch.bin"
