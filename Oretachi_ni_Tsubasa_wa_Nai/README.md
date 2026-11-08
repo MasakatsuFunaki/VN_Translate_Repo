@@ -1,4 +1,4 @@
-# 俺たちに翼はない Anniversary Edition (*oretsuba*)
+# 俺たちに翼はない Anniversary Edition (`Oretachi_ni_Tsubasa_wa_Nai` / *We Without Wings*)
 
 | Property | Value |
 |---|---|

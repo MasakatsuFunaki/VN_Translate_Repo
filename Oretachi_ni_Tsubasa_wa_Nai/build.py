@@ -1,4 +1,4 @@
-"""Oretachi ni Tsubasa wa Nai Anniversary Edition (oretsuba) build driver — Conan 2 + CMake + MSVC.
+"""Oretachi ni Tsubasa wa Nai Anniversary Edition (Oretachi_ni_Tsubasa_wa_Nai) build driver — Conan 2 + CMake + MSVC.
 
     python build.py                    # build everything, tests included
     python build.py --test             # build, then run all the tests
@@ -219,7 +219,7 @@ def deploy(game_dir):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build the oretsuba pipeline (x64) and hook DLL (Win32).")
+        description="Build the Oretachi_ni_Tsubasa_wa_Nai pipeline (x64) and hook DLL (Win32).")
     parser.add_argument("--test", action="store_true",
                         help="run all the tests after building")
     parser.add_argument("--install", action="store_true",

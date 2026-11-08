@@ -31,7 +31,7 @@ The pipeline is **C++** (`pipeline_cpp/`, Conan 2 + Boost + CMake).
 ## Quick Start
 
 ```batch
-cd FAVORITE
+cd SakuraMoyu
 python build.py --test --install
 
 set GEMINI_API_KEY=AIza...

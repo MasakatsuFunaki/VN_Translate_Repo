@@ -7,7 +7,7 @@
 
 // Command-line handling for the pipeline apps (Boost.ProgramOptions).
 //
-// Every pipeline path hangs off the FAVORITE project folder, which is found at
+// Every pipeline path hangs off the SakuraMoyu project folder, which is found at
 // run time (see default_project_dir).  `--dir <path>` overrides it;
 // `--game-dir <path>` points at the game installation.
 #pragma once
@@ -56,7 +56,7 @@ inline po::options_description common_options(std::string& project_dir,
     po::options_description desc("Common options");
     desc.add_options()
         ("help,h", "show this help and exit")
-        ("dir", dir, "FAVORITE project folder")
+        ("dir", dir, "SakuraMoyu project folder")
         ("game-dir", po::value(&game_dir)->required(),
          "game installation folder");
     return desc;

@@ -116,7 +116,7 @@ po::options_description BuildCommonOptions(std::string& project_dir,
     po::options_description desc("Common options");
     desc.add_options()
         ("help,h", "show this help and exit")
-        ("dir", dir_val, "oretsuba project folder")
+        ("dir", dir_val, "Oretachi_ni_Tsubasa_wa_Nai project folder")
         ("game-dir", game_val, "game installation folder");
     return desc;
 }

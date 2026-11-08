@@ -1,4 +1,4 @@
-"""FAVORITE (夜、灯す。 / Yoru, Tomosu) build driver — Conan 2 + CMake + MSVC.
+"""SakuraMoyu (さくら、もゆ。 -as the Night's, Reincarnation- / FAVORITE) build driver — Conan 2 + CMake + MSVC.
 
     python build.py                    # build everything, tests included
     python build.py --test             # build, then run all the tests
@@ -186,7 +186,7 @@ def deploy(game_dir):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build the FAVORITE pipeline (x64) and hook DLL (Win32).")
+        description="Build the SakuraMoyu pipeline (x64) and hook DLL (Win32).")
     parser.add_argument("--test", action="store_true",
                         help="run all the tests after building")
     parser.add_argument("--install", action="store_true",
