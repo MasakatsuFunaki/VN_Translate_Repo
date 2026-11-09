@@ -7,6 +7,12 @@
 
 #include "checker/spot_checker.h"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -1387,6 +1393,46 @@ void save_ordered_cache(
     write_json_preserving_style(cache_path, bj::value(std::move(obj)), 2, true);
 }
 
+#ifdef _WIN32
+fs::path find_batch_script(const fs::path& game_dir, const char* script_name) {
+    const fs::path local_script = game_dir / script_name;
+    if (fs::exists(local_script)) {
+        return local_script;
+    }
+    const fs::path parent_script = game_dir.parent_path() / script_name;
+    if (fs::exists(parent_script)) {
+        return parent_script;
+    }
+    return {};
+}
+
+bool run_batch_script_in_dir(const fs::path& dir, const std::wstring& cmd_line) {
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+    std::wstring mutable_cmd = cmd_line;
+    const std::wstring work_dir = dir.wstring();
+    if (!CreateProcessW(nullptr,
+                        mutable_cmd.data(),
+                        nullptr,
+                        nullptr,
+                        FALSE,
+                        0,
+                        nullptr,
+                        work_dir.c_str(),
+                        &si,
+                        &pi)) {
+        return false;
+    }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exit_code = 1;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return exit_code == 0;
+}
+#endif
+
 struct SpotChecker::Impl {
     SpotCheckConfig cfg;
     ModelCallback callback;
@@ -1396,6 +1442,47 @@ struct SpotChecker::Impl {
     std::vector<ScriptEntry> script_entries;
     OlsModel ols_model;
     ApplyReport checkpoint_applied_;
+
+    void maybe_decrypt_game_scripts() const {
+#ifdef _WIN32
+        if (cfg.game_dir.empty()) {
+            return;
+        }
+        const fs::path game_root = fs::u8path(cfg.game_dir);
+        const fs::path translated_path =
+            game_root / "script_output" / "translated_text.json";
+        const fs::path enc_path =
+            game_root / "script_output" / "translated_text.json.enc";
+        const fs::path dec_bat =
+            find_batch_script(game_root, "decrypt_translations.bat");
+        if (!fs::exists(translated_path) && fs::exists(enc_path) &&
+            !dec_bat.empty()) {
+            const std::wstring cmd =
+                L"cmd.exe /s /c \"\"" + dec_bat.wstring() +
+                L"\" --dir \"" + game_root.wstring() + L"\"\"";
+            run_batch_script_in_dir(game_root, cmd);
+        }
+#endif
+    }
+
+    void maybe_encrypt_game_scripts() const {
+#ifdef _WIN32
+        if (cfg.game_dir.empty()) {
+            return;
+        }
+        const fs::path game_root = fs::u8path(cfg.game_dir);
+        const fs::path enc_path =
+            game_root / "script_output" / "translated_text.json.enc";
+        const fs::path enc_bat =
+            find_batch_script(game_root, "encrypt_translations.bat");
+        if (!enc_bat.empty() && fs::exists(enc_path)) {
+            const std::wstring cmd =
+                L"cmd.exe /s /c \"\"" + enc_bat.wstring() +
+                L"\" --encrypt --dir \"" + game_root.wstring() + L"\"\"";
+            run_batch_script_in_dir(game_root, cmd);
+        }
+#endif
+    }
 
     Impl(SpotCheckConfig c, ModelCallback cb)
         : cfg(std::move(c)), callback(std::move(cb)) {
@@ -1416,6 +1503,7 @@ struct SpotChecker::Impl {
         sys_prompt = build_system_prompt(tone_md, cfg.fix_punctuation);
         glossary = parse_glossary_from_tone_md(tone_md);
 
+        maybe_decrypt_game_scripts();
         const fs::path translated_path =
             fs::u8path(cfg.game_dir) / "script_output" / "translated_text.json";
         if (fs::exists(translated_path)) {
@@ -2085,6 +2173,9 @@ struct SpotChecker::Impl {
             rep.script_entries_updated = checkpoint_applied_.script_entries_updated;
             rep.cache_entries_updated = checkpoint_applied_.cache_entries_updated;
         }
+        if (rep.script_entries_updated > 0 || rep.cache_entries_updated > 0) {
+            maybe_encrypt_game_scripts();
+        }
 
         rep.checked_offsets.assign(visited_offsets.begin(), visited_offsets.end());
         rep.improvements.clear();
@@ -2103,6 +2194,9 @@ struct SpotChecker::Impl {
         report.script_entries_updated += checkpoint_applied_.script_entries_updated;
         report.cache_entries_updated += checkpoint_applied_.cache_entries_updated;
         checkpoint_applied_ = {};
+        if (report.script_entries_updated > 0 || report.cache_entries_updated > 0) {
+            maybe_encrypt_game_scripts();
+        }
         return report;
     }
 };

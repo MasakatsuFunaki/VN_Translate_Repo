@@ -85,6 +85,53 @@ def clean():
             os.remove(user_presets)
 
 
+SYNC_JSON_NAMES = (
+    "translated_text.json",
+    "translation_cache_anthropic.json",
+    "translation_cache_gemini.json",
+    "nps_reconstruction_map.json",
+    "chart_translation_cache.json",
+)
+
+
+def sync_translations():
+    """Bidirectionally sync script_output/*.json <-> *.json.enc."""
+    out_dir = os.path.join(ROOT, "script_output")
+    if not os.path.isdir(out_dir):
+        return
+    repo_root = os.path.dirname(ROOT)
+    enc_bat = os.path.join(repo_root, "encrypt_translations.bat")
+    if not os.path.isfile(enc_bat):
+        enc_bat = os.path.join(ROOT, "encrypt_translations.bat")
+    dec_bat = os.path.join(repo_root, "decrypt_translations.bat")
+    if not os.path.isfile(dec_bat):
+        dec_bat = os.path.join(ROOT, "decrypt_translations.bat")
+    need_decrypt = False
+    need_encrypt = False
+    for name in SYNC_JSON_NAMES:
+        plain = os.path.join(out_dir, name)
+        enc = plain + ".enc"
+        has_p = os.path.isfile(plain)
+        has_e = os.path.isfile(enc)
+        if has_e and not has_p:
+            need_decrypt = True
+        elif has_p and not has_e:
+            # Only auto-encrypt if this game already tracks at least one .enc file
+            if any(os.path.isfile(os.path.join(out_dir, n + ".enc")) for n in SYNC_JSON_NAMES):
+                need_encrypt = True
+        elif has_p and has_e:
+            p_mtime = os.path.getmtime(plain)
+            e_mtime = os.path.getmtime(enc)
+            if e_mtime > p_mtime + 2.0:
+                need_decrypt = True
+            elif p_mtime > e_mtime + 2.0:
+                need_encrypt = True
+    if need_decrypt and os.path.isfile(dec_bat):
+        run(["cmd", "/c", dec_bat, "--dir", ROOT], ROOT)
+    if need_encrypt and os.path.isfile(enc_bat):
+        run(["cmd", "/c", enc_bat, "--encrypt", "--dir", ROOT], ROOT)
+
+
 def build_table():
     doc = os.path.join(ROOT, "script_output", "translated_text.json")
     if not os.path.isfile(doc):
@@ -92,6 +139,8 @@ def build_table():
     exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
     tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
     os.makedirs(os.path.dirname(tsv), exist_ok=True)
+    if os.path.isfile(tsv) and os.path.getsize(tsv) > 0 and os.path.getmtime(tsv) >= os.path.getmtime(doc):
+        return
     run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
 
 
@@ -210,6 +259,7 @@ def main():
     if args.deploy and not args.game_dir:
         sys.exit("--deploy needs --game-dir: the install path differs per machine")
 
+    sync_translations()
     build()
 
     # Tests run before any staging or deploy, so --test gates both.

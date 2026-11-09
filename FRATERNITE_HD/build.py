@@ -52,25 +52,65 @@ def clean():
             os.remove(user_presets)
 
 
-def build_table():
+SYNC_JSON_NAMES = (
+    "translated_text.json",
+    "translation_cache_anthropic.json",
+    "translation_cache_gemini.json",
+    "nps_reconstruction_map.json",
+    "chart_translation_cache.json",
+)
+
+
+def sync_translations():
+    """Bidirectionally sync script_output/*.json <-> *.json.enc."""
     out_dir = os.path.join(ROOT, "script_output")
-    doc = os.path.join(out_dir, "translated_text.json")
-    cache = os.path.join(out_dir, "translation_cache_anthropic.json")
-    enc = doc + ".enc"
-    had_plain = os.path.isfile(doc)
-    if not had_plain:
-        if not os.path.isfile(enc):
-            return
-        run(["cmd", "/c", os.path.join(ROOT, "decrypt_translations.bat")], ROOT)
-    try:
-        exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
-        tsv = os.path.join(INSTALL_DIR, "game", TABLE_NAME)
-        run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
-    finally:
-        if not had_plain:
-            for p in (doc, cache):
-                if os.path.isfile(p):
-                    os.remove(p)
+    if not os.path.isdir(out_dir):
+        return
+    repo_root = os.path.dirname(ROOT)
+    enc_bat = os.path.join(repo_root, "encrypt_translations.bat")
+    if not os.path.isfile(enc_bat):
+        enc_bat = os.path.join(ROOT, "encrypt_translations.bat")
+    dec_bat = os.path.join(repo_root, "decrypt_translations.bat")
+    if not os.path.isfile(dec_bat):
+        dec_bat = os.path.join(ROOT, "decrypt_translations.bat")
+    need_decrypt = False
+    need_encrypt = False
+    for name in SYNC_JSON_NAMES:
+        plain = os.path.join(out_dir, name)
+        enc = plain + ".enc"
+        has_p = os.path.isfile(plain)
+        has_e = os.path.isfile(enc)
+        if has_e and not has_p:
+            need_decrypt = True
+        elif has_p and not has_e:
+            # Only auto-encrypt if this game already tracks at least one .enc file
+            if any(os.path.isfile(os.path.join(out_dir, n + ".enc")) for n in SYNC_JSON_NAMES):
+                need_encrypt = True
+        elif has_p and has_e:
+            p_mtime = os.path.getmtime(plain)
+            e_mtime = os.path.getmtime(enc)
+            if e_mtime > p_mtime + 2.0:
+                need_decrypt = True
+            elif p_mtime > e_mtime + 2.0:
+                need_encrypt = True
+    if need_decrypt and os.path.isfile(dec_bat):
+        run(["cmd", "/c", dec_bat, "--dir", ROOT], ROOT)
+    if need_encrypt and os.path.isfile(enc_bat):
+        run(["cmd", "/c", enc_bat, "--encrypt", "--dir", ROOT], ROOT)
+
+
+def build_table():
+    doc = os.path.join(ROOT, "script_output", "translated_text.json")
+    if not os.path.isfile(doc):
+        sync_translations()
+    if not os.path.isfile(doc):
+        return
+    exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
+    tsv = os.path.join(INSTALL_DIR, "game", TABLE_NAME)
+    os.makedirs(os.path.dirname(tsv), exist_ok=True)
+    if os.path.isfile(tsv) and os.path.getsize(tsv) > 0 and os.path.getmtime(tsv) >= os.path.getmtime(doc):
+        return
+    run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
 
 
 def build():
@@ -100,36 +140,6 @@ def test():
             sys.exit(rc)
 
 
-def stage_translations():
-    """Stage unencrypted translation JSON artifacts into install/script_output/."""
-    src = os.path.join(ROOT, "script_output")
-    dst = os.path.join(INSTALL_DIR, "script_output")
-    names = ["translated_text.json", "translation_cache_anthropic.json"]
-    had_plain = {n: os.path.isfile(os.path.join(src, n)) for n in names}
-
-    if not all(had_plain.values()):
-        enc_present = any(os.path.isfile(os.path.join(src, n + ".enc")) for n in names)
-        if enc_present:
-            run(["cmd", "/c", os.path.join(ROOT, "decrypt_translations.bat")], ROOT)
-
-    try:
-        present = [n for n in names if os.path.isfile(os.path.join(src, n))]
-        if not present:
-            print("  script_output: no translation JSONs to stage")
-            return
-
-        os.makedirs(dst, exist_ok=True)
-        for name in present:
-            shutil.copyfile(os.path.join(src, name), os.path.join(dst, name))
-            print(f"  script_output/{name}")
-    finally:
-        for name, existed in had_plain.items():
-            if not existed:
-                p = os.path.join(src, name)
-                if os.path.isfile(p):
-                    os.remove(p)
-
-
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
@@ -147,8 +157,6 @@ def install():
             for name in sorted(os.listdir(path)):
                 if os.path.isfile(os.path.join(path, name)):
                     print(f"  {folder}/{name}")
-
-    stage_translations()
 
 
 def deploy(game_dir):
@@ -222,6 +230,7 @@ def main():
     if args.deploy and not args.game_dir:
         sys.exit("--deploy needs --game-dir: the install path differs per machine")
 
+    sync_translations()
     build()
 
     if args.test:

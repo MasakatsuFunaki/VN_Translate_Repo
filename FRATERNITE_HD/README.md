@@ -25,29 +25,17 @@ python build.py --deploy → winmm.dll into the game folder
 cd FRATERNITE_HD
 python build.py --test --install
 
-build\install\decrypt_translations.bat
-
 build\install\bin\00_run_all.exe --game-dir <install>
 ```
 
-**WARNING:** Run `decrypt_translations.bat` before the pipeline. Step 2 reads the
-encrypted cache and document. Without them it re-translates the whole game (hours,
-real money). Nothing in the pipeline can rebuild those files.
+### Encrypted Script Storage (`*.json.enc`)
 
-### Why the script is encrypted
-
-The two JSON files are the whole English script of an adult title. The repo is
-public, so they are tracked as `.enc` only. The passphrase in `translations_key.txt`
-is public — this keeps the script out of search and crawlers, not secret.
+Across all shipped games, `script_output/translated_text.json` and `script_output/translation_cache_*.json` are tracked in git as `VNE2`-encrypted `.json.enc` files using the public passphrase in the repository root `translations_key.txt`. Both `python build.py` and `spot_checker` automatically and idempotently sync `.json <-> .json.enc` via the repository root `encrypt_translations.bat` and `decrypt_translations.bat` scripts:
 
 ```powershell
-cd FRATERNITE_HD
-
-:: after a translation run
-.\encrypt_translations.bat --encrypt
-
-:: to read them again
-.\encrypt_translations.bat --decrypt
+:: manual sync for this game from the repository root
+.\encrypt_translations.bat --encrypt --dir FRATERNITE_HD
+.\decrypt_translations.bat --dir FRATERNITE_HD
 ```
 
 ## Individual Steps

@@ -19,11 +19,12 @@ build -- two architectures, its own presets, its own install target -- behind
 
     install/<game>/bin            the executables you run
     install/<game>/game           drop into the game folder: proxy + table
-    install/<game>/script_output  the extraction and its translation
 
 `bin` and `game` must stay apart because the proxy is 32-bit and carries a
 system DLL's name; flattened beside the x64 executables the loader would pick
-it up and then refuse it.
+it up and then refuse it.  Raw `script_output/*.json(.enc)` script dumps are
+excluded from `install/<game>/` so release archives ship only the runtime
+binaries and tables.
 
 WHICH GAMES: every top-level folder holding a build.py, a CMakeLists.txt, and
 a tracked script_output/translated_text.json(.enc) that git does not ignore.
@@ -104,13 +105,12 @@ def build_game(game, do_test):
 
 
 def collect(game):
-    """Assemble install/<game> from what the game built and what it translated.
+    """Assemble install/<game> from what the game built and its runtime artifacts.
 
-    Three things land there: bin/ and game/ as the game's own install target
-    staged them, the translation output under script_output/, and the runtime
-    table copied beside the proxy so game/ is a drop-in patch.  A release is
-    only useful with the translation in it -- without the table the download
-    is a toolchain the user has to spend their own API budget to feed.
+    Two folders land there: bin/ and game/ as the game's own install target
+    staged them (with the runtime TSV table or patch archive copied beside the
+    proxy so game/ is a drop-in patch).  Raw script_output/*.json(.enc) script
+    dumps are never copied into install/<game>/.
     """
     src = os.path.join(ROOT, game, "build", "install")
     dst = os.path.join(INSTALL_DIR, game)
@@ -123,34 +123,31 @@ def collect(game):
         shutil.rmtree(dst)
     shutil.copytree(src, dst)
 
-    # Top-level files only.  script_output also holds the CG working folders
-    # (narrative_extracted alone is over a gigabyte of bitmaps carved out of
-    # the archives) -- regenerable, enormous, and no use to anyone downloading
-    # a patch.  The documents at the top are the translation itself.
-    text_src = os.path.join(ROOT, game, "script_output")
-    if os.path.isdir(text_src):
-        text_dst = os.path.join(dst, "script_output")
-        os.makedirs(text_dst, exist_ok=True)
-        for name in sorted(os.listdir(text_src)):
-            f = os.path.join(text_src, name)
-            rel = os.path.join(game, "script_output", name)
-            if os.path.isfile(f) and not name.endswith(".enc") and not git_ignores(rel):
-                shutil.copy2(f, os.path.join(text_dst, name))
-    else:
-        print(f"  {game}: no script_output -- shipping binaries only")
-
-    staged_doc = os.path.join(dst, "script_output", "translated_text.json")
-    if not os.path.isfile(staged_doc) or os.path.getsize(staged_doc) == 0:
+    src_doc = os.path.join(ROOT, game, "script_output", "translated_text.json")
+    if not os.path.isfile(src_doc) or os.path.getsize(src_doc) == 0:
         print(f"  [ERROR] {game}: missing or empty translated_text.json in "
-              f"{os.path.relpath(os.path.dirname(staged_doc), ROOT)}")
+              f"{os.path.relpath(os.path.dirname(src_doc), ROOT)}")
         return False
 
-    enc_leaks = [os.path.join(b, f)
-                 for b, _, fs in os.walk(dst)
-                 for f in fs if f.endswith(".enc")]
-    if enc_leaks:
-        print(f"  [ERROR] {game}: .enc files leaked into staged install: "
-              f"{', '.join(os.path.relpath(p, ROOT) for p in enc_leaks)}")
+    if os.path.exists(os.path.join(dst, "script_output")):
+        print(f"  [ERROR] {game}: script_output/ leaked into staged install: "
+              f"{os.path.relpath(os.path.join(dst, 'script_output'), ROOT)}")
+        return False
+
+    forbidden_names = {
+        "translations_key.txt",
+        "encrypt_translations.bat",
+        "decrypt_translations.bat",
+    }
+    leaks = [
+        os.path.join(b, f)
+        for b, _, fs in os.walk(dst)
+        for f in fs
+        if f.lower().endswith((".json", ".enc")) or f in forbidden_names
+    ]
+    if leaks:
+        print(f"  [ERROR] {game}: forbidden script/key files leaked into staged install: "
+              f"{', '.join(os.path.relpath(p, ROOT) for p in leaks)}")
         return False
 
     # Verify that <game>/build.py staged the runtime table into game/ and that
@@ -217,17 +214,24 @@ def collect(game):
             print(f"  [ERROR] {game}: incomplete script/ directory "
                   f"({len(nps_files)} .nps, {len(script_files)} total)")
             return False
-        pak_path = os.path.join(game_dir, "0script.pak")
-        src_translated_json = os.path.join(ROOT, game, "script_output", "translated_text.json")
-        if os.path.getmtime(pak_path) < os.path.getmtime(src_translated_json):
-            print(f"  [ERROR] {game}: staged 0script.pak is older than "
-                  f"script_output/translated_text.json")
-            return False
-        staged_recon = os.path.join(dst, "script_output", "nps_reconstruction_map.json")
-        if not os.path.isfile(staged_recon) or os.path.getsize(staged_recon) == 0:
+        src_recon = os.path.join(ROOT, game, "script_output", "nps_reconstruction_map.json")
+        if not os.path.isfile(src_recon) or os.path.getsize(src_recon) == 0:
             print(f"  [ERROR] {game}: missing or empty nps_reconstruction_map.json in "
-                  f"{os.path.relpath(os.path.dirname(staged_recon), ROOT)}")
+                  f"{os.path.relpath(os.path.dirname(src_recon), ROOT)}")
             return False
+        pak_path = os.path.join(game_dir, "0script.pak")
+        pak_mtime = os.path.getmtime(pak_path)
+        for src_name in (
+            "translated_text.json",
+            "translated_text.json.enc",
+            "nps_reconstruction_map.json",
+            "nps_reconstruction_map.json.enc",
+        ):
+            src_input = os.path.join(ROOT, game, "script_output", src_name)
+            if os.path.isfile(src_input) and pak_mtime < os.path.getmtime(src_input):
+                print(f"  [ERROR] {game}: staged 0script.pak is older than "
+                      f"script_output/{src_name}")
+                return False
 
     files = sum(len(f) for _, _, f in os.walk(dst))
     size = sum(os.path.getsize(os.path.join(b, f))

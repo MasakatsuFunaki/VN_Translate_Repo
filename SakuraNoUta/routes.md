@@ -52,7 +52,7 @@ Play both. Rina's choices appear only after you clear both Pica Pica and Olympia
 | 4 | Don't drop it. It'd be a waste. |
 | 5 | Rina... as in Hikawa... |
 | 6 | It's too funny to forget. |
-| 7 | It's true that putting Hikawa in danger is also something to think about. |
+| 7 | Letting Hikawa get into danger really isn't an option either. |
 | 8 | Well, she's a first-year -- there's no need to make Hikawa do this kind of thing. |
 | 9 | It's fine because I have self-control. |
 | 10 | If I don't do it now, who knows what I'll hear about it later. |
@@ -73,7 +73,7 @@ you clear Zypressen.
 
 | # | Pick |
 |---|------|
-| 1 | It's not a debt. |
+| 1 | You don't owe me anything. |
 | 2 | Even so, why the hell would you call yourself my spiritual little sister? |
 | 3 | But that's Toritani for you. |
 | 4 | Not that I had any ulterior motive. |
@@ -81,7 +81,7 @@ you clear Zypressen.
 | 6 | Don't drop it. It'd be a waste. |
 | 7 | Rina... as in Hikawa... |
 | 8 | It's too funny to forget. |
-| 9 | Putting my own life in danger over something like this is something to think about. |
+| 9 | Putting my own neck on the line over something like this is out of the question. |
 | 10 | I like women! |
 | 11 | Honestly, if Hikawa did it too, the customers would probably be even happier. |
 | 12 | It's fine because I'm not imagining anything. |

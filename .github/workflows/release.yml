@@ -47,13 +47,17 @@ jobs:
           $games = Get-ChildItem -Directory install
           if ($games.Count -eq 0) { throw "install/ is empty" }
           foreach ($g in $games) {
-            $plain = Join-Path $g.FullName 'script_output\translated_text.json'
+            $plain = Join-Path $g.Name 'script_output\translated_text.json'
             if (-not (Test-Path $plain) -or (Get-Item $plain).Length -le 0) {
-              throw "$($g.Name): missing or empty script_output/translated_text.json"
+              throw "$($g.Name): missing or empty source script_output/translated_text.json"
             }
-            $leaked = Get-ChildItem -Path $g.FullName -Recurse -Include '*.enc','decrypt_translations.bat','translations_key.txt' -File -ErrorAction SilentlyContinue
+            $stagedScriptOut = Join-Path $g.FullName 'script_output'
+            if (Test-Path $stagedScriptOut) {
+              throw "$($g.Name): script_output directory must not be staged in release: $stagedScriptOut"
+            }
+            $leaked = Get-ChildItem -Path $g.FullName -Recurse -Include '*.json','*.enc','decrypt_translations.bat','encrypt_translations.bat','translations_key.txt' -File -ErrorAction SilentlyContinue
             if ($leaked) {
-              throw "$($g.Name): encrypted .enc or key helper staged in release: $($leaked.FullName -join ', ')"
+              throw "$($g.Name): raw script, .enc, or key helper leaked into staged release: $($leaked.FullName -join ', ')"
             }
             $mb = [math]::Round((Get-Item $plain).Length / 1MB, 1)
             $gameDir = Join-Path $g.FullName 'game'
@@ -63,7 +67,7 @@ jobs:
                 throw "$($g.Name): missing or empty game/extravaganza_patch.bin"
               }
               $patchMb = [math]::Round((Get-Item $patchBin).Length / 1MB, 1)
-              Write-Host "$($g.Name): translation $mb MB (plain), extravaganza_patch.bin ($patchMb MB)"
+              Write-Host "$($g.Name): source translation $mb MB, extravaganza_patch.bin ($patchMb MB)"
             } elseif ($g.Name -eq 'kishin_hisho') {
               foreach ($req in @('0script.pak', 'alpharom_helper.dll', 'launch.exe')) {
                 $reqPath = Join-Path $gameDir $req
@@ -75,16 +79,16 @@ jobs:
               if (-not $nps -or $nps.Count -lt 119) {
                 throw "$($g.Name): expected at least 119 .nps files in game/script/, found $($nps.Count)"
               }
-              $recon = Join-Path $g.FullName 'script_output\nps_reconstruction_map.json'
+              $recon = Join-Path $g.Name 'script_output\nps_reconstruction_map.json'
               if (-not (Test-Path $recon) -or (Get-Item $recon).Length -le 0) {
-                throw "$($g.Name): missing or empty script_output/nps_reconstruction_map.json"
+                throw "$($g.Name): missing or empty source script_output/nps_reconstruction_map.json"
               }
               $pakItem = Get-Item (Join-Path $gameDir '0script.pak')
               if ($pakItem.LastWriteTimeUtc -lt (Get-Item $plain).LastWriteTimeUtc) {
                 throw "$($g.Name): game/0script.pak is older than script_output/translated_text.json"
               }
               $pakMb = [math]::Round($pakItem.Length / 1MB, 2)
-              Write-Host "$($g.Name): translation $mb MB (plain), 0script.pak ($pakMb MB), $($nps.Count) .nps scripts"
+              Write-Host "$($g.Name): source translation $mb MB, 0script.pak ($pakMb MB), $($nps.Count) .nps scripts"
             } else {
               $tsv = Get-ChildItem -Path $gameDir -Filter '*.tsv' -File -ErrorAction SilentlyContinue
               if (-not $tsv -or $tsv[0].Length -eq 0) {
@@ -97,16 +101,16 @@ jobs:
                   throw "$($g.Name): missing or empty game/cgsys_patch.bin"
                 }
                 $patchMb = [math]::Round((Get-Item $patchBin).Length / 1MB, 1)
-                Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB), cgsys_patch.bin ($patchMb MB)"
+                Write-Host "$($g.Name): source translation $mb MB, runtime table $($tsv[0].Name) ($tsvMb MB), cgsys_patch.bin ($patchMb MB)"
               } elseif ($g.Name -in @('shingakkou', 'EXTRAVAGANZA_03_MATSURO_CE', 'EXTRAVAGANZA_04_AGEHA_CE', 'EXTRAVAGANZA_05_ANZU_CE', 'EXTRAVAGANZA_06_YUMEMI_CE', 'EXTRAVAGANZA_07_REN_MUSHI_CE', 'EXTRAVAGANZA_08_MIZUNA_CE')) {
                 $patchBin = Join-Path $gameDir 'menu_patch.bin'
                 if (-not (Test-Path $patchBin) -or (Get-Item $patchBin).Length -le 0) {
                   throw "$($g.Name): missing or empty game/menu_patch.bin"
                 }
                 $patchMb = [math]::Round((Get-Item $patchBin).Length / 1MB, 1)
-                Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB), menu_patch.bin ($patchMb MB)"
+                Write-Host "$($g.Name): source translation $mb MB, runtime table $($tsv[0].Name) ($tsvMb MB), menu_patch.bin ($patchMb MB)"
               } else {
-                Write-Host "$($g.Name): translation $mb MB (plain), runtime table $($tsv[0].Name) ($tsvMb MB)"
+                Write-Host "$($g.Name): source translation $mb MB, runtime table $($tsv[0].Name) ($tsvMb MB)"
               }
             }
           }

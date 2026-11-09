@@ -1501,3 +1501,59 @@ TEST(SpotCheckerSystemTests, SpotCheckerFraterniteYuRisAndHFilter) {
     EXPECT_EQ(rep.improvements[0].improved_en,
               "Daichi「She was the one who saved me from the student council trouble.」");
 }
+
+TEST(SpotCheckerSystemTests, AutoDecryptsOnConstructAndAutoEncryptsOnApply) {
+    TempDir tmp;
+    const bj::array strings = {
+        bj::object{
+            {"index", 0},
+            {"type", "dialogue"},
+            {"speaker", "Taichi"},
+            {"text", "「見里先輩は屋上にいる」"},
+            {"translated", "\"As for Misato-senpai, she is on the 屋上 roof.\""},
+        },
+    };
+    // Place the batch scripts in the parent directory (tmp.path()) and the game
+    // under tmp.path() / "mock_game" to verify parent-directory script lookup
+    // and --dir argument forwarding.
+    const fs::path game_dir = tmp.path() / "mock_game";
+    const fs::path script_out = game_dir / "script_output";
+    const fs::path plain_path = script_out / "translated_text.json";
+    const fs::path enc_path = script_out / "translated_text.json.enc";
+    write_file(enc_path.u8string(),
+               json_pretty(bj::value(bj::object{
+                               {"sn.bin", bj::object{{"strings", strings}}}}),
+                           2));
+    write_file((tmp.path() / "decrypt_translations.bat").u8string(),
+               "@echo off\r\nif \"%~1\"==\"--dir\" copy /Y "
+               "\"%~2\\script_output\\translated_text.json.enc\" "
+               "\"%~2\\script_output\\translated_text.json\" >nul\r\n");
+    write_file((tmp.path() / "encrypt_translations.bat").u8string(),
+               "@echo off\r\nif \"%~1\"==\"--encrypt\" if \"%~2\"==\"--dir\" copy /Y "
+               "\"%~3\\script_output\\translated_text.json\" "
+               "\"%~3\\script_output\\translated_text.json.enc\" >nul\r\n");
+
+    ASSERT_FALSE(fs::exists(plain_path));
+    ASSERT_TRUE(fs::exists(enc_path));
+
+    SpotCheckConfig cfg;
+    cfg.game_dir = game_dir.u8string();
+    cfg.mode = SpotCheckMode::Linear;
+    cfg.window_size = 10;
+    cfg.max_windows = 1;
+
+    SpotChecker checker(cfg, [](const std::string&, const std::string&) {
+        return R"json([
+            {"id": 1, "new_en": "\"Misato-senpai is on the roof.\"", "category": "artifact_or_note", "confidence": 0.99, "reason": "Fix leaked kanji"}
+        ])json";
+    });
+    EXPECT_TRUE(fs::exists(plain_path));
+    ASSERT_EQ(checker.entries().size(), 1u);
+
+    const SpotCheckReport rep = checker.run();
+    EXPECT_EQ(rep.improvements_found, 1u);
+    EXPECT_EQ(rep.script_entries_updated, 1u);
+
+    const std::string enc_after = read_file_text(enc_path.u8string());
+    EXPECT_NE(enc_after.find("Misato-senpai is on the roof."), std::string::npos);
+}
