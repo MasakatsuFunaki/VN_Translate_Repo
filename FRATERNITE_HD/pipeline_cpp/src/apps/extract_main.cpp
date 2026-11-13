@@ -6,30 +6,35 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 01_extract -- extract all Japanese text from bn.ypf.
-#include <filesystem>
-
+#include "apps/paths.h"
 #include "common/util.h"
 #include "extract/extractor.h"
 
-#include "apps/paths.h"
+#include <exception>
+#include <filesystem>
+#include <string>
 
-int main(int argc, char** argv) {
+int main() {
     frat::setup_console_utf8();
     namespace po = frat::apps::po;
 
-    std::string project, game;
-    po::options_description desc("01_extract -- extract Japanese text for FRATERNITE_HD");
-    desc.add(frat::apps::common_options(project, game));
-    po::variables_map vm;
-    if (auto rc = frat::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    const std::string out_dir = project + "\\script_output";
-    std::filesystem::create_directories(std::filesystem::u8path(out_dir));
-
     try {
-        return frat::extract::run_extract(game + "\\pac", out_dir + "\\extracted_text.json");
+        std::string project;
+        std::string game;
+        po::options_description desc(
+            "01_extract -- extract Japanese text for FRATERNITE_HD");
+        desc.add(frat::apps::common_options(project, game));
+        po::variables_map vm;
+        if (auto rc = frat::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
+        const std::string out_dir = project + "\\script_output";
+        std::filesystem::create_directories(std::filesystem::u8path(out_dir));
+        return frat::extract::run_extract(game + "\\pac",
+                                          out_dir + "\\extracted_text.json");
     } catch (const std::exception& e) {
         frat::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        return frat::apps::kExitError;
     }
 }

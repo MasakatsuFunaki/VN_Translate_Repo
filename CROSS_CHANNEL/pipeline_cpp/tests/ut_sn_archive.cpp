@@ -8,12 +8,13 @@
 // LZSS decoder tests.  The magic numbers (ring 4096 @ 0x20, start 0xFEE,
 // 12-bit offset, length + 3) are the whole format -- an off-by-one anywhere
 // shifts every string offset in extracted_text.json.
+#include "willplus/sn_archive.h"
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
-
-#include "willplus/sn_archive.h"
 
 using namespace crc;
 using crc::willplus::lzss_decompress;

@@ -32,16 +32,32 @@ struct PipelineStepDescriptor {
 const std::vector<PipelineStepDescriptor>& PipelineSteps();
 
 std::string ExecutableDirectory();
+std::string FindProjectDirectoryFrom(const std::filesystem::path& start_dir);
 std::string DefaultProjectDirectory();
-std::string DefaultGameDirectory();
 
+// Options shared by tools that read or write the game installation (--dir + required --game-dir).
 po::options_description BuildCommonOptions(std::string& project_dir,
                                            std::string& game_dir);
+
+// Options for project-local tools that do not touch the game installation (--dir only).
+po::options_description BuildProjectOnlyOptions(std::string& project_dir);
+
+std::vector<std::string> ProcessUtf8Args();
+std::vector<std::string> process_utf8_args();
 
 std::optional<int> ParseCommandLine(int argc,
                                     char** argv,
                                     const po::options_description& desc,
                                     po::variables_map& vm);
+std::optional<int> parse_command_line(int argc,
+                                      char** argv,
+                                      const po::options_description& desc,
+                                      po::variables_map& vm);
+
+std::optional<int> ParseProcessCommandLine(const po::options_description& desc,
+                                           po::variables_map& vm);
+std::optional<int> parse_process_command_line(const po::options_description& desc,
+                                              po::variables_map& vm);
 
 // Checks <game_dir>/ORE_TUBA.exe: if it is the outer SoftDenchi/DMM wrapper
 // containing the 1,101,824-byte inner Lucifen PE at offset 0x031BC8..0x13EBC8

@@ -5,20 +5,21 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "charts.h"
+#include "charts/charts.h"
+
+#include "cache/cache_core.h"
+
+#include <boost/json.hpp>
 
 #include <algorithm>
-#include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <set>
 #include <stdexcept>
-#include <thread>
-#include <unordered_map>
-
-#include <boost/json.hpp>
-#include <boost/regex.hpp>
-
-#include "cache/cache_core.h"
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace exc::charts {
 
@@ -75,13 +76,11 @@ std::string join(const std::vector<std::string>& v, const std::string& sep) {
 
 std::size_t char_len(const std::string& s) { return utf8_decode(s).size(); }
 
-constexpr const char* OPEN_BRACKET = "\xE3\x80\x90";   // 【
-constexpr const char* CLOSE_BRACKET = "\xE3\x80\x91";  // 】
+constexpr const char* OPEN_BRACKET = "【";
+constexpr const char* CLOSE_BRACKET = "】";
 constexpr char32_t IDEOGRAPHIC_SPACE = 0x3000;
 
 }  // namespace
-
-// ---- FXF envelope ----------------------------------------------------------
 
 Bytes encrypt_fxf(const Bytes& data) {
     Bytes out(data.size());
@@ -91,8 +90,6 @@ Bytes encrypt_fxf(const Bytes& data) {
 }
 
 Bytes decrypt_fxf(const Bytes& data) { return encrypt_fxf(data); }
-
-// ---- text helpers ----------------------------------------------------------
 
 std::string to_fullwidth(const std::string& text) {
     const std::vector<char32_t> cps = utf8_decode(text);
@@ -237,8 +234,6 @@ std::string wordwrap_fullwidth(const std::string& text, int max_chars, int max_l
     return out;
 }
 
-// ---- files -----------------------------------------------------------------
-
 namespace {
 
 std::vector<std::string> chart_files(const std::string& chart_dir) {
@@ -310,9 +305,7 @@ int run_translate_charts(const ChartOptions& opt) {
 
     const std::vector<std::string> files = chart_files(opt.chart_dir);
 
-    // ---- pass 1: collect every text needing translation ----
-    // De-duplicated but kept in first-seen order, so batch composition (and
-    // therefore the run) is reproducible.
+    // De-duplicated in first-seen order so batch composition is reproducible.
     std::vector<std::string> to_translate;
     std::set<std::string> seen;
     auto want = [&](const std::string& t) {
@@ -347,13 +340,12 @@ int run_translate_charts(const ChartOptions& opt) {
         return 0;
     }
 
-    // ---- translate in batches ----
     if (!to_translate.empty()) {
         throw std::runtime_error("Offline build: live API client removed for finished game");
     }
 
-    // ---- pass 2: repack, longest key first so a short key cannot match
-    // inside a longer one (e.g. 墓 inside 少女は、墓を作って...) ----
+    // Repack longest key first so a short key cannot match inside a longer one
+    // (e.g. 墓 inside 少女は、墓を作って...).
     std::vector<std::pair<std::string, std::string>> sorted_cache = cache.items();
     std::stable_sort(sorted_cache.begin(), sorted_cache.end(),
                      [](const auto& a, const auto& b) {

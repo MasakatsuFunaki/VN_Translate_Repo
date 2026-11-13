@@ -43,18 +43,39 @@ target_compile_definitions(translator_logic PRIVATE
 )
 
 # --------------------------------------------------------------------
+# gdi_text_measurer: Pimpl-insulated Win32 GDI text width strategy
+# shared between the proxy DLL and GDI-backed unit tests.
+# --------------------------------------------------------------------
+add_library(gdi_text_measurer OBJECT
+    src/gdi_text_measurer.cpp
+    src/gdi_text_measurer.h
+)
+target_include_directories(gdi_text_measurer PUBLIC src)
+target_compile_definitions(gdi_text_measurer PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
+    _CRT_SECURE_NO_WARNINGS
+)
+
+# --------------------------------------------------------------------
 # proxy DLL: the actual winmm.dll dropped next to cs2.exe.
 # --------------------------------------------------------------------
 add_library(proxy SHARED
     src/dllmain.cpp
+    src/log.cpp
+    src/log.h
     src/proxy.cpp
     src/proxy.h
     src/translator.cpp
     src/translator.h
-    src/log.h
     src/winmm.def
     $<TARGET_OBJECTS:translator_logic>
+    $<TARGET_OBJECTS:gdi_text_measurer>
 )
+
+target_link_libraries(proxy PRIVATE gdi32)
 
 target_compile_definitions(proxy PRIVATE
     WIN32_LEAN_AND_MEAN

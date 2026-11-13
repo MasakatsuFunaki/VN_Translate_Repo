@@ -21,9 +21,7 @@ find_package(OpenSSL REQUIRED)
 # machine's directory layout inside every binary.  The apps walk up from their
 # own executable to find it instead (src/apps/paths.cpp), and --dir overrides.
 
-# --------------------------------------------------------------------
 # exm_core: everything except the app mains, shared by apps and tests.
-# --------------------------------------------------------------------
 add_library(exm_core STATIC
     src/common/util.cpp
     src/common/util.h
@@ -64,20 +62,12 @@ target_link_libraries(exm_core PUBLIC
     ole32
 )
 
-# --------------------------------------------------------------------
 # Pipeline executables, numbered by the order they run in.
-#
-# 00_run_all performs 01 and 02 and then deploys; the numbered pair is the
-# manual path.  02 carries the speaker gate and the runtime-table build with
-# it, so there is no separate step to remember between translating and
-# playing.  03 is a side tool: it rewrites the .xtx name-plate tables inside
-# the game installation, once per install rather than once per run.
-# --------------------------------------------------------------------
 # Only the app mains parse a command line (src/apps/paths.h), so
-# Program_options is scoped here rather than pushed through exm_core.
+# Program_options and shell32 are scoped here rather than pushed through exm_core.
 function(exm_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE exm_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE exm_core Boost::program_options shell32)
 endfunction()
 
 exm_app(00_run_all              src/apps/run_all_main.cpp)
@@ -85,22 +75,11 @@ exm_app(01_extract              src/apps/extract_main.cpp)
 exm_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 exm_app(03_build_xtx            src/apps/build_xtx_main.cpp)
 exm_app(04_patch_menus          src/apps/patch_menus_main.cpp)
-# Driver for the CP932 differential sweep.  Not a pipeline step and not
-# installed: it speaks a hex protocol on stdin for a test harness.
 exm_app(cp932_probe             src/apps/cp932_probe_main.cpp)
 
-# --------------------------------------------------------------------
-# Install: the executables a user runs, and nothing else.  exm_core,
-# cp932_probe and the test binaries exist to produce these and stay in the
-# build tree.  Every dependency is a static library, so there is no runtime
-# to carry.
-# --------------------------------------------------------------------
 install(TARGETS 00_run_all 01_extract 02_build_tsv 03_build_xtx 04_patch_menus
         RUNTIME DESTINATION bin)
 
-# --------------------------------------------------------------------
-# Tests
-# --------------------------------------------------------------------
 if(ENABLE_TESTS)
     find_package(GTest REQUIRED)
     enable_testing()

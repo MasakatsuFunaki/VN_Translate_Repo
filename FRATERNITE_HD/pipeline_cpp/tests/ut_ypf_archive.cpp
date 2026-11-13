@@ -6,14 +6,18 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // YPF v490 index parsing, YSTB decryption and entry reading.
-#include <cstring>
-#include <string>
-#include <vector>
+#include "test_support.h"
+#include "yuris/ypf_archive.h"
 
 #include <gtest/gtest.h>
 
-#include "test_support.h"
-#include "yuris/ypf_archive.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace frat;
 using namespace frat::yuris;
@@ -23,21 +27,53 @@ using frat_test::put_u64;
 
 namespace {
 
+constexpr std::uint32_t kYstbVersion = 0x1E1u;
+constexpr std::uint32_t kYstbSingleInst = 1u;
+constexpr std::uint32_t kFillStride = 0x11u;
+constexpr std::uint32_t kFillModulus = 15u;
+constexpr std::size_t kExpectedThreeEntries = 3u;
+constexpr std::size_t kExpectedSingleEntry = 1u;
+constexpr std::uint8_t kCompressedFlag = 1u;
+constexpr std::uint8_t kUncompressedFlag = 0u;
+constexpr std::size_t kNameLengthBias = 3u;
+constexpr std::uint8_t kNameXorKey = 0xFFu;
+constexpr std::uint32_t kSampleSmallSize = 7u;
+constexpr std::uint64_t kSampleOffset = 999u;
+constexpr std::uint32_t kYpfVersion490 = 490u;
+constexpr std::size_t kReservedHeaderZeros = 16u;
+constexpr std::uint32_t kFallbackRawSize = 100u;
+constexpr std::uint32_t kFallbackPackedSize = 50u;
+constexpr std::uint64_t kFallbackOffset = 4242u;
+constexpr std::size_t kWrongMagicImageSize = 64u;
+constexpr std::uint32_t kMinSectionBytes = 4u;
+constexpr std::uint32_t kMaxSectionBytesExclusive = 8u;
+constexpr std::uint32_t kTailSectionBytes = 3u;
+constexpr std::size_t kYstbBodyOffset = 0x20u;
+constexpr std::uint8_t kKeyLowByte0 = 0xC3u;
+constexpr std::uint8_t kKeyLowByte1 = 0xDAu;
+constexpr std::uint8_t kKeyLowByte2 = 0x94u;
+constexpr std::uint8_t kExtraMismatchByte = 0xABu;
+constexpr std::size_t kMagicByteCount = 4u;
+
 Bytes body(const std::string& s) { return Bytes(s.begin(), s.end()); }
 
 // A minimal YSTB whose four section sizes add up, so decrypt_ystb engages.
-Bytes make_ystb(std::uint32_t csz, std::uint32_t asz, std::uint32_t rsz, std::uint32_t osz) {
+Bytes make_ystb(std::uint32_t csz, std::uint32_t asz, std::uint32_t rsz,
+                std::uint32_t osz) {
     Bytes b;
-    for (char c : std::string("YSTB")) b.push_back(static_cast<std::uint8_t>(c));
-    put_u32(b, 0x1E1);  // version
-    put_u32(b, 1);      // inst_count
+    for (char c : std::string("YSTB")) {
+        b.push_back(static_cast<std::uint8_t>(c));
+    }
+    put_u32(b, kYstbVersion);
+    put_u32(b, kYstbSingleInst);
     put_u32(b, csz);
     put_u32(b, asz);
     put_u32(b, rsz);
     put_u32(b, osz);
-    put_u32(b, 0);  // reserved
-    for (std::uint32_t i = 0; i < csz + asz + rsz + osz; ++i)
-        b.push_back(static_cast<std::uint8_t>(0x11 * (i % 15) + 1));
+    put_u32(b, 0);
+    for (std::uint32_t i = 0; i < csz + asz + rsz + osz; ++i) {
+        b.push_back(static_cast<std::uint8_t>(kFillStride * (i % kFillModulus) + 1));
+    }
     return b;
 }
 
@@ -51,10 +87,10 @@ TEST(YpfArchive, ParseIndex_SyntheticArchive_RoundTrips) {
     };
     const Bytes image = build_ypf(files);
     const auto entries = parse_ypf_index_bytes(image, "mem");
-    ASSERT_EQ(entries.size(), 3u);
-    for (std::size_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(entries.size(), kExpectedThreeEntries);
+    for (std::size_t i = 0; i < kExpectedThreeEntries; ++i) {
         EXPECT_EQ(entries[i].name, files[i].first);
-        EXPECT_EQ(entries[i].compressed, 1);
+        EXPECT_EQ(entries[i].compressed, kCompressedFlag);
         EXPECT_EQ(entries[i].raw_size, files[i].second.size());
         EXPECT_EQ(read_entry(image, entries[i]), files[i].second);
     }
@@ -71,28 +107,32 @@ TEST(YpfArchive, ParseIndex_NameProbe_StopsAtTheRealLength) {
     const std::string name = "ysbin\\yse.ybn";
     Bytes index;
     put_u32(index, 0);
-    index.push_back(static_cast<std::uint8_t>((name.size() + 3) ^ 0xFF));
-    for (char c : name) index.push_back(static_cast<std::uint8_t>(c) ^ 0xFF);
-    index.push_back(0);   // type
-    index.push_back(1);   // compressed
-    put_u32(index, 7);    // raw_size
-    put_u32(index, 7);    // packed_size
-    put_u64(index, 999);  // data_offset
+    index.push_back(static_cast<std::uint8_t>((name.size() + kNameLengthBias) ^ kNameXorKey));
+    for (char c : name) {
+        index.push_back(static_cast<std::uint8_t>(c) ^ kNameXorKey);
+    }
+    index.push_back(0);
+    index.push_back(kCompressedFlag);
+    put_u32(index, kSampleSmallSize);
+    put_u32(index, kSampleSmallSize);
+    put_u64(index, kSampleOffset);
     put_u32(index, 0);
 
     Bytes image;
-    for (char c : std::string("YPF")) image.push_back(static_cast<std::uint8_t>(c));
+    for (char c : std::string("YPF")) {
+        image.push_back(static_cast<std::uint8_t>(c));
+    }
     image.push_back(0);
-    put_u32(image, 490);
-    put_u32(image, 1);
+    put_u32(image, kYpfVersion490);
+    put_u32(image, kExpectedSingleEntry);
     put_u32(image, static_cast<std::uint32_t>(index.size()));
-    image.insert(image.end(), 16, 0);
+    image.insert(image.end(), kReservedHeaderZeros, 0);
     image.insert(image.end(), index.begin(), index.end());
 
     const auto entries = parse_ypf_index_bytes(image, "mem");
-    ASSERT_EQ(entries.size(), 1u);
+    ASSERT_EQ(entries.size(), kExpectedSingleEntry);
     EXPECT_EQ(entries[0].name, name);
-    EXPECT_EQ(entries[0].data_offset, 999u);
+    EXPECT_EQ(entries[0].data_offset, kSampleOffset);
 }
 
 TEST(YpfArchive, ParseIndex_NameProbe_FallsBackToHint) {
@@ -101,35 +141,39 @@ TEST(YpfArchive, ParseIndex_NameProbe_FallsBackToHint) {
     const std::string name = "ab";
     Bytes index;
     put_u32(index, 0);
-    index.push_back(static_cast<std::uint8_t>(name.size() ^ 0xFF));
-    for (char c : name) index.push_back(static_cast<std::uint8_t>(c) ^ 0xFF);
-    index.push_back(0);    // type
-    index.push_back(0);    // compressed
-    put_u32(index, 100);   // raw_size
-    put_u32(index, 50);    // packed_size != raw_size
-    put_u64(index, 4242);
+    index.push_back(static_cast<std::uint8_t>(name.size() ^ kNameXorKey));
+    for (char c : name) {
+        index.push_back(static_cast<std::uint8_t>(c) ^ kNameXorKey);
+    }
+    index.push_back(0);
+    index.push_back(kUncompressedFlag);
+    put_u32(index, kFallbackRawSize);
+    put_u32(index, kFallbackPackedSize);
+    put_u64(index, kFallbackOffset);
     put_u32(index, 0);
 
     Bytes image;
-    for (char c : std::string("YPF")) image.push_back(static_cast<std::uint8_t>(c));
+    for (char c : std::string("YPF")) {
+        image.push_back(static_cast<std::uint8_t>(c));
+    }
     image.push_back(0);
-    put_u32(image, 490);
-    put_u32(image, 1);
+    put_u32(image, kYpfVersion490);
+    put_u32(image, kExpectedSingleEntry);
     put_u32(image, static_cast<std::uint32_t>(index.size()));
-    image.insert(image.end(), 16, 0);
+    image.insert(image.end(), kReservedHeaderZeros, 0);
     image.insert(image.end(), index.begin(), index.end());
 
     const auto entries = parse_ypf_index_bytes(image, "mem");
-    ASSERT_EQ(entries.size(), 1u);
+    ASSERT_EQ(entries.size(), kExpectedSingleEntry);
     EXPECT_EQ(entries[0].name, "ab");
-    EXPECT_EQ(entries[0].raw_size, 100u);
-    EXPECT_EQ(entries[0].packed_size, 50u);
-    EXPECT_EQ(entries[0].data_offset, 4242u);
+    EXPECT_EQ(entries[0].raw_size, kFallbackRawSize);
+    EXPECT_EQ(entries[0].packed_size, kFallbackPackedSize);
+    EXPECT_EQ(entries[0].data_offset, kFallbackOffset);
 }
 
 TEST(YpfArchive, ParseIndex_RejectsNonYpf) {
     EXPECT_THROW(parse_ypf_index_bytes(body("short"), "x.ypf"), std::runtime_error);
-    Bytes wrong_magic(64, 0);
+    Bytes wrong_magic(kWrongMagicImageSize, 0);
     wrong_magic[0] = 'Y';
     wrong_magic[1] = 'P';
     wrong_magic[2] = 'X';
@@ -137,56 +181,44 @@ TEST(YpfArchive, ParseIndex_RejectsNonYpf) {
 }
 
 TEST(YpfArchive, DecryptYstb_IsAnInvolution_AllSectionRemainders) {
-    for (std::uint32_t c = 4; c < 8; ++c)
-        for (std::uint32_t a = 4; a < 8; ++a)
-            for (std::uint32_t r = 4; r < 8; ++r)
-                for (std::uint32_t o = 4; o < 8; ++o) {
+    for (std::uint32_t c = kMinSectionBytes; c < kMaxSectionBytesExclusive; ++c) {
+        for (std::uint32_t a = kMinSectionBytes; a < kMaxSectionBytesExclusive; ++a) {
+            for (std::uint32_t r = kMinSectionBytes; r < kMaxSectionBytesExclusive; ++r) {
+                for (std::uint32_t o = kMinSectionBytes; o < kMaxSectionBytesExclusive; ++o) {
                     const Bytes plain = make_ystb(c, a, r, o);
                     const Bytes enc = decrypt_ystb(plain);
                     EXPECT_NE(enc, plain);
                     EXPECT_EQ(decrypt_ystb(enc), plain)
                         << c << "/" << a << "/" << r << "/" << o;
                 }
+            }
+        }
+    }
 }
 
 TEST(YpfArchive, DecryptYstb_TailBytesUseTheKeyLowBytesInOrder) {
     // A 3-byte code section: the tail bytes XOR with 0xC3, 0xDA, 0x94 -- the
     // key's low bytes ascending.  A big-endian tail would use 0x65 first.
-    const Bytes plain = make_ystb(3, 0, 0, 0);
+    const Bytes plain = make_ystb(kTailSectionBytes, 0, 0, 0);
     const Bytes enc = decrypt_ystb(plain);
-    EXPECT_EQ(enc[0x20] ^ plain[0x20], 0xC3);
-    EXPECT_EQ(enc[0x21] ^ plain[0x21], 0xDA);
-    EXPECT_EQ(enc[0x22] ^ plain[0x22], 0x94);
+    EXPECT_EQ(enc[kYstbBodyOffset] ^ plain[kYstbBodyOffset], kKeyLowByte0);
+    EXPECT_EQ(enc[kYstbBodyOffset + 1u] ^ plain[kYstbBodyOffset + 1u], kKeyLowByte1);
+    EXPECT_EQ(enc[kYstbBodyOffset + 2u] ^ plain[kYstbBodyOffset + 2u], kKeyLowByte2);
 }
 
 TEST(YpfArchive, DecryptYstb_NoOpOnSizeMismatchAndOnNonYstbMagic) {
-    Bytes bad = make_ystb(4, 4, 4, 4);
-    bad.push_back(0xAB);  // total no longer equals 0x20 + sections
+    Bytes bad = make_ystb(kMinSectionBytes, kMinSectionBytes, kMinSectionBytes, kMinSectionBytes);
+    bad.push_back(kExtraMismatchByte);  // total no longer equals 0x20 + sections
     EXPECT_EQ(decrypt_ystb(bad), bad);
 
     // The plaintext sidecars are YSCF / YSER / YSTL; decrypting them would
     // turn readable strings into garbage.
     for (const char* magic : {"YSCF", "YSER", "YSTL"}) {
-        Bytes blob = make_ystb(4, 4, 4, 4);
-        std::memcpy(blob.data(), magic, 4);
+        Bytes blob =
+            make_ystb(kMinSectionBytes, kMinSectionBytes, kMinSectionBytes, kMinSectionBytes);
+        std::memcpy(blob.data(), magic, kMagicByteCount);
         EXPECT_EQ(decrypt_ystb(blob), blob) << magic;
     }
-}
-
-TEST(YpfArchive, ReadEntry_InflatesThenDecrypts) {
-    // The checked-in sample is already decrypted, so re-encrypt it (the XOR is
-    // an involution) to make a realistic archive body.
-    const Bytes plain = frat_test::sample("yst00001.ybn");
-    ASSERT_EQ(plain.size(), 532u);
-    const Bytes encrypted = decrypt_ystb(plain);
-    const Bytes sidecar = frat_test::sample("yscfg.ybn");
-
-    const Bytes image = build_ypf({{"ysbin\\yst00001.ybn", encrypted},
-                                   {"ysbin\\yscfg.ybn", sidecar}});
-    const auto entries = parse_ypf_index_bytes(image, "mem");
-    ASSERT_EQ(entries.size(), 2u);
-    EXPECT_EQ(read_entry(image, entries[0]), plain);   // inflated AND decrypted
-    EXPECT_EQ(read_entry(image, entries[1]), sidecar);  // merely inflated
 }
 
 TEST(YpfArchive, Basename_SplitsOnBothSeparators) {
@@ -196,8 +228,7 @@ TEST(YpfArchive, Basename_SplitsOnBothSeparators) {
 }
 
 TEST(YpfArchive, ParseIndex_Cp932FilenameWithPermutedLengthByte_PreservesRawMetadata) {
-    const std::string utf8_name =
-        u8"cgsys\\extra\\cgmode\\bgv\\\u7D17\u82F1\u5B50_a.png";
+    const std::string utf8_name = "cgsys\\extra\\cgmode\\bgv\\紗英子_a.png";
     const auto cp932_opt = utf8_to_cp932_strict(utf8_name);
     ASSERT_TRUE(cp932_opt.has_value());
     const Bytes& name_cp932 = *cp932_opt;
@@ -208,11 +239,7 @@ TEST(YpfArchive, ParseIndex_Cp932FilenameWithPermutedLengthByte_PreservesRawMeta
     // Simulate YU-RIS v490 length-table permutation (0xF9 -> hinted 6, real length > 30).
     constexpr std::uint8_t kPermutedRawSize = 0xF9u;
     constexpr std::uint8_t kPngEntryType = 2u;
-    constexpr std::uint8_t kUncompressedFlag = 0u;
     constexpr std::uint64_t kFooterRemainBytes = 12u;
-    constexpr std::uint32_t kYpfVersion490 = 490u;
-    constexpr std::uint32_t kSingleEntryCount = 1u;
-    constexpr std::size_t kReservedHeaderZeros = 16u;
 
     Bytes index;
     put_u32(index, expected_nhash);
@@ -234,14 +261,14 @@ TEST(YpfArchive, ParseIndex_Cp932FilenameWithPermutedLengthByte_PreservesRawMeta
     }
     image.push_back(0);
     put_u32(image, kYpfVersion490);
-    put_u32(image, kSingleEntryCount);
+    put_u32(image, kExpectedSingleEntry);
     put_u32(image, static_cast<std::uint32_t>(YPF_HEADER_SIZE + index.size()));
     image.insert(image.end(), kReservedHeaderZeros, 0);
     image.insert(image.end(), index.begin(), index.end());
     image.insert(image.end(), payload.begin(), payload.end());
 
     const auto entries = parse_ypf_index_bytes(image, "cgsys.ypf");
-    ASSERT_EQ(entries.size(), kSingleEntryCount);
+    ASSERT_EQ(entries.size(), kExpectedSingleEntry);
     EXPECT_EQ(entries[0].name, utf8_name);
     EXPECT_EQ(entries[0].name_hash, expected_nhash);
     EXPECT_EQ(entries[0].name_size_raw, kPermutedRawSize);

@@ -6,36 +6,37 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 01_extract -- extract all Japanese text from sn.bin.
-//
-// The extractor's own correctness gate is the ctest "UT" suites, so this app
-// does nothing but parse the command line and run the extraction.
-#include <filesystem>
-
+#include "apps/paths.h"
 #include "common/util.h"
 #include "extract/extractor.h"
 
-#include "apps/paths.h"
+#include <exception>
+#include <filesystem>
+#include <string>
 
-int main(int argc, char** argv) {
-    crc::setup_console_utf8();
-    namespace po = crc::apps::po;
-
-    std::string project, game;
-    po::options_description desc("01_extract -- extract Japanese text from sn.bin");
-    desc.add(crc::apps::common_options(project, game));
-    po::variables_map vm;
-    if (auto rc = crc::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    std::filesystem::create_directories(
-        std::filesystem::u8path(crc::apps::output_dir(project)));
-
-    crc::log_info("=== Step 1: Extract text from sn.bin ===");
-    crc::log_info("Game directory: " + game + "\n");
+int main() {
     try {
+        crc::setup_console_utf8();
+        namespace po = crc::apps::po;
+
+        std::string project;
+        std::string game;
+        po::options_description desc("01_extract -- extract Japanese text from sn.bin");
+        desc.add(crc::apps::common_options(project, game));
+        po::variables_map vm;
+        if (const auto rc = crc::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
+        std::filesystem::create_directories(
+            std::filesystem::u8path(crc::apps::output_dir(project)));
+
+        crc::log_info("Extract text from sn.bin");
+        crc::log_info("Game directory: " + game + "\n");
         return crc::extract::run_extract(crc::apps::sn_bin(game),
                                          crc::apps::extracted_json(project));
     } catch (const std::exception& e) {
         crc::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        return crc::apps::kExitError;
     }
 }

@@ -6,18 +6,23 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "translator.h"
-#include "translator_logic.h"
-#include "menu_autopatch.h"
+
+#include "corpus.h"
 #include "iat_hook.h"
 #include "log.h"
-#include "corpus.h"
+#include "menu_autopatch.h"
 #include "overlay_toggle.h"
+#include "translator_logic.h"
 
 #include <windows.h>
+
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cwchar>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -294,21 +299,28 @@ static bool LoadTranslations()
     if (lastSlash) wcscpy(lastSlash + 1, L"translation_table.tsv");
     else           wcscpy(exePath, L"translation_table.tsv");
 
-    FILE* f = _wfopen(exePath, L"rb");
+    using ScopedFile = std::unique_ptr<FILE, decltype(&std::fclose)>;
+    ScopedFile f(_wfopen(exePath, L"rb"), &std::fclose);
     if (!f) {
         Log("Translator: translation_table.tsv NOT FOUND - JP passthrough");
         return false;
     }
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (size <= 0) { fclose(f); return false; }
-    std::vector<char> buf((size_t)size);
-    fread(buf.data(), 1, buf.size(), f);
-    fclose(f);
+    if (std::fseek(f.get(), 0, SEEK_END) != 0) {
+        return false;
+    }
+    const long size = std::ftell(f.get());
+    if (size <= 0 || std::fseek(f.get(), 0, SEEK_SET) != 0) {
+        return false;
+    }
+    std::vector<char> buf(static_cast<std::size_t>(size));
+    const std::size_t nread = std::fread(buf.data(), 1, buf.size(), f.get());
+    f.reset();
+    if (nread == 0) {
+        return false;
+    }
 
     int count = translator_logic::ParseTsvBuffer(
-        buf.data(), buf.size(), g_translations);
+        buf.data(), nread, g_translations);
     int split = translator_logic::SplitSpeakerQuote(g_translations);
     Log("Translator: loaded %d TSV entries (+%d speaker/quote splits) "
         "from translation_table.tsv (CP932)",

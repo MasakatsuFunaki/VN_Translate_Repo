@@ -8,51 +8,46 @@
 // 00_run_all -- Mushigurui HD10 (蟲狂い) English
 // translation pipeline orchestrator.
 //
-//   00_run_all             # the whole pipeline
-//   00_run_all --test      # 1 batch smoke test
-//   00_run_all --test N    # N batches then stop
-//   00_run_all --batch N   # lines per API request
-//   00_run_all --clean     # delete cached JSON, then run
+//   00_run_all --game-dir <dir>
 //
 // Steps: 01_extract -> 02_build_tsv -> deploy.  The translation step carries
-// the speaker gate and the runtime table with it, which is why there are
-// three steps and not five: everything that must happen for the game to show
-// English happens inside the command that pays for it.
+// the speaker gate and the runtime table with it, so everything needed for the
+// game to display English runs in sequence.
 //
 // The asset tools (03_build_xtx, 04_find_narrative_cg,
-// 05_replace_choice_text) are deliberately not here: they touch the shipped
-// archives, the config files and the screenshots, not the script text.
-#include <cstdlib>
+// 05_replace_choice_text, 06_patch_menus) are deliberately not here: they
+// touch the shipped archives, the config files and the screenshots, not the
+// script text.
+#include "apps/paths.h"
+#include "common/util.h"
+
+#include <cstddef>
 #include <exception>
 #include <filesystem>
+#include <iostream>
 #include <string>
 #include <system_error>
 #include <vector>
-
-#include "common/util.h"
-#include "cache/cache_core.h"
-
-#include "apps/paths.h"
 
 namespace fs = std::filesystem;
 using namespace mgi;
 
 namespace {
 
-int run_command(const std::string& cmdline) {
-    print_line("Running: " + cmdline);
-    // std::system returns the child's exit code on Windows.
-    return std::system(("\"" + cmdline + "\"").c_str());
-}
+constexpr std::size_t kBannerWidth = 60;
 
-void run_step(const std::string& exe, const std::vector<std::string>& args,
-              const std::string& passthrough) {
-    std::string cmd = "\"" + apps::exe_dir() + "\\" + exe + ".exe\"" + passthrough;
-    for (const auto& a : args) cmd += " " + a;
-    if (run_command(cmd) != 0) {
-        log_info("\n[ERROR] " + exe + " failed");
-        std::exit(1);
+bool run_stage(const std::string& exe, const std::vector<std::string>& stage_args) {
+    const fs::path exe_path = fs::u8path(apps::exe_dir()) / fs::u8path(exe + ".exe");
+    std::string display = "\"" + exe_path.u8string() + "\"";
+    for (const std::string& arg : stage_args) {
+        display += " \"" + arg + "\"";
     }
+    print_line("Running: " + display);
+    if (apps::run_child_process(exe_path.u8string(), stage_args) != apps::kExitOk) {
+        log_info("\n[ERROR] " + exe + " failed");
+        return false;
+    }
+    return true;
 }
 
 // Ship the one artifact the game cannot produce for itself.  Nothing is
@@ -65,27 +60,28 @@ void run_step(const std::string& exe, const std::vector<std::string>& args,
 // the game folder, so a missing one means the translation step has not
 // produced it yet.
 bool deploy(const std::string& project, const std::string& game) {
-    if (const char* dist = std::getenv("VN_DIST_BUILD"); dist && *dist) {
+    if (apps::wide_env_utf8(L"VN_DIST_BUILD").has_value()) {
         log_info("[DIST] VN_DIST_BUILD set -- skipping the copy to the game folder.");
         return true;
     }
 
-    // The whole game builds into one tree, so the DLL is in build/proxy;
-    // when this executable is the staged copy under build/install/bin, the
-    // DLL is in the sibling game/ folder instead.
-    // Asked for, not thrown, like the copies below: a status query that
-    // fails says nothing about whether the file is there, and the throwing
-    // overload would end the run from here with no diagnosis at all.
+    const fs::path project_root = fs::u8path(project);
+    const fs::path game_root = fs::u8path(game);
+    const fs::path exe_root = fs::u8path(apps::exe_dir());
+
     std::error_code ec;
     fs::path dll;
-    for (const auto& candidate : {project + "\\build\\proxy\\Release\\winmm.dll",
-                                  apps::exe_dir() + "\\..\\game\\winmm.dll"}) {
-        if (fs::exists(fs::u8path(candidate), ec)) {
-            dll = fs::u8path(candidate);
+    for (const fs::path& candidate :
+         {project_root / "game" / "winmm.dll",
+          project_root / "build" / "proxy" / "Release" / "winmm.dll",
+          exe_root / ".." / "game" / "winmm.dll"}) {
+        if (fs::exists(candidate, ec)) {
+            dll = candidate;
             break;
         }
-        if (ec)
-            log_info("  WARN: cannot check " + candidate + ": " + ec.message());
+        if (ec) {
+            log_info("  WARN: cannot check " + candidate.u8string() + ": " + ec.message());
+        }
     }
     if (dll.empty()) {
         log_info("[ERROR] winmm.dll not found -- build the proxy half first "
@@ -93,7 +89,7 @@ bool deploy(const std::string& project, const std::string& game) {
         return false;
     }
 
-    fs::copy_file(dll, fs::u8path(game + "\\winmm.dll"),
+    fs::copy_file(dll, game_root / "winmm.dll",
                   fs::copy_options::overwrite_existing, ec);
     if (ec) {
         log_info("[ERROR] copying winmm.dll failed (" + ec.message() +
@@ -102,143 +98,72 @@ bool deploy(const std::string& project, const std::string& game) {
     }
     log_info("  winmm.dll -> " + game);
 
-    const bool have_table =
-        fs::exists(fs::u8path(game + "\\translation_table.tsv"), ec);
-    if (ec)
+    const bool have_table = fs::exists(game_root / "translation_table.tsv", ec);
+    if (ec) {
         log_info("  WARN: cannot check the game folder for "
                  "translation_table.tsv: " + ec.message());
-    else if (!have_table)
+        return true;
+    }
+    if (!have_table) {
         log_info("  WARN: translation_table.tsv not in the game folder -- "
                  "02_build_tsv produces it.");
+    }
     return true;
 }
 
 }  // namespace
 
-int main(int argc, char** argv) {
-    setup_console_utf8();
+int main() {
     namespace po = apps::po;
 
-    std::string project, game;
-    int batch = 0, test_n = 0;
-    bool clean = false, discard_cache = false;
-    po::options_description desc("00_run_all -- Mushigurui HD10 translation pipeline");
-    desc.add(apps::common_options(project, game));
-    desc.add_options()
-        ("batch", po::value(&batch)->default_value(150),
-         "lines per API request, passed to the translation step")
-        ("test", po::value(&test_n)->implicit_value(1)->default_value(0),
-         "run only N translation batches then stop (bare --test = 1)")
-        ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
-        ("discard-cache", po::bool_switch(&discard_cache),
-         "allow --clean to delete a cache that already holds paid "
-         "work");
-    po::variables_map vm;
-    if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
+    try {
+        setup_console_utf8();
 
-    // The caps are validated here as well as in the translation step, because
-    // this is the command that starts an unattended full run: a mistyped cap
-    // must fail before a key is read and before an archive is touched.
-    if (auto why = translate::validate_options(batch, test_n)) {
-        log_info("[ERROR] " + *why);
-        return 2;
-    }
-
-    // --clean discards the cache; guard runs early so a refusal costs nothing.
-    const std::string out_dir = project + "\\script_output";
-    const std::string cache_file = out_dir + "\\translation_cache_anthropic.json";
-    if (clean) {
-        // Counting the cache parses it, and a cache that cannot be parsed
-        // throws.  Handled here because this guard runs before the banner: an
-        // escaping throw would end the run with no output at all.  A cache
-        // nobody could read is a refusal like any other, so nothing is
-        // deleted and the file is left as it is.
-        try {
-            if (auto why = translate::refuse_cache_discard(
-                    translate::cache_entry_count(cache_file),
-                    "--clean", discard_cache)) {
-                log_info("[ERROR] " + *why);
-                return 2;
-            }
-        } catch (const std::exception& e) {
-            log_info(std::string("[ERROR] ") + e.what());
-            return 2;
+        std::string project;
+        std::string game;
+        po::options_description desc("00_run_all -- Mushigurui HD10 translation pipeline");
+        desc.add(apps::common_options(project, game));
+        po::variables_map vm;
+        if (const auto rc = apps::parse_process_command_line(desc, vm)) {
+            return *rc;
         }
-    }
 
-    // Children inherit explicit paths so a --dir override propagates.
-    const std::string passthrough =
-        " --dir \"" + project + "\" --game-dir \"" + game + "\"";
+        const std::vector<std::string> passthrough = {
+            "--dir", project, "--game-dir", game};
 
-    const std::string bar(60, '=');
-    log_info(bar);
-    log_info("Mushigurui HD10 (Bug Madness)");
-    log_info("English Translation Pipeline");
-    log_info(bar);
+        const std::string bar(kBannerWidth, '=');
+        log_info(bar);
+        log_info("Mushigurui HD10 (Bug Madness)");
+        log_info("English Translation Pipeline");
+        log_info(bar);
 
-    // --clean deletes the cache and --test translates a capped number of
-    // batches, so either would require live API calls.  Only --clean throws work
-    // away, and the two are reported apart because a message that names the
-    // wrong consequence sends the reader looking for a cache that is still
-    // there.  Checked before the deletion so the cached translations are never
-    // lost.
-    if (clean || test_n > 0) {
-        log_info(std::string("[ERROR] offline build: network API calls are disabled -- ") +
-                 (clean ? "refusing to discard the cache"
-                        : "--test translates a capped number of batches and "
-                          "cannot run without the API."));
-        return 2;
-    }
-
-    if (clean) {
-        for (const char* f : {"extracted_text.json", "translated_text.json",
-                              "translation_cache_anthropic.json"}) {
-            // Reported, not thrown, at both steps: the throwing overloads
-            // would end the run with no diagnosis.  A delete fails when
-            // another process holds the file open without FILE_SHARE_DELETE,
-            // which scanners, indexers and sync clients routinely do.
-            fs::path p = fs::u8path(out_dir + "\\" + f);
-            std::error_code ec;
-            const bool present = fs::exists(p, ec);
-            if (!ec && !present) continue;  // never written: nothing to clean
-            const bool removed = !ec && fs::remove(p, ec);
-            if (ec) {
-                log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
-                         ec.message() +
-                         " -- close whatever has it open, then retry.");
-                return 1;
-            }
-            // A file that vanished between the two calls was
-            // not deleted here.
-            log_info(std::string("[clean] ") + f +
-                     (removed ? "" : " was already gone"));
+        log_info("\n" + bar);
+        log_info("STEP 1: Extract text from SPT files");
+        log_info(bar);
+        if (!run_stage("01_extract", passthrough)) {
+            return apps::kExitError;
         }
-    }
 
-    log_info("\n" + bar);
-    log_info("STEP 1: Extract text from SPT files");
-    log_info(bar);
-    run_step("01_extract", {}, passthrough);
-
-    log_info("\n" + bar);
-    log_info("STEP 2: Speaker gate, translate script, build translation_table.tsv");
-    log_info(bar);
-    {
-        std::vector<std::string> args = {"--batch", std::to_string(batch)};
-        if (test_n > 0) {
-            args.emplace_back("--test");
-            args.emplace_back(std::to_string(test_n));
+        log_info("\n" + bar);
+        log_info("STEP 2: Speaker gate, assemble translated script, build translation_table.tsv");
+        log_info(bar);
+        if (!run_stage("02_build_tsv", passthrough)) {
+            return apps::kExitError;
         }
-        run_step("02_build_tsv", args, passthrough);
+
+        log_info("\n" + bar);
+        log_info("STEP 3: Deploy winmm.dll to the game folder");
+        log_info(bar);
+        if (!deploy(project, game)) {
+            return apps::kExitError;
+        }
+
+        log_info("\n" + bar);
+        log_info("TRANSLATION COMPLETE!");
+        log_info(bar);
+        return apps::kExitOk;
+    } catch (const std::exception& e) {
+        std::cerr << "[FATAL] " << e.what() << "\n";
+        return apps::kExitError;
     }
-
-    log_info("\n" + bar);
-    log_info("STEP 3: Deploy winmm.dll to the game folder");
-    log_info(bar);
-    if (!deploy(project, game)) return 1;
-
-    log_info("\n" + bar);
-    log_info("TRANSLATION COMPLETE!");
-    log_info(bar);
-    return 0;
 }

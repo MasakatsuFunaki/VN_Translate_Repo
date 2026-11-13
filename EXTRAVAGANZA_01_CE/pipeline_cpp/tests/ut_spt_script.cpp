@@ -7,31 +7,54 @@
 
 // SPT reader tests: the XOR-0xFF envelope, the 4-byte-aligned string walk,
 // and the classifier's rule ordering.
-#include <gtest/gtest.h>
-
-#include <cstring>
-#include <string>
+#include "spt/spt_script.h"
 
 #include "common/util.h"
-#include "spt/spt_script.h"
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <vector>
 
 using namespace exc;
 
 namespace {
 
-// Build a decrypted SPT image: 0x80 header (with the magic at 0x30) followed
-// by NUL-terminated, 4-byte-aligned CP932 strings.
+constexpr std::size_t kSptHeaderSize = 0x80;
+constexpr std::uint8_t kHeaderFillByte = 0x20;
+constexpr std::size_t kMagicOffset = 0x30;
+constexpr std::size_t kMagicLength = 10;
+constexpr std::size_t kStringCountOffset = 0x18;
+constexpr std::size_t kDwordAlignment = 4;
+constexpr unsigned int kByte1Shift = 8;
+constexpr unsigned int kByte2Shift = 16;
+constexpr unsigned int kByte3Shift = 24;
+constexpr std::size_t kByteIndex0 = 0;
+constexpr std::size_t kByteIndex1 = 1;
+constexpr std::size_t kByteIndex2 = 2;
+constexpr std::size_t kByteIndex3 = 3;
+constexpr std::size_t kTruncatedHeaderSize = 0x20;
+constexpr std::uint32_t kSampleHeaderCount = 0x1234u;
+
 Bytes make_spt(const std::vector<Bytes>& payloads, std::uint32_t hdr_count = 0) {
-    Bytes dec(0x80, 0x20);
-    std::memcpy(dec.data() + 0x30, "SPTHEADER0", 10);
-    dec[0x18] = static_cast<std::uint8_t>(hdr_count);
-    dec[0x19] = static_cast<std::uint8_t>(hdr_count >> 8);
-    dec[0x1A] = static_cast<std::uint8_t>(hdr_count >> 16);
-    dec[0x1B] = static_cast<std::uint8_t>(hdr_count >> 24);
+    Bytes dec(kSptHeaderSize, kHeaderFillByte);
+    std::memcpy(dec.data() + kMagicOffset, "SPTHEADER0", kMagicLength);
+    dec[kStringCountOffset + kByteIndex0] = static_cast<std::uint8_t>(hdr_count);
+    dec[kStringCountOffset + kByteIndex1] =
+        static_cast<std::uint8_t>(hdr_count >> kByte1Shift);
+    dec[kStringCountOffset + kByteIndex2] =
+        static_cast<std::uint8_t>(hdr_count >> kByte2Shift);
+    dec[kStringCountOffset + kByteIndex3] =
+        static_cast<std::uint8_t>(hdr_count >> kByte3Shift);
     for (const auto& p : payloads) {
         dec.insert(dec.end(), p.begin(), p.end());
         dec.push_back(0);
-        while (dec.size() % 4) dec.push_back(0);
+        while (dec.size() % kDwordAlignment != 0) {
+            dec.push_back(0);
+        }
     }
     return dec;
 }
@@ -52,75 +75,56 @@ TEST(SptScript, decrypt_is_xor_ff_and_self_inverse) {
 TEST(SptScript, validity_requires_header_magic) {
     EXPECT_TRUE(spt::is_valid(make_spt({})));
     Bytes bad = make_spt({});
-    bad[0x30] = 'X';
+    bad[kMagicOffset] = 'X';
     EXPECT_FALSE(spt::is_valid(bad));
-    EXPECT_FALSE(spt::is_valid(Bytes(0x20, 0)));
+    EXPECT_FALSE(spt::is_valid(Bytes(kTruncatedHeaderSize, 0)));
 }
 
 TEST(SptScript, reads_header_string_count) {
-    EXPECT_EQ(spt::header_string_count(make_spt({}, 0x1234)), 0x1234u);
+    EXPECT_EQ(spt::header_string_count(make_spt({}, kSampleHeaderCount)),
+              kSampleHeaderCount);
 }
 
 TEST(SptScript, extracts_strings_with_offsets) {
-    const Bytes dec = make_spt({cp932("\xE3\x81\x82\xE3\x81\x84"), cp932("hello")});
+    const Bytes dec = make_spt({cp932("あい"), cp932("hello")});
     auto out = spt::extract_strings(dec);
     ASSERT_EQ(out.size(), 2u);
-    EXPECT_EQ(out[0].offset, 0x80u);
-    EXPECT_EQ(out[0].text, "\xE3\x81\x82\xE3\x81\x84");
+    EXPECT_EQ(out[0].offset, kSptHeaderSize);
+    EXPECT_EQ(out[0].text, "あい");
     EXPECT_TRUE(out[0].has_jp);
     EXPECT_EQ(out[1].text, "hello");
     EXPECT_FALSE(out[1].has_jp);
-    // Second string starts on the next 4-byte boundary after the first NUL.
-    EXPECT_EQ(out[1].offset % 4, 0u);
+    EXPECT_EQ(out[1].offset % kDwordAlignment, 0u);
 }
 
-// Short non-JP runs are opcode operands, not text.
 TEST(SptScript, drops_bytecode_noise_and_short_ascii) {
     const Bytes dec = make_spt({cp932("ff"), cp932("UU"), cp932("abc"), cp932("abcd")});
     auto out = spt::extract_strings(dec);
-    // 'ff'/'UU' are on the noise list; 'abc' is <4 bytes and non-JP.
     ASSERT_EQ(out.size(), 1u);
     EXPECT_EQ(out[0].text, "abcd");
 }
 
-// A 2-byte JP string is kept even though it's under the 4-byte floor.
 TEST(SptScript, keeps_short_japanese) {
-    const Bytes dec = make_spt({cp932("\xE5\xBF\x83")});  // 心
+    const Bytes dec = make_spt({cp932("心")});
     auto out = spt::extract_strings(dec);
     ASSERT_EQ(out.size(), 1u);
     EXPECT_TRUE(out[0].has_jp);
 }
 
-// The extractor's JP test is deliberately wider than the translator's: it
-// also accepts fullwidth forms and CJK symbols.
 TEST(SptScript, has_japanese_covers_fullwidth_and_symbols) {
-    EXPECT_TRUE(spt::has_japanese("\xE3\x81\x82"));          // あ hiragana
-    EXPECT_TRUE(spt::has_japanese("\xEF\xBC\xA1"));          // Ａ fullwidth
-    EXPECT_TRUE(spt::has_japanese("\xE3\x80\x8C"));          // 「 CJK symbol
+    EXPECT_TRUE(spt::has_japanese("あ"));
+    EXPECT_TRUE(spt::has_japanese("Ａ"));
+    EXPECT_TRUE(spt::has_japanese("「"));
     EXPECT_FALSE(spt::has_japanese("plain ascii"));
 }
 
 TEST(SptScript, classify_rules) {
-    // Short first segment before a CRLF -> speaker plate -> dialogue.
-    EXPECT_EQ(spt::classify("\xE7\xBE\x8E\xE5\xBC\xA5\xE9\xA6\x99\r\n\xE3\x80\x8C"
-                            "\xE3\x81\x82\xE3\x80\x8D"),
-              "dialogue");
-    // Long first segment -> narrative.
-    EXPECT_EQ(spt::classify(
-                  "\xE3\x81\x82\xE3\x81\x84\xE3\x81\x86\xE3\x81\x88\xE3\x81\x8A"
-                  "\xE3\x81\x8B\xE3\x81\x8D\xE3\x81\x8F\xE3\x81\x91\xE3\x81\x93"
-                  "\xE3\x81\x95\r\n\xE3\x81\x97"),
-              "narrative");
-    // Bracketed one-liner -> dialogue.
-    EXPECT_EQ(spt::classify("\xE3\x80\x8C\xE3\x81\x82\xE3\x80\x8D"), "dialogue");
-    // Menu markers.
-    EXPECT_EQ(spt::classify("\xE2\x98\x85 start"), "menu");
-    // Pure ASCII -> label.
+    EXPECT_EQ(spt::classify("美弥香\r\n「あ」"), "dialogue");
+    EXPECT_EQ(spt::classify("あいうえおかきくけこさ\r\nし"), "narrative");
+    EXPECT_EQ(spt::classify("「あ」"), "dialogue");
+    EXPECT_EQ(spt::classify("★ start"), "menu");
     EXPECT_EQ(spt::classify("bgm_01"), "label");
-    // Short JP -> name; long JP -> narrative.
-    EXPECT_EQ(spt::classify("\xE7\xBE\x8E\xE5\xBC\xA5\xE9\xA6\x99"), "name");
-    EXPECT_EQ(spt::classify("\xE3\x81\x82\xE3\x81\x84\xE3\x81\x86\xE3\x81\x88"
-                            "\xE3\x81\x8A\xE3\x81\x8B\xE3\x81\x8D"),
-              "narrative");
+    EXPECT_EQ(spt::classify("美弥香"), "name");
+    EXPECT_EQ(spt::classify("あいうえおかき"), "narrative");
     EXPECT_EQ(spt::classify("   "), "empty");
 }

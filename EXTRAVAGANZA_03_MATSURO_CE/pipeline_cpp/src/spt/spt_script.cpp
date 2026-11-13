@@ -5,10 +5,15 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "spt_script.h"
+#include "spt/spt_script.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace exm::spt {
 
@@ -88,16 +93,16 @@ std::string classify(const std::string& raw) {
     if (crlf != std::string::npos) {
         // First segment short and unquoted -> a speaker plate, so dialogue.
         const std::string first = text.substr(0, crlf);
-        if (char_len(first) <= 10 && first.find("\xE3\x80\x8C") == std::string::npos)  // 「
+        if (char_len(first) <= 10 && first.find("「") == std::string::npos)
             return "dialogue";
         return "narrative";
     }
-    if (text.find("\xE3\x80\x8C") != std::string::npos &&     // 「
-        text.find("\xE3\x80\x8D") != std::string::npos)       // 」
+    if (text.find("「") != std::string::npos &&
+        text.find("」") != std::string::npos)
         return "dialogue";
-    if (starts_with(text, "\xE2\x98\x85") ||   // ★
-        starts_with(text, "\xE2\x96\xA0") ||   // ■
-        starts_with(text, "\xE2\x97\x8F"))     // ●
+    if (starts_with(text, "★") ||
+        starts_with(text, "■") ||
+        starts_with(text, "●"))
         return "menu";
     if (all_ascii(text)) return "label";
     if (char_len(text) <= 6 && has_japanese(text)) return "name";

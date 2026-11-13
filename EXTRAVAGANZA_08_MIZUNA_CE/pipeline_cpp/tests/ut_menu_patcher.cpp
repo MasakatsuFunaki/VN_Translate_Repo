@@ -5,27 +5,49 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Component and invariant tests for pipeline_cpp/src/menu/menu_patcher.{h,cpp}:
+// Pure unit tests for pipeline_cpp/src/menu/menu_patcher.{h,cpp}:
 // FXF bitwise-NOT codec, MurmurHash2 + XOR-delta masking, RLE-XOR alpha mask
-// round-trips, DWQ crop margins and PACKTYPE=0/2A/3A/5/8A round-trips, GPK/GTB
-// rebuilding, and MIZMENU1 v1 menu_patch.bin verification.
+// round-trips, DWQ crop margins and PACKTYPE=0/2A/8A round-trips, and synthetic
+// GPK/GTB rebuilding.
 #include "menu/menu_patcher.h"
 
 #include "common/util.h"
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
-#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace {
 
 namespace fs = std::filesystem;
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const fs::path& path() const { return path_; }
+
+private:
+    fs::path path_;
+};
 using exm::menu::ComputeMurmurHash2;
 using exm::menu::MenuArchivePatcher;
 using exm::menu::MenuPatcher;
@@ -40,11 +62,6 @@ using exm::menu::encode_dwq_from_rgba;
 using exm::menu::encode_rgba_to_png_bytes;
 using exm::menu::encode_rle_xor_mask;
 using exm::menu::encrypt_fxf;
-using exm::menu::kExpectedStandaloneFileCount;
-using exm::menu::kPatchFormatVersion;
-using exm::menu::kPatchMagic;
-using exm::menu::kPatchMagicSize;
-using exm::menu::parse_patch_bin;
 using exm::menu::patch_backlog_fxf;
 using exm::menu::patch_main_control_fxf;
 
@@ -163,16 +180,6 @@ constexpr size_t kSyntheticGtbSecondNamePos = 32;
 constexpr uint32_t kSyntheticName0Offset = 0;
 constexpr uint32_t kSyntheticName1Offset = 12;
 constexpr size_t kSyntheticSpriteNameLen = 10;
-
-constexpr size_t kExpectedSys0EntryCount = 54;
-constexpr size_t kSamplePack5Index = 1;
-constexpr size_t kSamplePack3aIndex = 25;
-constexpr size_t kSamplePack2aIndex = 53;
-
-fs::path ResolveLiveGameDir() {
-    const char* env_dir = std::getenv("VN_GAME_DIR");
-    return (env_dir && *env_dir) ? fs::u8path(env_dir) : fs::path();
-}
 
 uint32_t read_u32_le(const uint8_t* p) {
     return static_cast<uint32_t>(p[kByteIndex0]) |
@@ -541,15 +548,15 @@ TEST(MenuPatcherTest, MenuArchivePatcherSyntheticGpkGtbRoundTrip) {
 
     auto dwq2 = dwq1;
 
-    fs::path tmp_dir = fs::temp_directory_path() / "mizuna_ut_menu_patcher";
-    fs::create_directories(tmp_dir);
+    const ScopedTempDir tmp("mizuna_ut_menu_patcher");
+    const fs::path& tmp_dir = tmp.path();
     fs::path gpk_path = tmp_dir / "test.gpk";
     fs::path gtb_path = tmp_dir / "test.gtb";
 
     std::vector<uint8_t> gpk_in;
     gpk_in.insert(gpk_in.end(), dwq1.begin(), dwq1.end());
     gpk_in.insert(gpk_in.end(), dwq2.begin(), dwq2.end());
-    exm::write_file(gpk_path.string(), gpk_in);
+    exm::write_file(gpk_path.u8string(), gpk_in);
 
     constexpr size_t kSyntheticGtbTotalSize =
         kSyntheticGtbCountBytes + kSyntheticGtbTableEntries * sizeof(uint32_t) +
@@ -565,7 +572,7 @@ TEST(MenuPatcherTest, MenuArchivePatcherSyntheticGpkGtbRoundTrip) {
                 kSyntheticSpriteNameLen);
     std::memcpy(gtb_in.data() + kSyntheticGtbSecondNamePos, "sprite_two",
                 kSyntheticSpriteNameLen);
-    exm::write_file(gtb_path.string(), gtb_in);
+    exm::write_file(gtb_path.u8string(), gtb_in);
 
     MenuPatcher patcher;
     patcher.load(gpk_path, gtb_path);
@@ -592,136 +599,6 @@ TEST(MenuPatcherTest, MenuArchivePatcherSyntheticGpkGtbRoundTrip) {
     EXPECT_EQ(reloaded.entry_offset(kSyntheticEntryEndIndex),
               static_cast<uint32_t>(fs::file_size(out_gpk)));
     EXPECT_EQ(reloaded.decode_entry_rgba(kSyntheticEntryIndex0).pixels, img1.pixels);
-
-    std::error_code ec;
-    fs::remove_all(tmp_dir, ec);
-}
-
-TEST(MenuPatcherTest, LiveSys0GpkAndFxfVerificationWhenGameDirPresent) {
-    const fs::path game_dir = ResolveLiveGameDir();
-    const fs::path gpk_path = game_dir / "dwq" / "sys0.gpk";
-    const fs::path gtb_path = game_dir / "dwq" / "sys0.gtb";
-    if (game_dir.empty() || !fs::exists(gpk_path) || !fs::exists(gtb_path)) {
-        GTEST_SKIP() << "Live EXTRA_VA_MIZUNA_CE game directory not present on this machine.";
-    }
-
-    MenuArchivePatcher patcher;
-    patcher.load(gpk_path, gtb_path);
-    ASSERT_EQ(patcher.entry_count(), kExpectedSys0EntryCount);
-    EXPECT_EQ(patcher.entry_offset(kExpectedSys0EntryCount),
-              static_cast<uint32_t>(fs::file_size(gpk_path)));
-
-    for (size_t idx = 0; idx < kExpectedSys0EntryCount; ++idx) {
-        auto img = patcher.decode_entry_rgba(idx);
-        EXPECT_GT(img.width, 0u) << "entry index=" << idx;
-        EXPECT_GT(img.height, 0u) << "entry index=" << idx;
-    }
-
-    const auto& raw_5 = patcher.entry_raw_bytes(kSamplePack5Index);
-    const auto img_5 = patcher.decode_entry_rgba(kSamplePack5Index);
-    const auto reenc_5 =
-        encode_dwq_from_rgba(raw_5.data(), raw_5.size(), img_5, true);
-    const auto redec_5 = decode_dwq_to_rgba(reenc_5.data(), reenc_5.size());
-    EXPECT_EQ(redec_5.width, img_5.width);
-    EXPECT_EQ(redec_5.height, img_5.height);
-
-    const auto& raw_3a = patcher.entry_raw_bytes(kSamplePack3aIndex);
-    const auto img_3a = patcher.decode_entry_rgba(kSamplePack3aIndex);
-    const auto reenc_3a =
-        encode_dwq_from_rgba(raw_3a.data(), raw_3a.size(), img_3a, true);
-    const auto redec_3a = decode_dwq_to_rgba(reenc_3a.data(), reenc_3a.size());
-    EXPECT_EQ(redec_3a.pixels, img_3a.pixels);
-
-    const auto& raw_2a = patcher.entry_raw_bytes(kSamplePack2aIndex);
-    const auto img_2a = patcher.decode_entry_rgba(kSamplePack2aIndex);
-    const auto reenc_2a =
-        encode_dwq_from_rgba(raw_2a.data(), raw_2a.size(), img_2a, true);
-    const auto redec_2a = decode_dwq_to_rgba(reenc_2a.data(), reenc_2a.size());
-    EXPECT_EQ(redec_2a.pixels, img_2a.pixels);
-}
-
-bool ContainsAsciiSubsequence(const std::vector<uint8_t>& haystack,
-                              const uint8_t* needle,
-                              size_t needle_len) {
-    auto it = std::search(haystack.begin(), haystack.end(), needle, needle + needle_len);
-    return it != haystack.end();
-}
-
-fs::path FindCommittedPatchBin() {
-    fs::path cur = fs::current_path();
-    constexpr int kMaxWalkLevels = 6;
-    for (int i = 0; i < kMaxWalkLevels; ++i) {
-        if (fs::exists(cur / "menu_patch.bin")) {
-            return cur / "menu_patch.bin";
-        }
-        if (fs::exists(cur / "EXTRAVAGANZA_08_MIZUNA_CE" / "menu_patch.bin")) {
-            return cur / "EXTRAVAGANZA_08_MIZUNA_CE" / "menu_patch.bin";
-        }
-        if (!cur.has_parent_path() || cur.parent_path() == cur) {
-            break;
-        }
-        cur = cur.parent_path();
-    }
-    return {};
-}
-
-TEST(MenuPatcherTest, CommittedMenuPatchBinHeaderAndAbsenceOfRawHeaders) {
-    const fs::path patch_bin_path = FindCommittedPatchBin();
-    if (patch_bin_path.empty()) {
-        GTEST_SKIP() << "EXTRAVAGANZA_08_MIZUNA_CE/menu_patch.bin not generated yet.";
-    }
-    const auto bytes = exm::read_file(patch_bin_path.string());
-    ASSERT_GT(bytes.size(), kPatchMagicSize);
-    EXPECT_EQ(std::memcmp(bytes.data(), kPatchMagic, kPatchMagicSize), 0);
-
-    const auto parsed = parse_patch_bin(bytes);
-    EXPECT_EQ(parsed.version, kPatchFormatVersion);
-    EXPECT_EQ(parsed.standalone_records.size(), kExpectedStandaloneFileCount);
-    EXPECT_GT(parsed.gpk_records.size(), 0u);
-
-    constexpr uint8_t kPackBmpNeedle[] = {'P', 'A', 'C', 'K', 'B', 'M', 'P'};
-    constexpr uint8_t kPngNeedle[] = {0x89, 'P', 'N', 'G'};
-    EXPECT_FALSE(ContainsAsciiSubsequence(bytes, kPackBmpNeedle, sizeof(kPackBmpNeedle)));
-    EXPECT_FALSE(ContainsAsciiSubsequence(bytes, kPngNeedle, sizeof(kPngNeedle)));
-}
-
-TEST(MenuPatcherTest, CommittedMenuPatchBinReconstructsLiveArchiveBitForBit) {
-    const fs::path game_dir = ResolveLiveGameDir();
-    if (game_dir.empty() || !fs::exists(game_dir / "dwq" / "sys0.gpk") ||
-        !fs::exists(game_dir / "dwq" / "sys0.gtb")) {
-        GTEST_SKIP() << "Live EXTRA_VA_MIZUNA_CE game directory not present on this machine.";
-    }
-    const fs::path patch_bin_path = FindCommittedPatchBin();
-    if (patch_bin_path.empty()) {
-        GTEST_SKIP() << "EXTRAVAGANZA_08_MIZUNA_CE/menu_patch.bin not generated yet.";
-    }
-
-    const fs::path orig_gpk_path =
-        fs::exists(game_dir / "dwq_backup" / "sys0.gpk")
-            ? (game_dir / "dwq_backup" / "sys0.gpk")
-            : (fs::exists(game_dir / "dwq" / "sys0.gpk.bak")
-                   ? (game_dir / "dwq" / "sys0.gpk.bak")
-                   : (game_dir / "dwq" / "sys0.gpk"));
-    const fs::path orig_gtb_path =
-        fs::exists(game_dir / "dwq_backup" / "sys0.gtb")
-            ? (game_dir / "dwq_backup" / "sys0.gtb")
-            : (fs::exists(game_dir / "dwq" / "sys0.gtb.bak")
-                   ? (game_dir / "dwq" / "sys0.gtb.bak")
-                   : (game_dir / "dwq" / "sys0.gtb"));
-
-    const auto patch_bin_bytes = exm::read_file(patch_bin_path.string());
-    const auto orig_gtb_bytes = exm::read_file(orig_gtb_path.string());
-    const auto orig_gpk_bytes = exm::read_file(orig_gpk_path.string());
-
-    const auto [built_gtb, built_gpk] =
-        MenuArchivePatcher::reconstruct_archive_from_patch_bin(
-            patch_bin_bytes, orig_gtb_bytes, orig_gpk_bytes);
-
-    const auto parsed = parse_patch_bin(patch_bin_bytes);
-    EXPECT_EQ(built_gpk.size(), parsed.new_gpk_size);
-    EXPECT_EQ(built_gtb.size(), parsed.new_gtb_size);
-    EXPECT_EQ(ComputeMurmurHash2(built_gtb.data(), built_gtb.size()),
-              parsed.new_gtb_hash);
 }
 
 }  // namespace

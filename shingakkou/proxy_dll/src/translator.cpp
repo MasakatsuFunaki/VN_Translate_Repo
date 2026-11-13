@@ -6,16 +6,22 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "translator.h"
-#include "menu_autopatch.h"
-#include "translator_logic.h"
-#include "patcher_logic.h"
+
 #include "log.h"
-#include <cstring>
-#include <unordered_map>
-#include <string>
-#include <vector>
-#include <cstdio>
+#include "menu_autopatch.h"
+#include "patcher_logic.h"
+#include "translator_logic.h"
+
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <cwchar>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 // ==========================================================================
 // Runtime translator for shingakkou (DDSystem/PIL engine).
@@ -418,24 +424,27 @@ static bool LoadTranslations()
     else
         wcscpy(exePath, L"translation_table.tsv");
 
-    FILE* f = _wfopen(exePath, L"rb");
+    using ScopedFile = std::unique_ptr<FILE, decltype(&std::fclose)>;
+    ScopedFile f(_wfopen(exePath, L"rb"), &std::fclose);
     if (!f) {
         Log("Translator: translation_table.tsv not found");
         return false;
     }
 
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    if (size <= 0) {
-        fclose(f);
+    if (std::fseek(f.get(), 0, SEEK_END) != 0) {
+        return false;
+    }
+    const long size = std::ftell(f.get());
+    if (size <= 0 || std::fseek(f.get(), 0, SEEK_SET) != 0) {
         return false;
     }
 
-    std::vector<char> buf(static_cast<size_t>(size));
-    size_t nread = fread(buf.data(), 1, buf.size(), f);
-    fclose(f);
+    std::vector<char> buf(static_cast<std::size_t>(size));
+    const std::size_t nread = std::fread(buf.data(), 1, buf.size(), f.get());
+    f.reset();
+    if (nread == 0) {
+        return false;
+    }
 
     // Skip UTF-8 BOM, parse into a narrow UTF-8 map, then promote
     // each entry to wide so the script buffer's UTF-16LE text can be

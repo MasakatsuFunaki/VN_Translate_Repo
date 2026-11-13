@@ -6,9 +6,9 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #pragma once
-// OS-independent translation logic, shared by the proxy DLL and tests.
-// All JP literals use raw \x escapes to avoid MSVC CP932 codepage issues.
+// Shared translation, segmentation, and layout logic for the proxy DLL and tests.
 
+#include <cstddef>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -18,59 +18,46 @@ namespace translator_logic {
 
 using TranslationMap = std::unordered_map<std::string, std::string>;
 
-// --- CP932 helpers ---------------------------------------------------------
-
+// CP932 classification helpers.
 bool IsCp932LeadByte(unsigned char b);
 bool HasJPLeadByte(const std::string& s);
 
-// Sentence-ending punctuation: period/question/exclamation/close-bracket/ellipsis.
-// Excludes chouon (0x81 0x5B) and wave dash (0x81 0x60) — they appear mid-word.
+// Sentence-ending punctuation: period, question, exclamation, close-bracket, or ellipsis.
+// Excludes chouon and wave dash because they appear mid-word.
 bool IsCp932Terminator(unsigned char a, unsigned char b);
 
 // Start of a new YSTB unit: open-bracket, fullwidth space, or newline.
 bool IsCp932EntryStart(unsigned char a, unsigned char b);
 
-// --- String helpers --------------------------------------------------------
-
+// String helpers.
 void UnescapeInPlace(std::string& s);
 std::string SanitizeEn(const std::string& raw);
 bool IsPrefix(const std::string& needle, const std::string& haystack);
 
-// --- TSV loading -----------------------------------------------------------
-
-// Appends to `out`; returns entry count. Drops empty and "(garbled data)".
+// TSV loading. Appends to `out` and returns entry count; drops empty and "(garbled data)".
 int ParseTsvBuffer(const char* data, size_t len, TranslationMap& out);
 bool LoadTsvFile(const std::string& path, TranslationMap& out);
 
-// --- Speaker/quote split ---------------------------------------------------
-
-// Split SPEAKER+QUOTE entries into independent keys so per-slot lookups
-// hit when the engine renders them separately. Returns new keys added.
+// Split SPEAKER+QUOTE entries into independent keys so per-slot lookups hit
+// when the engine renders them separately. Returns new keys added.
 int SplitSpeakerQuote(TranslationMap& map);
 
-// --- buf38 reconstruction --------------------------------------------------
-
-// Walk buf3c opcodes (0x31=1B, 0x32=2B) and concatenate the text bytes
-// from buf38. Non-text opcodes are skipped to match the extractor's keys.
+// Walk buf3c opcodes (single-byte and double-byte text) and concatenate the text
+// bytes from buf38. Non-text opcodes are skipped to match the extractor's keys.
 std::string ReconstructJpFromBuffers(const char* buf38, size_t buf38_cap,
                                      const char* buf3c, size_t buf3c_cap,
                                      int opcount);
 
-// --- Segmenter -------------------------------------------------------------
-
+// Greedy longest-prefix segmenter with a boundary gate.
 struct Segment {
     std::string jp;
     std::string en;
 };
 
-// Greedy longest-prefix segmenter with a boundary gate: a match must
-// consume the rest, end at a terminator, or be followed by an entry-start.
 std::vector<Segment> SegmentMessage(const std::string& msg,
                                     const TranslationMap& map);
 
-// --- Render plan -----------------------------------------------------------
-// One chunk per CP932 glyph slot. Plan length MUST equal CountCp932Glyphs(jp).
-
+// Render plan: one chunk per CP932 glyph slot (plan length == CountCp932Glyphs(jp)).
 int CountCp932Glyphs(const std::string& s);
 
 // Map embedded CP932 punctuation to ASCII; drop the rest.
@@ -120,8 +107,7 @@ std::vector<PlacedSeg>
 ComputePackPlan(const std::string& jp, const TranslationMap& map,
                 int chars_per_slot);
 
-// --- Full-line English (overlay renderer) -----------------------------------
-
+// Full-line English for the overlay renderer.
 struct EnglishLine {
     bool        valid         = false;
     std::string speaker;

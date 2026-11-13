@@ -15,11 +15,15 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace pl = patcher_logic;
@@ -49,6 +53,29 @@ constexpr std::uint32_t kSingleRecordCount = 1u;
 constexpr std::uint32_t kTargetGpkEntryIndex = 1u;
 constexpr std::size_t kCorruptedLastByteBackOffset = 1;
 constexpr std::uint8_t kCorruptXorMask = 0xFFu;
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
 
 void AppendU16Le(std::vector<std::uint8_t>& buf, std::uint16_t val) {
     buf.push_back(static_cast<std::uint8_t>(val & kByteMask));
@@ -195,11 +222,8 @@ TEST(MenuAutopatch, MurmurHash2AndXorMaskPayloadRoundTrip) {
 }
 
 TEST(MenuAutopatch, EnsureGameFilesPatchedInDirAppliesCreatesBackupsAndIsIdempotent) {
-    const fs::path temp_dir =
-        fs::temp_directory_path() / "ageha_ce_ut_menu_autopatch_ok";
-    std::error_code ec;
-    fs::remove_all(temp_dir, ec);
-    fs::create_directories(temp_dir);
+    const ScopedTempDir tmp("ageha_ce_ut_menu_autopatch_ok");
+    const fs::path& temp_dir = tmp.path();
 
     const std::vector<std::uint8_t> orig_fxf = {0x91, 0x8E, 0x93, 0x9A};
     const std::vector<std::uint8_t> patched_fxf = {0xB1, 0xAE, 0xB3, 0xBA, 0xBC};
@@ -294,16 +318,11 @@ TEST(MenuAutopatch, EnsureGameFilesPatchedInDirAppliesCreatesBackupsAndIsIdempot
     EXPECT_TRUE(menu_autopatch::EnsureGameFilesPatchedInDir(temp_dir));
     EXPECT_EQ(ReadBytes(temp_dir / "init2" / "mainControl.fxf.bak"), orig_fxf);
     EXPECT_EQ(ReadBytes(temp_dir / "dwq" / "sys0.gpk.bak"), orig_gpk);
-
-    fs::remove_all(temp_dir, ec);
 }
 
 TEST(MenuAutopatch, CorruptionOrBadMagicLeavesOriginalFilesUntouched) {
-    const fs::path temp_dir =
-        fs::temp_directory_path() / "ageha_ce_ut_menu_autopatch_fail";
-    std::error_code ec;
-    fs::remove_all(temp_dir, ec);
-    fs::create_directories(temp_dir);
+    const ScopedTempDir tmp("ageha_ce_ut_menu_autopatch_fail");
+    const fs::path& temp_dir = tmp.path();
 
     const std::vector<std::uint8_t> orig_fxf = {0x10, 0x20, 0x30, 0x40};
     WriteBytes(temp_dir / "init2" / "mainControl.fxf", orig_fxf);
@@ -350,6 +369,4 @@ TEST(MenuAutopatch, CorruptionOrBadMagicLeavesOriginalFilesUntouched) {
     EXPECT_FALSE(menu_autopatch::EnsureGameFilesPatchedInDir(temp_dir));
     EXPECT_EQ(ReadBytes(temp_dir / "init2" / "mainControl.fxf"), orig_fxf);
     EXPECT_FALSE(fs::exists(temp_dir / "init2" / "mainControl.fxf.bak"));
-
-    fs::remove_all(temp_dir, ec);
 }

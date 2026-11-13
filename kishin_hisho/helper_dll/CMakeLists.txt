@@ -48,7 +48,7 @@ target_compile_definitions(launch PRIVATE
     WIN32_LEAN_AND_MEAN
     _CRT_SECURE_NO_WARNINGS
 )
-target_link_libraries(launch PRIVATE kernel32)
+target_link_libraries(launch PRIVATE kernel32 shell32)
 # /MT so launch.exe doesn't depend on the VC redistributable
 set_target_properties(launch PROPERTIES
     MSVC_RUNTIME_LIBRARY "MultiThreaded"

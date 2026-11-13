@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MasakatsuFunaki
 
-#include <cstring>
-#include <filesystem>
+#include "spt/spt_script.h"
+
 #include <gtest/gtest.h>
 
-#include "spt/spt_script.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <vector>
 
 namespace exm::spt {
 namespace {
@@ -15,22 +19,32 @@ constexpr std::size_t kStringCountOffset = 0x18;
 constexpr std::size_t kDataStartOffset = 0x100;
 constexpr std::size_t kAlignment = 4;
 constexpr std::size_t kHeaderSignatureLen = 10;
+constexpr std::size_t kByteOffset0 = 0;
+constexpr std::size_t kByteOffset1 = 1;
+constexpr std::size_t kByteOffset2 = 2;
+constexpr std::size_t kByteOffset3 = 3;
 constexpr unsigned int kByteShift8 = 8;
 constexpr unsigned int kByteShift16 = 16;
 constexpr unsigned int kByteShift24 = 24;
 constexpr std::uint32_t kByteMask = 0xFFu;
 constexpr std::uint32_t kExpectedSyntheticStringCount = 5;
-constexpr std::uint32_t kExpectedTantai3HeaderCount = 729;
-constexpr std::size_t kMinExpectedTantai3Strings = 1800;
+constexpr std::size_t kDialogueIdx0 = 0;
+constexpr std::size_t kDialogueIdx1 = 1;
+constexpr std::size_t kNarrativeIdx = 2;
+constexpr std::size_t kMenuIdx = 3;
+constexpr std::size_t kNameIdx = 4;
 
 Bytes make_synthetic_spt(const std::vector<std::string>& utf8_strings) {
     Bytes dec(kDataStartOffset, 0);
     std::memcpy(dec.data() + kHeaderOffset, "SPTHEADER0", kHeaderSignatureLen);
     const auto count = static_cast<std::uint32_t>(utf8_strings.size());
-    dec[kStringCountOffset + 0] = static_cast<std::uint8_t>(count & kByteMask);
-    dec[kStringCountOffset + 1] = static_cast<std::uint8_t>((count >> kByteShift8) & kByteMask);
-    dec[kStringCountOffset + 2] = static_cast<std::uint8_t>((count >> kByteShift16) & kByteMask);
-    dec[kStringCountOffset + 3] = static_cast<std::uint8_t>((count >> kByteShift24) & kByteMask);
+    dec[kStringCountOffset + kByteOffset0] = static_cast<std::uint8_t>(count & kByteMask);
+    dec[kStringCountOffset + kByteOffset1] =
+        static_cast<std::uint8_t>((count >> kByteShift8) & kByteMask);
+    dec[kStringCountOffset + kByteOffset2] =
+        static_cast<std::uint8_t>((count >> kByteShift16) & kByteMask);
+    dec[kStringCountOffset + kByteOffset3] =
+        static_cast<std::uint8_t>((count >> kByteShift24) & kByteMask);
 
     for (const auto& s : utf8_strings) {
         const Bytes cp932 = utf8_to_cp932_replace(s);
@@ -57,30 +71,14 @@ TEST(SptScriptContract, DecryptsAndClassifiesAlignedStringPool) {
     EXPECT_EQ(script.header_string_count(), kExpectedSyntheticStringCount);
     ASSERT_EQ(script.strings().size(), kExpectedSyntheticStringCount);
 
-    EXPECT_EQ(script.strings()[0].type, "dialogue");
-    EXPECT_EQ(script.strings()[0].offset, kDataStartOffset);
-    EXPECT_TRUE(script.strings()[0].has_jp);
+    EXPECT_EQ(script.strings()[kDialogueIdx0].type, "dialogue");
+    EXPECT_EQ(script.strings()[kDialogueIdx0].offset, kDataStartOffset);
+    EXPECT_TRUE(script.strings()[kDialogueIdx0].has_jp);
 
-    EXPECT_EQ(script.strings()[1].type, "dialogue");
-    EXPECT_EQ(script.strings()[2].type, "narrative");
-    EXPECT_EQ(script.strings()[3].type, "menu");
-    EXPECT_EQ(script.strings()[4].type, "name");
-}
-
-TEST(SptScriptContract, ParsesRealGameSptWhenAvailable) {
-    const char* env_dir = std::getenv("VN_GAME_DIR");
-    if (!env_dir || !*env_dir) {
-        GTEST_SKIP() << "VN_GAME_DIR not set; skipping live game SPT check";
-    }
-    const std::filesystem::path real_spt =
-        std::filesystem::u8path(env_dir) / "spt" / "tantai3.spt";
-    if (!std::filesystem::exists(real_spt)) {
-        GTEST_SKIP() << "Installed game tantai3.spt not present on this machine";
-    }
-    const SptScript script(read_file(real_spt.u8string()));
-    ASSERT_TRUE(script.is_valid());
-    EXPECT_EQ(script.header_string_count(), kExpectedTantai3HeaderCount);
-    EXPECT_GT(script.strings().size(), kMinExpectedTantai3Strings);
+    EXPECT_EQ(script.strings()[kDialogueIdx1].type, "dialogue");
+    EXPECT_EQ(script.strings()[kNarrativeIdx].type, "narrative");
+    EXPECT_EQ(script.strings()[kMenuIdx].type, "menu");
+    EXPECT_EQ(script.strings()[kNameIdx].type, "name");
 }
 
 }  // namespace

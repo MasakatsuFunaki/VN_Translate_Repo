@@ -5,58 +5,63 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// driver_exe.cpp -- minimal fake host EXE for the SYSTEM gtest.
+// Minimal fake host EXE for the SYSTEM gtest.
 //
-// The gtest spawns this binary with argv[1] = absolute path to the
-// built proxy DLL. We LoadLibraryW the DLL -- DllMain ATTACH runs
-// synchronously inside LoadLibraryW, writing the banner to the log
-// file before LoadLibraryW returns. We then exit the process WITHOUT
-// FreeLibrary on purpose:
-//
-//   Most proxies spawn a polling worker thread in DllMain ATTACH
-//   (patcher, scanner, scout). Calling FreeLibrary here would run
-//   DllMain DETACH while that thread is still alive in the DLL's
-//   code pages -- the OS does NOT auto-terminate worker threads on
-//   FreeLibrary, only on process exit. The thread either crashes
-//   the test process after the unload (AV reading freed code) or
-//   makes PatcherShutdown's WaitForSingleObject time out.
-//
-//   By letting the process exit normally instead, the OS kills all
-//   non-main threads first, THEN calls DllMain DETACH -- which is
-//   how a real game exits when the user closes it. Clean shutdown,
-//   no race, and we still get exit code 0 (or whatever main returns).
-//
-// Exit codes the gtest checks:
-//   0  -- clean LoadLibrary (DllMain ATTACH ran)
-//   2  -- bad argv
-//   3  -- path widen failure
-//   4  -- LoadLibraryW failed (proxy didn't load; GetLastError on stderr)
+// Spawns with argv[1] = absolute path to the built proxy DLL, calls
+// LoadLibraryW so DllMain(DLL_PROCESS_ATTACH) flushes the banner synchronously,
+// and exits without FreeLibrary so the OS terminates any worker threads cleanly
+// prior to DLL_PROCESS_DETACH.
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
+#include <shellapi.h>
+
 #include <cstdio>
-#include <string>
+#include <memory>
 
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::fprintf(stderr, "usage: %s <proxy_dll_path>\n", argv[0]);
-        return 2;
-    }
-    int wn = MultiByteToWideChar(CP_UTF8, 0, argv[1], -1, nullptr, 0);
-    if (wn <= 0) {
-        std::fprintf(stderr, "MultiByteToWideChar failed gle=%lu\n",
-                     GetLastError());
-        return 3;
-    }
-    std::wstring wpath(static_cast<size_t>(wn), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, argv[1], -1, &wpath[0], wn);
-    if (!wpath.empty() && wpath.back() == L'\0') wpath.pop_back();
+namespace {
 
-    HMODULE h = LoadLibraryW(wpath.c_str());
-    if (!h) {
-        std::fprintf(stderr, "LoadLibraryW(\"%s\") failed gle=%lu\n",
-                     argv[1], GetLastError());
-        return 4;
+constexpr int kExpectedMinArgc = 2;
+constexpr int kDllPathArgIndex = 1;
+constexpr int kExitOk = 0;
+constexpr int kExitBadArgv = 2;
+constexpr int kExitArgvParseFailed = 3;
+constexpr int kExitLoadFailed = 4;
+
+struct LocalFreeDeleter {
+    void operator()(wchar_t** ptr) const noexcept {
+        if (ptr != nullptr) {
+            LocalFree(ptr);
+        }
     }
-    // Deliberately no FreeLibrary -- see header comment.
-    return 0;
+};
+
+}  // namespace
+
+int main() {
+    int argc = 0;
+    std::unique_ptr<wchar_t*, LocalFreeDeleter> wargv(
+        CommandLineToArgvW(GetCommandLineW(), &argc));
+    if (!wargv) {
+        std::fprintf(stderr, "CommandLineToArgvW failed gle=%lu\n", GetLastError());
+        return kExitArgvParseFailed;
+    }
+    if (argc < kExpectedMinArgc) {
+        std::fwprintf(stderr, L"usage: %ls <proxy_dll_path>\n", wargv.get()[0]);
+        return kExitBadArgv;
+    }
+
+    const wchar_t* dll_path = wargv.get()[kDllPathArgIndex];
+    const HMODULE module = LoadLibraryW(dll_path);
+    if (!module) {
+        std::fwprintf(stderr, L"LoadLibraryW(\"%ls\") failed gle=%lu\n",
+                      dll_path, GetLastError());
+        return kExitLoadFailed;
+    }
+    return kExitOk;
 }

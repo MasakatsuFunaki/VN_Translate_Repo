@@ -6,3 +6,4 @@ add_test(
     COMMAND ut_tests
     WORKING_DIRECTORY $<TARGET_FILE_DIR:ut_tests>
 )
+set_tests_properties(UT_TsvParser PROPERTIES LABELS "UT")

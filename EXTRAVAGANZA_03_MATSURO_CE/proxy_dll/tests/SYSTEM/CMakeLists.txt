@@ -11,14 +11,13 @@
 
 include(GoogleTest)
 
-# --- Fake host EXE ---------------------------------------------------
 add_executable(extravaganza_matsuro_ce_driver driver_exe.cpp)
+target_link_libraries(extravaganza_matsuro_ce_driver PRIVATE shell32)
 target_compile_definitions(extravaganza_matsuro_ce_driver PRIVATE
     _CRT_SECURE_NO_WARNINGS
 )
 add_dependencies(extravaganza_matsuro_ce_driver proxy)
 
-# --- gtest binary ----------------------------------------------------
 add_executable(extravaganza_matsuro_ce_dll extravaganza_matsuro_ce_dll.cpp)
 target_link_libraries(extravaganza_matsuro_ce_dll PRIVATE GTest::gtest GTest::gtest_main)
 target_compile_definitions(extravaganza_matsuro_ce_dll PRIVATE

@@ -5,23 +5,23 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Component and functional-contract tests for Cache persistence, the 5-stage
-// speaker gate on WelcomeToAnzU!_CE, and CP932 TSV generation.
-#include <gtest/gtest.h>
-
-#include <algorithm>
-#include <filesystem>
-#include <string>
-
-#include <boost/json.hpp>
-
-#include "apps/paths.h"
+// Pure standalone unit tests for Cache persistence, the 5-stage speaker gate
+// on synthetic WelcomeToAnzU!_CE corpora, and CP932 TSV generation.
 #include "build_tsv/build_tsv.h"
 #include "cache/cache_core.h"
 #include "cache/glossary.h"
 #include "cache/speaker_gate.h"
 #include "common/util.h"
-#include "extract/extractor.h"
+
+#include <boost/json.hpp>
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <system_error>
 
 namespace fs = std::filesystem;
 namespace bj = boost::json;
@@ -30,14 +30,63 @@ using namespace exm;
 namespace {
 
 constexpr int kWrapColumns = 54;
+constexpr int kMinSyntheticDialoguePadding = 50;
+constexpr int kExpectedCoverageCheckId = 5;
+constexpr std::size_t kExpectedReloadedEntries = 2;
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
+
+bj::object make_dialogue_entry(const std::string& text) {
+    bj::object o;
+    o["text"] = text;
+    o["type"] = "dialogue";
+    o["has_jp"] = true;
+    return o;
+}
+
+bj::object make_synthetic_extracted() {
+    bj::array strings;
+    for (const auto& [jp, en] : translate::name_translations_ordered()) {
+        (void)en;
+        strings.push_back(make_dialogue_entry(jp + "\r\n「いらっしゃいませ」"));
+    }
+    while (static_cast<int>(strings.size()) < kMinSyntheticDialoguePadding) {
+        strings.push_back(make_dialogue_entry("夢美\r\n「追加の台詞です」"));
+    }
+
+    bj::object tokuten_file;
+    tokuten_file["strings"] = std::move(strings);
+    bj::object root;
+    root["tokuten.spt"] = std::move(tokuten_file);
+    return root;
+}
 
 }  // namespace
 
-TEST(CacheComponent, CacheRoundTripAndPostprocessSpeakerPlate) {
-    const fs::path tmp_cache =
-        fs::temp_directory_path() / "anzu_ce_ut_cache.json";
-    std::error_code ec;
-    fs::remove(tmp_cache, ec);
+TEST(CacheUnit, CacheRoundTripAndPostprocessSpeakerPlate) {
+    const ScopedTempDir tmp("anzu_ce_ut_cache");
+    const fs::path tmp_cache = tmp.path() / "anzu_ce_ut_cache.json";
 
     translate::Cache cache;
     cache.set("夢美\r\n「いらっしゃいませ」", "Yumemi\r\n\"Welcome!\"");
@@ -45,47 +94,32 @@ TEST(CacheComponent, CacheRoundTripAndPostprocessSpeakerPlate) {
     translate::save_cache(cache, tmp_cache.u8string());
 
     const translate::Cache reloaded = translate::load_cache(tmp_cache.u8string());
-    ASSERT_EQ(reloaded.size(), 2u);
+    ASSERT_EQ(reloaded.size(), kExpectedReloadedEntries);
     ASSERT_NE(reloaded.get("夢美\r\n「いらっしゃいませ」"), nullptr);
     EXPECT_EQ(*reloaded.get("夢美\r\n「いらっしゃいませ」"), "Yumemi\r\n\"Welcome!\"");
 
     const std::string post =
         translate::postprocess("夢美\r\n「テスト」\r\n", "“Test…”");
     EXPECT_EQ(post, "Yumemi\r\n\"Test...\"\r\n");
-
-    fs::remove(tmp_cache, ec);
 }
 
-TEST(CacheComponent, SpeakerGatePassesOnLiveExtractedCorpus) {
-    const char* env_dir = std::getenv("VN_GAME_DIR");
-    if (!env_dir || !*env_dir) {
-        GTEST_SKIP() << "VN_GAME_DIR not set; skipping live SPT extraction check.";
-    }
-    const fs::path spt_dir = fs::u8path(env_dir) / "spt";
-    if (!fs::is_directory(spt_dir)) {
-        GTEST_SKIP() << "Live WelcomeToAnzU!_CE directory not present: " << spt_dir.u8string();
-    }
+TEST(CacheUnit, SpeakerGatePassesOnSyntheticCorpusAndRejectsUnknownSpeaker) {
+    bj::object extracted = make_synthetic_extracted();
+    const auto pass_report = translate::run_speaker_checks(extracted);
+    EXPECT_TRUE(pass_report.passed) << pass_report.reason;
+    EXPECT_EQ(pass_report.failed_check, 0);
 
-    const fs::path tmp_extracted =
-        fs::temp_directory_path() / "anzu_ce_ut_gate_extracted.json";
-    std::error_code ec;
-    fs::remove(tmp_extracted, ec);
-
-    ASSERT_EQ(extract::run_extract(spt_dir.u8string(), tmp_extracted.u8string()), 0);
-    const bj::value extracted_v = json_parse_file(tmp_extracted.u8string());
-    const auto report = translate::run_speaker_checks(extracted_v.as_object());
-    EXPECT_TRUE(report.passed) << report.reason;
-    EXPECT_EQ(report.failed_check, 0);
-
-    fs::remove(tmp_extracted, ec);
+    extracted["tokuten.spt"].as_object()["strings"].as_array().push_back(
+        make_dialogue_entry("謎の来訪者\r\n「誰かしら」"));
+    const auto fail_report = translate::run_speaker_checks(extracted);
+    EXPECT_FALSE(fail_report.passed);
+    EXPECT_EQ(fail_report.failed_check, kExpectedCoverageCheckId);
 }
 
-TEST(CacheComponent, BuildTsvFoldsSpeakerWrapsAndWritesValidCp932) {
-    const fs::path tmp_json = fs::temp_directory_path() / "anzu_ce_ut_tr.json";
-    const fs::path tmp_tsv = fs::temp_directory_path() / "anzu_ce_ut_tr.tsv";
-    std::error_code ec;
-    fs::remove(tmp_json, ec);
-    fs::remove(tmp_tsv, ec);
+TEST(CacheUnit, BuildTsvFoldsSpeakerWrapsAndWritesValidCp932) {
+    const ScopedTempDir tmp("anzu_ce_ut_build_tsv");
+    const fs::path tmp_json = tmp.path() / "anzu_ce_ut_tr.json";
+    const fs::path tmp_tsv = tmp.path() / "anzu_ce_ut_tr.tsv";
 
     bj::object row;
     row["text"] = "夢美\r\n「いらっしゃいませ」";
@@ -110,7 +144,4 @@ TEST(CacheComponent, BuildTsvFoldsSpeakerWrapsAndWritesValidCp932) {
         kWrapColumns);
     EXPECT_NE(wrapped.find("\r\n"), std::string::npos);
     EXPECT_EQ(build_tsv::reflow_lines("line1 \r\n  line2\r\n"), "line1 line2\r\n");
-
-    fs::remove(tmp_json, ec);
-    fs::remove(tmp_tsv, ec);
 }

@@ -6,74 +6,86 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 06_build_menus -- repack dwq/sys0.gpk + dwq/sys0.gtb with the 64 translated
-// menu sprites and patch init2/mainControl.fxf + init2/backlog.fxf.
+// menu sprites and patch init2/mainControl.fxf + init2/backlog.fxf using
+// extravaganza_patch.bin.
 //
-//   06_build_menus --game-dir <dir>          # repack sys0.gpk/gtb + patch init2/*.fxf
-//   06_build_menus --game-dir <dir> --test   # dry run: validate inputs in memory
-#include <exception>
-#include <string>
-
+//   06_build_menus --game-dir <dir>
 #include "apps/paths.h"
 #include "common/util.h"
 #include "menus/menu_patcher.h"
 
-int main(int argc, char** argv) {
+#include <exception>
+#include <filesystem>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <vector>
+
+namespace fs = std::filesystem;
+
+namespace {
+
+constexpr std::string_view kPatchBinFileName = "extravaganza_patch.bin";
+
+fs::path resolve_patch_bin_path() {
+    std::vector<fs::path> candidates;
+    if (const std::string project = exc::apps::default_project_dir(); !project.empty()) {
+        const fs::path proj_root = fs::u8path(project);
+        candidates.push_back(proj_root / "game" / kPatchBinFileName);
+        candidates.push_back(proj_root / kPatchBinFileName);
+    }
+    if (const std::string exe = exc::apps::exe_dir(); !exe.empty()) {
+        const fs::path bin_dir = fs::u8path(exe);
+        candidates.push_back(bin_dir / ".." / "game" / kPatchBinFileName);
+        candidates.push_back(bin_dir / kPatchBinFileName);
+    }
+
+    std::error_code ec;
+    for (const fs::path& candidate : candidates) {
+        if (fs::is_regular_file(candidate, ec)) {
+            return candidate;
+        }
+    }
+    return {};
+}
+
+}  // namespace
+
+int main() {
     exc::setup_console_utf8();
     namespace po = exc::apps::po;
 
-    std::string project;
-    std::string game;
-    std::string png_dir;
-    std::string sprites_dir;
-    std::string patch_bin_path;
-    std::string write_patch_bin_path;
-    bool test_mode = false;
-
-    po::options_description desc(
-        "06_build_menus -- repack menu graphics archive and system UI configs");
-    desc.add(exc::apps::common_options(project, game));
-    desc.add_options()
-        ("png-dir", po::value(&png_dir),
-         "directory containing the 64 rendered menu PNG files")
-        ("sprites-dir", po::value(&sprites_dir),
-         "alias for --png-dir")
-        ("patch-bin", po::value(&patch_bin_path),
-         "path to existing extravaganza_patch.bin container")
-        ("write-patch-bin", po::value(&write_patch_bin_path),
-         "output path for generated extravaganza_patch.bin container")
-        ("test", po::bool_switch(&test_mode),
-         "dry run: validate archives and rendered sprites without writing files");
-
-    po::variables_map vm;
-    if (auto rc = exc::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    if (png_dir.empty() && !sprites_dir.empty()) {
-        png_dir = sprites_dir;
-    }
-    if (png_dir.empty()) {
-        png_dir = exc::menus::default_rendered_png_dir(project);
-    }
-    if (patch_bin_path.empty()) {
-        patch_bin_path = project + "\\extravaganza_patch.bin";
-    }
-
-    exc::menus::MenuBuildOptions opt;
-    opt.game_dir = game;
-    opt.rendered_png_dir = png_dir;
-    opt.patch_bin_path = patch_bin_path;
-    opt.write_patch_bin_path = write_patch_bin_path;
-    opt.test_mode = test_mode;
-
     try {
-        const auto summary = exc::menus::run_build_menus(opt);
+        std::string game;
+        po::options_description desc(
+            "06_build_menus -- repack menu graphics archive and system UI configs");
+        desc.add(exc::apps::game_only_options(game));
+
+        po::variables_map vm;
+        if (const auto rc = exc::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
+        const fs::path patch_bin_path = resolve_patch_bin_path();
+        if (patch_bin_path.empty()) {
+            std::cerr << "[ERROR] extravaganza_patch.bin not found.\n";
+            return exc::apps::kExitError;
+        }
+
+        exc::log_info("Applying keyless XOR-delta container " +
+                      patch_bin_path.u8string() + "...");
+        const auto summary =
+            exc::menus::MenuArchivePatcher::apply_patch_bin_to_game_dir(
+                game, patch_bin_path.u8string(), false);
         exc::log_info("06_build_menus complete: " +
                       std::to_string(summary.patched_sprite_entries) + "/" +
                       std::to_string(summary.total_archive_entries) +
                       " sys0.gpk entries translated (" +
                       std::to_string(summary.untouched_sprite_entries) + " untouched).");
-        return 0;
+        return exc::apps::kExitOk;
     } catch (const std::exception& e) {
-        exc::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        std::cerr << "[ERROR] " << e.what() << "\n";
+        return exc::apps::kExitError;
     }
 }

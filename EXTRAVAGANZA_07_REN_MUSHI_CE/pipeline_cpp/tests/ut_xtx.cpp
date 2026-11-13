@@ -7,13 +7,16 @@
 
 // Component tests for src/xtx/xtx.{h,cpp} and src/xtx/xtx_tables.cpp:
 // Ren_mushi_CE charaname.xtx CP932 in-place replacement with backup.
+#include "xtx/xtx.h"
+
+#include "common/util.h"
+
 #include <gtest/gtest.h>
 
 #include <filesystem>
 #include <string>
-
-#include "common/util.h"
-#include "xtx/xtx.h"
+#include <string_view>
+#include <system_error>
 
 namespace fs = std::filesystem;
 namespace xtx = exm::xtx;
@@ -23,11 +26,32 @@ namespace {
 
 constexpr int kExpectedReplacedLineCount = 10;
 
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const fs::path& path() const { return path_; }
+
+private:
+    fs::path path_;
+};
+
 }  // namespace
 
 TEST(Xtx, translate_xtx_file_rewrites_cp932_entries_and_creates_backup) {
-    const fs::path temp_dir = fs::temp_directory_path() / "ren_mushi_ut_xtx_dir";
-    fs::remove_all(temp_dir);
+    const ScopedTempDir tmp("ren_mushi_ut_xtx_dir");
+    const fs::path& temp_dir = tmp.path();
     fs::create_directories(temp_dir / "spt");
 
     const std::string filepath = (temp_dir / "spt" / "charaname.xtx").u8string();
@@ -69,6 +93,4 @@ TEST(Xtx, translate_xtx_file_rewrites_cp932_entries_and_creates_backup) {
     const auto backup_decoded = cp932_to_utf8_strict(read_file(backup_file));
     ASSERT_TRUE(backup_decoded.has_value());
     EXPECT_EQ(*backup_decoded, initial_utf8);
-
-    fs::remove_all(temp_dir);
 }

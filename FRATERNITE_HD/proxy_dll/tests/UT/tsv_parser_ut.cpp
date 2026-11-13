@@ -5,16 +5,15 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// UT — TSV parser tests for FRATERNITE_HD.
-//
-// Tests the TSV-format handling in translator_logic: backslash-escape
-// decoding (UnescapeInPlace) and the line-by-line parser (ParseTsvBuffer).
-// All inputs are synthetic in-memory buffers; no file I/O.
-//
-// Sister UT file cp932_ut.cpp covers the CP932 byte/codec helpers.
+// Unit tests for TSV parsing, English line reconstruction, and menu autopatch
+// in FRATERNITE_HD.
 
 #include "menu_autopatch.h"
 #include "translator_logic.h"
+
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
 
 #include <gtest/gtest.h>
 
@@ -22,116 +21,66 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
-using translator_logic::TranslationMap;
-using translator_logic::ParseTsvBuffer;
-using translator_logic::UnescapeInPlace;
-using translator_logic::ReconstructEnglish;
 using translator_logic::EnglishLine;
-
-TEST(Unescape, BasicEscapes) {
-    std::string s = "a\\nb\\tc\\\\d\\re";
-    UnescapeInPlace(s);
-    EXPECT_EQ(s, "a\nb\tc\\d\re");
-}
-
-TEST(Unescape, NoEscapes) {
-    std::string s = "plain ascii";
-    UnescapeInPlace(s);
-    EXPECT_EQ(s, "plain ascii");
-}
-
-TEST(Unescape, UnknownEscapeKeepsBackslash) {
-    std::string s = "a\\qb";
-    UnescapeInPlace(s);
-    EXPECT_EQ(s, "a\\qb");
-}
-
-TEST(Unescape, TrailingBackslashIsPreserved) {
-    std::string s = "trailing\\";
-    UnescapeInPlace(s);
-    EXPECT_EQ(s, "trailing\\");
-}
-
-TEST(ParseTsv, EmptyBuffer) {
-    TranslationMap m;
-    EXPECT_EQ(ParseTsvBuffer("", 0, m), 0);
-    EXPECT_TRUE(m.empty());
-}
-
-TEST(ParseTsv, AsciiOnly) {
-    TranslationMap m;
-    const char tsv[] = "hello\tHello\nworld\tWorld\n";
-    int n = ParseTsvBuffer(tsv, sizeof(tsv) - 1, m);
-    EXPECT_EQ(n, 2);
-    EXPECT_EQ(m["hello"], "Hello");
-    EXPECT_EQ(m["world"], "World");
-}
-
-TEST(ParseTsv, EscapedNewline) {
-    TranslationMap m;
-    const char tsv[] = "a\\nb\tA\\nB\n";
-    EXPECT_EQ(ParseTsvBuffer(tsv, sizeof(tsv) - 1, m), 1);
-    EXPECT_EQ(m["a\nb"], "A\nB");
-}
-
-TEST(ParseTsv, CrlfLineEndings) {
-    TranslationMap m;
-    const char tsv[] = "x\tX\r\ny\tY\r\n";
-    EXPECT_EQ(ParseTsvBuffer(tsv, sizeof(tsv) - 1, m), 2);
-    EXPECT_EQ(m["x"], "X");
-    EXPECT_EQ(m["y"], "Y");
-}
-
-TEST(ParseTsv, EmptyOrMalformedLinesIgnored) {
-    TranslationMap m;
-    const char tsv[] = "good\tValue\nno-tab\nempty-jp\t\n\tempty-en\n";
-    int n = ParseTsvBuffer(tsv, sizeof(tsv) - 1, m);
-    EXPECT_EQ(n, 1);
-    EXPECT_EQ(m["good"], "Value");
-}
-
-// --- ReconstructEnglish (overlay full-line renderer) ---------------------
-//
-// Byte strings use explicit lengths so adjacent \x escapes can't merge and
-// no embedded null trims them. Speaker name = 2 CP932 glyphs; quote =
-// open-kakko (0x81 0x75) + 1 glyph + close-kakko (0x81 0x76).
-
-TEST(ReconstructEnglish, SpeakerAndQuoteSplitsSpeakerFromBody) {
-    TranslationMap m;
-    std::string spk("\x91\xE5\x92\x71", 4);            // 2-glyph speaker
-    std::string quote("\x81\x75\x82\xA0\x81\x76", 6);  // "<glyph>"
-    m[spk]   = "Daichi";
-    m[quote] = "\"Ah\"";
-    EnglishLine el = ReconstructEnglish(spk + quote, m);
-    EXPECT_TRUE(el.valid);
-    EXPECT_EQ(el.speaker, "Daichi");
-    EXPECT_EQ(el.speaker_slots, 2);   // hook suppresses BODY slots from here
-    EXPECT_EQ(el.body, "\"Ah\"");
-}
-
-TEST(ReconstructEnglish, NarrationHasNoSpeaker) {
-    TranslationMap m;
-    std::string jp("\x82\xA0\x82\xA2", 4);
-    m[jp] = "Hello there.";
-    EnglishLine el = ReconstructEnglish(jp, m);
-    EXPECT_TRUE(el.valid);
-    EXPECT_TRUE(el.speaker.empty());
-    EXPECT_EQ(el.speaker_slots, 0);
-    EXPECT_EQ(el.body, "Hello there.");
-}
-
-TEST(ReconstructEnglish, NoMatchIsInvalid) {
-    TranslationMap m;
-    m[std::string("\x82\xA0\x82\xA2", 4)] = "x";
-    EnglishLine el = ReconstructEnglish(std::string("\xE0\x40\xE0\x41", 4), m);
-    EXPECT_FALSE(el.valid);   // caller falls through to engine JP, not a blank
-    EXPECT_TRUE(el.body.empty());
-}
+using translator_logic::ParseTsvBuffer;
+using translator_logic::ReconstructEnglish;
+using translator_logic::TranslationMap;
+using translator_logic::UnescapeInPlace;
 
 namespace {
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(std::filesystem::temp_directory_path() /
+                std::filesystem::u8path(name)) {
+        std::error_code ec;
+        std::filesystem::remove_all(path_, ec);
+        std::filesystem::create_directories(path_, ec);
+    }
+    ~ScopedTempDir() {
+        std::error_code ec;
+        std::filesystem::remove_all(path_, ec);
+    }
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const std::filesystem::path& path() const { return path_; }
+
+private:
+    std::filesystem::path path_;
+};
+
+constexpr unsigned int kCp932CodePage = 932u;
+constexpr int kExpectedTwoParsedRows = 2;
+constexpr int kExpectedOneParsedRow = 1;
+constexpr int kExpectedTwoSpeakerSlots = 2;
+
+std::string WideToCp932(std::wstring_view wide) {
+    if (wide.empty()) {
+        return {};
+    }
+    const int needed = WideCharToMultiByte(
+        kCp932CodePage, 0, wide.data(), static_cast<int>(wide.size()),
+        nullptr, 0, nullptr, nullptr);
+    if (needed <= 0) {
+        throw std::runtime_error("WideCharToMultiByte(932) failed in test");
+    }
+    std::string cp932(static_cast<std::size_t>(needed), '\0');
+    const int written = WideCharToMultiByte(
+        kCp932CodePage, 0, wide.data(), static_cast<int>(wide.size()),
+        cp932.data(), needed, nullptr, nullptr);
+    if (written != needed) {
+        throw std::runtime_error("WideCharToMultiByte(932) length mismatch in test");
+    }
+    return cp932;
+}
 
 using Bytes = std::vector<std::uint8_t>;
 
@@ -164,12 +113,18 @@ constexpr std::uint32_t kXorStreamAddend = 0x37u;
 constexpr std::uint32_t kHashByteIndexMask = 3u;
 constexpr std::uint32_t kLowByteMask = 0xFFu;
 constexpr std::size_t kFirstRecordOrigHashOffset = 28u;
+constexpr std::uint8_t kTamperXorByte = 0xFFu;
+constexpr std::size_t kSingleEntryTotal = 1u;
+constexpr std::size_t kThreeEntryTotal = 3u;
 constexpr std::uint32_t kMurmurMultiplier = 0x5BD1E995u;
 constexpr int kMurmurShiftR = 24;
 constexpr int kMurmurFinalShift1 = 13;
 constexpr int kMurmurFinalShift2 = 15;
 constexpr std::size_t kWordBytes = 4u;
 constexpr std::size_t kU64Bytes = 8u;
+constexpr std::size_t kRemainderThree = 3u;
+constexpr std::size_t kRemainderTwo = 2u;
+constexpr std::size_t kRemainderOne = 1u;
 constexpr int kBitsPerByte = 8;
 constexpr int kShiftByte1 = 8;
 constexpr int kShiftByte2 = 16;
@@ -211,13 +166,13 @@ std::uint32_t murmur_hash2(const Bytes& data) {
         i += kWordBytes;
     }
     const std::size_t rem = data.size() - i;
-    if (rem == 3u) {
+    if (rem == kRemainderThree) {
         h ^= static_cast<std::uint32_t>(data[i + 2u]) << kShiftByte2;
     }
-    if (rem >= 2u) {
+    if (rem >= kRemainderTwo) {
         h ^= static_cast<std::uint32_t>(data[i + 1u]) << kShiftByte1;
     }
-    if (rem >= 1u) {
+    if (rem >= kRemainderOne) {
         h ^= static_cast<std::uint32_t>(data[i]);
         h *= kMurmurMultiplier;
     }
@@ -311,7 +266,7 @@ Bytes build_single_entry_xor_patch(std::size_t total_entries,
     append_le_u32(out, kPatchFormatVersion);
     append_le_u32(out, static_cast<std::uint32_t>(total_entries));
     append_le_u32(out, static_cast<std::uint32_t>(orig_file_size));
-    append_le_u32(out, 1u);
+    append_le_u32(out, static_cast<std::uint32_t>(kSingleEntryTotal));
 
     append_le_u32(out, entry_index);
     append_le_u32(out, orig_hash);
@@ -350,6 +305,100 @@ Bytes read_binary(const std::filesystem::path& path) {
 
 }  // namespace
 
+TEST(Unescape, BasicEscapes) {
+    std::string s = "a\\nb\\tc\\\\d\\re";
+    UnescapeInPlace(s);
+    EXPECT_EQ(s, "a\nb\tc\\d\re");
+}
+
+TEST(Unescape, NoEscapes) {
+    std::string s = "plain ascii";
+    UnescapeInPlace(s);
+    EXPECT_EQ(s, "plain ascii");
+}
+
+TEST(Unescape, UnknownEscapeKeepsBackslash) {
+    std::string s = "a\\qb";
+    UnescapeInPlace(s);
+    EXPECT_EQ(s, "a\\qb");
+}
+
+TEST(Unescape, TrailingBackslashIsPreserved) {
+    std::string s = "trailing\\";
+    UnescapeInPlace(s);
+    EXPECT_EQ(s, "trailing\\");
+}
+
+TEST(ParseTsv, EmptyBuffer) {
+    TranslationMap m;
+    EXPECT_EQ(ParseTsvBuffer("", 0, m), 0);
+    EXPECT_TRUE(m.empty());
+}
+
+TEST(ParseTsv, AsciiOnly) {
+    TranslationMap m;
+    const char tsv[] = "hello\tHello\nworld\tWorld\n";
+    const int n = ParseTsvBuffer(tsv, sizeof(tsv) - 1, m);
+    EXPECT_EQ(n, kExpectedTwoParsedRows);
+    EXPECT_EQ(m["hello"], "Hello");
+    EXPECT_EQ(m["world"], "World");
+}
+
+TEST(ParseTsv, EscapedNewline) {
+    TranslationMap m;
+    const char tsv[] = "a\\nb\tA\\nB\n";
+    EXPECT_EQ(ParseTsvBuffer(tsv, sizeof(tsv) - 1, m), kExpectedOneParsedRow);
+    EXPECT_EQ(m["a\nb"], "A\nB");
+}
+
+TEST(ParseTsv, CrlfLineEndings) {
+    TranslationMap m;
+    const char tsv[] = "x\tX\r\ny\tY\r\n";
+    EXPECT_EQ(ParseTsvBuffer(tsv, sizeof(tsv) - 1, m), kExpectedTwoParsedRows);
+    EXPECT_EQ(m["x"], "X");
+    EXPECT_EQ(m["y"], "Y");
+}
+
+TEST(ParseTsv, EmptyOrMalformedLinesIgnored) {
+    TranslationMap m;
+    const char tsv[] = "good\tValue\nno-tab\nempty-jp\t\n\tempty-en\n";
+    const int n = ParseTsvBuffer(tsv, sizeof(tsv) - 1, m);
+    EXPECT_EQ(n, kExpectedOneParsedRow);
+    EXPECT_EQ(m["good"], "Value");
+}
+
+TEST(ReconstructEnglish, SpeakerAndQuoteSplitsSpeakerFromBody) {
+    TranslationMap m;
+    const std::string spk = WideToCp932(L"大智");
+    const std::string quote = WideToCp932(L"「あ」");
+    m[spk] = "Daichi";
+    m[quote] = "\"Ah\"";
+    const EnglishLine el = ReconstructEnglish(spk + quote, m);
+    EXPECT_TRUE(el.valid);
+    EXPECT_EQ(el.speaker, "Daichi");
+    EXPECT_EQ(el.speaker_slots, kExpectedTwoSpeakerSlots);
+    EXPECT_EQ(el.body, "\"Ah\"");
+}
+
+TEST(ReconstructEnglish, NarrationHasNoSpeaker) {
+    TranslationMap m;
+    const std::string jp = WideToCp932(L"あい");
+    m[jp] = "Hello there.";
+    const EnglishLine el = ReconstructEnglish(jp, m);
+    EXPECT_TRUE(el.valid);
+    EXPECT_TRUE(el.speaker.empty());
+    EXPECT_EQ(el.speaker_slots, 0);
+    EXPECT_EQ(el.body, "Hello there.");
+}
+
+TEST(ReconstructEnglish, NoMatchIsInvalid) {
+    TranslationMap m;
+    m[WideToCp932(L"あい")] = "x";
+    const EnglishLine el = ReconstructEnglish(WideToCp932(L"漾漓"), m);
+    EXPECT_FALSE(el.valid);
+    EXPECT_TRUE(el.body.empty());
+}
+
 TEST(MenuAutoPatch, ApplyXorMenuPatchInMemory_ReconstructsPatchedArchiveAndPreservesSharedOffsets) {
     const Bytes orig_png0 =
         make_test_png(kWidthHd, kHeightHd, kColorTypeRgb, kExtraBytesShort, kFillByteOrig0);
@@ -370,7 +419,7 @@ TEST(MenuAutoPatch, ApplyXorMenuPatchInMemory_ReconstructsPatchedArchiveAndPrese
     });
 
     const Bytes patch_blob =
-        build_single_entry_xor_patch(3u, orig_ypf.size(), 0u, orig_png0, repl_png0);
+        build_single_entry_xor_patch(kThreeEntryTotal, orig_ypf.size(), 0u, orig_png0, repl_png0);
 
     Bytes actual_patched;
     EXPECT_TRUE(menu_autopatch::ApplyXorMenuPatchInMemory(
@@ -388,24 +437,23 @@ TEST(MenuAutoPatch, ApplyXorMenuPatchInMemory_RejectsTamperedOrigHashOrCorrupted
         {"cgsys\\config\\back_easy.png", orig_png0, false},
     });
     const Bytes valid_patch =
-        build_single_entry_xor_patch(1u, orig_ypf.size(), 0u, orig_png0, repl_png0);
+        build_single_entry_xor_patch(kSingleEntryTotal, orig_ypf.size(), 0u, orig_png0, repl_png0);
 
     Bytes bad_orig_hash = valid_patch;
-    bad_orig_hash[kFirstRecordOrigHashOffset] ^= 0xFFu;
+    bad_orig_hash[kFirstRecordOrigHashOffset] ^= kTamperXorByte;
     Bytes out;
     EXPECT_FALSE(menu_autopatch::ApplyXorMenuPatchInMemory(
         orig_ypf, bad_orig_hash, out));
 
     Bytes bad_payload = valid_patch;
-    bad_payload.back() ^= 0xFFu;
+    bad_payload.back() ^= kTamperXorByte;
     EXPECT_FALSE(menu_autopatch::ApplyXorMenuPatchInMemory(
         orig_ypf, bad_payload, out));
 }
 
 TEST(MenuAutoPatch, EnsureMenuArchivePatchedInDir_CreatesBackupPatchesArchiveAndIsIdempotent) {
-    const std::filesystem::path temp_dir =
-        std::filesystem::temp_directory_path() / "frat_menu_autopatch_ut";
-    std::filesystem::remove_all(temp_dir);
+    const ScopedTempDir tmp("frat_menu_autopatch_ut");
+    const std::filesystem::path& temp_dir = tmp.path();
     std::filesystem::create_directories(temp_dir / "pac");
 
     const Bytes orig_png0 =
@@ -420,7 +468,7 @@ TEST(MenuAutoPatch, EnsureMenuArchivePatchedInDir_CreatesBackupPatchesArchiveAnd
         {"cgsys\\config\\back_easy.png", repl_png0, false},
     });
     const Bytes patch_blob =
-        build_single_entry_xor_patch(1u, orig_ypf.size(), 0u, orig_png0, repl_png0);
+        build_single_entry_xor_patch(kSingleEntryTotal, orig_ypf.size(), 0u, orig_png0, repl_png0);
 
     const std::filesystem::path ypf_path = temp_dir / "pac" / "cgsys.ypf";
     const std::filesystem::path bak_path = temp_dir / "pac" / "cgsys.ypf.bak";
@@ -436,14 +484,7 @@ TEST(MenuAutoPatch, EnsureMenuArchivePatchedInDir_CreatesBackupPatchesArchiveAnd
     EXPECT_TRUE(menu_autopatch::EnsureMenuArchivePatchedInDir(temp_dir.wstring()));
     EXPECT_EQ(read_binary(bak_path), orig_ypf);
     EXPECT_EQ(read_binary(ypf_path), expected_patched);
-
-    std::filesystem::remove_all(temp_dir);
 }
 
-// NOTE: ConvertsUtf8KeyToCp932 was removed for FRATERNITE_HD.
-// That test asserts ParseTsvBuffer converts UTF-8 input keys to CP932
-// in the map — which is CROSS_CHANNEL's architecture (UTF-8 TSV on
-// disk, parser converts at load). FRATERNITE_HD's pipeline writes the
-// TSV in CP932 directly (see the table builder:
-// "Format: <jp_cp932>\t<en_cp932>\n") and stores keys verbatim, so
-// adding the conversion here would corrupt the already-CP932 keys.
+// FRATERNITE_HD writes translation_table.tsv in CP932 directly ("<jp_cp932>\t<en_cp932>\n")
+// and stores keys verbatim without UTF-8-to-CP932 conversion at load time.

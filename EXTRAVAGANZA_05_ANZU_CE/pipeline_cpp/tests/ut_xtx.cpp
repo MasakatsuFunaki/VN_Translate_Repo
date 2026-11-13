@@ -7,15 +7,19 @@
 
 // Functional-contract and component tests for XTX two-table byte substitution
 // round-trip and WelcomeToAnzU!_CE charaname.xtx translation.
+#include "xtx/xtx.h"
+
+#include "common/util.h"
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
-
-#include "common/util.h"
-#include "xtx/xtx.h"
 
 namespace fs = std::filesystem;
 namespace xtx = exm::xtx;
@@ -24,6 +28,29 @@ using namespace exm;
 namespace {
 
 constexpr int kExpectedAnzUCharanameChanges = 5;
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
 
 }  // namespace
 
@@ -39,9 +66,8 @@ TEST(XtxContract, TwoTableCipherRoundTripsAll256ByteValues) {
 }
 
 TEST(XtxComponent, TranslateCharanameXtxRewritesFullwidthNamesIdempotently) {
-    const fs::path temp_dir = fs::temp_directory_path() / "anzu_ce_ut_xtx_dir";
-    std::error_code ec;
-    fs::remove_all(temp_dir, ec);
+    const ScopedTempDir tmp("anzu_ce_ut_xtx_dir");
+    const fs::path& temp_dir = tmp.path();
     fs::create_directories(temp_dir / "spt");
 
     const std::string filepath = (temp_dir / "spt" / "charaname.xtx").u8string();
@@ -73,6 +99,4 @@ TEST(XtxComponent, TranslateCharanameXtxRewritesFullwidthNamesIdempotently) {
     const int changes2 =
         xtx::translate_xtx_file(filepath, xtx::charaname_translations(), backup_dir);
     EXPECT_EQ(changes2, kExpectedAnzUCharanameChanges);
-
-    fs::remove_all(temp_dir, ec);
 }

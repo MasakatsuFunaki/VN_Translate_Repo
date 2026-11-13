@@ -24,19 +24,16 @@
 ```bat
 python build.py                    # both halves (pipeline x64, proxy Win32)
 python build.py --test --install   # build + tests + stage
-python build.py --deploy           # ship to game
+python build.py --deploy --game-dir <install>   # ship to game
 python build.py --clean
 
-build\install\bin\00_run_all.exe
+build\install\bin\00_run_all.exe --game-dir <install>
 ```
 
-Every app takes `--dir <project>` and `--game-dir <path>`.
+Every app takes `--dir <project>` and `--game-dir <install>`.
 `--game-dir <install>` is required: the game install path differs per machine.
-
-`--clean` and `--test` refuse a cache that already holds paid work.
-Add `--discard-cache` to let them run.
+`02_build_tsv.exe` also accepts `--out <path>` and `--rebuild-table`.
 
 ## Narrative CG (03)
 
-Patched BMPs are inspection-only — CPK repacking is not implemented.
-No local OCR pre-filter; `--scan-only` and the confirmation prompt keep the bill down.
+Patched BMPs in `narrative_patched/` are inspection-only — CPK repacking is not implemented.

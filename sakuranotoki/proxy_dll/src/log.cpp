@@ -6,144 +6,233 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "log.h"
-#include <windows.h>
-#include <cstdarg>
-#include <cstdio>
-#include <cstring>
 
-// We write the log via raw Win32 (CreateFileW / WriteFile) instead of
-// CRT fopen because some games run under tokens or CRT initialisations
-// that trip up fopen silently. CreateFileW also reports a real
-// GetLastError when something fails, which we can stash for the next
-// log call to surface.
-//
-// To survive any single path being unwritable (Defender quarantine,
-// elevated game launcher, write-protected install dir, etc.), we open
-// up to two destinations: the path the caller asked for, plus
-// %TEMP%\sakuranotoki_proxy.log. Whichever opens, gets the bytes; if both
-// open we write to both so the diagnostic is always recoverable.
+#include <windows.h>
+
+#include <cstdarg>
+#include <cstddef>
+#include <cstdio>
+#include <cwchar>
+#include <string>
+#include <vector>
 
 namespace {
 
-HANDLE g_h_primary  = INVALID_HANDLE_VALUE;
-HANDLE g_h_fallback = INVALID_HANDLE_VALUE;
-char   g_primary_path[MAX_PATH]  = {};
-char   g_fallback_path[MAX_PATH] = {};
-DWORD  g_primary_err  = 0;
-DWORD  g_fallback_err = 0;
+constexpr unsigned char kUtf8Bom[] = {0xEFU, 0xBBU, 0xBFU};
+constexpr std::size_t kFormatBufferSize = 4096;
+constexpr std::size_t kUtf8OutputBufferSize = 8192;
+constexpr std::size_t kWideBufferChars = 4096;
+constexpr DWORD kMaxTempPathChars = 32768U;
+constexpr UINT kCp932CodePage = 932U;
+constexpr DWORD kCrlfLength = 2U;
 
-HANDLE open_log(const char* path) {
-    if (!path || !*path) return INVALID_HANDLE_VALUE;
-    return CreateFileA(path, GENERIC_WRITE,
-                       FILE_SHARE_READ | FILE_SHARE_WRITE,
-                       nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-                       nullptr);
+class ScopedHandle {
+public:
+    ScopedHandle() noexcept = default;
+    explicit ScopedHandle(HANDLE handle) noexcept : handle_(handle) {}
+
+    ScopedHandle(const ScopedHandle&) = delete;
+    ScopedHandle& operator=(const ScopedHandle&) = delete;
+
+    ScopedHandle(ScopedHandle&& other) noexcept : handle_(other.release()) {}
+
+    ScopedHandle& operator=(ScopedHandle&& other) noexcept {
+        if (this != &other) {
+            reset(other.release());
+        }
+        return *this;
+    }
+
+    ~ScopedHandle() {
+        reset();
+    }
+
+    HANDLE get() const noexcept { return handle_; }
+
+    bool valid() const noexcept {
+        return handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE;
+    }
+
+    HANDLE release() noexcept {
+        const HANDLE current = handle_;
+        handle_ = INVALID_HANDLE_VALUE;
+        return current;
+    }
+
+    void reset(HANDLE next = INVALID_HANDLE_VALUE) noexcept {
+        if (valid()) {
+            CloseHandle(handle_);
+        }
+        handle_ = next;
+    }
+
+private:
+    HANDLE handle_ = INVALID_HANDLE_VALUE;
+};
+
+ScopedHandle g_h_primary;
+ScopedHandle g_h_fallback;
+DWORD g_primary_err = 0;
+DWORD g_fallback_err = 0;
+
+ScopedHandle open_log(const wchar_t* path) {
+    if (path == nullptr || *path == L'\0') {
+        return ScopedHandle{};
+    }
+    const HANDLE h = CreateFileW(
+        path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    return ScopedHandle{h};
+}
+
+std::wstring query_temp_dir() {
+    const DWORD needed = GetTempPathW(0, nullptr);
+    if (needed == 0 || needed > kMaxTempPathChars) {
+        return {};
+    }
+    std::vector<wchar_t> buf(needed, L'\0');
+    const DWORD written = GetTempPathW(needed, buf.data());
+    if (written == 0 || written >= needed) {
+        return {};
+    }
+    std::wstring dir(buf.data(), written);
+    if (!dir.empty() && dir.back() != L'\\' && dir.back() != L'/') {
+        dir.push_back(L'\\');
+    }
+    return dir;
+}
+
+std::string wide_to_utf8(const wchar_t* wpath) {
+    if (wpath == nullptr || *wpath == L'\0') {
+        return {};
+    }
+    const int wlen = static_cast<int>(std::wcslen(wpath));
+    DWORD flags = WC_ERR_INVALID_CHARS;
+    int needed = WideCharToMultiByte(
+        CP_UTF8, flags, wpath, wlen, nullptr, 0, nullptr, nullptr);
+    if (needed <= 0) {
+        flags = 0;
+        needed = WideCharToMultiByte(
+            CP_UTF8, flags, wpath, wlen, nullptr, 0, nullptr, nullptr);
+    }
+    if (needed <= 0) {
+        return {};
+    }
+    std::string out(static_cast<std::size_t>(needed), '\0');
+    const int converted = WideCharToMultiByte(
+        CP_UTF8, flags, wpath, wlen, out.data(), needed, nullptr, nullptr);
+    if (converted <= 0) {
+        return {};
+    }
+    return out;
 }
 
 void write_all(HANDLE h, const void* data, DWORD len) {
-    if (h == INVALID_HANDLE_VALUE) return;
+    if (h == nullptr || h == INVALID_HANDLE_VALUE) {
+        return;
+    }
     DWORD written = 0;
     WriteFile(h, data, len, &written, nullptr);
 }
 
 }  // namespace
 
-void log_init(const char* path) {
-    if (path && *path) {
-        std::strncpy(g_primary_path, path, MAX_PATH - 1);
+void log_init(const wchar_t* path) {
+    g_h_primary.reset();
+    g_h_fallback.reset();
+    g_primary_err = 0;
+    g_fallback_err = 0;
+
+    std::string primary_utf8;
+    if (path != nullptr && *path != L'\0') {
         g_h_primary = open_log(path);
-        if (g_h_primary == INVALID_HANDLE_VALUE)
+        if (!g_h_primary.valid()) {
             g_primary_err = GetLastError();
+        }
+        primary_utf8 = wide_to_utf8(path);
     }
 
-    // Always try a TEMP fallback so we never lose diagnostics. Even if
-    // the primary opens, the fallback is harmless duplication.
-    char tmp[MAX_PATH] = {};
-    DWORD n = GetTempPathA(MAX_PATH, tmp);
-    if (n > 0 && n < MAX_PATH) {
-        std::snprintf(g_fallback_path, sizeof(g_fallback_path),
-                      "%ssakuranotoki_proxy.log", tmp);
-        g_h_fallback = open_log(g_fallback_path);
-        if (g_h_fallback == INVALID_HANDLE_VALUE)
+    std::string fallback_utf8;
+    const std::wstring temp_dir = query_temp_dir();
+    if (!temp_dir.empty()) {
+        const std::wstring fallback_path = temp_dir + L"sakuranotoki_proxy.log";
+        g_h_fallback = open_log(fallback_path.c_str());
+        if (!g_h_fallback.valid()) {
             g_fallback_err = GetLastError();
+        }
+        fallback_utf8 = wide_to_utf8(fallback_path.c_str());
     }
 
-    // BOM + opening header on whichever handle(s) opened.
-    if (g_h_primary != INVALID_HANDLE_VALUE)
-        write_all(g_h_primary, "\xEF\xBB\xBF", 3);
-    if (g_h_fallback != INVALID_HANDLE_VALUE)
-        write_all(g_h_fallback, "\xEF\xBB\xBF", 3);
+    if (g_h_primary.valid()) {
+        write_all(g_h_primary.get(), kUtf8Bom, static_cast<DWORD>(sizeof(kUtf8Bom)));
+    }
+    if (g_h_fallback.valid()) {
+        write_all(g_h_fallback.get(), kUtf8Bom, static_cast<DWORD>(sizeof(kUtf8Bom)));
+    }
 
-    log_msg("---- sakuranotoki version.dll proxy log opened (UTF-8) ----");
+    log_msg("sakuranotoki version.dll proxy log opened (UTF-8)");
     log_msg("primary=%s  open=%s  gle=%lu",
-            g_primary_path,
-            g_h_primary != INVALID_HANDLE_VALUE ? "yes" : "no",
+            primary_utf8.c_str(),
+            g_h_primary.valid() ? "yes" : "no",
             g_primary_err);
     log_msg("fallback=%s  open=%s  gle=%lu",
-            g_fallback_path,
-            g_h_fallback != INVALID_HANDLE_VALUE ? "yes" : "no",
+            fallback_utf8.c_str(),
+            g_h_fallback.valid() ? "yes" : "no",
             g_fallback_err);
 }
 
 void log_close() {
-    if (g_h_primary != INVALID_HANDLE_VALUE) {
-        CloseHandle(g_h_primary);
-        g_h_primary = INVALID_HANDLE_VALUE;
-    }
-    if (g_h_fallback != INVALID_HANDLE_VALUE) {
-        CloseHandle(g_h_fallback);
-        g_h_fallback = INVALID_HANDLE_VALUE;
-    }
+    g_h_primary.reset();
+    g_h_fallback.reset();
 }
 
 void log_msg(const char* fmt, ...) {
-    char buf[4096];
+    char buf[kFormatBufferSize] = {};
     va_list ap;
     va_start(ap, fmt);
     int n = std::vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    if (n < 0) return;
-    if (n > (int)sizeof(buf) - 1) n = (int)sizeof(buf) - 1;
+    if (n < 0) {
+        return;
+    }
+    const int max_len = static_cast<int>(sizeof(buf)) - 1;
+    if (n > max_len) {
+        n = max_len;
+    }
 
-    // Heuristic transcode: pure-ASCII passes through. JP %s args (CP932
-    // from a hook, or UTF-8 from the lookup table) are both turned into
-    // valid UTF-8 — we try UTF-8 first (no double-conversion in the
-    // common case), then fall back to CP932 if the buffer isn't valid
-    // UTF-8.
-    char u8out[8192];
-    int  u8len = 0;
+    char u8out[kUtf8OutputBufferSize] = {};
+    int u8len = 0;
 
-    wchar_t wbuf[4096];
-    int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
-                                   buf, n, wbuf,
-                                   (int)(sizeof(wbuf) / sizeof(wbuf[0])));
+    wchar_t wbuf[kWideBufferChars] = {};
+    int wlen = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, buf, n,
+        wbuf, static_cast<int>(kWideBufferChars));
     if (wlen <= 0) {
-        wlen = MultiByteToWideChar(932, 0, buf, n,
-                                   wbuf,
-                                   (int)(sizeof(wbuf) / sizeof(wbuf[0])));
+        wlen = MultiByteToWideChar(
+            kCp932CodePage, 0, buf, n,
+            wbuf, static_cast<int>(kWideBufferChars));
     }
     if (wlen > 0) {
-        u8len = WideCharToMultiByte(CP_UTF8, 0, wbuf, wlen,
-                                    u8out, (int)sizeof(u8out),
-                                    nullptr, nullptr);
+        u8len = WideCharToMultiByte(
+            CP_UTF8, 0, wbuf, wlen,
+            u8out, static_cast<int>(sizeof(u8out)), nullptr, nullptr);
     }
     const char* payload = u8out;
-    DWORD       paylen  = (DWORD)u8len;
+    DWORD paylen = static_cast<DWORD>(u8len);
     if (u8len <= 0) {
-        // Last-resort fallback: write raw bytes verbatim.
         payload = buf;
-        paylen  = (DWORD)n;
+        paylen = static_cast<DWORD>(n);
     }
 
-    if (g_h_primary != INVALID_HANDLE_VALUE) {
-        write_all(g_h_primary, payload, paylen);
-        write_all(g_h_primary, "\r\n", 2);
-        FlushFileBuffers(g_h_primary);
+    if (g_h_primary.valid()) {
+        write_all(g_h_primary.get(), payload, paylen);
+        write_all(g_h_primary.get(), "\r\n", kCrlfLength);
+        FlushFileBuffers(g_h_primary.get());
     }
-    if (g_h_fallback != INVALID_HANDLE_VALUE) {
-        write_all(g_h_fallback, payload, paylen);
-        write_all(g_h_fallback, "\r\n", 2);
-        FlushFileBuffers(g_h_fallback);
+    if (g_h_fallback.valid()) {
+        write_all(g_h_fallback.get(), payload, paylen);
+        write_all(g_h_fallback.get(), "\r\n", kCrlfLength);
+        FlushFileBuffers(g_h_fallback.get());
     }
     OutputDebugStringA(buf);
     OutputDebugStringA("\n");

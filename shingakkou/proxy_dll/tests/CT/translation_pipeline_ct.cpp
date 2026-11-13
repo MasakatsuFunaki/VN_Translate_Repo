@@ -5,59 +5,84 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// CT — Translation pipeline component tests for shingakkou.
+// Translation pipeline component tests for shingakkou.
 //
-// End-to-end: read the deployed translations.tsv from disk, parse it,
-// validate post-load invariants the rest of the DLL depends on. SKIPs
-// cleanly if the TSV doesn't exist (machine-dependent file).
-
+// Reads the staged translation_table.tsv from disk, parses it, and validates
+// post-load invariants required by the runtime proxy DLL.
 #include "translator_logic.h"
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdio>
-#include <fstream>
-#include <sstream>
+#include <memory>
 #include <string>
 #include <vector>
 
-#ifdef _WIN32
-#  include <wchar.h>
-#  define WIN32_LEAN_AND_MEAN
-#  include <windows.h>
-#endif
-
-using translator_logic::Utf8TranslationMap;
 using translator_logic::ParseTsvBuffer;
+using translator_logic::Utf8TranslationMap;
 
 #ifndef GAME_TSV_PATH
-#  define GAME_TSV_PATH ""
+#define GAME_TSV_PATH ""
 #endif
 
 namespace {
 
+constexpr std::size_t kMinExpectedTsvEntries = 10u;
+
 bool LoadRealTsv(Utf8TranslationMap& out) {
 #ifdef _WIN32
     const char* narrow = GAME_TSV_PATH;
-    if (!narrow || !*narrow) return false;
-    int wn = MultiByteToWideChar(CP_UTF8, 0, narrow, -1, nullptr, 0);
-    if (wn <= 0) return false;
-    std::wstring wpath(static_cast<size_t>(wn), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, narrow, -1, &wpath[0], wn);
-    if (!wpath.empty() && wpath.back() == L'\0') wpath.pop_back();
+    if (narrow == nullptr || *narrow == '\0') {
+        return false;
+    }
+    const int wn = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, narrow, -1, nullptr, 0);
+    if (wn <= 0) {
+        return false;
+    }
+    std::wstring wpath(static_cast<std::size_t>(wn), L'\0');
+    if (MultiByteToWideChar(
+            CP_UTF8, MB_ERR_INVALID_CHARS, narrow, -1, wpath.data(), wn) != wn) {
+        return false;
+    }
+    if (!wpath.empty() && wpath.back() == L'\0') {
+        wpath.pop_back();
+    }
 
-    FILE* f = _wfopen(wpath.c_str(), L"rb");
-    if (!f) return false;
-    std::fseek(f, 0, SEEK_END);
-    long sz = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
-    if (sz <= 0) { std::fclose(f); return false; }
-    std::vector<char> buf(static_cast<size_t>(sz));
-    size_t n = std::fread(buf.data(), 1, buf.size(), f);
-    std::fclose(f);
-    if (n == 0) return false;
+    std::unique_ptr<FILE, decltype(&std::fclose)> file(
+        _wfopen(wpath.c_str(), L"rb"), &std::fclose);
+    if (!file) {
+        return false;
+    }
+    if (std::fseek(file.get(), 0, SEEK_END) != 0) {
+        return false;
+    }
+    const long sz = std::ftell(file.get());
+    if (sz <= 0) {
+        return false;
+    }
+    if (std::fseek(file.get(), 0, SEEK_SET) != 0) {
+        return false;
+    }
+    std::vector<char> buf(static_cast<std::size_t>(sz));
+    const std::size_t n = std::fread(buf.data(), 1, buf.size(), file.get());
+    if (n == 0) {
+        return false;
+    }
     return ParseTsvBuffer(buf.data(), n, out) > 0;
 #else
+    (void)out;
     return false;
 #endif
 }
@@ -68,22 +93,21 @@ class TranslationPipelineTest : public ::testing::Test {
 protected:
     Utf8TranslationMap map;
     void SetUp() override {
-        if (!LoadRealTsv(map)) {
-            GTEST_SKIP()
-                << "translations.tsv not found at " << GAME_TSV_PATH
-                << " (skip is OK on machines without the game data).";
-        }
+        ASSERT_TRUE(LoadRealTsv(map))
+            << "translation_table.tsv not found or empty at " << GAME_TSV_PATH;
     }
 };
 
 TEST_F(TranslationPipelineTest, HasReasonableSize) {
-    EXPECT_GT(map.size(), 10u);
+    EXPECT_GT(map.size(), kMinExpectedTsvEntries);
 }
 
 TEST_F(TranslationPipelineTest, EveryValueIsNullFree) {
-    size_t bad = 0;
+    std::size_t bad = 0;
     for (const auto& kv : map) {
-        if (kv.second.find('\0') != std::string::npos) ++bad;
+        if (kv.second.find('\0') != std::string::npos) {
+            ++bad;
+        }
     }
     EXPECT_EQ(bad, 0u);
 }

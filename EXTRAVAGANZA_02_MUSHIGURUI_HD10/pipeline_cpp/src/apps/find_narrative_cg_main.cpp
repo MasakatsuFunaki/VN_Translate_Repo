@@ -5,42 +5,40 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// 04_find_narrative_cg -- scan dwq/*.gpk for images carrying Japanese text,
-// render the translated overlays and repack the archives.
+// 04_find_narrative_cg -- repack narrative CG overlays into dwq/*.gpk.
 //
 // Usage:
-//   04_find_narrative_cg              # scan + translate + repack
-//   04_find_narrative_cg --scan-only  # scan and save candidates.json only
-//   04_find_narrative_cg --repack     # repack using existing patched images
-//   04_find_narrative_cg --no-resume  # scan from scratch
+//   04_find_narrative_cg --game-dir <dir>           # verify cached translations and repack
+//   04_find_narrative_cg --game-dir <dir> --repack  # repack from existing patched images
+#include "apps/paths.h"
 #include "cg/cg_pipeline.h"
 #include "common/util.h"
 
-#include "apps/paths.h"
+#include <exception>
+#include <iostream>
+#include <string>
 
-int main(int argc, char** argv) {
-    mgi::setup_console_utf8();
+int main() {
     namespace po = mgi::apps::po;
 
-    mgi::cg::CgOptions opt;
-    po::options_description desc(
-        "04_find_narrative_cg -- scan/translate/repack narrative CGs");
-    desc.add(mgi::apps::common_options(opt.project_dir, opt.game_dir));
-    desc.add_options()
-        ("scan-only", po::bool_switch(&opt.scan_only),
-         "Only scan; do not translate or repack")
-        ("repack", po::bool_switch(&opt.repack_only),
-         "Skip scan+translate; just repack existing patched images")
-        ("no-resume", po::bool_switch(&opt.no_resume), "Start scan from scratch")
-        ("replay", po::value(&opt.replay_file),
-         "verification only: replay recorded vision responses from a JSONL file");
-    po::variables_map vm;
-    if (auto rc = mgi::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
     try {
+        mgi::setup_console_utf8();
+
+        mgi::cg::CgOptions opt;
+        po::options_description desc(
+            "04_find_narrative_cg -- repack translated narrative CGs");
+        desc.add(mgi::apps::common_options(opt.project_dir, opt.game_dir));
+        desc.add_options()
+            ("repack", po::bool_switch(&opt.repack_only),
+             "Skip scan+translate; just repack existing patched images");
+        po::variables_map vm;
+        if (const auto rc = mgi::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
         return mgi::cg::run_find_narrative_cg(opt);
     } catch (const std::exception& e) {
-        mgi::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        std::cerr << "[FATAL] " << e.what() << "\n";
+        return mgi::apps::kExitError;
     }
 }

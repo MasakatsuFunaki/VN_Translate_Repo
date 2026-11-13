@@ -20,12 +20,11 @@ find_package(OpenSSL REQUIRED)
 find_package(stb REQUIRED)
 find_package(freetype REQUIRED)
 
-# The tests -- and only the tests -- need an absolute anchor for the real
-# game-data fixtures.  The apps must NOT get one: a compiled-in path ships
-# this machine's directory layout inside every installed binary, so they find
-# the project by walking up from their own executable (src/apps/paths.cpp) and
-# derive the shared TOOLS folder from it.
-get_filename_component(CRC_PROJECT_DIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+# Component tests (and only component tests) need an absolute anchor for the
+# on-disk script_output/ corpus. Unit tests and installed apps must NOT get
+# one: unit tests are hermetic, and installed apps find the project at run time
+# by walking up from their own executable (src/apps/paths.cpp).
+get_filename_component(CRC_PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 
 # --------------------------------------------------------------------
 # crc_core: everything except the app mains, shared by apps and tests.
@@ -86,7 +85,7 @@ target_link_libraries(crc_core PUBLIC
 # Program_options is scoped here rather than pushed through crc_core.
 function(crc_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE crc_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE crc_core Boost::program_options shell32)
 endfunction()
 
 crc_app(00_run_all              src/apps/run_all_main.cpp)

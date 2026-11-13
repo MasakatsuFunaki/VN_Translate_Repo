@@ -29,13 +29,16 @@ python build.py --deploy --game-dir <install>
 python build.py --clean
 
 build\install\bin\00_run_all.exe --game-dir <install>
+build\install\bin\02_build_tsv.exe --game-dir <install>
+build\install\bin\04_patch_menus.exe --game-dir <install>
 ```
 
-Options: `--batch 50`, `--test` (1 batch), `--max-batches 2`, `--file mushi.spt`.
+## CLI Options
 
-`--clean` and `--retranslate` refuse a cache that already holds paid work.
-Add `--discard-cache` to let them run.
-
-`--game-dir <install>` is required: the game install path differs per machine.
+- `00_run_all.exe`: `--help` (`-h`), `--dir <project>` (auto-detected by walking up from the executable), `--game-dir <install>` (required), `--batch <n>` (default `150`), `--max-batches <n>` (default `0`), `--clean`, `--discard-cache` (`--clean` refuses to delete a cache holding paid work unless `--discard-cache` is also passed).
+- `01_extract.exe`: `--help` (`-h`), `--dir <project>`, `--game-dir <install>` (required).
+- `02_build_tsv.exe`: `--help` (`-h`), `--dir <project>`, `--game-dir <install>` (required), `--batch <n>` (default `150`), `--retranslate`, `--max-batches <n>` (default `0`), `--out <path>`, `--rebuild-table`, `--discard-cache` (`--retranslate` refuses a non-empty cache unless `--discard-cache` is also passed).
+- `03_build_xtx.exe`: `--help` (`-h`), `--game-dir <install>` (required).
+- `04_patch_menus.exe`: `--help` (`-h`), `--game-dir <install>` (required).
 
 Diagnostics: check `proxy_log.txt` in the game dir.

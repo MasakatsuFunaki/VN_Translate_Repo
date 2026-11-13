@@ -5,11 +5,12 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include <windows.h>
-#include "proxy.h"
-#include "patcher.h"
-#include "translator.h"
 #include "log.h"
+#include "patcher.h"
+#include "proxy.h"
+#include "translator.h"
+
+#include <windows.h>
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
     switch (reason) {

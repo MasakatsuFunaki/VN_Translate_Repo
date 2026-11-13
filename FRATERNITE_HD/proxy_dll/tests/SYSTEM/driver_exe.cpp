@@ -29,34 +29,60 @@
 // Exit codes the gtest checks:
 //   0  -- clean LoadLibrary (DllMain ATTACH ran)
 //   2  -- bad argv
-//   3  -- path widen failure
+//   3  -- CommandLineToArgvW failed
 //   4  -- LoadLibraryW failed (proxy didn't load; GetLastError on stderr)
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
+#include <shellapi.h>
+
 #include <cstdio>
-#include <string>
+#include <memory>
 
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::fprintf(stderr, "usage: %s <proxy_dll_path>\n", argv[0]);
-        return 2;
-    }
-    int wn = MultiByteToWideChar(CP_UTF8, 0, argv[1], -1, nullptr, 0);
-    if (wn <= 0) {
-        std::fprintf(stderr, "MultiByteToWideChar failed gle=%lu\n",
-                     GetLastError());
-        return 3;
-    }
-    std::wstring wpath(static_cast<size_t>(wn), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, argv[1], -1, &wpath[0], wn);
-    if (!wpath.empty() && wpath.back() == L'\0') wpath.pop_back();
+namespace {
 
-    HMODULE h = LoadLibraryW(wpath.c_str());
-    if (!h) {
-        std::fprintf(stderr, "LoadLibraryW(\"%s\") failed gle=%lu\n",
-                     argv[1], GetLastError());
-        return 4;
+constexpr int kExpectedMinArgc = 2;
+constexpr int kDllPathArgIndex = 1;
+constexpr int kExitOk = 0;
+constexpr int kExitBadArgv = 2;
+constexpr int kExitArgvParseFailed = 3;
+constexpr int kExitLoadFailed = 4;
+
+struct LocalFreeDeleter {
+    void operator()(wchar_t** ptr) const noexcept {
+        if (ptr != nullptr) {
+            LocalFree(ptr);
+        }
+    }
+};
+
+}  // namespace
+
+int main() {
+    int argc = 0;
+    std::unique_ptr<wchar_t*, LocalFreeDeleter> wargv(
+        CommandLineToArgvW(GetCommandLineW(), &argc));
+    if (!wargv) {
+        std::fprintf(stderr, "CommandLineToArgvW failed gle=%lu\n", GetLastError());
+        return kExitArgvParseFailed;
+    }
+    if (argc < kExpectedMinArgc) {
+        std::fwprintf(stderr, L"usage: %ls <proxy_dll_path>\n", wargv.get()[0]);
+        return kExitBadArgv;
+    }
+
+    const wchar_t* dll_path = wargv.get()[kDllPathArgIndex];
+    const HMODULE module = LoadLibraryW(dll_path);
+    if (!module) {
+        std::fwprintf(stderr, L"LoadLibraryW(\"%ls\") failed gle=%lu\n",
+                      dll_path, GetLastError());
+        return kExitLoadFailed;
     }
     // Deliberately no FreeLibrary -- see header comment.
-    return 0;
+    return kExitOk;
 }

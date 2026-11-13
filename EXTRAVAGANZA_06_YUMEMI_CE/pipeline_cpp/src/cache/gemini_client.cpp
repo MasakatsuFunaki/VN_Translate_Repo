@@ -13,10 +13,7 @@
 // via CryptoAPI and feeds each DER certificate into OpenSSL's X509_STORE.
 #include "cache/gemini_client.h"
 
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
+#include "common/util.h"
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -37,7 +34,19 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 
-#include "common/util.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <exception>
+#include <filesystem>
+#include <fstream>
+#include <limits>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace exm::gemini {
 
@@ -57,6 +66,30 @@ constexpr int kHttpVersion11 = 11;
 constexpr int kHttpOkStatus = 200;
 constexpr int kHttpRateLimitStatus = 429;
 constexpr std::size_t kGeminiEnvPrefixLen = 15;
+constexpr std::size_t kQuotedValueMinLen = 2;
+constexpr std::size_t kSurroundingQuotesLen = 2;
+
+std::string wide_env_utf8(const wchar_t* name) {
+    const wchar_t* val = _wgetenv(name);
+    if (val == nullptr || *val == L'\0') {
+        return {};
+    }
+    const std::wstring_view wide(val);
+    const int byte_len = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(),
+        static_cast<int>(wide.size()), nullptr, 0, nullptr, nullptr);
+    if (byte_len <= 0) {
+        return {};
+    }
+    std::string out(static_cast<std::size_t>(byte_len), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(),
+        static_cast<int>(wide.size()), out.data(), byte_len, nullptr, nullptr);
+    if (written != byte_len) {
+        return {};
+    }
+    return out;
+}
 
 class ScopedCertStore {
 public:
@@ -88,10 +121,14 @@ using ScopedX509 = std::unique_ptr<X509, X509Deleter>;
 
 void load_windows_root_certs(ssl::context& ctx) {
     const ScopedCertStore store(CertOpenSystemStoreW(0, L"ROOT"));
-    if (!store) return;
+    if (!store) {
+        return;
+    }
 
     X509_STORE* x509_store = SSL_CTX_get_cert_store(ctx.native_handle());
-    if (x509_store == nullptr) return;
+    if (x509_store == nullptr) {
+        return;
+    }
 
     PCCERT_CONTEXT cert = nullptr;
     while ((cert = CertEnumCertificatesInStore(store.get(), cert)) != nullptr) {
@@ -108,7 +145,9 @@ class HttpsClient final : public Client {
 public:
     explicit HttpsClient(std::string api_key) : key_(std::move(api_key)) {
         if (key_.empty()) {
-            if (const char* env = std::getenv("GEMINI_API_KEY")) key_ = env;
+            if (const char* env = std::getenv("GEMINI_API_KEY")) {
+                key_ = env;
+            }
         }
         if (key_.empty()) {
             throw std::runtime_error(
@@ -159,8 +198,12 @@ public:
         stream.shutdown(ec);
 
         const int status = static_cast<int>(res.result_int());
-        if (status == kHttpRateLimitStatus) throw RateLimitError(res.body());
-        if (status != kHttpOkStatus) throw ApiError(status, res.body());
+        if (status == kHttpRateLimitStatus) {
+            throw RateLimitError(res.body());
+        }
+        if (status != kHttpOkStatus) {
+            throw ApiError(status, res.body());
+        }
 
         return bj::parse(res.body());
     }
@@ -192,26 +235,36 @@ LazyClient::LazyClient(LazyClient&&) noexcept = default;
 LazyClient& LazyClient::operator=(LazyClient&&) noexcept = default;
 
 Client& LazyClient::get() {
-    if (!impl_->client) impl_->client = impl_->factory();
+    if (!impl_->client) {
+        impl_->client = impl_->factory();
+    }
     return *impl_->client;
 }
 
 void load_api_key(const std::string& project_dir) {
     if (const char* existing = std::getenv("GEMINI_API_KEY")) {
-        if (*existing != '\0') return;
+        if (*existing != '\0') {
+            return;
+        }
     }
     std::vector<fs::path> candidates = {
         fs::u8path(project_dir).parent_path() / ".claude" / "settings.json",
     };
-    const char* home = std::getenv("USERPROFILE");
-    if (!home) home = std::getenv("HOME");
-    if (home) {
-        candidates.push_back(fs::u8path(home) / ".claude_vn" / "settings.json");
-        candidates.push_back(fs::u8path(home) / ".gemini" / ".env");
+
+    std::string home = wide_env_utf8(L"USERPROFILE");
+    if (home.empty()) {
+        home = wide_env_utf8(L"HOME");
+    }
+    if (!home.empty()) {
+        const fs::path home_dir = fs::u8path(home);
+        candidates.push_back(home_dir / ".claude_vn" / "settings.json");
+        candidates.push_back(home_dir / ".gemini" / ".env");
     }
 
     for (const auto& p : candidates) {
-        if (!fs::exists(p)) continue;
+        if (!fs::exists(p)) {
+            continue;
+        }
         try {
             if (p.filename() == ".env") {
                 std::ifstream f(p);
@@ -220,10 +273,10 @@ void load_api_key(const std::string& project_dir) {
                     line = trim(line);
                     if (line.rfind("GEMINI_API_KEY=", 0) == 0) {
                         std::string k = trim(line.substr(kGeminiEnvPrefixLen));
-                        if (k.size() >= 2 &&
+                        if (k.size() >= kQuotedValueMinLen &&
                             ((k.front() == '"' && k.back() == '"') ||
                              (k.front() == '\'' && k.back() == '\''))) {
-                            k = k.substr(1, k.size() - 2);
+                            k = k.substr(1, k.size() - kSurroundingQuotesLen);
                         }
                         if (!k.empty()) {
                             _putenv_s("GEMINI_API_KEY", k.c_str());
@@ -234,9 +287,13 @@ void load_api_key(const std::string& project_dir) {
                 continue;
             }
             const bj::value v = json_parse_file(p.u8string());
-            if (!v.is_object()) continue;
+            if (!v.is_object()) {
+                continue;
+            }
             const auto* env = v.get_object().if_contains("env");
-            if (!env || !env->is_object()) continue;
+            if (!env || !env->is_object()) {
+                continue;
+            }
             const auto* key = env->get_object().if_contains("GEMINI_API_KEY");
             if (key && key->is_string() && !key->get_string().empty()) {
                 _putenv_s("GEMINI_API_KEY", std::string(key->get_string()).c_str());

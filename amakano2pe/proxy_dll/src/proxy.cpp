@@ -6,23 +6,34 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "proxy.h"
+
 #include "log.h"
 
-// ── Complete winmm.dll proxy ───────────────────────────────────────────────
-// Forwards ALL winmm.dll exports to the real System32 winmm.dll so that
-// NVIDIA drivers, codecs, and other system DLLs that import winmm functions
-// resolve correctly through our proxy.
+#ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#  define NOMINMAX
+#endif
+#include <windows.h>
 
-static HMODULE g_realWinmm = nullptr;
+#include <array>
+#include <cstddef>
+#include <filesystem>
+#include <string>
 
-// Function pointer table — one slot per forwarded winmm export.
-// Index matches the WINMM_FUNC enum below.
-#define WINMM_FUNC_COUNT 181
+// Forwards all winmm.dll exports to the System32 copy so imported multimedia
+// and timing routines resolve seamlessly.
 
-static FARPROC g_procs[WINMM_FUNC_COUNT] = {0};
+namespace {
 
-// All exported winmm.dll function names, in alphabetical order.
-static const char* g_names[WINMM_FUNC_COUNT] = {
+constexpr std::size_t kWinmmFuncCount = 181;
+constexpr wchar_t kWinmmDllFilename[] = L"winmm.dll";
+
+HMODULE g_realWinmm = nullptr;
+
+// Exported winmm.dll function names in alphabetical order.
+constexpr std::array<const char*, kWinmmFuncCount> kExportNames = {
     "CloseDriver",                    //   0
     "DefDriverProc",                  //   1
     "DriverCallback",                 //   2
@@ -206,39 +217,61 @@ static const char* g_names[WINMM_FUNC_COUNT] = {
     "WOW32DriverCallback",            // 180
 };
 
-void ProxyInit() {
-    wchar_t sysDir[MAX_PATH];
-    GetSystemDirectoryW(sysDir, MAX_PATH);
-    wcscat_s(sysDir, L"\\winmm.dll");
+}  // namespace
 
-    g_realWinmm = LoadLibraryW(sysDir);
-    if (!g_realWinmm) {
-        Log("FATAL: Could not load real winmm.dll from %ls", sysDir);
+static FARPROC g_procs[kWinmmFuncCount] = {};
+
+void ProxyInit() {
+    const UINT required_chars = GetSystemDirectoryW(nullptr, 0);
+    if (required_chars == 0) {
+        Log("FATAL: GetSystemDirectoryW size query failed (gle=%lu)",
+            GetLastError());
         return;
     }
 
-    int resolved = 0;
-    for (int i = 0; i < WINMM_FUNC_COUNT; i++) {
-        g_procs[i] = GetProcAddress(g_realWinmm, g_names[i]);
-        if (g_procs[i]) resolved++;
+    std::wstring sys_dir(required_chars, L'\0');
+    const UINT written_chars =
+        GetSystemDirectoryW(sys_dir.data(), required_chars);
+    if (written_chars == 0 || written_chars >= required_chars) {
+        Log("FATAL: GetSystemDirectoryW failed (written=%u, cap=%u, gle=%lu)",
+            written_chars, required_chars, GetLastError());
+        return;
     }
-    Log("Proxy: loaded real winmm.dll, resolved %d/%d exports", resolved, WINMM_FUNC_COUNT);
+    sys_dir.resize(written_chars);
+
+    const std::filesystem::path winmm_path =
+        std::filesystem::path(sys_dir) / kWinmmDllFilename;
+    g_realWinmm = LoadLibraryW(winmm_path.c_str());
+    if (g_realWinmm == nullptr) {
+        Log("FATAL: Could not load real winmm.dll from %ls (gle=%lu)",
+            winmm_path.c_str(), GetLastError());
+        return;
+    }
+
+    std::size_t resolved = 0;
+    for (std::size_t i = 0; i < kWinmmFuncCount; ++i) {
+        g_procs[i] = GetProcAddress(g_realWinmm, kExportNames[i]);
+        if (g_procs[i] != nullptr) {
+            ++resolved;
+        }
+    }
+    Log("Proxy: loaded real winmm.dll, resolved %zu/%zu exports",
+        resolved, kWinmmFuncCount);
 }
 
 void ProxyShutdown() {
-    if (g_realWinmm) {
-        FreeLibrary(g_realWinmm);
-        g_realWinmm = nullptr;
-    }
+    // Intentionally keeps g_realWinmm mapped for the lifetime of the process:
+    // calling FreeLibrary inside DllMain violates the Win32 loader-lock
+    // contract, and host multimedia threads may still dispatch through g_procs
+    // during teardown; the OS reclaims the module mapping at process exit.
 }
 
-// ── Naked forwarding stubs ─────────────────────────────────────────────────
-// Each stub just jumps through the corresponding function pointer.
-// __declspec(naked) avoids any prologue/epilogue so the call frame is preserved.
+// Each naked forwarding stub jumps through its corresponding function pointer
+// without modifying the caller's stack frame.
 
 #define PROXY_STUB(name, idx) \
     extern "C" __declspec(naked) void __stdcall proxy_##name() { \
-        __asm { jmp dword ptr [g_procs + idx * 4] } \
+        __asm { jmp dword ptr [g_procs + idx * TYPE g_procs] } \
     }
 
 PROXY_STUB(CloseDriver, 0)
@@ -422,3 +455,5 @@ PROXY_STUB(waveOutUnprepareHeader, 177)
 PROXY_STUB(waveOutWrite, 178)
 PROXY_STUB(NotifyCallbackData, 179)
 PROXY_STUB(WOW32DriverCallback, 180)
+
+#undef PROXY_STUB

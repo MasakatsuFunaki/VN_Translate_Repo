@@ -1,18 +1,22 @@
-# Test pyramid for mushigurui_HD10 proxy_dll.
-#
-# Three tiers, each its own subdirectory:
-#   UT/      — unit tests (one file per class/module: foo_ut.cpp)
-#   CT/      — component tests (one file per component: foo_ct.cpp)
-#   SYSTEM/  — black-box tests of the built DLL (mushigurui_hd10_dll.cpp)
-#
-# Subdirs are conditional so games without a *_logic.cpp module can still
-# enable tests (only SYSTEM tier is generated for those — UT/CT come back
-# as soon as a logic library exists).
-#
-# Run only one tier:
-#   ctest -L UT      (in build dir)
-#   ctest -L CT
-#   ctest -L SYSTEM
+# Test pyramid for Mushigurui proxy_dll.
+
+include(GoogleTest)
+
+add_executable(ut_patcher_logic
+    ut_patcher_logic.cpp
+    $<TARGET_OBJECTS:translator_logic>
+)
+target_link_libraries(ut_patcher_logic PRIVATE
+    GTest::gtest
+    GTest::gtest_main
+)
+target_include_directories(ut_patcher_logic PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+target_compile_definitions(ut_patcher_logic PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
+gtest_discover_tests(ut_patcher_logic PROPERTIES LABELS "UT")
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/UT/CMakeLists.txt")
     add_subdirectory(UT)

@@ -7,6 +7,12 @@
 
 #include "pak/nps_rebuilder.h"
 
+#include "common/util.h"
+#include "patch/deploy.h"
+
+#include <boost/json.hpp>
+#include <boost/regex.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -17,12 +23,6 @@
 #include <thread>
 #include <unordered_map>
 #include <utility>
-
-#include <boost/json.hpp>
-#include <boost/regex.hpp>
-
-#include "common/util.h"
-#include "patch/deploy.h"
 
 namespace fs = std::filesystem;
 
@@ -72,10 +72,11 @@ constexpr std::size_t kMinDoubleHyphenLength = 2;
 
 constexpr int kJsonReadMaxAttempts = 5;
 constexpr int kJsonReadRetryDelayMs = 50;
+constexpr std::size_t kEstimatedNonNpsEntryPad = 4;
 
-constexpr std::string_view kFullwidthSpace = "\xE3\x80\x80";
-constexpr std::string_view kHorizontalBar = "\xE2\x80\x95";
-constexpr std::string_view kDoubleHorizontalBar = "\xE2\x80\x95\xE2\x80\x95";
+constexpr std::string_view kFullwidthSpace = "　";
+constexpr std::string_view kHorizontalBar = "―";
+constexpr std::string_view kDoubleHorizontalBar = "――";
 constexpr std::string_view kNoBreakSpaceUtf8 = "\xC2\xA0";
 constexpr std::string_view kNonNpsFilesKey = "__non_nps_files__";
 constexpr std::string_view kTypewriterKeystrokeSeTag =
@@ -148,7 +149,7 @@ const boost::regex& FontCloseRegex() {
 }
 
 const boost::regex& BoundaryPrefixFontRegex() {
-    static const boost::regex kRe(R"(^(?:\xE3\x80\x80|\s)*(<FONT\b[^>]*>))",
+    static const boost::regex kRe(R"(^(?:　|\s)*(<FONT\b[^>]*>))",
                                   boost::regex::icase);
     return kRe;
 }
@@ -159,7 +160,7 @@ const boost::regex& BoundarySuffixFontRegex() {
 }
 
 const boost::regex& LeadingIndentRegex() {
-    static const boost::regex kRe(R"(^(?:\xE3\x80\x80|\s)*)");
+    static const boost::regex kRe(R"(^(?:　|\s)*)");
     return kRe;
 }
 
@@ -200,7 +201,8 @@ static char32_t DecodeNextUtf8Codepoint(std::string_view text, std::size_t& pos)
         ++pos;
         return lead;
     }
-    const unsigned int initial_mask = (0x3Fu >> (len - kUtf8OneByteLen));
+    const unsigned int initial_mask =
+        static_cast<unsigned int>(kUtf8ContinuationMask) >> (len - kUtf8OneByteLen);
     char32_t cp = lead & initial_mask;
     for (std::size_t k = 1; k < len; ++k) {
         const auto cont = static_cast<std::uint8_t>(text[pos + k]);
@@ -1192,7 +1194,7 @@ std::vector<PakEntry> NpsRebuilder::BuildEntriesFromJsonFiles(
 
     NpsRebuildStats stats{};
     std::vector<PakEntry> entries;
-    entries.reserve(recon_root.size() + 4);
+    entries.reserve(recon_root.size() + kEstimatedNonNpsEntryPad);
 
     for (const auto& kv : recon_root) {
         const std::string fn(kv.key());

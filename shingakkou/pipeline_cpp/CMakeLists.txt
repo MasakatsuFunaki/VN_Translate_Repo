@@ -16,7 +16,7 @@ option(ENABLE_TESTS "Build the GoogleTest suite" ON)
 
 find_package(Boost REQUIRED COMPONENTS json regex program_options)
 find_package(OpenSSL REQUIRED)
-# Narrative-CG step only: FreeType for glyph measurement + rasterisation, stb
+# Narrative-CG tool only: FreeType for glyph measurement + rasterisation, stb
 # for the BMP/PNG codecs.
 find_package(freetype REQUIRED)
 find_package(stb REQUIRED)
@@ -26,10 +26,9 @@ find_package(stb REQUIRED)
 # this machine's directory layout inside every installed binary, so they find
 # the project by walking up from their own executable (src/apps/paths.cpp).
 get_filename_component(SHIN_PROJECT_DIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+file(TO_CMAKE_PATH "${SHIN_PROJECT_DIR_ABS}" SHIN_PROJECT_DIR_FWD)
 
-# --------------------------------------------------------------------
 # shin_core: everything except the app mains, shared by apps and tests.
-# --------------------------------------------------------------------
 add_library(shin_core STATIC
     src/common/util.cpp
     src/common/util.h
@@ -73,20 +72,18 @@ target_link_libraries(shin_core PUBLIC
     crypt32
 )
 
-# --------------------------------------------------------------------
 # Pipeline executables, numbered by the order they run in.
 #
 # 00_run_all performs 01 and 02 and then deploys; the numbered pair is the
 # manual path.  02 carries the speaker gate and the runtime-table build with
-# it, so there is no separate step to remember between translating and
+# it, so there is no separate command to remember between translating and
 # playing.  03 is a side tool: it repaints text baked into the CG archives and
 # has nothing to do with the script, which is why 00_run_all never runs it.
-# --------------------------------------------------------------------
 # Only the app mains parse a command line (src/apps/paths.h), so
 # Program_options is scoped here rather than pushed through shin_core.
 function(shin_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE shin_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE shin_core Boost::program_options shell32)
 endfunction()
 
 shin_app(00_run_all             src/apps/run_all_main.cpp)
@@ -98,21 +95,16 @@ shin_app(04_patch_menus         src/apps/patch_menus_main.cpp)
 # Verification-only: dumps the DDP entry table and drives the repacker so a
 # rebuilt archive can be byte-compared.  Not part of the pipeline, and not
 # installed -- it is driven by the offline harness in analysys/.
-add_executable(cg_parity src/apps/cg_parity_main.cpp)
-target_link_libraries(cg_parity PRIVATE shin_core)
+add_executable(cg_parity src/apps/cg_parity_main.cpp src/apps/paths.h src/apps/paths.cpp)
+target_link_libraries(cg_parity PRIVATE shin_core Boost::program_options shell32)
 
-# --------------------------------------------------------------------
 # Install: the executables a user runs, and nothing else.  shin_core,
 # cg_parity and the test binaries exist to produce and check these, and stay
 # in the build tree.  Every dependency is a static library, so there is no
 # runtime to carry.
-# --------------------------------------------------------------------
 install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg 04_patch_menus
         RUNTIME DESTINATION bin)
 
-# --------------------------------------------------------------------
-# Tests
-# --------------------------------------------------------------------
 if(ENABLE_TESTS)
     find_package(GTest REQUIRED)
     enable_testing()

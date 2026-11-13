@@ -5,7 +5,7 @@
     "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0065a.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0065a.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -13,7 +13,7 @@
     "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065b.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0065b.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -21,7 +21,7 @@
     "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065c.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0065c.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -29,7 +29,7 @@
     "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065d.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0065d.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -37,7 +37,7 @@
     "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065e.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0065e.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -45,7 +45,7 @@
     "confidence": 1E0,
     "description": "manual override",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0065f.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0065f.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -66,7 +66,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ev3000c.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ev3000c.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -87,7 +87,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ev3000e.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ev3000e.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -120,7 +120,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ev3000f.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ev3000f.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -153,7 +153,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ev3000g.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ev3000g.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -174,7 +174,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002c.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002c.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -195,7 +195,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002d.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002d.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -216,7 +216,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002e.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002e.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -237,7 +237,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002m.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002m.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -258,7 +258,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002n.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002n.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -279,7 +279,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002o.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002o.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -300,7 +300,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002p.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002p.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -321,7 +321,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002q.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002q.bmp"
   },
   {
     "arc": "data02500.arc",
@@ -342,7 +342,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\evb002r.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\evb002r.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -363,7 +363,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ic0004d.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ic0004d.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -384,7 +384,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ic0007a.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ic0007a.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -405,7 +405,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ic0007b.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ic0007b.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -426,7 +426,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0042a.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0042a.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -447,7 +447,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043a.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043a.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -468,7 +468,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043c.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043c.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -489,7 +489,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043d.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043d.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -510,7 +510,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043f.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043f.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -531,7 +531,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043g.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043g.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -552,7 +552,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043h.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043h.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -573,7 +573,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043j.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043j.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -594,7 +594,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043k.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043k.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -615,7 +615,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043l.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043l.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -636,7 +636,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043m.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043m.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -657,7 +657,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043n.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043n.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -678,7 +678,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043o.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043o.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -699,7 +699,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0043p.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0043p.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -707,7 +707,7 @@
     "confidence": 9.7E-1,
     "description": "White Japanese text overlaid on the artwork reading '愛するものが死んだ時には' (roughly 'When the one you love has died'), appearing as a poetic or literary passage displayed over a dark purple atmospheric scene with floating petals.",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067b.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0067b.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -715,7 +715,7 @@
     "confidence": 9.7E-1,
     "description": "Two lines of Japanese text overlaid on the artwork reading '愛するものが死んだ時には / 自殺しなけあなりません。' ('When the one you love dies, you must commit suicide.') — presented as a poetic or literary passage on a title card style screen with no text box.",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067c.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0067c.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -723,7 +723,7 @@
     "confidence": 9.8E-1,
     "description": "Two lines of Japanese text overlaid on the artwork forming what appears to be a poetic or lyrical passage: '愛するものが死んだ時には / 自殺しなけあなりません。' (When one who is loved dies / one must commit suicide) and a partial repeat '愛するものが死んだ時には', styled as a literary poem or song lyric rendered directly on the CG background without a text box.",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067d.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0067d.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -731,7 +731,7 @@
     "confidence": 9.8E-1,
     "description": "Two poetic/literary passages overlaid on the artwork: '愛するものが死んだ時には 自殺しなけあなりません。' (When the one you love dies, you must commit suicide.) and '愛するものが死んだ時には それより他に、方法がない。' (When the one you love dies, there is no other way.) — appearing to be a poem or literary quote rendered as title-card style text over the visual novel CG.",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067e.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0067e.bmp"
   },
   {
     "arc": "data02501.arc",
@@ -739,7 +739,7 @@
     "confidence": 9.7E-1,
     "description": "Poetic/lyrical Japanese text overlaid on the artwork reading: 'ハイ、ではみなさん、ハイ、ご一緒に―― テンポ正しく、握手をしませう。' (roughly: 'Yes, everyone, yes, all together—— In proper tempo, let us shake hands.'). This appears to be a literary passage or song lyric rendered directly over the CG artwork, not in a standard dialogue text box.",
     "regions": [],
-    "patched_bmp": "D:\\Projects\\VN_TRANSLATE\\SakuraNoUta\\script_output\\narrative_patched\\sp0067f.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0067f.bmp"
   },
   {
     "arc": "data02503.arc",
@@ -760,7 +760,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ed05_end01.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ed05_end01.bmp"
   },
   {
     "arc": "data02503.arc",
@@ -781,7 +781,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\ev4006e_bg.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\ev4006e_bg.bmp"
   },
   {
     "arc": "data02503.arc",
@@ -802,7 +802,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\logo_sakuuta1.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\logo_sakuuta1.bmp"
   },
   {
     "arc": "data02503.arc",
@@ -823,7 +823,7 @@
         "bg_tone": "light"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\logo_sakuuta2.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\logo_sakuuta2.bmp"
   },
   {
     "arc": "data02503.arc",
@@ -844,7 +844,7 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0044a_tare.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0044a_tare.bmp"
   },
   {
     "arc": "data02503.arc",
@@ -865,6 +865,6 @@
         "bg_tone": "dark"
       }
     ],
-    "patched_bmp": "D:\\Kits\\my_downloadedGames\\+new\\Dlsite\\VN_TRANSLATE\\SakuraNoUta\\narrative_patched\\sp0044b_tare.bmp"
+    "patched_bmp": "script_output\\narrative_patched\\sp0044b_tare.bmp"
   }
 ]

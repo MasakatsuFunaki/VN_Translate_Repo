@@ -36,7 +36,7 @@ python build.py --deploy --game-dir "<DIR>"  # copy winmm.dll + translation_tabl
 python build.py --clean                      # remove build/ and stale CMakeUserPresets.json files
 ```
 
-Every pipeline executable takes `--dir <project>` and `--game-dir <install>`.
+`00_run_all.exe` and `01_extract.exe` take `--dir <project>` and `--game-dir <install>`; `02_translate.exe` and `03_build_tsv.exe` take `--dir <project>`.
 
 ---
 

@@ -12,13 +12,16 @@
 // the payload from 0x80 on is a run of NUL-terminated strings, 4-byte aligned.
 #pragma once
 
+#include "common/util.h"
+
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 
-#include "common/util.h"
-
 namespace mgi::spt {
+
+inline constexpr std::size_t kDefaultSptSkipOffset = 0x80;
 
 // XOR every byte with 0xFF.
 Bytes decrypt(const Bytes& data);
@@ -43,7 +46,8 @@ struct SptString {
 };
 
 // Walk the NUL-terminated string run from `skip_offset`.
-std::vector<SptString> extract_strings(const Bytes& dec, std::size_t skip_offset = 0x80);
+std::vector<SptString> extract_strings(const Bytes& dec,
+                                       std::size_t skip_offset = kDefaultSptSkipOffset);
 
 // narrative / dialogue / name / menu / label / empty / other.
 std::string classify(const std::string& text);

@@ -1,4 +1,4 @@
-# SYSTEM -- End-to-end black-box test for the SakuraNoUta proxy DLL.
+# End-to-end black-box test for the SakuraNoUta proxy DLL.
 #
 # Two binaries:
 #   sakuranouta_driver -- tiny fake host EXE; LoadLibrary's the proxy
@@ -9,14 +9,13 @@
 
 include(GoogleTest)
 
-# --- Fake host EXE ---------------------------------------------------
 add_executable(sakuranouta_driver driver_exe.cpp)
+target_link_libraries(sakuranouta_driver PRIVATE shell32)
 target_compile_definitions(sakuranouta_driver PRIVATE
     _CRT_SECURE_NO_WARNINGS
 )
 add_dependencies(sakuranouta_driver proxy)
 
-# --- gtest binary ----------------------------------------------------
 add_executable(sakuranouta_dll sakuranouta_dll.cpp)
 target_link_libraries(sakuranouta_dll PRIVATE GTest::gtest GTest::gtest_main)
 target_compile_definitions(sakuranouta_dll PRIVATE

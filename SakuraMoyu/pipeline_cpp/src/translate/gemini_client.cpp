@@ -7,18 +7,12 @@
 
 #include "gemini_client.h"
 
+#include "common/util.h"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 #include <wincrypt.h>
-
-#include <algorithm>
-#include <chrono>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <filesystem>
-#include <fstream>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -28,7 +22,19 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/version.hpp>
 
-#include "common/util.h"
+#include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <filesystem>
+#include <fstream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace fav::gemini {
 
@@ -40,17 +46,92 @@ using tcp = asio::ip::tcp;
 
 namespace {
 
-constexpr const char* API_HOST = "generativelanguage.googleapis.com";
-constexpr const char* API_PORT = "443";
-constexpr const char* DEFAULT_MODEL = "gemini-4-argon";
-constexpr std::int64_t THINKING_BUDGET = 2048;
-constexpr std::int64_t MAX_OUTPUT_TOKENS = 16384;
+constexpr const char* kApiHost = "generativelanguage.googleapis.com";
+constexpr const char* kApiPort = "443";
+constexpr const char* kDefaultModel = "gemini-4-argon";
+constexpr std::int64_t kThinkingBudget = 2048;
+constexpr std::int64_t kMaxOutputTokens = 16384;
+constexpr std::size_t kMinQuotedValueSize = 2;
+constexpr std::size_t kLeadingQuoteChars = 1;
+constexpr std::size_t kQuotePairCount = 2;
+constexpr int kHttpVersion11 = 11;
+constexpr std::uint64_t kBytesPerKilobyte = 1024ull;
+constexpr std::uint64_t kMaxResponseBodyMegabytes = 64ull;
+constexpr std::uint64_t kMaxResponseBodyBytes =
+    kMaxResponseBodyMegabytes * kBytesPerKilobyte * kBytesPerKilobyte;
+constexpr unsigned int kHttpStatusOkMin = 200u;
+constexpr unsigned int kHttpStatusOkEnd = 300u;
+constexpr unsigned int kHttpStatusTooManyRequests = 429u;
+constexpr std::size_t kFirstCandidateIndex = 0;
+constexpr std::int64_t kZeroTokens = 0;
+
+std::string wide_to_utf8_strict(std::wstring_view wide) {
+    if (wide.empty()) {
+        return {};
+    }
+    const int needed = WideCharToMultiByte(
+        CP_UTF8,
+        WC_ERR_INVALID_CHARS,
+        wide.data(),
+        static_cast<int>(wide.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr);
+    if (needed <= 0) {
+        throw std::runtime_error("Invalid UTF-16 sequence in environment variable");
+    }
+    std::string utf8(static_cast<std::size_t>(needed), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8,
+        WC_ERR_INVALID_CHARS,
+        wide.data(),
+        static_cast<int>(wide.size()),
+        utf8.data(),
+        needed,
+        nullptr,
+        nullptr);
+    if (written != needed) {
+        throw std::runtime_error("UTF-16 to UTF-8 conversion failed");
+    }
+    return utf8;
+}
+
+std::wstring utf8_to_wide_strict(std::string_view utf8) {
+    if (utf8.empty()) {
+        return {};
+    }
+    const int needed = MultiByteToWideChar(
+        CP_UTF8,
+        MB_ERR_INVALID_CHARS,
+        utf8.data(),
+        static_cast<int>(utf8.size()),
+        nullptr,
+        0);
+    if (needed <= 0) {
+        throw std::runtime_error("Invalid UTF-8 sequence in environment value");
+    }
+    std::wstring wide(static_cast<std::size_t>(needed), L'\0');
+    const int written = MultiByteToWideChar(
+        CP_UTF8,
+        MB_ERR_INVALID_CHARS,
+        utf8.data(),
+        static_cast<int>(utf8.size()),
+        wide.data(),
+        needed);
+    if (written != needed) {
+        throw std::runtime_error("UTF-8 to UTF-16 conversion failed");
+    }
+    return wide;
+}
 
 // OpenSSL doesn't read the Windows certificate store on its own; import the
 // ROOT store so peer verification of generativelanguage.googleapis.com works.
 void load_windows_root_certs(asio::ssl::context& ctx) {
     HCERTSTORE store = CertOpenSystemStoreW(0, L"ROOT");
-    if (!store) return;
+    if (!store) {
+        return;
+    }
     X509_STORE* x509 = X509_STORE_new();
     for (PCCERT_CONTEXT cert = CertEnumCertificatesInStore(store, nullptr);
          cert != nullptr; cert = CertEnumCertificatesInStore(store, cert)) {
@@ -67,31 +148,43 @@ void load_windows_root_certs(asio::ssl::context& ctx) {
 }  // namespace
 
 std::string load_api_key() {
-    if (const char* env = std::getenv("GEMINI_API_KEY"); env && *env)
-        return env;
+    if (const wchar_t* env = _wgetenv(L"GEMINI_API_KEY");
+        env != nullptr && *env != L'\0') {
+        return wide_to_utf8_strict(env);
+    }
     try {
-        const char* home = std::getenv("USERPROFILE");
-        if (!home) return {};
-        std::filesystem::path cfg =
-            std::filesystem::u8path(std::string(home) + "\\.gemini\\.env");
-        if (!std::filesystem::exists(cfg)) return {};
+        const wchar_t* whome = _wgetenv(L"USERPROFILE");
+        if (whome == nullptr || *whome == L'\0') {
+            return {};
+        }
+        const std::string home_utf8 = wide_to_utf8_strict(whome);
+        const std::filesystem::path cfg =
+            std::filesystem::u8path(home_utf8) / ".gemini" / ".env";
+        if (!std::filesystem::exists(cfg)) {
+            return {};
+        }
         std::ifstream f(cfg);
-        if (!f) return {};
+        if (!f) {
+            return {};
+        }
         std::string line;
+        constexpr std::string_view kKeyPrefix = "GEMINI_API_KEY=";
         while (std::getline(f, line)) {
             line = trim(line);
-            if (line.rfind("GEMINI_API_KEY=", 0) == 0) {
-                std::string key = trim(line.substr(std::strlen("GEMINI_API_KEY=")));
-                if (key.size() >= 2 &&
-                    ((key.front() == '"' && key.back() == '"') ||
-                     (key.front() == '\'' && key.back() == '\''))) {
-                    key = trim(key.substr(1, key.size() - 2));
-                }
-                if (!key.empty()) {
-                    _putenv_s("GEMINI_API_KEY", key.c_str());
-                    log_info("[OK] Loaded GEMINI_API_KEY from ~/.gemini/.env");
-                    return key;
-                }
+            if (line.rfind(kKeyPrefix.data(), 0) != 0) {
+                continue;
+            }
+            std::string key = trim(line.substr(kKeyPrefix.size()));
+            if (key.size() >= kMinQuotedValueSize &&
+                ((key.front() == '"' && key.back() == '"') ||
+                 (key.front() == '\'' && key.back() == '\''))) {
+                key = trim(key.substr(kLeadingQuoteChars, key.size() - kQuotePairCount));
+            }
+            if (!key.empty()) {
+                const std::wstring wkey = utf8_to_wide_strict(key);
+                _wputenv_s(L"GEMINI_API_KEY", wkey.c_str());
+                log_info("[OK] Loaded GEMINI_API_KEY from ~/.gemini/.env");
+                return key;
             }
         }
         return {};
@@ -102,9 +195,10 @@ std::string load_api_key() {
 
 Client& LazyClient::get() {
     if (!client_) {
-        if (load_api_key().empty())
+        if (load_api_key().empty()) {
             throw ApiError("GEMINI_API_KEY not set -- this run has work "
                            "left to do and needs the API");
+        }
         client_.emplace();
     }
     return *client_;
@@ -114,10 +208,12 @@ struct Client::Impl {
     std::string api_key;
 
     explicit Impl(std::string key) : api_key(std::move(key)) {
-        if (api_key.empty())
+        if (api_key.empty()) {
             api_key = load_api_key();
-        if (api_key.empty())
+        }
+        if (api_key.empty()) {
             throw ApiError("GEMINI_API_KEY not set");
+        }
     }
 };
 
@@ -133,7 +229,7 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
         const bj::object empty_obj;
         const bj::object& in = body.is_object() ? body.get_object() : empty_obj;
 
-        const std::string model = DEFAULT_MODEL;
+        const std::string model = kDefaultModel;
 
         bj::object req_json;
 
@@ -143,10 +239,14 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
                 sys_text = std::string(sys->get_string());
             } else if (sys->is_array()) {
                 for (const auto& item : sys->get_array()) {
-                    if (!item.is_object()) continue;
+                    if (!item.is_object()) {
+                        continue;
+                    }
                     if (const auto* t = item.get_object().if_contains("text");
                         t && t->is_string()) {
-                        if (!sys_text.empty()) sys_text += "\n";
+                        if (!sys_text.empty()) {
+                            sys_text += "\n";
+                        }
                         sys_text += std::string(t->get_string());
                     }
                 }
@@ -161,7 +261,9 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
         bj::array contents;
         if (const auto* msgs = in.if_contains("messages"); msgs && msgs->is_array()) {
             for (const auto& mv : msgs->get_array()) {
-                if (!mv.is_object()) continue;
+                if (!mv.is_object()) {
+                    continue;
+                }
                 const auto& mobj = mv.get_object();
                 std::string role = "user";
                 if (const auto* r = mobj.if_contains("role");
@@ -175,7 +277,9 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
                         parts.push_back(bj::object{{"text", std::string(c->get_string())}});
                     } else if (c->is_array()) {
                         for (const auto& bv : c->get_array()) {
-                            if (!bv.is_object()) continue;
+                            if (!bv.is_object()) {
+                                continue;
+                            }
                             const auto& block = bv.get_object();
                             std::string btype;
                             if (const auto* bt = block.if_contains("type");
@@ -217,16 +321,20 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
         req_json["contents"] = std::move(contents);
 
         bj::object gen_cfg;
-        std::int64_t max_tokens = MAX_OUTPUT_TOKENS;
+        std::int64_t max_tokens = kMaxOutputTokens;
         if (const auto* mt = in.if_contains("max_tokens")) {
-            if (mt->is_int64()) max_tokens = mt->get_int64();
-            else if (mt->is_uint64()) max_tokens = static_cast<std::int64_t>(mt->get_uint64());
+            if (mt->is_int64()) {
+                max_tokens = mt->get_int64();
+            } else if (mt->is_uint64()) {
+                max_tokens = static_cast<std::int64_t>(mt->get_uint64());
+            }
         }
-        max_tokens = std::min<std::int64_t>(max_tokens, MAX_OUTPUT_TOKENS);
+        max_tokens = std::min<std::int64_t>(max_tokens, kMaxOutputTokens);
         gen_cfg["maxOutputTokens"] = max_tokens;
-        if (const auto* temp = in.if_contains("temperature"))
+        if (const auto* temp = in.if_contains("temperature")) {
             gen_cfg["temperature"] = *temp;
-        gen_cfg["thinkingConfig"] = bj::object{{"thinkingBudget", THINKING_BUDGET}};
+        }
+        gen_cfg["thinkingConfig"] = bj::object{{"thinkingBudget", kThinkingBudget}};
         req_json["generationConfig"] = std::move(gen_cfg);
 
         bj::array safety_settings;
@@ -248,20 +356,21 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
         load_windows_root_certs(ssl_ctx);
 
         beast::ssl_stream<beast::tcp_stream> stream(ioc, ssl_ctx);
-        if (!SSL_set_tlsext_host_name(stream.native_handle(), API_HOST))
+        if (!SSL_set_tlsext_host_name(stream.native_handle(), kApiHost)) {
             throw ApiError("SNI setup failed");
-        SSL_set1_host(stream.native_handle(), API_HOST);
+        }
+        SSL_set1_host(stream.native_handle(), kApiHost);
 
         tcp::resolver resolver(ioc);
-        auto endpoints = resolver.resolve(API_HOST, API_PORT);
+        auto endpoints = resolver.resolve(kApiHost, kApiPort);
         beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(timeout_sec));
         beast::get_lowest_layer(stream).connect(endpoints);
         stream.handshake(asio::ssl::stream_base::client);
 
         const std::string target =
             "/v1beta/models/" + model + ":generateContent?key=" + impl_->api_key;
-        http::request<http::string_body> req{http::verb::post, target, 11};
-        req.set(http::field::host, API_HOST);
+        http::request<http::string_body> req{http::verb::post, target, kHttpVersion11};
+        req.set(http::field::host, kApiHost);
         req.set(http::field::user_agent, "fav-pipeline-cpp/1.0");
         req.set(http::field::content_type, "application/json");
         req.body() = bj::serialize(req_json);
@@ -271,18 +380,20 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
 
         beast::flat_buffer buffer;
         http::response_parser<http::string_body> parser;
-        parser.body_limit(64ull * 1024 * 1024);
+        parser.body_limit(kMaxResponseBodyBytes);
         http::read(stream, buffer, parser);
         http::response<http::string_body> res = parser.release();
 
         beast::error_code ec;
         stream.shutdown(ec);  // best-effort; many servers just close
 
-        const unsigned status = res.result_int();
-        if (status == 429)
+        const unsigned int status = res.result_int();
+        if (status == kHttpStatusTooManyRequests) {
             throw RateLimitError("HTTP 429: " + res.body());
-        if (status < 200 || status >= 300)
+        }
+        if (status < kHttpStatusOkMin || status >= kHttpStatusOkEnd) {
             throw ApiError("HTTP " + std::to_string(status) + ": " + res.body());
+        }
 
         bj::value gem_val = bj::parse(res.body());
         const bj::object& gem = gem_val.as_object();
@@ -291,13 +402,15 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
         std::string stop_reason = "end_turn";
         if (const auto* cands = gem.if_contains("candidates");
             cands && cands->is_array() && !cands->get_array().empty()) {
-            const auto& cand0 = cands->get_array()[0].as_object();
+            const auto& cand0 = cands->get_array()[kFirstCandidateIndex].as_object();
             if (const auto* content = cand0.if_contains("content");
                 content && content->is_object()) {
                 if (const auto* parts = content->get_object().if_contains("parts");
                     parts && parts->is_array()) {
                     for (const auto& pv : parts->get_array()) {
-                        if (!pv.is_object()) continue;
+                        if (!pv.is_object()) {
+                            continue;
+                        }
                         const auto& part = pv.get_object();
                         if (const auto* th = part.if_contains("thought");
                             th && th->is_bool() && th->get_bool()) {
@@ -327,20 +440,28 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
             }
         } else if (const auto* pf = gem.if_contains("promptFeedback");
                    pf && pf->is_object()) {
-            if (pf->get_object().if_contains("blockReason"))
+            if (pf->get_object().if_contains("blockReason")) {
                 stop_reason = "refusal";
+            }
         }
 
-        std::int64_t prompt_tok = 0, cand_tok = 0, thought_tok = 0, cached_tok = 0;
+        std::int64_t prompt_tok = kZeroTokens;
+        std::int64_t cand_tok = kZeroTokens;
+        std::int64_t thought_tok = kZeroTokens;
+        std::int64_t cached_tok = kZeroTokens;
         if (const auto* um = gem.if_contains("usageMetadata");
             um && um->is_object()) {
             const auto& u = um->get_object();
             auto geti = [&](const char* k) -> std::int64_t {
                 if (const auto* v = u.if_contains(k)) {
-                    if (v->is_int64()) return v->get_int64();
-                    if (v->is_uint64()) return static_cast<std::int64_t>(v->get_uint64());
+                    if (v->is_int64()) {
+                        return v->get_int64();
+                    }
+                    if (v->is_uint64()) {
+                        return static_cast<std::int64_t>(v->get_uint64());
+                    }
                 }
-                return 0;
+                return kZeroTokens;
             };
             prompt_tok = geti("promptTokenCount");
             cand_tok = geti("candidatesTokenCount");
@@ -357,7 +478,7 @@ boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
             {"input_tokens", prompt_tok},
             {"output_tokens", cand_tok + thought_tok},
             {"cache_read_input_tokens", cached_tok},
-            {"cache_creation_input_tokens", 0}
+            {"cache_creation_input_tokens", kZeroTokens}
         };
         return out;
     } catch (const RateLimitError&) {

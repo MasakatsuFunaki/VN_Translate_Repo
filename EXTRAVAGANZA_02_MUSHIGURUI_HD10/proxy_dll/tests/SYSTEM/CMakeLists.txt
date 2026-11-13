@@ -1,22 +1,16 @@
-# SYSTEM -- End-to-end black-box test for the mushigurui_HD10 proxy DLL.
-#
-# Two binaries:
-#   mushigurui_hd10_driver -- tiny fake host EXE; LoadLibrary's the proxy
-#                              so DllMain runs in a real process (writes
-#                              the banner to proxy_log.txt).
-#   mushigurui_hd10_dll    -- the gtest. Spawns the driver, waits, reads
-#                              the log, asserts the banner substring.
+# End-to-end black-box load test for the Mushigurui winmm.dll proxy.
 
 include(GoogleTest)
 
-# --- Fake host EXE ---------------------------------------------------
+# Minimal fake host executable that loads the built proxy DLL.
 add_executable(mushigurui_hd10_driver driver_exe.cpp)
+target_link_libraries(mushigurui_hd10_driver PRIVATE shell32)
 target_compile_definitions(mushigurui_hd10_driver PRIVATE
     _CRT_SECURE_NO_WARNINGS
 )
 add_dependencies(mushigurui_hd10_driver proxy)
 
-# --- gtest binary ----------------------------------------------------
+# System GoogleTest runner that spawns the fake host and verifies log output.
 add_executable(mushigurui_hd10_dll mushigurui_hd10_dll.cpp)
 target_link_libraries(mushigurui_hd10_dll PRIVATE GTest::gtest GTest::gtest_main)
 target_compile_definitions(mushigurui_hd10_dll PRIVATE
@@ -28,3 +22,4 @@ target_compile_definitions(mushigurui_hd10_dll PRIVATE
 )
 add_dependencies(mushigurui_hd10_dll proxy mushigurui_hd10_driver)
 gtest_discover_tests(mushigurui_hd10_dll PROPERTIES LABELS "SYSTEM")
+

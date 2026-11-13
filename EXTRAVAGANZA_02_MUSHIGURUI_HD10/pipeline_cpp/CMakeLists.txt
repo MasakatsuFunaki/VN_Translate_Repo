@@ -56,6 +56,8 @@ add_library(mgi_core STATIC
     src/cg/cg_pipeline.h
     src/choices/choice_render.cpp
     src/choices/choice_render.h
+    src/menu/menu_patcher.cpp
+    src/menu/menu_patcher.h
 )
 target_include_directories(mgi_core PUBLIC src)
 target_compile_definitions(mgi_core PUBLIC
@@ -74,6 +76,9 @@ target_link_libraries(mgi_core PUBLIC
     stb::stb
     ws2_32
     crypt32
+    gdi32
+    ole32
+    windowscodecs
 )
 
 # --------------------------------------------------------------------
@@ -90,7 +95,7 @@ target_link_libraries(mgi_core PUBLIC
 # Program_options is scoped here rather than pushed through mgi_core.
 function(mgi_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE mgi_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE mgi_core Boost::program_options shell32)
 endfunction()
 
 mgi_app(00_run_all              src/apps/run_all_main.cpp)
@@ -99,9 +104,10 @@ mgi_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 mgi_app(03_build_xtx            src/apps/build_xtx_main.cpp)
 mgi_app(04_find_narrative_cg    src/apps/find_narrative_cg_main.cpp)
 mgi_app(05_replace_choice_text  src/apps/replace_choice_text_main.cpp)
+mgi_app(06_patch_menus          src/apps/patch_menus_main.cpp)
 
 # --------------------------------------------------------------------
-# Install: the six executables a user runs, and nothing else.  mgi_core and
+# Install: the executables a user runs, and nothing else.  mgi_core and
 # the test binaries exist to produce these and stay in the build tree.  Every
 # dependency is a static library, so there is no runtime to carry.
 #
@@ -111,6 +117,7 @@ mgi_app(05_replace_choice_text  src/apps/replace_choice_text_main.cpp)
 # --------------------------------------------------------------------
 install(TARGETS 00_run_all 01_extract 02_build_tsv
                 03_build_xtx 04_find_narrative_cg 05_replace_choice_text
+                06_patch_menus
         RUNTIME DESTINATION bin)
 
 

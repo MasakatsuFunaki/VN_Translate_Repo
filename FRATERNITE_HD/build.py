@@ -108,7 +108,9 @@ def build_table():
     exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
     tsv = os.path.join(INSTALL_DIR, "game", TABLE_NAME)
     os.makedirs(os.path.dirname(tsv), exist_ok=True)
-    if os.path.isfile(tsv) and os.path.getsize(tsv) > 0 and os.path.getmtime(tsv) >= os.path.getmtime(doc):
+    if (os.path.isfile(tsv) and os.path.getsize(tsv) > 0
+            and os.path.getmtime(tsv) >= os.path.getmtime(doc)
+            and os.path.getmtime(tsv) >= os.path.getmtime(exe)):
         return
     run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
 
@@ -197,12 +199,11 @@ def deploy(game_dir):
     if os.path.isfile(cgsys) and not os.path.isfile(cgsys_bak):
         shutil.copyfile(cgsys, cgsys_bak)
 
-    menu_assets = os.path.join(ROOT, "menu_assets")
-    if (os.path.isdir(menu_assets) or os.path.isfile(patch_src)) and os.path.isfile(cgsys):
+    if os.path.isfile(patch_src) and os.path.isfile(cgsys):
         patcher = os.path.join(INSTALL_DIR, "bin", "03_patch_menus.exe")
         if not os.path.isfile(patcher):
             patcher = os.path.join(BUILD_DIR, "pipeline", CONFIG, "03_patch_menus.exe")
-        run([patcher, "--dir", ROOT, "--game-dir", game_dir], ROOT)
+        run([patcher, "--game-dir", game_dir], ROOT)
 
     print(f"\nDeployed to {game_dir}.")
 

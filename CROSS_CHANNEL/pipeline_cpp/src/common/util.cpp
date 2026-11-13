@@ -20,8 +20,6 @@
 
 namespace crc {
 
-// ---- file IO ---------------------------------------------------------------
-
 Bytes read_file(const std::string& path) {
     std::ifstream f(std::filesystem::u8path(path), std::ios::binary);
     if (!f) throw std::runtime_error("cannot open " + path);
@@ -68,8 +66,6 @@ void write_file_text(const std::string& path, const std::string& content) {
 void write_file_atomic_text(const std::string& path, const std::string& content) {
     write_file_atomic(path, to_crlf(content));
 }
-
-// ---- CP932 <-> UTF-8 -------------------------------------------------------
 
 namespace {
 
@@ -140,11 +136,13 @@ std::string wide_to_utf8(const std::wstring& w) {
 
 std::wstring utf8_to_wide(const std::string& s) {
     if (s.empty()) return {};
-    int len = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
-                                  nullptr, 0);
+    const int len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s.data(),
+                                        static_cast<int>(s.size()), nullptr, 0);
+    if (len <= 0) return {};
     std::wstring out(static_cast<std::size_t>(len), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
-                        out.data(), len);
+    const int written = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s.data(),
+                                            static_cast<int>(s.size()), out.data(), len);
+    if (written != len) return {};
     return out;
 }
 
@@ -221,11 +219,12 @@ Bytes utf8_to_cp932_replace(const std::string& s) {
 }
 
 std::optional<Bytes> utf8_to_cp932_strict(const std::string& s) {
-    std::wstring w = utf8_to_wide(s);
-    if (w.empty()) return Bytes{};
+    if (s.empty()) return Bytes{};
+    const std::wstring w = utf8_to_wide(s);
+    if (w.empty()) return std::nullopt;
     BOOL used_default = FALSE;
-    int len = WideCharToMultiByte(932, 0, w.data(), static_cast<int>(w.size()), nullptr, 0,
-                                  nullptr, &used_default);
+    const int len = WideCharToMultiByte(932, 0, w.data(), static_cast<int>(w.size()), nullptr, 0,
+                                        nullptr, &used_default);
     if (len <= 0) return std::nullopt;
     Bytes out(static_cast<std::size_t>(len));
     WideCharToMultiByte(932, 0, w.data(), static_cast<int>(w.size()),
@@ -233,8 +232,6 @@ std::optional<Bytes> utf8_to_cp932_strict(const std::string& s) {
     if (used_default) return std::nullopt;
     return out;
 }
-
-// ---- Unicode helpers -------------------------------------------------------
 
 char32_t utf8_next(const std::string& s, std::size_t& i) {
     const auto* p = reinterpret_cast<const std::uint8_t*>(s.data());
@@ -321,8 +318,6 @@ std::string trim_right(const std::string& utf8) {
     return utf8.substr(b, e - b);
 }
 
-// ---- logging ---------------------------------------------------------------
-
 namespace {
 std::string timestamp() {
     auto now = std::chrono::system_clock::now();
@@ -366,8 +361,6 @@ std::string comma(long long n) {
     if (n < 0) out += '-';
     return std::string(out.rbegin(), out.rend());
 }
-
-// ---- JSON ------------------------------------------------------------------
 
 namespace {
 void pretty_impl(const boost::json::value& v, std::string& out, int indent, int depth) {

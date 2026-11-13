@@ -7,13 +7,13 @@
 
 // CP932 codec tests covering strict/lossy decoding, encoding round-trips,
 // and the five single-byte vendor extensions (0x80, 0xA0, 0xFD-0xFF).
+#include "common/util.h"
+
 #include <gtest/gtest.h>
 
 #include <cstdint>
 #include <initializer_list>
 #include <string>
-
-#include "common/util.h"
 
 using namespace exm;
 

@@ -5,64 +5,52 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Command-line handling for the EXTRA_VA_MIZUNA_CE pipeline apps (Boost.ProgramOptions).
+// Command-line handling and wide-process execution for the EXTRA_VA_MIZUNA_CE
+// pipeline applications.
 #pragma once
 
-#include <iostream>
+#include <boost/program_options.hpp>
+
+#include <filesystem>
 #include <optional>
 #include <string>
-
-#include <boost/program_options.hpp>
+#include <string_view>
+#include <vector>
 
 namespace exm::apps {
 
 namespace po = boost::program_options;
 
+inline constexpr int kExitOk = 0;
+inline constexpr int kExitHelp = 0;
+inline constexpr int kExitError = 1;
+
 std::string exe_dir();
 std::string default_project_dir();
-std::string find_project_dir_from(const std::string& start_dir);
 
-inline po::options_description common_options(std::string& project_dir,
-                                              std::string& game_dir) {
-    auto* dir = po::value(&project_dir);
-    if (const std::string found = default_project_dir(); found.empty()) {
-        dir->required();
-    } else {
-        dir->default_value(found);
-    }
+// Resolves the project root by walking ancestor directories from start_dir:
+// prefers a developer checkout (pipeline_cpp + build.py) before falling back to
+// a staged release layout (bin + game, or legacy bin + script_output).
+std::string find_project_dir_from(const std::filesystem::path& start_dir);
 
-    po::options_description desc("Common options");
-    desc.add_options()
-        ("help,h", "show this help and exit")
-        ("dir", dir, "EXTRA_VA_MIZUNA_CE project folder")
-        ("game-dir", po::value(&game_dir)->required(),
-         "game installation folder");
-    return desc;
-}
+po::options_description common_options(std::string& project_dir,
+                                       std::string& game_dir);
 
-inline std::optional<int> parse_command_line(int argc, char** argv,
-                                             const po::options_description& desc,
-                                             po::variables_map& vm) {
-    try {
-        const auto parsed = po::command_line_parser(argc, argv).options(desc).run();
-        const auto stray = po::collect_unrecognized(parsed.options, po::include_positional);
-        if (!stray.empty()) {
-            std::cerr << "[ERROR] unexpected argument '" << stray.front() << "'\n\n"
-                      << desc << std::endl;
-            return 1;
-        }
+po::options_description game_only_options(std::string& game_dir);
 
-        po::store(parsed, vm);
-        if (vm.count("help")) {
-            std::cout << desc << std::endl;
-            return 0;
-        }
-        po::notify(vm);
-    } catch (const po::error& e) {
-        std::cerr << "[ERROR] " << e.what() << "\n\n" << desc << std::endl;
-        return 1;
-    }
-    return std::nullopt;
-}
+std::vector<std::string> process_utf8_args();
+
+std::optional<int> parse_command_line(int argc, char** argv,
+                                      const po::options_description& desc,
+                                      po::variables_map& vm);
+
+std::optional<int> parse_process_command_line(const po::options_description& desc,
+                                              po::variables_map& vm);
+
+std::wstring build_process_command_line(std::string_view exe_path,
+                                        const std::vector<std::string>& args);
+
+int run_process(std::string_view exe_path,
+                const std::vector<std::string>& args);
 
 }  // namespace exm::apps

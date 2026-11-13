@@ -7,6 +7,9 @@
 
 #include "cg_pipeline.h"
 
+#include "common/util.h"
+#include "ddp/ddp_archive.h"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -14,20 +17,25 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
+#include <memory>
+#include <optional>
 #include <set>
 #include <stdexcept>
+#include <string>
+#include <system_error>
 #include <thread>
 #include <utility>
-
-#include "common/util.h"
-#include "ddp/ddp_archive.h"
+#include <vector>
 
 namespace shin::cg {
 
@@ -151,6 +159,47 @@ std::vector<std::string> splitlines(const std::string& s) {
     }
     if (!cur.empty()) out.push_back(cur);
     return out;
+}
+
+// Base-16 parse of a 0..2 character slice: leading/trailing whitespace is
+// tolerated, an empty or non-hex slice throws.
+int int_base16(const std::string& slice) {
+    std::string s = trim(slice);
+    bool neg = false;
+    std::size_t i = 0;
+    if (i < s.size() && (s[i] == '+' || s[i] == '-')) {
+        neg = s[i] == '-';
+        ++i;
+    }
+    if (i + 1 < s.size() && s[i] == '0' && (s[i + 1] == 'x' || s[i + 1] == 'X')) i += 2;
+    if (i >= s.size()) throw std::runtime_error("invalid literal for int() with base 16");
+    int value = 0;
+    for (; i < s.size(); ++i) {
+        const char c = s[i];
+        int d;
+        if (c >= '0' && c <= '9') d = c - '0';
+        else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+        else throw std::runtime_error("invalid literal for int() with base 16");
+        value = value * 16 + d;
+    }
+    return neg ? -value : value;
+}
+
+// Slice [a,b) over CODEPOINTS, clamped to the string -- never throws.
+std::string cp_slice(const std::string& s, std::size_t a, std::size_t b) {
+    std::vector<std::size_t> starts;
+    std::size_t i = 0;
+    while (i < s.size()) {
+        starts.push_back(i);
+        utf8_next(s, i);
+    }
+    starts.push_back(s.size());
+    const std::size_t n = starts.size() - 1;
+    a = std::min(a, n);
+    b = std::min(b, n);
+    if (b <= a) return "";
+    return s.substr(starts[a], starts[b] - starts[a]);
 }
 
 // ---------------------------------------------------------------------------
@@ -290,13 +339,64 @@ ArchiveIndex extract_archive(const CgOptions& opt, const std::string& arc_name,
 // Child process implementation
 // ---------------------------------------------------------------------------
 
-namespace {
+constexpr std::size_t kBackslashEscapeFactor = 2;
+constexpr std::size_t kQuoteEscapeAddend = 1;
+constexpr std::size_t kPipeReadBufSize = 4096;
+constexpr DWORD kTerminateExitCode = 1;
 
-// Quote one argument for CreateProcess, which takes a single flat command line:
-// wrap in quotes when it contains a space or a quote, escaping quotes and the
-// backslashes that precede them.
+class ScopedHandle {
+public:
+    ScopedHandle() noexcept = default;
+    explicit ScopedHandle(HANDLE h) noexcept : h_(h) {}
+    ~ScopedHandle() { close(); }
+
+    ScopedHandle(const ScopedHandle&) = delete;
+    ScopedHandle& operator=(const ScopedHandle&) = delete;
+
+    ScopedHandle(ScopedHandle&& other) noexcept : h_(other.release()) {}
+    ScopedHandle& operator=(ScopedHandle&& other) noexcept {
+        if (this != &other) {
+            close();
+            h_ = other.release();
+        }
+        return *this;
+    }
+
+    HANDLE get() const noexcept { return h_; }
+
+    HANDLE release() noexcept {
+        HANDLE tmp = h_;
+        h_ = nullptr;
+        return tmp;
+    }
+
+    void reset(HANDLE h = nullptr) noexcept {
+        close();
+        h_ = h;
+    }
+
+    explicit operator bool() const noexcept {
+        return h_ != nullptr && h_ != INVALID_HANDLE_VALUE;
+    }
+
+private:
+    void close() noexcept {
+        if (h_ != nullptr && h_ != INVALID_HANDLE_VALUE) {
+            CloseHandle(h_);
+            h_ = nullptr;
+        }
+    }
+
+    HANDLE h_ = nullptr;
+};
+
+// Quote one non-executable argument (argv[1..N]) for CommandLineToArgvW:
+// wrap in quotes when empty or containing whitespace/quotes, escaping embedded
+// quotes and any backslashes immediately preceding a quote or closing quote.
 std::string quote_arg(const std::string& a) {
-    if (!a.empty() && a.find_first_of(" \t\"") == std::string::npos) return a;
+    if (!a.empty() && a.find_first_of(" \t\n\v\"") == std::string::npos) {
+        return a;
+    }
     std::string out = "\"";
     std::size_t backslashes = 0;
     for (char c : a) {
@@ -305,7 +405,7 @@ std::string quote_arg(const std::string& a) {
             continue;
         }
         if (c == '"') {
-            out.append(backslashes * 2 + 1, '\\');
+            out.append(backslashes * kBackslashEscapeFactor + kQuoteEscapeAddend, '\\');
             out += '"';
         } else {
             out.append(backslashes, '\\');
@@ -313,99 +413,142 @@ std::string quote_arg(const std::string& a) {
         }
         backslashes = 0;
     }
-    out.append(backslashes * 2, '\\');
+    out.append(backslashes * kBackslashEscapeFactor, '\\');
     return out + "\"";
 }
 
 std::wstring widen(const std::string& s) {
-    if (s.empty()) return {};
-    const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), static_cast<int>(s.size()),
-                                      nullptr, 0);
+    if (s.empty()) {
+        return {};
+    }
+    const int n = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, s.data(), static_cast<int>(s.size()),
+        nullptr, 0);
+    if (n <= 0) {
+        throw std::runtime_error("invalid UTF-8 string in child process command");
+    }
     std::wstring w(static_cast<std::size_t>(n), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), static_cast<int>(s.size()), w.data(), n);
+    const int written = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, s.data(), static_cast<int>(s.size()),
+        w.data(), n);
+    if (written != n) {
+        throw std::runtime_error("MultiByteToWideChar(CP_UTF8) length mismatch");
+    }
     return w;
 }
 
 // A read end plus the thread draining it -- a single-threaded read of two pipes
 // deadlocks as soon as the child fills the other one.
 struct PipeReader {
-    HANDLE read = nullptr;
-    HANDLE write = nullptr;
+    ScopedHandle read;
+    ScopedHandle write;
     std::string data;
     std::thread thread;
 
+    PipeReader() = default;
+    PipeReader(const PipeReader&) = delete;
+    PipeReader& operator=(const PipeReader&) = delete;
+    ~PipeReader() { finish(); }
+
     bool open() {
         SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
-        if (!CreatePipe(&read, &write, &sa, 0)) return false;
-        SetHandleInformation(read, HANDLE_FLAG_INHERIT, 0);
+        HANDLE raw_read = nullptr;
+        HANDLE raw_write = nullptr;
+        if (!CreatePipe(&raw_read, &raw_write, &sa, 0)) {
+            return false;
+        }
+        read.reset(raw_read);
+        write.reset(raw_write);
+        if (!SetHandleInformation(read.get(), HANDLE_FLAG_INHERIT, 0)) {
+            read.reset();
+            write.reset();
+            return false;
+        }
         return true;
     }
+
     void start() {
         thread = std::thread([this] {
-            char buf[4096];
+            char buf[kPipeReadBufSize];
             DWORD n = 0;
-            while (ReadFile(read, buf, sizeof(buf), &n, nullptr) && n) data.append(buf, n);
+            while (ReadFile(read.get(), buf, sizeof(buf), &n, nullptr) && n != 0) {
+                data.append(buf, n);
+            }
         });
     }
-    void finish() {
-        if (thread.joinable()) thread.join();
-        if (read) CloseHandle(read);
+
+    void finish() noexcept {
+        write.reset();
+        if (thread.joinable()) {
+            thread.join();
+        }
+        read.reset();
     }
 };
 
-}  // namespace
-
 ProcResult run_capture(const std::vector<std::string>& argv, unsigned timeout_ms) {
-    std::string cmdline;
-    for (std::size_t i = 0; i < argv.size(); ++i) {
-        if (i) cmdline += ' ';
-        cmdline += quote_arg(argv[i]);
+    if (argv.empty() || argv.front().empty()) {
+        throw std::runtime_error("empty argv passed to run_capture");
+    }
+    if (argv.front().find('"') != std::string::npos) {
+        throw std::runtime_error("executable path contains embedded quote: " + argv.front());
     }
 
-    PipeReader out, err;
-    if (!out.open() || !err.open()) throw std::runtime_error("cannot create pipe");
+    const std::wstring exe_w = widen(argv.front());
+    std::wstring wcmd = L"\"" + exe_w + L"\"";
+    for (std::size_t i = 1; i < argv.size(); ++i) {
+        wcmd += L' ';
+        wcmd += widen(quote_arg(argv[i]));
+    }
+
+    PipeReader out;
+    PipeReader err;
+    if (!out.open() || !err.open()) {
+        throw std::runtime_error("cannot create pipe");
+    }
 
     STARTUPINFOW si{};
     si.cb = sizeof(si);
     si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdOutput = out.write;
-    si.hStdError = err.write;
+    si.hStdOutput = out.write.get();
+    si.hStdError = err.write.get();
     si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
 
-    std::wstring wcmd = widen(cmdline);
-    wcmd.push_back(L'\0');
     PROCESS_INFORMATION pi{};
-    if (!CreateProcessW(nullptr, wcmd.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-                        nullptr, nullptr, &si, &pi)) {
-        CloseHandle(out.read);
-        CloseHandle(out.write);
-        CloseHandle(err.read);
-        CloseHandle(err.write);
+    if (!CreateProcessW(exe_w.c_str(), wcmd.data(), nullptr, nullptr, TRUE,
+                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
         throw std::runtime_error("cannot run " + argv.front());
     }
-    // The parent's copies must go, or the reads never see EOF.
-    CloseHandle(out.write);
-    CloseHandle(err.write);
-    out.start();
-    err.start();
+    ScopedHandle proc_guard(pi.hProcess);
+    ScopedHandle thread_guard(pi.hThread);
 
-    ProcResult r;
-    if (WaitForSingleObject(pi.hProcess, timeout_ms) == WAIT_TIMEOUT) {
-        TerminateProcess(pi.hProcess, 1);
-        WaitForSingleObject(pi.hProcess, INFINITE);
+    // The parent's copies must go, or the reads never see EOF.
+    out.write.reset();
+    err.write.reset();
+    try {
+        out.start();
+        err.start();
+    } catch (...) {
+        TerminateProcess(proc_guard.get(), kTerminateExitCode);
+        WaitForSingleObject(proc_guard.get(), INFINITE);
         out.finish();
         err.finish();
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        throw;
+    }
+
+    if (WaitForSingleObject(proc_guard.get(), timeout_ms) == WAIT_TIMEOUT) {
+        TerminateProcess(proc_guard.get(), kTerminateExitCode);
+        WaitForSingleObject(proc_guard.get(), INFINITE);
+        out.finish();
+        err.finish();
         throw std::runtime_error("timed out: " + argv.front());
     }
     DWORD code = 0;
-    GetExitCodeProcess(pi.hProcess, &code);
+    GetExitCodeProcess(proc_guard.get(), &code);
     out.finish();
     err.finish();
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
 
+    ProcResult r;
     r.rc = static_cast<int>(code);
     r.out = std::move(out.data);
     r.err = std::move(err.data);
@@ -1086,51 +1229,6 @@ int to_int(const bj::value& v) {
         throw std::runtime_error("int() argument must be a string or a number");
     }
 }
-
-namespace {
-
-// Base-16 parse of a 0..2 character slice: leading/trailing whitespace is
-// tolerated, an empty or non-hex slice throws.
-int int_base16(const std::string& slice) {
-    std::string s = trim(slice);
-    bool neg = false;
-    std::size_t i = 0;
-    if (i < s.size() && (s[i] == '+' || s[i] == '-')) {
-        neg = s[i] == '-';
-        ++i;
-    }
-    if (i + 1 < s.size() && s[i] == '0' && (s[i + 1] == 'x' || s[i + 1] == 'X')) i += 2;
-    if (i >= s.size()) throw std::runtime_error("invalid literal for int() with base 16");
-    int value = 0;
-    for (; i < s.size(); ++i) {
-        const char c = s[i];
-        int d;
-        if (c >= '0' && c <= '9') d = c - '0';
-        else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
-        else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
-        else throw std::runtime_error("invalid literal for int() with base 16");
-        value = value * 16 + d;
-    }
-    return neg ? -value : value;
-}
-
-// Slice [a,b) over CODEPOINTS, clamped to the string -- never throws.
-std::string cp_slice(const std::string& s, std::size_t a, std::size_t b) {
-    std::vector<std::size_t> starts;
-    std::size_t i = 0;
-    while (i < s.size()) {
-        starts.push_back(i);
-        utf8_next(s, i);
-    }
-    starts.push_back(s.size());
-    const std::size_t n = starts.size() - 1;
-    a = std::min(a, n);
-    b = std::min(b, n);
-    if (b <= a) return "";
-    return s.substr(starts[a], starts[b] - starts[a]);
-}
-
-}  // namespace
 
 std::array<std::uint8_t, 4> parse_hex(const std::string& hex,
                                       const std::string& bg_tone) {

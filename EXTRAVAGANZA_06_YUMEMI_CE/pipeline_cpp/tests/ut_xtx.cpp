@@ -8,13 +8,17 @@
 // Component tests for src/xtx/xtx.{h,cpp} and src/xtx/xtx_tables.cpp:
 // YUMEMIRYOJOKU_CE charaname.xtx table entries and CP932 in-place replacement
 // with backup.
-#include <gtest/gtest.h>
-
-#include <filesystem>
-#include <string>
+#include "xtx/xtx.h"
 
 #include "common/util.h"
-#include "xtx/xtx.h"
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <system_error>
 
 namespace fs = std::filesystem;
 namespace xtx = exm::xtx;
@@ -23,6 +27,29 @@ using namespace exm;
 namespace {
 
 constexpr std::size_t kExpectedCharanameEntryCount = 3;
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
 
 }  // namespace
 
@@ -38,13 +65,12 @@ TEST(Xtx, charaname_translations_table_matches_yumemi_contract) {
 }
 
 TEST(Xtx, translate_xtx_file_rewrites_cp932_entries_and_creates_backup) {
-    const fs::path temp_dir = fs::temp_directory_path() / "yumemi_ut_xtx_dir";
-    fs::remove_all(temp_dir);
-    fs::create_directories(temp_dir / "spt");
+    const ScopedTempDir temp_dir("yumemi_ut_xtx_dir");
+    fs::create_directories(temp_dir.path() / "spt");
 
-    const std::string filepath = (temp_dir / "spt" / "charaname.xtx").u8string();
-    const std::string backup_dir = (temp_dir / "xtx_backup").u8string();
-    const std::string backup_file = (temp_dir / "xtx_backup" / "charaname.xtx").u8string();
+    const std::string filepath = (temp_dir.path() / "spt" / "charaname.xtx").u8string();
+    const std::string backup_dir = (temp_dir.path() / "xtx_backup").u8string();
+    const std::string backup_file = (temp_dir.path() / "xtx_backup" / "charaname.xtx").u8string();
 
     const std::string initial_utf8 =
         "no,名前なし\r\n"
@@ -67,6 +93,4 @@ TEST(Xtx, translate_xtx_file_rewrites_cp932_entries_and_creates_backup) {
     const auto backup_decoded = cp932_to_utf8_strict(read_file(backup_file));
     ASSERT_TRUE(backup_decoded.has_value());
     EXPECT_EQ(*backup_decoded, initial_utf8);
-
-    fs::remove_all(temp_dir);
 }

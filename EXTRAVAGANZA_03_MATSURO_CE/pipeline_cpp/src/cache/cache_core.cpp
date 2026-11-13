@@ -7,18 +7,25 @@
 
 #include "cache/cache_core.h"
 
-#include <algorithm>
-#include <chrono>
-#include <cstdio>
-#include <filesystem>
-#include <stdexcept>
-
-#include <boost/regex.hpp>
-
 #include "build_tsv/build_tsv.h"
 #include "cache/glossary.h"
 #include "cache/speaker_gate.h"
 #include "common/util.h"
+
+#include <boost/regex.hpp>
+
+#include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <cstdio>
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 namespace exm::translate {
 
@@ -115,8 +122,7 @@ std::string extract_speaker(const std::string& text) {
     const std::string name = trim(text.substr(0, crlf));
     const std::string rest = trim_left(text.substr(crlf + 2));
     if (name.empty() || char_len(name) > 20 || rest.empty()) return "NARRATION";
-    if (rest.rfind("\xE3\x80\x8C", 0) != 0 &&   // 「
-        rest.rfind("\xE3\x80\x8E", 0) != 0)     // 『
+    if (rest.rfind("「", 0) != 0 && rest.rfind("『", 0) != 0)
         return "NARRATION";
     const auto& map = name_translations();
     auto it = map.find(name);
@@ -125,14 +131,14 @@ std::string extract_speaker(const std::string& text) {
 
 std::string sanitize_ascii(const std::string& text) {
     std::string s = text;
-    s = replace_all(s, "\xE2\x80\x94", "--");   // em dash
-    s = replace_all(s, "\xE2\x80\x93", "--");   // en dash
-    s = replace_all(s, "\xE2\x80\xA6", "...");  // horizontal ellipsis
-    s = replace_all(s, "\xE2\x80\x98", "'");    // left single curly quote
-    s = replace_all(s, "\xE2\x80\x99", "'");    // right single curly quote
-    s = replace_all(s, "\xE2\x80\x9C", "\"");   // left double curly quote
-    s = replace_all(s, "\xE2\x80\x9D", "\"");   // right double curly quote
-    s = replace_all(s, "\xE3\x80\x80", " ");    // ideographic space
+    s = replace_all(s, "—", "--");
+    s = replace_all(s, "–", "--");
+    s = replace_all(s, "…", "...");
+    s = replace_all(s, "‘", "'");
+    s = replace_all(s, "’", "'");
+    s = replace_all(s, "“", "\"");
+    s = replace_all(s, "”", "\"");
+    s = replace_all(s, "　", " ");
     return s;
 }
 
@@ -252,10 +258,6 @@ std::map<int, std::string> parse_numbered_response(const std::string& response_t
     return translations;
 }
 
-// --------------------------------------------------------------------------- //
-// Per-file translation
-// --------------------------------------------------------------------------- //
-
 namespace {
 
 std::pair<long long, bool> translate_file(const bj::object& fdata, Cache& cache,
@@ -275,12 +277,11 @@ std::pair<long long, bool> translate_file(const bj::object& fdata, Cache& cache,
             const std::size_t idx = translatable[k];
             const auto& s = strings[idx].get_object();
             const std::string text(s.at("text").get_string());
-            if (cache.get(text)) {
-                ++translated_count;
-            } else {
+            if (!cache.get(text)) {
                 throw std::runtime_error(
                     "Offline build: missing cached translation; live API client removed for finished game");
             }
+            ++translated_count;
         }
     }
 
@@ -288,10 +289,6 @@ std::pair<long long, bool> translate_file(const bj::object& fdata, Cache& cache,
 }
 
 }  // namespace
-
-// --------------------------------------------------------------------------- //
-// Driver
-// --------------------------------------------------------------------------- //
 
 int translate_all(const TranslateOptions& opt) {
     log_info("Batch size: " + std::to_string(opt.batch_size) + " lines per request");

@@ -8,20 +8,16 @@
 // 00_run_all -- Shingakkou ~Noli me tangere~ DL English translation pipeline
 // orchestrator.
 //
-//   00_run_all             # the whole pipeline
-//   00_run_all --test      # 1 batch smoke test
-//   00_run_all --test N    # N batches then stop
-//   00_run_all --batch N   # lines per API request
-//   00_run_all --clean     # delete cached JSON, then run
+//   00_run_all --game-dir <G>
 //
-// Steps: 01_extract -> 02_build_tsv -> deploy.  The translation step carries
-// the speaker gate and the runtime table with it, which is why there are three
-// steps and not five: everything that must happen for the game to show English
-// happens inside the command that pays for it.
+// Pipeline order: 01_extract -> 02_build_tsv -> deploy.
 //
-// There is no narrative-CG step here: 03_find_narrative_cg is standalone.  It
-// costs a vision call per image and rewrites ~800 MB of game data, so it is
-// never part of an unattended full run.
+// 03_find_narrative_cg is standalone and is not invoked by 00_run_all.
+#include "apps/paths.h"
+#include "apps/pipeline_steps.h"
+#include "common/util.h"
+
+#include <cstddef>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
@@ -29,31 +25,41 @@
 #include <system_error>
 #include <vector>
 
-#include "common/util.h"
-#include "cache/cache_core.h"
-
-#include "apps/paths.h"
-#include "apps/pipeline_steps.h"
-
 namespace fs = std::filesystem;
 using namespace shin;
 
 namespace {
 
-int run_command(const std::string& cmdline) {
-    print_line("Running: " + cmdline);
-    // std::system returns the child's exit code on Windows.
-    return std::system(("\"" + cmdline + "\"").c_str());
-}
+constexpr int kExitOk = 0;
+constexpr std::size_t kBannerWidth = 60;
+constexpr std::size_t kExtractStageIndex = 0;
+constexpr std::size_t kBuildTsvStageIndex = 1;
+constexpr std::size_t kDeployStageIndex = 2;
+constexpr std::size_t kStageDisplayOffset = 1;
 
-void run_step(const std::string& exe, const std::vector<std::string>& args,
-              const std::string& passthrough) {
-    std::string cmd = "\"" + apps::exe_dir() + "\\" + exe + ".exe\"" + passthrough;
-    for (const auto& a : args) cmd += " " + a;
-    if (run_command(cmd) != 0) {
-        log_info("\n[ERROR] " + exe + " failed");
-        std::exit(1);
+bool run_stage(const std::string& exe_stem,
+               const std::vector<std::string>& extra_args,
+               const std::string& project,
+               const std::string& game) {
+    const std::string exe_path =
+        (fs::u8path(apps::exe_dir()) / (exe_stem + ".exe")).u8string();
+    std::vector<std::string> child_args = {
+        "--dir", project,
+        "--game-dir", game,
+    };
+    child_args.insert(child_args.end(), extra_args.begin(), extra_args.end());
+
+    std::string display = "\"" + exe_path + "\"";
+    for (const std::string& arg : child_args) {
+        display += " \"" + arg + "\"";
     }
+    print_line("Running: " + display);
+
+    if (apps::run_process(exe_path, child_args) != kExitOk) {
+        log_info("\n[ERROR] " + exe_stem + " failed");
+        return false;
+    }
+    return true;
 }
 
 // Ship what the game reads.  Nothing is rebuilt here: a rebuild would relink
@@ -63,20 +69,13 @@ void run_step(const std::string& exe, const std::vector<std::string>& args,
 // The DLL is a hard failure -- without it the game shows Japanese and nothing
 // says why.  The table is only checked: unlike the other games in this repo it
 // is not staged from the checkout, because 02_build_tsv writes it straight
-// into the game folder.  A missing one means the translation step has not
-// produced it yet.
+// into the game folder.
 bool deploy(const std::string& project, const std::string& game) {
     if (const char* dist = std::getenv("VN_DIST_BUILD"); dist && *dist) {
         log_info("[DIST] VN_DIST_BUILD set -- skipping the copy to the game folder.");
         return true;
     }
 
-    // The whole game builds into one tree, so the DLL is in build/proxy; when
-    // this executable is the staged copy under build/install/bin, the DLL is
-    // in the sibling game/ folder instead.
-    // Asked for, not thrown, like the copies below: a status query that
-    // fails says nothing about whether the file is there, and the throwing
-    // overload would end the run from here with no diagnosis at all.
     std::error_code ec;
     fs::path dll;
     for (const auto& candidate : {project + "\\build\\proxy\\Release\\winmm.dll",
@@ -85,8 +84,9 @@ bool deploy(const std::string& project, const std::string& game) {
             dll = fs::u8path(candidate);
             break;
         }
-        if (ec)
+        if (ec) {
             log_info("  WARN: cannot check " + candidate + ": " + ec.message());
+        }
     }
     if (dll.empty()) {
         log_info("[ERROR] winmm.dll not found -- build the proxy half first "
@@ -121,131 +121,54 @@ bool deploy(const std::string& project, const std::string& game) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main() {
     setup_console_utf8();
     namespace po = apps::po;
 
-    std::string project, game;
-    int batch = 0, test_n = 0;
-    bool clean = false, discard_cache = false;
-    po::options_description desc("00_run_all -- Shingakkou translation pipeline");
-    desc.add(apps::common_options(project, game));
-    desc.add_options()
-        ("batch", po::value(&batch)->default_value(150),
-         "lines per API request, passed to the translation step")
-        ("test", po::value(&test_n)->implicit_value(1)->default_value(0),
-         "run only N translation batches then stop (bare --test = 1)")
-        ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
-        ("discard-cache", po::bool_switch(&discard_cache),
-         "allow --test or --clean to delete a cache that already holds paid "
-         "work");
-    po::variables_map vm;
-    if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    // Validated here as well as in the translation step, because this is the
-    // command that starts an unattended full run: a mistyped option must fail
-    // before a key is read and before an archive is touched.
-    if (auto why = translate::validate_options(batch, test_n)) {
-        log_info("[ERROR] " + *why);
-        return 2;
-    }
-
-    // Both discard the cache; guard runs early so a refusal costs nothing.
-    const std::string out_dir = project + "\\script_output";
-    const std::string cache_file = out_dir + "\\translation_cache_anthropic.json";
-    if (clean || test_n > 0) {
-        // Counting the cache parses it, and a cache that cannot be parsed
-        // throws.  Handled here because this guard runs before the banner: an
-        // escaping throw would end the run with no output at all.  A cache
-        // nobody could read is a refusal like any other, so nothing is
-        // deleted and the file is left as it is.
-        try {
-            if (auto why = translate::refuse_cache_discard(
-                    translate::cache_entry_count(cache_file),
-                    clean ? "--clean" : "--test", discard_cache)) {
-                log_info("[ERROR] " + *why);
-                return 2;
-            }
-        } catch (const std::exception& e) {
-            log_info(std::string("[ERROR] ") + e.what());
-            return 2;
+    try {
+        std::string project;
+        std::string game;
+        po::options_description desc("00_run_all -- Shingakkou translation pipeline");
+        desc.add(apps::common_options(project, game));
+        po::variables_map vm;
+        if (const auto rc = apps::parse_process_command_line(desc, vm)) {
+            return *rc;
         }
-    }
 
-    // Children inherit explicit paths so a --dir override propagates.
-    const std::string passthrough =
-        " --dir \"" + project + "\" --game-dir \"" + game + "\"";
-
-    const std::string bar(60, '=');
-    log_info(bar);
-    log_info("Shingakkou ~Noli me tangere~ DL");
-    log_info("English Translation Pipeline");
-    log_info(bar);
-
-    // --clean and --test discard the cache, and a run that discards it cannot
-    // succeed in an offline build where network API calls are removed.
-    if (clean || test_n > 0) {
-        log_info("[ERROR] offline build: network API calls are disabled -- "
-                 "refusing to discard the cache");
-        return 2;
-    }
-
-    if (clean) {
-        // The last two belong to the narrative-CG step, which this
-        // orchestrator never runs -- but --clean means "start from nothing",
-        // so they go too.
-        for (const char* f : {"extracted_text.json", "translated_text.json",
-                              "translation_cache_anthropic.json",
-                              "narrative_candidates.json", "narrative_scanned.json"}) {
-            // Reported, not thrown, at both steps: the throwing overloads
-            // would end the run with no diagnosis.  A delete fails when
-            // another process holds the file open without FILE_SHARE_DELETE,
-            // which scanners, indexers and sync clients routinely do.
-            fs::path p = fs::u8path(out_dir + "\\" + f);
-            std::error_code ec;
-            const bool present = fs::exists(p, ec);
-            if (!ec && !present) continue;  // never written: nothing to clean
-            const bool removed = !ec && fs::remove(p, ec);
-            if (ec) {
-                log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
-                         ec.message() +
-                         " -- close whatever has it open, then retry.");
-                return 1;
-            }
-            // A file that vanished between the two calls was
-            // not deleted here.
-            log_info(std::string("[clean] ") + f +
-                     (removed ? "" : " was already gone"));
-        }
-    }
-
-    const auto& steps = apps::pipeline_steps();
-    auto banner = [&](std::size_t i) {
-        log_info("\n" + bar);
-        log_info("STEP " + std::to_string(i + 1) + ": " + steps[i].what);
+        const std::string bar(kBannerWidth, '=');
         log_info(bar);
-    };
+        log_info("Shingakkou ~Noli me tangere~ DL");
+        log_info("English Translation Pipeline");
+        log_info(bar);
 
-    banner(0);
-    run_step(steps[0].name, {}, passthrough);
+        const auto& stages = apps::pipeline_steps();
+        auto banner = [&](std::size_t i) {
+            log_info("\n" + bar);
+            log_info("STEP " + std::to_string(i + kStageDisplayOffset) + ": " + stages[i].what);
+            log_info(bar);
+        };
 
-    banner(1);
-    {
-        std::vector<std::string> args = {"--batch", std::to_string(batch)};
-        if (test_n > 0) {
-            args.emplace_back("--test");
-            args.emplace_back(std::to_string(test_n));
-            // Propagate so the child's own guard does not re-block.
-            if (discard_cache) args.emplace_back("--discard-cache");
+        banner(kExtractStageIndex);
+        if (!run_stage(stages[kExtractStageIndex].name, {}, project, game)) {
+            return apps::kExitError;
         }
-        run_step(steps[1].name, args, passthrough);
+
+        banner(kBuildTsvStageIndex);
+        if (!run_stage(stages[kBuildTsvStageIndex].name, {}, project, game)) {
+            return apps::kExitError;
+        }
+
+        banner(kDeployStageIndex);
+        if (!deploy(project, game)) {
+            return apps::kExitError;
+        }
+
+        log_info("\n" + bar);
+        log_info("TRANSLATION COMPLETE!");
+        log_info(bar);
+        return kExitOk;
+    } catch (const std::exception& e) {
+        log_info(std::string("[ERROR] ") + e.what());
+        return apps::kExitError;
     }
-
-    banner(2);
-    if (!deploy(project, game)) return 1;
-
-    log_info("\n" + bar);
-    log_info("TRANSLATION COMPLETE!");
-    log_info(bar);
-    return 0;
 }

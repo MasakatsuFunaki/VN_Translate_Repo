@@ -6,9 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # MSVC defaults to interpreting source bytes as the system codepage,
-# which mangles the UTF-8 Japanese literals in the glossary.  /utf-8 is
-# the standard fix.  /bigobj: glossary + boost headers overflow the
-# default section limit in a couple of TUs.
+# which mangles UTF-8 Japanese literals.  /utf-8 fixes source and execution
+# charset; /bigobj lifts the section limit for Boost + glossary translation units.
 if(MSVC)
     add_compile_options(/utf-8 /bigobj)
 endif()
@@ -20,19 +19,14 @@ find_package(OpenSSL REQUIRED)
 find_package(freetype REQUIRED)
 find_package(stb REQUIRED)
 
-# The tests -- and only the tests -- need an absolute anchor for the real
-# game-data fixtures.  The apps must NOT get one: a compiled-in path ships
-# this machine's directory layout inside every installed binary, so they find
-# the project by walking up from their own executable (src/apps/paths.cpp).
+# Component and system tests need an absolute anchor for local corpus and tool
+# paths.  Installed executables must NOT receive a compiled-in path; they locate
+# the project folder dynamically via src/apps/paths.cpp.
 get_filename_component(SNU_PROJECT_DIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 
-# --------------------------------------------------------------------
-# snu_core: everything except the app mains, shared by apps and tests.
-# --------------------------------------------------------------------
-# The renderer's own text layout, compiled from the proxy DLL's sources
-# rather than copied: the table build has to measure a value with exactly the
-# code that will draw it, and two implementations of one wrap is how a box
-# overflows in the game while the gate reports that it fits.
+# Shared core library compiled from pipeline modules plus the proxy DLL's own
+# text layout logic so TSV table validation measures lines identically to the
+# runtime hook.
 get_filename_component(SNU_RUNTIME_TEXT_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../proxy_dll/src" ABSOLUTE)
 
@@ -74,9 +68,6 @@ target_compile_definitions(snu_core PUBLIC
 target_link_libraries(snu_core PUBLIC
     Boost::json
     Boost::regex
-    # Beast/Asio only.  NOT the boost::boost aggregate -- that pulls in
-    # every compiled Boost lib, including test_exec_monitor, whose main()
-    # wants a test_main symbol the GoogleTest suites don't define.
     Boost::headers
     openssl::openssl
     Freetype::Freetype
@@ -85,20 +76,9 @@ target_link_libraries(snu_core PUBLIC
     crypt32
 )
 
-# --------------------------------------------------------------------
-# Pipeline executables, numbered by the order they run in.
-#
-# 00_run_all performs 01 and 02 and then deploys; the numbered pair is the
-# manual path.  02 carries the speaker gate and the runtime-table build with
-# it, so there is no separate step to remember between translating and
-# playing.  03 is a side tool: it repaints text baked into the CG archives and
-# has nothing to do with the script.
-# --------------------------------------------------------------------
-# Only the app mains parse a command line (src/apps/paths.h), so
-# Program_options is scoped here rather than pushed through snu_core.
 function(snu_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE snu_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE snu_core Boost::program_options shell32)
 endfunction()
 
 snu_app(00_run_all              src/apps/run_all_main.cpp)
@@ -106,18 +86,9 @@ snu_app(01_extract              src/apps/extract_main.cpp)
 snu_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 snu_app(03_find_narrative_cg    src/apps/find_narrative_cg_main.cpp)
 
-# --------------------------------------------------------------------
-# Install: the four executables a user runs, and nothing else.  snu_core
-# and the test binaries exist to produce these and stay in the build tree.
-# Every dependency is a static library, so there is no runtime to carry.
-# --------------------------------------------------------------------
 install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg
         RUNTIME DESTINATION bin)
 
-
-# --------------------------------------------------------------------
-# Tests
-# --------------------------------------------------------------------
 if(ENABLE_TESTS)
     find_package(GTest REQUIRED)
     enable_testing()

@@ -3,19 +3,12 @@
 
 #include "translate/gemini_client.h"
 
+#include "common/util.h"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 #include <wincrypt.h>
-
-#include <algorithm>
-#include <chrono>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <utility>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -26,7 +19,18 @@
 #include <boost/beast/version.hpp>
 #include <boost/regex.hpp>
 
-#include "common/util.h"
+#include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <cwchar>
+#include <exception>
+#include <filesystem>
+#include <fstream>
+#include <string_view>
+#include <utility>
 
 namespace oretsuba::translate {
 
@@ -54,7 +58,6 @@ constexpr std::size_t kBinarySplitDivisor = 2U;
 constexpr std::size_t kMaxSubBatchDepth = 2U;
 
 constexpr std::string_view kGeminiKeyEnvPrefix = "GEMINI_API_KEY=";
-constexpr const char* kFallbackDotenvPath = R"(C:\Users\btimo\.gemini\.env)";
 
 std::string ReplaceAllSubstring(std::string input,
                                 std::string_view from,
@@ -204,13 +207,56 @@ std::map<int, std::string> SubBatchTranslateRecursive(
     return combined;
 }
 
+std::string WideEnvToUtf8(const wchar_t* var_name) {
+    const wchar_t* wide_val = ::_wgetenv(var_name);
+    if (wide_val == nullptr || *wide_val == L'\0') {
+        return {};
+    }
+    const std::wstring_view wide_view(wide_val);
+    const int required = ::WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide_view.data(), static_cast<int>(wide_view.size()),
+        nullptr, 0, nullptr, nullptr);
+    if (required <= 0) {
+        return {};
+    }
+    std::string utf8(static_cast<std::size_t>(required), '\0');
+    const int written = ::WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide_view.data(), static_cast<int>(wide_view.size()),
+        utf8.data(), required, nullptr, nullptr);
+    if (written != required) {
+        return {};
+    }
+    return utf8;
+}
+
+void CacheApiKeyInProcessEnv(std::string_view utf8_key) {
+    if (utf8_key.empty()) {
+        _wputenv_s(L"GEMINI_API_KEY", L"");
+        return;
+    }
+    const int wide_len = ::MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, utf8_key.data(),
+        static_cast<int>(utf8_key.size()), nullptr, 0);
+    if (wide_len <= 0) {
+        return;
+    }
+    std::wstring wide_key(static_cast<std::size_t>(wide_len), L'\0');
+    const int written = ::MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, utf8_key.data(),
+        static_cast<int>(utf8_key.size()), wide_key.data(), wide_len);
+    if (written != wide_len) {
+        return;
+    }
+    _wputenv_s(L"GEMINI_API_KEY", wide_key.c_str());
+}
+
 }  // namespace
 
 ITranslationBackend::~ITranslationBackend() = default;
 
 std::string LoadGeminiApiKey(const std::string& project_dir) {
-    if (const char* env_val = std::getenv("GEMINI_API_KEY"); env_val && *env_val) {
-        return env_val;
+    if (const std::string env_key = WideEnvToUtf8(L"GEMINI_API_KEY"); !env_key.empty()) {
+        return env_key;
     }
 
     std::vector<fs::path> settings_candidates;
@@ -221,32 +267,27 @@ std::string LoadGeminiApiKey(const std::string& project_dir) {
     }
     settings_candidates.push_back(fs::u8path(".claude/settings.json"));
 
-    const char* home = std::getenv("USERPROFILE");
-    if (home && *home) {
+    const std::string home = WideEnvToUtf8(L"USERPROFILE");
+    if (!home.empty()) {
         settings_candidates.push_back(
-            fs::u8path(std::string(home)) / ".claude_vn" / "settings.json");
+            fs::u8path(home) / ".claude_vn" / "settings.json");
         settings_candidates.push_back(
-            fs::u8path(std::string(home)) / ".claude" / "settings.json");
+            fs::u8path(home) / ".claude" / "settings.json");
     }
 
     for (const auto& candidate : settings_candidates) {
         const std::string key = ReadKeyFromSettingsJson(candidate);
         if (!key.empty()) {
-            _putenv_s("GEMINI_API_KEY", key.c_str());
+            CacheApiKeyInProcessEnv(key);
             return key;
         }
     }
 
-    std::vector<fs::path> dotenv_candidates;
-    if (home && *home) {
-        dotenv_candidates.push_back(fs::u8path(std::string(home)) / ".gemini" / ".env");
-    }
-    dotenv_candidates.push_back(fs::u8path(kFallbackDotenvPath));
-
-    for (const auto& candidate : dotenv_candidates) {
-        const std::string key = ReadKeyFromDotenvFile(candidate);
+    if (!home.empty()) {
+        const fs::path dotenv_path = fs::u8path(home) / ".gemini" / ".env";
+        const std::string key = ReadKeyFromDotenvFile(dotenv_path);
         if (!key.empty()) {
-            _putenv_s("GEMINI_API_KEY", key.c_str());
+            CacheApiKeyInProcessEnv(key);
             return key;
         }
     }
@@ -255,28 +296,28 @@ std::string LoadGeminiApiKey(const std::string& project_dir) {
 
 std::string SanitizeAscii(std::string_view text) {
     std::string s(text);
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\x94", "--");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\x93", "--");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\x95", "--");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x94\x80", "--");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\xA6", "...");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x8B\xAF", "...");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\x98", "'");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\x99", "'");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\x9C", "\"");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x80\x9D", "\"");
-    s = ReplaceAllSubstring(std::move(s), "\xE3\x80\x8C", "\"");
-    s = ReplaceAllSubstring(std::move(s), "\xE3\x80\x8D", "\"");
-    s = ReplaceAllSubstring(std::move(s), "\xE3\x80\x8E", "'");
-    s = ReplaceAllSubstring(std::move(s), "\xE3\x80\x8F", "'");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x89\xAA", "\"");
-    s = ReplaceAllSubstring(std::move(s), "\xE2\x89\xAB", "\"");
-    s = ReplaceAllSubstring(std::move(s), "\xE3\x80\x80", " ");
-    s = ReplaceAllSubstring(std::move(s), "\xE3\x80\x9C", "~");
-    s = ReplaceAllSubstring(std::move(s), "\xEF\xBD\x9E", "~");
-    s = ReplaceAllSubstring(std::move(s), "\xC3\xA9", "e");
-    s = ReplaceAllSubstring(std::move(s), "\xC3\xAA", "e");
-    s = ReplaceAllSubstring(std::move(s), "\xC3\xA8", "e");
+    s = ReplaceAllSubstring(std::move(s), "—", "--");
+    s = ReplaceAllSubstring(std::move(s), "–", "--");
+    s = ReplaceAllSubstring(std::move(s), "―", "--");
+    s = ReplaceAllSubstring(std::move(s), "─", "--");
+    s = ReplaceAllSubstring(std::move(s), "…", "...");
+    s = ReplaceAllSubstring(std::move(s), "⋯", "...");
+    s = ReplaceAllSubstring(std::move(s), "‘", "'");
+    s = ReplaceAllSubstring(std::move(s), "’", "'");
+    s = ReplaceAllSubstring(std::move(s), "“", "\"");
+    s = ReplaceAllSubstring(std::move(s), "”", "\"");
+    s = ReplaceAllSubstring(std::move(s), "「", "\"");
+    s = ReplaceAllSubstring(std::move(s), "」", "\"");
+    s = ReplaceAllSubstring(std::move(s), "『", "'");
+    s = ReplaceAllSubstring(std::move(s), "』", "'");
+    s = ReplaceAllSubstring(std::move(s), "≪", "\"");
+    s = ReplaceAllSubstring(std::move(s), "≫", "\"");
+    s = ReplaceAllSubstring(std::move(s), "　", " ");
+    s = ReplaceAllSubstring(std::move(s), "〜", "~");
+    s = ReplaceAllSubstring(std::move(s), "～", "~");
+    s = ReplaceAllSubstring(std::move(s), "é", "e");
+    s = ReplaceAllSubstring(std::move(s), "ê", "e");
+    s = ReplaceAllSubstring(std::move(s), "è", "e");
 
     static const boost::regex kSquareRubyRe(R"re(\[([^|\]]+)\|([^\]]+)\])re");
     s = boost::regex_replace(s, kSquareRubyRe, "$2");

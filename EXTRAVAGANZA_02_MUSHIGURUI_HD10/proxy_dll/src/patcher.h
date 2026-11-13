@@ -6,7 +6,6 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #pragma once
-#include <windows.h>
 
 void PatcherInit();
 void PatcherShutdown();

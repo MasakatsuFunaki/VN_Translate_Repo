@@ -75,7 +75,7 @@ target_link_libraries(ama_core PUBLIC
 # Program_options is scoped here rather than pushed through ama_core.
 function(ama_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE ama_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE ama_core Boost::program_options shell32)
 endfunction()
 
 ama_app(00_run_all   src/apps/run_all_main.cpp)

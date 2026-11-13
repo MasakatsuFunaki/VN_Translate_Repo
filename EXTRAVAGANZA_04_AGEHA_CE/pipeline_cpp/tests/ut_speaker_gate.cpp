@@ -7,14 +7,14 @@
 
 // Unit tests for src/cache/speaker_gate.{h,cpp}: verifies all 5 speaker checks
 // and confirms story_order() sampling priority over alphabetical keys.
+#include "cache/speaker_gate.h"
+
+#include "cache/glossary.h"
+
+#include <boost/json.hpp>
 #include <gtest/gtest.h>
 
 #include <string>
-
-#include <boost/json.hpp>
-
-#include "cache/glossary.h"
-#include "cache/speaker_gate.h"
 
 namespace bj = boost::json;
 namespace tr = exm::translate;

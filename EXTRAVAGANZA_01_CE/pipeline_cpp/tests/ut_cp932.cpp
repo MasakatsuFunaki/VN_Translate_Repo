@@ -12,15 +12,13 @@
 // characters, and ~13% of the BLACKCyc games' extracted strings contain at
 // least one of them -- rejecting them silently DROPS those strings and shifts
 // every downstream array index.
-//
-// The expected values below are the CP932 mappings for those bytes; they are
-// pinned here so a change in how the decode is routed cannot quietly move
-// them again.
+#include "common/util.h"
+
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <initializer_list>
 #include <string>
-
-#include "common/util.h"
 
 using namespace exc;
 
@@ -51,11 +49,9 @@ TEST(Cp932, decodes_special_single_bytes) {
 // The exact shape that was being dropped: a special byte inside a run of
 // otherwise ordinary bytes.
 TEST(Cp932, special_bytes_survive_inside_a_run) {
-    // 'B5 FF FF FF 20 03' -- taken from mushi.spt offset 6492.
     EXPECT_TRUE(valid({0xB5, 0xFF, 0xFF, 0xFF, 0x20, 0x03}));
     EXPECT_EQ(dec({'a', 0xFF, 'b'}), "a\xEF\xA3\xB3" "b");
-    // ...and a special byte adjacent to a real two-byte character.
-    EXPECT_EQ(dec({0x82, 0xA0, 0xFF}), "\xE3\x81\x82\xEF\xA3\xB3");
+    EXPECT_EQ(dec({0x82, 0xA0, 0xFF}), "あ\xEF\xA3\xB3");
 }
 
 // 0xA0 must be read as a SINGLE byte, not as a lead byte swallowing the next
@@ -65,23 +61,23 @@ TEST(Cp932, a0_does_not_swallow_the_following_byte) {
 }
 
 TEST(Cp932, halfwidth_katakana_singles) {
-    EXPECT_EQ(dec({0xA1}), "\xEF\xBD\xA1");  // U+FF61
-    EXPECT_EQ(dec({0xDF}), "\xEF\xBE\x9F");  // U+FF9F
+    EXPECT_EQ(dec({0xA1}), "｡");
+    EXPECT_EQ(dec({0xDF}), "ﾟ");
 }
 
 TEST(Cp932, decodes_ordinary_two_byte_characters) {
-    EXPECT_EQ(dec({0x82, 0xA0}), "\xE3\x81\x82");              // あ
-    EXPECT_EQ(dec({0x81, 0x75}), "\xE3\x80\x8C");              // 「
-    EXPECT_EQ(dec({0x93, 0xFA}), "\xE6\x97\xA5");              // 日
+    EXPECT_EQ(dec({0x82, 0xA0}), "あ");
+    EXPECT_EQ(dec({0x81, 0x75}), "「");
+    EXPECT_EQ(dec({0x93, 0xFA}), "日");
 }
 
 // Still strict everywhere else: a lead byte with an out-of-range trail is an
 // error, not something to paper over -- strictness is the validity gate that
 // keeps opcode bytes out of the extracted text.
 TEST(Cp932, rejects_bad_trail_bytes) {
-    EXPECT_FALSE(valid({0x86, 0x3A}));  // 0x3A is not a valid trail
-    EXPECT_FALSE(valid({0x82}));        // truncated lead
-    EXPECT_FALSE(valid({0x81, 0xFD}));  // trail out of range
+    EXPECT_FALSE(valid({0x86, 0x3A}));
+    EXPECT_FALSE(valid({0x82}));
+    EXPECT_FALSE(valid({0x81, 0xFD}));
 }
 
 TEST(Cp932, empty_input_is_the_empty_string) {

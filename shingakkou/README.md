@@ -25,29 +25,24 @@ build.py --deploy         → winmm.dll + translation_table.tsv + menu_patch.bin
 ```bat
 python build.py                    # both halves (pipeline x64 + proxy Win32)
 python build.py --test --install   # build, test, stage to build/install/
-python build.py --deploy           # ship winmm.dll + table to game
+python build.py --deploy --game-dir <install>   # ship winmm.dll + table + menu_patch.bin to game
 python build.py --clean
 
-build\pipeline\Release\00_run_all.exe
+build\pipeline\Release\00_run_all.exe --game-dir <install>
 ```
 
-Every app takes `--dir <project>` and `--game-dir <install>`.  `--dir` is auto-detected.
-`--game-dir <install>` is required: the game install path differs per machine.
-
-> `--test N` wipes the cache and re-translates from scratch but does **not** stop after N
-> batches — the batch counter is never incremented. Known, left alone.
-
-`--clean`, `--test` and `--retranslate` refuse a cache that already holds paid work.
-Add `--discard-cache` to let them run.
+`00_run_all.exe`, `01_extract.exe`, `02_build_tsv.exe`, and `03_find_narrative_cg.exe`
+take `--dir <project>` and `--game-dir <install>` (`--dir` is auto-detected;
+`--game-dir` is required because the game install path differs per machine).
+`02_build_tsv.exe` also accepts `--out <path>` and `--rebuild-table`.
+`04_patch_menus.exe` takes `--game-dir <install>` (plus optional `--verify`).
 
 ## Narrative CGs (`03_find_narrative_cg`)
 
-Scans CG archives for images with JP text, renders EN over the
-original, repacks. No OCR pre-filter — every image above threshold gets a vision call.
+Renders cached English overlays over narrative CG images and repacks the DDP archives.
 
 ```bat
-03_find_narrative_cg.exe --scan-only   # preview, no repack
-03_find_narrative_cg.exe --repack      # repack with patched BMPs
+03_find_narrative_cg.exe --game-dir <install> --repack   # repack with patched BMPs
 ```
 
 ## Character routes

@@ -31,7 +31,7 @@ python build.py --clean
 build\install\bin\00_run_all.exe --game-dir <install>
 ```
 
-Options: `--batch 50`, `--test` (1 batch), `--max-batches 2`, `--file main.spt`.
+Options: `--batch 50`, `--max-batches 2`, `--clean`, `--discard-cache`.
 
 `--clean` and `--retranslate` refuse a cache that already holds paid work.
 Add `--discard-cache` to let them run.

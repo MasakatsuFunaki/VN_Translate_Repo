@@ -5,118 +5,76 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// 02_build_tsv -- the whole translation step: the speaker gate, the cached
-// script translation, translated_text.json, and the
-// translation_table.tsv the game loads.
+// 02_build_tsv -- speaker gate, cached script translation assembly into
+// translated_text.json, and generation of translation_table.tsv.
 //
 // Usage:
-//   02_build_tsv
-//   02_build_tsv --batch 50
-//   02_build_tsv --test          # 1 API batch then stop
-//   02_build_tsv --test 4        # 4 batches
-//   02_build_tsv --file s100.spt
+//   02_build_tsv --game-dir <dir>
+//   02_build_tsv --rebuild-table --game-dir <dir> [--out <path>]
+#include "apps/paths.h"
+#include "build_tsv/build_tsv.h"
+#include "cache/cache_core.h"
+#include "common/util.h"
+
 #include <exception>
 #include <filesystem>
+#include <iostream>
 #include <string>
-
-#include "build_tsv/build_tsv.h"
-#include "common/util.h"
-#include "cache/cache_core.h"
-
-#include "apps/paths.h"
 
 namespace fs = std::filesystem;
 using namespace mgi;
 
-int main(int argc, char** argv) {
-    setup_console_utf8();
+int main() {
     namespace po = apps::po;
 
-    std::string project, game, only, out_tsv;
-    int batch = 0, test_n = 0;
-    bool retranslate = false, rebuild_table = false, discard_cache = false;
-    po::options_description desc(
-        "02_build_tsv -- speaker gate, translate script, build translation_table.tsv");
-    desc.add(apps::common_options(project, game));
-    desc.add_options()
-        ("batch", po::value(&batch)->default_value(150), "lines per API request")
-        ("retranslate", po::bool_switch(&retranslate), "ignore cache, retranslate everything")
-        ("file", po::value(&only), "translate only this .spt file")
-        ("test", po::value(&test_n)->implicit_value(1)->default_value(0),
-         "run only N API batches then stop (bare --test = 1)")
-        ("out", po::value(&out_tsv),
-         "translation table path (default <game-dir>\\translation_table.tsv)")
-        ("rebuild-table", po::bool_switch(&rebuild_table),
-         "rebuild translation_table.tsv from the translated document already on "
-         "disk and stop; no API request is made")
-        ("discard-cache", po::bool_switch(&discard_cache),
-         "allow --retranslate to discard a cache that already holds "
-         "paid work");
-    po::variables_map vm;
-    if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    if (rebuild_table) {
-        const std::string doc = project + "\\script_output\\translated_text.json";
-        const std::string tsv =
-            out_tsv.empty() ? project + "\\build\\install\\game\\translation_table.tsv" : out_tsv;
-        if (!fs::exists(fs::u8path(doc))) {
-            log_info("[ERROR] no translated document at " + doc);
-            return 2;
-        }
-        return build_tsv::run_build(doc, tsv);
-    }
-
-    // Validate before anything is created or authenticated: a mistyped cap
-    // must cost nothing.
-    if (auto why = translate::validate_options(batch, test_n)) {
-        log_info("[ERROR] " + *why);
-        return 2;
-    }
-
-    const std::string out_dir = project + "\\script_output";
-    const std::string cache_file =
-        out_dir + "\\translation_cache_anthropic.json";
-
-    // This discards the cache; guard runs early so a refusal costs nothing.
-    if (retranslate) {
-        // Counting the cache parses it, and a cache that cannot be parsed
-        // throws.  Handled here because this guard runs before the banner: an
-        // escaping throw would end the run with no output at all.  A cache
-        // nobody could read is a refusal like any other, so nothing is
-        // deleted and the file is left as it is.
-        try {
-            if (auto why = translate::refuse_cache_discard(
-                    translate::cache_entry_count(cache_file),
-                    "--retranslate", discard_cache)) {
-                log_info("[ERROR] " + *why);
-                return 2;
-            }
-        } catch (const std::exception& e) {
-            log_info(std::string("[ERROR] ") + e.what());
-            return 2;
-        }
-    }
-
-    fs::create_directories(fs::u8path(out_dir));
-
-    translate::TranslateOptions opt;
-    opt.input_file = out_dir + "\\extracted_text.json";
-    opt.cache_file = cache_file;
-    opt.output_file = out_dir + "\\translated_text.json";
-    // --out defaults off --game-dir, so it cannot be a static default_value.
-    // The engine reads the table straight out of the game folder, which is
-    // why the default writes there rather than into the repo.
-    opt.tsv_file = out_tsv.empty() ? game + "\\translation_table.tsv" : out_tsv;
-    opt.test_dir = project + "\\test";
-    opt.batch_size = batch;
-    opt.retranslate = retranslate;
-    if (!only.empty()) opt.only_file = only;
-    opt.test_batches = test_n;
-
     try {
+        setup_console_utf8();
+
+        std::string project;
+        std::string game;
+        std::string out_tsv;
+        bool rebuild_table = false;
+        po::options_description desc(
+            "02_build_tsv -- speaker gate, assemble translated_text.json, build translation_table.tsv");
+        desc.add(apps::common_options(project, game));
+        desc.add_options()
+            ("out", po::value(&out_tsv),
+             "translation table path (default <game-dir>\\translation_table.tsv)")
+            ("rebuild-table", po::bool_switch(&rebuild_table),
+             "rebuild translation_table.tsv from the translated document already on "
+             "disk and stop; no API request is made");
+        po::variables_map vm;
+        if (const auto rc = apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
+        const fs::path project_root = fs::u8path(project);
+        const fs::path out_dir = project_root / "script_output";
+        const std::string tsv_path = out_tsv.empty()
+                                         ? (fs::u8path(game) / "translation_table.tsv").u8string()
+                                         : out_tsv;
+
+        if (rebuild_table) {
+            const fs::path doc = out_dir / "translated_text.json";
+            if (!fs::exists(doc)) {
+                log_info("[ERROR] no translated document at " + doc.u8string());
+                return apps::kExitRefused;
+            }
+            return build_tsv::run_build(doc.u8string(), tsv_path);
+        }
+
+        fs::create_directories(out_dir);
+
+        translate::TranslateOptions opt;
+        opt.input_file = (out_dir / "extracted_text.json").u8string();
+        opt.cache_file = (out_dir / "translation_cache_anthropic.json").u8string();
+        opt.output_file = (out_dir / "translated_text.json").u8string();
+        opt.tsv_file = tsv_path;
+        opt.test_dir = (project_root / "test").u8string();
+
         return translate::translate_all(opt);
     } catch (const std::exception& e) {
-        log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        std::cerr << "[FATAL] " << e.what() << "\n";
+        return apps::kExitError;
     }
 }

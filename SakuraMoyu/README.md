@@ -35,9 +35,9 @@ cd SakuraMoyu
 python build.py --test --install
 
 set GEMINI_API_KEY=AIza...
-build\install\bin\00_run_all.exe --test 1  :: 1 batch smoke test
+build\install\bin\00_run_all.exe --game-dir C:\Favorite --max-batches 1  :: 1-request capped run
 :: or
-build\install\bin\00_run_all.exe           :: full run, ~55K JP lines
+build\install\bin\00_run_all.exe --game-dir C:\Favorite                  :: full run, ~55K JP lines
 ```
 
 `build.py` builds both halves — `pipeline_cpp` is x64, `proxy_dll` is Win32 —
@@ -56,21 +56,20 @@ The pipeline is four steps, and `00_run_all.exe` performs all four:
 ## Options
 
 ```batch
-00_run_all.exe --test                :: smoke run: 1 batch only
-00_run_all.exe --test 4              :: 4 batches then stop
-00_run_all.exe --max-batches 4       :: 4 batches, keeping cache and outputs
-00_run_all.exe --batch N             :: lines per API call (default 150)
+00_run_all.exe --max-batches 4       :: 4 requests, keeping cache and outputs
+00_run_all.exe --batch N             :: lines per API call (default 100)
 00_run_all.exe --clean               :: delete cached JSON, then full run
-00_run_all.exe --discard-cache       :: let --test or --clean delete a cache holding paid work
+00_run_all.exe --discard-cache       :: let --clean delete a cache holding paid work
 00_run_all.exe --dir <p> --game-dir <p>  :: project folder / game folder (--game-dir required)
 
-02_translate.exe --batch N           :: lines per API call (default 150)
+02_translate.exe --batch N           :: lines per API call (default 100)
+02_translate.exe --max-batches N     :: cap API requests, keeping cache and outputs
+02_translate.exe --rebuild-table     :: rebuild translation_table.tsv from translated_text.json
 02_translate.exe --retranslate       :: ignore cache, redo all
-02_translate.exe --discard-cache     :: let --test or --retranslate delete a cache holding paid work
+02_translate.exe --discard-cache     :: let --retranslate delete a cache holding paid work
 02_translate.exe --out <path>        :: table path (default <game-dir>\translation_table.tsv)
 ```
 
-`--test N` is a fresh run: it drops the cache first.
 `--max-batches N` caps the work without costing what has already been paid for.
 
 Model: `gemini-4-argon` (`MODEL` in

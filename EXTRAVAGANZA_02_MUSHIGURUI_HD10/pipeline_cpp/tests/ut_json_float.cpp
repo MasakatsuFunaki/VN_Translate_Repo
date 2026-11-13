@@ -12,14 +12,21 @@
 // must carry "1.0" and "0.97" -- narrative_candidates.json contains 91 of
 // them, and confidences written as "9.7E-1" are unreadable when triaging a
 // scan by hand.
-#include <gtest/gtest.h>
+#include "common/util.h"
 
 #include <boost/json.hpp>
+#include <gtest/gtest.h>
 
-#include "common/util.h"
+#include <string>
 
 using namespace mgi;
 namespace bj = boost::json;
+
+namespace {
+
+constexpr int kPrettyIndentSpaces = 2;
+
+}  // namespace
 
 TEST(JsonFloat, doubles_print_in_shortest_round_trip_form) {
     EXPECT_EQ(format_float(1.0), "1.0");
@@ -41,7 +48,7 @@ TEST(JsonFloat, doubles_print_in_shortest_round_trip_form) {
 
 TEST(JsonFloat, json_pretty_uses_format_float) {
     const bj::value v = bj::parse(R"([{"confidence": 1.0}])");
-    const std::string s = json_pretty(v, 2);
+    const std::string s = json_pretty(v, kPrettyIndentSpaces);
     EXPECT_NE(s.find("\"confidence\": 1.0"), std::string::npos) << s;
     EXPECT_EQ(s.find('E'), std::string::npos) << s;
 }

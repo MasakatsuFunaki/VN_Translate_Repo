@@ -14,26 +14,22 @@
 ```
 01_extract          → extracted_text.json
 02_build_tsv        → speaker gate → translated_text.json + translation_table.tsv (CP932, tab-separated)
-00_run_all          → all in one shot
-03_build_xtx        → name-plate tables (one-shot, once per install, not part of 00_run_all)
+00_run_all          → all in one shot (01_extract → 02_build_tsv → deploy)
+03_build_xtx        → name-plate tables (one-shot, once per install, `--game-dir <install>`)
+04_patch_menus      → menu sprites + UI configs via `menu_patch.bin` (one-shot, once per install, `--game-dir <install>`)
 ```
 
-`python build.py --deploy` copies `winmm.dll` into the game folder.
+`python build.py --deploy --game-dir <install>` copies `winmm.dll`, `translation_table.tsv`, and `menu_patch.bin` into the game folder.
 
 ## Build
 
 ```bat
 python build.py --test --install   # both halves + tests + stage
-python build.py --deploy
+python build.py --deploy --game-dir <install>
 python build.py --clean
 
-build\install\bin\00_run_all.exe
+build\install\bin\00_run_all.exe --game-dir <install>
 ```
-
-Options: `--batch 50`, `--test` (1 batch), `--max-batches 4`, `--file mushi.spt`.
-
-`--clean` and `--retranslate` refuse a cache that already holds paid work.
-Add `--discard-cache` to let them run.
 
 `--game-dir <install>` is required: the game install path differs per machine.
 

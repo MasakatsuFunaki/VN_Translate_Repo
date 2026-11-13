@@ -5,85 +5,109 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Command-line handling for the pipeline apps (Boost.ProgramOptions).
-// The root is found at run time (see default_project_dir); --dir and
-// --game-dir override.
+// Command-line handling, UTF-8 path discovery, and wide Win32 child-process
+// execution for the pipeline executables (Boost.ProgramOptions + Win32 APIs).
+//
+// Every string across this boundary is UTF-8.  Executables derive their project
+// inputs and outputs from the SakuraNoUta project folder found at run time via
+// default_project_dir() and overridable with `--dir <path>`.  Executables that
+// also read or write the game installation register `--game-dir <path>` via
+// common_options(); project-only executables register project_only_options().
 #pragma once
 
-#include <iostream>
+#include <boost/program_options.hpp>
+
+#include <filesystem>
 #include <optional>
 #include <string>
-
-#include <boost/program_options.hpp>
+#include <string_view>
+#include <vector>
 
 namespace snu::apps {
 
 namespace po = boost::program_options;
 
-// The folder holding this executable.  Empty when Windows will not say.
+inline constexpr int kExitOk = 0;
+inline constexpr int kExitFailure = 1;
+inline constexpr int kExitHelp = kExitOk;
+inline constexpr int kExitError = kExitFailure;
+inline constexpr int kRefusedExitCode = 2;
+
+// Converts a UTF-8 string to UTF-16, rejecting invalid UTF-8 sequences.
+std::wstring utf8_to_wide(std::string_view utf8);
+
+// Converts a UTF-16 string to UTF-8, rejecting invalid UTF-16 sequences.
+std::string wide_to_utf8(std::wstring_view wide);
+
+// The folder holding this executable (UTF-8).  Empty when Windows will not say.
 std::string exe_dir();
 
-// The project folder: the nearest folder at or above this executable holding
-// either `pipeline_cpp` and `build.py` (a checkout) or `bin` and `script_output`
-// (a staged install\<game>).  Empty when neither is found, and `--dir` below
-// then becomes required.
-//
-// Not the working directory, and not a compiled-in path: neither survives the
-// tree moving.
+// Resolves the project folder (UTF-8) from `start_dir`: prefers an ancestor
+// checkout holding `pipeline_cpp` and `build.py`, falling back to a staged
+// distribution folder holding `bin` alongside `game` (or `script_output`).
+std::string find_project_dir_from(const std::filesystem::path& start_dir);
+
+// The project folder (UTF-8): the nearest folder at or above this executable
+// holding either `pipeline_cpp` and `build.py` (a checkout) or `bin` with
+// sibling `game` or `script_output` (a staged distribution).  Empty when
+// neither is found, and `--dir` then becomes required.
 std::string default_project_dir();
 
-// --dir / --game-dir, bound to the caller's strings.  Every app registers
-// both because 00_run_all passes them and ProgramOptions rejects unknowns.
-//
-// --game-dir has no default: the game install path differs per machine.
-inline po::options_description common_options(std::string& project_dir,
-                                              std::string& game_dir) {
-    // Found: it is the default.  Not found -- this executable is not in the
-    // project tree -- and --dir becomes required, so the run stops with a
-    // message instead of deriving every path from a folder that merely looked
-    // plausible.
-    auto* dir = po::value(&project_dir);
-    if (const std::string found = default_project_dir(); found.empty())
-        dir->required();
-    else
-        dir->default_value(found);
+// Returns the current process's command-line option tokens (excluding argv[0])
+// as lossless UTF-8 decoded from GetCommandLineW() + CommandLineToArgvW().
+std::vector<std::string> process_utf8_args();
 
-    po::options_description desc("Common options");
-    desc.add_options()
-        ("help,h", "show this help and exit")
-        ("dir", dir, "SakuraNoUta project folder")
-        ("game-dir", po::value(&game_dir)->required(),
-         "game installation folder");
-    return desc;
-}
+// `--help` and `--dir` only, for executables that operate solely on files
+// inside the project folder and never accept `--game-dir`.
+po::options_description project_only_options(std::string& project_dir);
 
-// Parses argv into `vm`.  Returns 0 for --help, 1 on error, nullopt to
-// carry on.
-inline std::optional<int> parse_command_line(int argc, char** argv,
-                                             const po::options_description& desc,
-                                             po::variables_map& vm) {
-    try {
-        auto parsed = po::command_line_parser(argc, argv).options(desc).run();
+// `--help`, `--dir`, and `--game-dir`, bound to the caller's UTF-8 strings.
+po::options_description common_options(std::string& project_dir,
+                                       std::string& game_dir);
 
-        // ProgramOptions silently drops stray bare tokens; catch them here.
-        auto stray = po::collect_unrecognized(parsed.options, po::include_positional);
-        if (!stray.empty()) {
-            std::cerr << "[ERROR] unexpected argument '" << stray.front() << "'\n\n"
-                      << desc << std::endl;
-            return 1;
-        }
+// Parses `args` (option tokens excluding argv[0]) into `vm`.  Returns kExitOk
+// for `--help`, kExitFailure on error, or nullopt to carry on.
+std::optional<int> parse_command_line(const std::vector<std::string>& args,
+                                      const po::options_description& desc,
+                                      po::variables_map& vm);
 
-        po::store(parsed, vm);
-        if (vm.count("help")) {
-            std::cout << desc << std::endl;
-            return 0;
-        }
-        po::notify(vm);
-    } catch (const po::error& e) {
-        std::cerr << "[ERROR] " << e.what() << "\n\n" << desc << std::endl;
-        return 1;
-    }
-    return std::nullopt;
-}
+// Parses narrow `argv` (including argv[0] at index 0) into `vm`.
+std::optional<int> parse_command_line(int argc, char** argv,
+                                      const po::options_description& desc,
+                                      po::variables_map& vm);
+
+// Parses the current process's wide Win32 command line as UTF-8 into `vm`.
+std::optional<int> parse_process_command_line(const po::options_description& desc,
+                                              po::variables_map& vm);
+
+// Project-only CLI parsers enforcing that `--game-dir` is not registered or accepted.
+std::optional<int> parse_project_only_command_line(
+    const std::vector<std::string>& args,
+    const po::options_description& desc,
+    po::variables_map& vm);
+
+std::optional<int> parse_project_only_command_line(
+    int argc, char** argv,
+    const po::options_description& desc,
+    po::variables_map& vm);
+
+std::optional<int> parse_process_project_only_command_line(
+    const po::options_description& desc,
+    po::variables_map& vm);
+
+// Formats `exe_path` and `args` (all UTF-8) into a single command-line string
+// escaped according to Windows CommandLineToArgvW / CreateProcessW rules.
+std::string format_windows_command_line(const std::string& exe_path,
+                                        const std::vector<std::string>& args);
+
+// Tokenizes `cmdline_utf8` via CommandLineToArgvW (including token 0) and
+// returns each token as UTF-8.
+std::vector<std::string> split_windows_command_line(const std::string& cmdline_utf8);
+
+// Launches `exe_path` directly via CreateProcessW with `args` and optional
+// `working_dir` (all UTF-8), waits for completion, and returns the exit code.
+int run_process(const std::string& exe_path,
+                const std::vector<std::string>& args,
+                const std::string& working_dir = {});
 
 }  // namespace snu::apps

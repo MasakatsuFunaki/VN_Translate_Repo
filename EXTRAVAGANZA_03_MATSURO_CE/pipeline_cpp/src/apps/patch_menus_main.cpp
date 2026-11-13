@@ -5,85 +5,82 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "menu/menu_patcher.h"
-
+// 04_patch_menus -- repack dwq/sys0.gpk + dwq/sys0.gtb with the translated
+// menu sprites and patch standalone UI files using menu_patch.bin.
+//
+//   04_patch_menus --game-dir <dir>
 #include "apps/paths.h"
 #include "common/util.h"
+#include "menu/menu_patcher.h"
 
 #include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <string_view>
+#include <system_error>
+#include <vector>
+
+namespace fs = std::filesystem;
 
 namespace {
 
-std::filesystem::path resolve_default_sprites_dir(
-    const std::filesystem::path& proj_root) {
-    const std::filesystem::path assets_sys0 =
-        proj_root / "assets" / "menus_en" / "sys0";
-    if (std::filesystem::exists(assets_sys0)) {
-        return assets_sys0;
+constexpr std::string_view kPatchBinFileName = "menu_patch.bin";
+
+fs::path resolve_patch_bin_path() {
+    std::vector<fs::path> candidates;
+    if (const std::string project = exm::apps::default_project_dir(); !project.empty()) {
+        const fs::path proj_root = fs::u8path(project);
+        candidates.push_back(proj_root / "game" / kPatchBinFileName);
+        candidates.push_back(proj_root / kPatchBinFileName);
     }
-    const std::filesystem::path work_rendered =
-        proj_root / "menu_work" / "rendered";
-    if (std::filesystem::exists(work_rendered)) {
-        return work_rendered;
+    if (const std::string exe = exm::apps::exe_dir(); !exe.empty()) {
+        const fs::path bin_dir = fs::u8path(exe);
+        candidates.push_back(bin_dir / ".." / "game" / kPatchBinFileName);
+        candidates.push_back(bin_dir / kPatchBinFileName);
     }
-    return proj_root / "menu_sprites";
+
+    std::error_code ec;
+    for (const fs::path& candidate : candidates) {
+        if (fs::is_regular_file(candidate, ec)) {
+            return candidate;
+        }
+    }
+    return {};
 }
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
+int main() {
     exm::setup_console_utf8();
-
-    std::filesystem::path proj_root = exm::apps::default_project_dir();
-    if (proj_root.empty()) {
-        proj_root = std::filesystem::current_path();
-    }
-
-    exm::menu::PatchMenusOptions opt;
-    opt.rendered_dir = resolve_default_sprites_dir(proj_root);
-    opt.manifest_path = opt.rendered_dir / "menu_manifest.json";
-    opt.patch_bin_path = proj_root / "menu_patch.bin";
-
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "--dir" && i + 1 < argc) {
-            proj_root = argv[++i];
-            opt.rendered_dir = resolve_default_sprites_dir(proj_root);
-            opt.manifest_path = opt.rendered_dir / "menu_manifest.json";
-            opt.patch_bin_path = proj_root / "menu_patch.bin";
-        } else if (arg == "--game-dir" && i + 1 < argc) {
-            opt.game_dir = argv[++i];
-        } else if (arg == "--rendered-dir" && i + 1 < argc) {
-            opt.rendered_dir = argv[++i];
-        } else if (arg == "--manifest" && i + 1 < argc) {
-            opt.manifest_path = argv[++i];
-        } else if ((arg == "--patch-bin" || arg == "--patch") && i + 1 < argc) {
-            opt.patch_bin_path = argv[++i];
-        } else if (arg == "--write-patch-bin" && i + 1 < argc) {
-            opt.write_patch_bin_path = argv[++i];
-        } else if (arg == "--extract-only") {
-            opt.extract_only = true;
-        } else if (arg == "--extract-dir" && i + 1 < argc) {
-            opt.extract_dir = argv[++i];
-        } else if (arg == "--test" || arg == "--verify") {
-            opt.test_mode = true;
-        } else if (arg == "-h" || arg == "--help") {
-            std::cout
-                << "Usage: 04_patch_menus [--dir <project_dir>] [--game-dir <dir>] "
-                   "[--rendered-dir <dir>] [--manifest <json>] [--patch-bin|--patch <path>] "
-                   "[--write-patch-bin <path>] [--extract-only] [--extract-dir <dir>] "
-                   "[--test|--verify]\n";
-            return 0;
-        }
-    }
+    namespace po = exm::apps::po;
 
     try {
-        return exm::menu::run_patch_menus(opt);
+        std::string game;
+        po::options_description desc(
+            "04_patch_menus -- apply English menu graphics and UI layout patch");
+        desc.add(exm::apps::game_only_options(game));
+
+        po::variables_map vm;
+        if (const auto rc = exm::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
+        const fs::path patch_bin_path = resolve_patch_bin_path();
+        if (patch_bin_path.empty()) {
+            std::cerr << "[ERROR] menu_patch.bin not found.\n";
+            return exm::apps::kExitError;
+        }
+
+        const auto summary = exm::menu::MenuArchivePatcher::apply_patch_bin_to_game_dir(
+            fs::u8path(game), patch_bin_path, false);
+        std::cout << "Applied " << patch_bin_path.u8string() << ": "
+                  << summary.patched_sprite_entries << "/"
+                  << summary.total_archive_entries << " sys0.gpk sprites and "
+                  << summary.patched_standalone_files << " standalone files.\n";
+        return exm::apps::kExitOk;
     } catch (const std::exception& ex) {
-        std::cerr << "ERROR: " << ex.what() << "\n";
-        return 1;
+        std::cerr << "[ERROR] " << ex.what() << "\n";
+        return exm::apps::kExitError;
     }
 }

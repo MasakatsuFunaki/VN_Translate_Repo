@@ -12,36 +12,29 @@
 | Step | Executable | What |
 |------|-----------|------|
 | 1 | `01_extract` | Extract JP text from `.spt` → `extracted_text.json` |
-| 2 | `02_build_tsv` | Speaker gate (zero tokens) → translation (cached) |
+| 2 | `02_build_tsv` | Speaker gate (zero tokens) → assemble `translated_text.json` from cache |
 | 3 | `03_repack` | Word-wrap + repack into `.spt` |
 | 4 | `04_build_xtx` | XTX config translation (character name plates only — see note) |
-| 5 | `05_build_charts` | Flowchart (`chart/*.fxf`) translation |
-| — | `build.py --deploy` | Copy `winmm.dll` into game folder |
+| 5 | `05_build_charts` | Flowchart (`chart/*.fxf`) translation from `chart_translation_cache.json` |
+| 6 | `06_build_menus` | Repack `dwq/sys0.gpk` menu graphics and `init2/*.fxf` UI configs |
+| — | `build.py --deploy` | Copy `winmm.dll` and `extravaganza_patch.bin` into game folder |
 | — | `00_run_all` | All steps in one command |
 
 > **XTX trap:** BGM/SE lists inside the XTX step stay **disabled** — the engine
 > crashes when those config fields contain single-byte ASCII. Only the character-name plate
 > table is applied, in full-width romaji.
 
-`05_build_charts` keeps a cache of its own, `script_output\chart_translation_cache.json`,
-and its `--retranslate` refuses a cache that already holds paid work.
-Add `--discard-cache` to let it run.
-
 ## Build
 
 ```bat
-python build.py --test --install   # both halves + tests + stage
-python build.py --deploy           # ship winmm.dll to game
+python build.py --test --install          # both halves + tests + stage
+python build.py --deploy --game-dir <dir> # ship winmm.dll + extravaganza_patch.bin to game
 python build.py --clean
 
-build\install\bin\00_run_all.exe
+build\install\bin\00_run_all.exe --game-dir <dir>
 ```
 
-Options: `--test` / `--test 4` (batch cap), `--batch 50`, `--clean` (delete cached JSON),
-`--retranslate`, `--file 01.spt`. Restore originals: `03_repack.exe --restore`.
-
-`--clean` and `--retranslate` refuse a cache that already holds paid work.
-Add `--discard-cache` to let them run.
+Restore original scripts from backup: `03_repack.exe --game-dir <dir> --restore`.
 
 `--game-dir <install>` is required: the game install path differs per machine.
 

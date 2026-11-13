@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # MSVC defaults to interpreting source bytes as the system codepage, which
-# mangles the UTF-8 Japanese literals in the glossary.  /utf-8 is the standard
+# mangles UTF-8 Japanese literals in source files.  /utf-8 is the standard
 # fix.  /bigobj: glossary + boost headers overflow the default section limit.
 if(MSVC)
     add_compile_options(/utf-8 /bigobj)
@@ -18,15 +18,13 @@ find_package(Boost REQUIRED COMPONENTS json regex program_options)
 find_package(OpenSSL REQUIRED)
 find_package(stb REQUIRED)
 
-# The tests -- and only the tests -- need an absolute anchor for the real
-# game-data fixtures.  The apps must NOT get one: a compiled-in path ships
-# this machine's directory layout inside every installed binary, so they find
-# the project by walking up from their own executable (src/apps/paths.cpp).
+# Component tests need an absolute anchor for the repository fixtures.  The apps
+# must NOT get one: a compiled-in path ships this machine's directory layout
+# inside every installed binary, so they find the project by walking up from
+# their own executable (src/apps/paths.cpp).
 get_filename_component(SNT_PROJECT_DIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 
-# --------------------------------------------------------------------
 # snt_core: everything except the app mains, shared by apps and tests.
-# --------------------------------------------------------------------
 add_library(snt_core STATIC
     src/common/util.cpp
     src/common/util.h
@@ -71,21 +69,14 @@ target_link_libraries(snt_core PUBLIC
     crypt32
 )
 
-# --------------------------------------------------------------------
 # Pipeline executables.
-#
-# The numbering is the order they run in: extract, then translate, then the
-# deploy 00_run_all performs itself.  The speaker gate and the runtime-table
-# builder are library code inside the translation step rather than commands of
-# their own, so the numbers stop at the narrative-CG scanner, which is a
-# separate investigation and not part of the three-step run.
-# --------------------------------------------------------------------
 # Only the app mains parse a command line (src/apps/paths.h), so
-# Program_options is scoped here rather than pushed through snt_core.
+# Program_options and shell32 (CommandLineToArgvW) are scoped here rather than
+# pushed through snt_core.
 function(snt_app target main)
     add_executable(${target} ${main}
                    src/apps/paths.h src/apps/paths.cpp src/apps/pipeline_steps.h)
-    target_link_libraries(${target} PRIVATE snt_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE snt_core Boost::program_options shell32)
 endfunction()
 
 snt_app(00_run_all           src/apps/run_all_main.cpp)
@@ -93,16 +84,11 @@ snt_app(01_extract           src/apps/extract_main.cpp)
 snt_app(02_translate         src/apps/translate_main.cpp)
 snt_app(03_find_narrative_cg src/apps/find_narrative_cg_main.cpp)
 
-# --------------------------------------------------------------------
 # Install: bin/ is what the user runs.  snt_core and every test binary stay
 # out of it -- they are how the tools are built, not the tools.
-# --------------------------------------------------------------------
 install(TARGETS 00_run_all 01_extract 02_translate 03_find_narrative_cg
         RUNTIME DESTINATION bin)
 
-# --------------------------------------------------------------------
-# Tests
-# --------------------------------------------------------------------
 if(ENABLE_TESTS)
     find_package(GTest REQUIRED)
     enable_testing()

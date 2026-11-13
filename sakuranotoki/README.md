@@ -78,81 +78,69 @@ sit beside the x64 executables.
 key auto-loads from `%USERPROFILE%\.gemini\.env`, or from
 `GEMINI_API_KEY`.
 
-Run these four first.  None of them sends a request or reads the key:
+Run these three first.  None of them sends a request or reads the key:
 
 ```bat
-python build.py --test --install                              :: build both halves, 146 + 1 tests
+python build.py --test --install                              :: build both halves, run tests
 build\install\bin\01_extract.exe --game-dir <G>               :: decrypt + extract from .pfs
-build\install\bin\02_translate.exe --gate-only --game-dir <G> :: six checks, exit 0 or 2
 python analysys\spend_predict_run.py --batch 150              :: requests, lines, post-run cache
 ```
 
-The gate has to exit 0 before anything is bought.  The projection states what
-the run will send: **723 requests carrying 53,733 lines**, ending on a cache of
-53,653 entries.
+The speaker gate inside `02_translate.exe` has to exit 0 before anything is
+bought.  The projection states what the run will send: **723 requests carrying
+53,733 lines**, ending on a cache of 53,653 entries.
 
 Then buy one request and read its `in=` and `out=` off the `GEMINI RAW ANSWER`
 line, which is the only honest measurement of what the run costs:
 
 ```bat
-build\install\bin\02_translate.exe --max-batches 1 --batch 150 --game-dir <G>
+build\install\bin\02_translate.exe --max-batches 1 --batch 150
 python analysys\spend_extrapolate.py --batch 150 --in-tok <in> --out-tok <out>
 ```
 
 The full run, and the deploy after it:
 
 ```bat
-build\install\bin\02_translate.exe --batch 150 --game-dir <G>
+build\install\bin\02_translate.exe --batch 150
 python build.py --deploy --game-dir <G>
 ```
 
 It is resume-safe: Ctrl+C and restart, and a line already in the cache is never
-bought twice.  `--max-batches N` caps it without losing work.  `--test`,
-`--retranslate` and `--clean` delete paid work — see the warning below.
+bought twice.  `--max-batches N` caps it without losing work.  `--retranslate`
+and `--clean` delete paid work — see the warning below.
 
 > **WARNING: back up `script_output\translation_cache_gemini.json` and
 > `script_output\translated_text.json`.**  Copy both after the first paid
 > request, during the run, and at the end.  Nothing in this pipeline can
-> rebuild them, and `02_translate --test N`, `02_translate --retranslate` and
-> `00_run_all --clean` all delete them.  A guard refuses each of those three
-> once the cache holds real work, unless `--discard-cache` is given as well,
-> and it refuses before the key is read.  `python build.py --test` is a
-> different program: it runs the unit tests and touches nothing under
-> `script_output`.
+> rebuild them, and `02_translate --retranslate` and `00_run_all --clean`
+> both delete them.  A guard refuses each once the cache holds real work,
+> unless `--discard-cache` is given as well, and it refuses before the key is
+> read.  `python build.py --test` is a different program: it runs the unit
+> tests and touches nothing under `script_output`.
 
-Options for `02_translate.exe`.  The first two send no request and read no
-API key, so they cost nothing:
+Options for `02_translate.exe`:
 
 ```bat
-02_translate.exe --gate-only     :: run the speaker gate over the extraction and stop
 02_translate.exe --rebuild-table :: rebuild translations.tsv and the coverage report
                                  :: from the translated document already on disk, and stop
-02_translate.exe --flow-breaks   :: turn a break inside a table value into a space and
-                                 :: let the engine wrap it (see the note below)
 02_translate.exe --batch 50      :: lines per API call
-02_translate.exe --test 4        :: 4 batches then stop, from a clean cache
 02_translate.exe --max-batches 4 :: 4 batches then stop, keeping the cache
 02_translate.exe --retranslate   :: ignore cache
-02_translate.exe --discard-cache :: let --test or --retranslate delete a cache holding paid work
-02_translate.exe --include-untranslated  :: keep rows whose English is still Japanese
-02_translate.exe --out <path>    :: write the table somewhere other than <dir>\translations.tsv
-02_translate.exe --script script\01_01.ast   :: one file only
+02_translate.exe --discard-cache :: let --retranslate delete a cache holding paid work
+02_translate.exe --out <path>    :: write the table somewhere other than <dir>\build\install\game\translations.tsv
 ```
 
-No Japanese string in this corpus contains a line break: 0 of 92,774.
-`--flow-breaks` therefore acts only on a break the English answer introduced.
-The default keeps those breaks, because whether the engine wraps a line for
-itself is a runtime question and nobody has measured it yet.
-
-All apps take `--dir <project>` and `--game-dir <install>`. `--game-dir` is
-required: the game install path differs per machine. `--dir` defaults to the
-project folder found by walking up from the executable's own location, and is
-required when the exe sits outside the project tree.
+`00_run_all.exe`, `01_extract.exe`, and `03_find_narrative_cg.exe` take
+`--dir <project>` and `--game-dir <install>` (`--game-dir` is required because
+the game install path differs per machine).  `02_translate.exe` operates only on
+the project folder and takes `--dir <project>` without `--game-dir`.  `--dir`
+defaults to the project folder found by walking up from the executable's own
+location, and is required when the exe sits outside the project tree.
 
 ### After the run
 
 ```bat
-build\install\bin\02_translate.exe --rebuild-table --game-dir <G>  :: table + coverage, no API call
+build\install\bin\02_translate.exe --rebuild-table                :: table + coverage, no API call
 python analysys\translation_coverage.py                           :: coverage counted three ways
 python analysys\pronoun_sweep.py analysys\vndb_cast.json          :: pronouns against each sex
 python analysys\patch_translations.py patches.json --apply        :: hand edits, cache and document
@@ -246,8 +234,7 @@ already on disk without sending a request.  Each row is derived, in order:
 2. superseded spellings are rewritten, but only where the Japanese of that
    row carries the term — so `鳥谷` reading "Toriya" becomes "Toritani" and a
    stray "Toriya" with no `鳥谷` behind it is left alone;
-3. the English is given the key's leading U+3000 indent and no other;
-4. with `--flow-breaks`, a break inside the value becomes a space.
+3. the English is given the key's leading U+3000 indent and no other.
 
 Every speaker plate then gets a row from the glossary, unless the document
 already answered for it — the document wins, and a disagreement is logged.
@@ -368,10 +355,9 @@ run exists.
   needs to be retargeted once the function RVA is known.
 - Image rendering: most `image\bg\*.png` are pure backgrounds with no
   Japanese.  Narrative text typically lives under `image\cg\` and a
-  small subset of `image\ev\`.  Use `03_find_narrative_cg.exe --max N` for
-  a bounded test before the full sweep.
+  small subset of `image\ev\`.
 - The CG scanner has a local-OCR pre-filter stage that would reject
   text-free images before spending vision tokens, but no OCR engine is
   wired in — it logs `[ocr] 0 method(s): none`, passes everything through,
   and Gemini does the detection.  Only the dimension and path-prefix checks
-  bound the token cost, so use `--max N` first.
+  bound the token cost.

@@ -5,30 +5,54 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// CP932 codec tests.
+// CP932 codec unit tests.
 //
-// These exist because a decoder that assumes 0x80, 0xA0 and 0xFD-0xFF "are
-// never valid lead bytes" rejects them, while CP932 in fact maps all five to
-// single characters.  ~13% of the BLACKCyc games' extracted strings contain at
-// least one of them, so getting this wrong silently DROPS those strings and
-// shifts every downstream array index.
-//
-// The expected values below are the CP932 mappings themselves, pinned so a
-// change to the decoder's validity rules cannot quietly re-introduce the drop.
-#include <gtest/gtest.h>
-
-#include <string>
-
+// CP932 maps 0x80, 0xA0 and 0xFD-0xFF to single characters rather than
+// rejecting them as invalid Shift-JIS lead bytes.  These cases pin the exact
+// single-byte, double-byte, and malformed-trail behavior.
 #include "common/util.h"
 
-using namespace snt;
+#include <cstdint>
+#include <initializer_list>
+#include <string>
+
+#include <gtest/gtest.h>
 
 namespace {
 
-std::string dec(std::initializer_list<std::uint8_t> bytes) {
-    const Bytes b(bytes);
-    auto s = cp932_to_utf8_strict(b);
+using namespace snt;
+
+constexpr std::uint8_t kCp932Byte80 = 0x80U;
+constexpr std::uint8_t kCp932ByteA0 = 0xA0U;
+constexpr std::uint8_t kCp932ByteA1 = 0xA1U;
+constexpr std::uint8_t kCp932ByteB5 = 0xB5U;
+constexpr std::uint8_t kCp932ByteDf = 0xDFU;
+constexpr std::uint8_t kCp932ByteFd = 0xFDU;
+constexpr std::uint8_t kCp932ByteFe = 0xFEU;
+constexpr std::uint8_t kCp932ByteFf = 0xFFU;
+constexpr std::uint8_t kAsciiSpace = 0x20U;
+constexpr std::uint8_t kAsciiEtx = 0x03U;
+constexpr std::uint8_t kAsciiUpperA = 0x41U;
+constexpr std::uint8_t kBadLead86 = 0x86U;
+constexpr std::uint8_t kBadTrail3A = 0x3AU;
+constexpr std::uint8_t kTruncatedLead82 = 0x82U;
+constexpr std::uint8_t kLead81 = 0x81U;
+constexpr std::uint8_t kOutOfRangeTrailFd = 0xFDU;
+constexpr std::uint8_t kUtf8Control80Bytes[] = {0xC2U, 0x80U};
+
+std::string utf8_control_0080() {
+    return std::string(
+        reinterpret_cast<const char*>(kUtf8Control80Bytes),
+        sizeof(kUtf8Control80Bytes));
+}
+
+std::string dec_bytes(const Bytes& b) {
+    const auto s = cp932_to_utf8_strict(b);
     return s ? *s : std::string("<INVALID>");
+}
+
+std::string dec(std::initializer_list<std::uint8_t> bytes) {
+    return dec_bytes(Bytes(bytes));
 }
 
 bool valid(std::initializer_list<std::uint8_t> bytes) {
@@ -38,59 +62,54 @@ bool valid(std::initializer_list<std::uint8_t> bytes) {
 
 }  // namespace
 
-// The five bytes a structure-only validity test wrongly rejects.
 TEST(Cp932, decodes_special_single_bytes) {
-    EXPECT_EQ(dec({0x80}), "\xC2\x80");          // U+0080
-    EXPECT_EQ(dec({0xA0}), "\xEF\xA3\xB0");      // U+F8F0
-    EXPECT_EQ(dec({0xFD}), "\xEF\xA3\xB1");      // U+F8F1
-    EXPECT_EQ(dec({0xFE}), "\xEF\xA3\xB2");      // U+F8F2
-    EXPECT_EQ(dec({0xFF}), "\xEF\xA3\xB3");      // U+F8F3
+    EXPECT_EQ(dec({kCp932Byte80}), utf8_control_0080());
+    EXPECT_EQ(dec({kCp932ByteA0}), "\uF8F0");
+    EXPECT_EQ(dec({kCp932ByteFd}), "\uF8F1");
+    EXPECT_EQ(dec({kCp932ByteFe}), "\uF8F2");
+    EXPECT_EQ(dec({kCp932ByteFf}), "\uF8F3");
 }
 
-// The exact shape that was being dropped: a special byte inside a run of
-// otherwise ordinary bytes.
 TEST(Cp932, special_bytes_survive_inside_a_run) {
-    // 'B5 FF FF FF 20 03' -- taken from mushi.spt offset 6492.
-    EXPECT_TRUE(valid({0xB5, 0xFF, 0xFF, 0xFF, 0x20, 0x03}));
-    EXPECT_EQ(dec({'a', 0xFF, 'b'}), "a\xEF\xA3\xB3" "b");
-    // ...and a special byte adjacent to a real two-byte character.
-    EXPECT_EQ(dec({0x82, 0xA0, 0xFF}), "\xE3\x81\x82\xEF\xA3\xB3");
+    EXPECT_TRUE(valid(
+        {kCp932ByteB5, kCp932ByteFf, kCp932ByteFf, kCp932ByteFf, kAsciiSpace, kAsciiEtx}));
+    EXPECT_EQ(dec({'a', kCp932ByteFf, 'b'}), "a\uF8F3b");
+
+    Bytes hiragana_a_plus_ff = utf8_to_cp932_replace("あ");
+    hiragana_a_plus_ff.push_back(kCp932ByteFf);
+    EXPECT_EQ(dec_bytes(hiragana_a_plus_ff), "あ\uF8F3");
 }
 
-// 0xA0 must be read as a SINGLE byte, not as a lead byte swallowing the next
-// one -- getting this wrong shifts every subsequent character.
 TEST(Cp932, a0_does_not_swallow_the_following_byte) {
-    EXPECT_EQ(dec({0xA0, 0x41}), "\xEF\xA3\xB0" "A");
+    EXPECT_EQ(dec({kCp932ByteA0, kAsciiUpperA}), "\uF8F0A");
 }
 
 TEST(Cp932, halfwidth_katakana_singles) {
-    EXPECT_EQ(dec({0xA1}), "\xEF\xBD\xA1");  // U+FF61
-    EXPECT_EQ(dec({0xDF}), "\xEF\xBE\x9F");  // U+FF9F
+    EXPECT_EQ(dec({kCp932ByteA1}), "｡");
+    EXPECT_EQ(dec({kCp932ByteDf}), "ﾟ");
 }
 
 TEST(Cp932, decodes_ordinary_two_byte_characters) {
-    EXPECT_EQ(dec({0x82, 0xA0}), "\xE3\x81\x82");              // あ
-    EXPECT_EQ(dec({0x81, 0x75}), "\xE3\x80\x8C");              // 「
-    EXPECT_EQ(dec({0x93, 0xFA}), "\xE6\x97\xA5");              // 日
+    for (const char* jp : {"あ", "「", "日", "直哉", "「おはよう」"}) {
+        const Bytes encoded = utf8_to_cp932_replace(jp);
+        ASSERT_FALSE(encoded.empty());
+        EXPECT_EQ(dec_bytes(encoded), jp);
+    }
 }
 
-// Still strict where it matters: a lead byte with an out-of-range trail is an
-// error, not something to paper over.
 TEST(Cp932, rejects_bad_trail_bytes) {
-    EXPECT_FALSE(valid({0x86, 0x3A}));  // 0x3A is not a valid trail
-    EXPECT_FALSE(valid({0x82}));        // truncated lead
-    EXPECT_FALSE(valid({0x81, 0xFD}));  // trail out of range
+    EXPECT_FALSE(valid({kBadLead86, kBadTrail3A}));
+    EXPECT_FALSE(valid({kTruncatedLead82}));
+    EXPECT_FALSE(valid({kLead81, kOutOfRangeTrailFd}));
 }
 
 TEST(Cp932, empty_input_is_the_empty_string) {
     EXPECT_EQ(dec({}), "");
 }
 
-// Lossy mode: the special singles decode, so they must NOT come back as
-// U+FFFD -- only genuinely undecodable bytes get replaced.
 TEST(Cp932, replace_mode_keeps_special_singles) {
-    const Bytes b{0xFF, 0x86, 0x3A};
+    const Bytes b{kCp932ByteFf, kBadLead86, kBadTrail3A};
     const std::string s = cp932_to_utf8_replace(b.data(), b.size());
-    EXPECT_EQ(s.rfind("\xEF\xA3\xB3", 0), 0u) << "0xFF should decode, not be replaced";
-    EXPECT_NE(s.find("\xEF\xBF\xBD"), std::string::npos) << "0x86 0x3A should be replaced";
+    EXPECT_EQ(s.rfind("\uF8F3", 0), 0U) << "0xFF should decode, not be replaced";
+    EXPECT_NE(s.find("\uFFFD"), std::string::npos) << "0x86 0x3A should be replaced";
 }

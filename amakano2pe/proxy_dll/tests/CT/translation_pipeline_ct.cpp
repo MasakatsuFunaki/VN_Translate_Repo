@@ -5,85 +5,51 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// CT — Translation pipeline component tests for amakano2pe.
+// Component tests for the amakano2pe translation pipeline.
 //
-// End-to-end: read the deployed translations.tsv from disk, parse it,
-// validate post-load invariants the rest of the DLL depends on. SKIPs
-// cleanly if the TSV doesn't exist (machine-dependent file).
+// End-to-end: read the staged translation_table.tsv from disk via
+// translator_logic::LoadTsvFile and validate post-load invariants that the
+// proxy DLL depends on.
 
 #include "translator_logic.h"
 
 #include <gtest/gtest.h>
 
-#include <cstdio>
-#include <fstream>
-#include <sstream>
+#include <cstddef>
 #include <string>
-#include <vector>
-
-#ifdef _WIN32
-#  include <wchar.h>
-#  define WIN32_LEAN_AND_MEAN
-#  include <windows.h>
-#endif
-
-using translator_logic::TranslationMap;
-using translator_logic::ParseTsvBuffer;
-
-#ifndef GAME_TSV_PATH
-#  define GAME_TSV_PATH ""
-#endif
 
 namespace {
 
-bool LoadRealTsv(TranslationMap& out) {
-#ifdef _WIN32
-    const char* narrow = GAME_TSV_PATH;
-    if (!narrow || !*narrow) return false;
-    int wn = MultiByteToWideChar(CP_UTF8, 0, narrow, -1, nullptr, 0);
-    if (wn <= 0) return false;
-    std::wstring wpath(static_cast<size_t>(wn), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, narrow, -1, &wpath[0], wn);
-    if (!wpath.empty() && wpath.back() == L'\0') wpath.pop_back();
+using translator_logic::DefaultSpeakerNameKeys;
+using translator_logic::HasDanglingTrailingBackslash;
+using translator_logic::LoadTsvFile;
+using translator_logic::SpeakerKeySet;
+using translator_logic::TranslationMap;
 
-    FILE* f = _wfopen(wpath.c_str(), L"rb");
-    if (!f) return false;
-    std::fseek(f, 0, SEEK_END);
-    long sz = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
-    if (sz <= 0) { std::fclose(f); return false; }
-    std::vector<char> buf(static_cast<size_t>(sz));
-    size_t n = std::fread(buf.data(), 1, buf.size(), f);
-    std::fclose(f);
-    if (n == 0) return false;
-    return ParseTsvBuffer(buf.data(), n, out) > 0;
-#else
-    return false;
-#endif
-}
+constexpr std::size_t kMinExpectedTranslations = 10;
 
 }  // namespace
 
 class TranslationPipelineTest : public ::testing::Test {
 protected:
     TranslationMap map;
+
     void SetUp() override {
-        if (!LoadRealTsv(map)) {
-            GTEST_SKIP()
-                << "translations.tsv not found at " << GAME_TSV_PATH
-                << " (skip is OK on machines without the game data).";
-        }
+        ASSERT_TRUE(LoadTsvFile(GAME_TSV_PATH, map))
+            << "Missing or empty deployed TSV: " << GAME_TSV_PATH;
     }
 };
 
 TEST_F(TranslationPipelineTest, HasReasonableSize) {
-    EXPECT_GT(map.size(), 10u);
+    EXPECT_GT(map.size(), kMinExpectedTranslations);
 }
 
 TEST_F(TranslationPipelineTest, EveryValueIsNullFree) {
-    size_t bad = 0;
+    std::size_t bad = 0;
     for (const auto& kv : map) {
-        if (kv.second.find('\0') != std::string::npos) ++bad;
+        if (kv.second.find('\0') != std::string::npos) {
+            ++bad;
+        }
     }
     EXPECT_EQ(bad, 0u);
 }
@@ -94,3 +60,23 @@ TEST_F(TranslationPipelineTest, NoEmptyKeysOrValues) {
         EXPECT_FALSE(kv.second.empty());
     }
 }
+
+TEST_F(TranslationPipelineTest, EveryDefaultSpeakerNameKeyExistsInTsv) {
+    const SpeakerKeySet& speaker_keys = DefaultSpeakerNameKeys();
+    ASSERT_FALSE(speaker_keys.empty());
+    for (const std::string& key : speaker_keys) {
+        EXPECT_NE(map.find(key), map.end())
+            << "DefaultSpeakerNameKeys entry missing from TSV: " << key;
+    }
+}
+
+TEST_F(TranslationPipelineTest, ZeroEntriesEndWithDanglingTrailingBackslash) {
+    std::size_t dangling_count = 0;
+    for (const auto& kv : map) {
+        if (HasDanglingTrailingBackslash(kv.second)) {
+            ++dangling_count;
+        }
+    }
+    EXPECT_EQ(dangling_count, 0u);
+}
+

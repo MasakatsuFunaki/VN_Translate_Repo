@@ -164,7 +164,7 @@ def sync_translations():
         run(["cmd", "/c", enc_bat, "--encrypt", "--dir", ROOT], ROOT)
 
 
-def build_table(game_dir=None):
+def build_table():
     translated_json = os.path.join(ROOT, "script_output", "translated_text.json")
     if not os.path.isfile(translated_json):
         return
@@ -173,19 +173,18 @@ def build_table(game_dir=None):
         return
     out_tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
     os.makedirs(os.path.dirname(out_tsv), exist_ok=True)
-    if os.path.isfile(out_tsv) and os.path.getsize(out_tsv) > 0 and os.path.getmtime(out_tsv) >= os.path.getmtime(translated_json):
+    if (os.path.isfile(out_tsv) and os.path.getsize(out_tsv) > 0
+            and os.path.getmtime(out_tsv) >= os.path.getmtime(translated_json)
+            and os.path.getmtime(out_tsv) >= os.path.getmtime(build_tsv_exe)):
         return
-    cmd = [build_tsv_exe, "--rebuild-table", "--out", out_tsv]
-    if game_dir:
-        cmd.extend(["--game-dir", str(game_dir)])
-    run(cmd, ROOT)
+    run([build_tsv_exe, "--dir", ROOT, "--out", out_tsv], ROOT)
 
 
-def build(game_dir=None):
+def build():
     clean()
     run(["cmake", "--preset", PRESET], ROOT)
     run(["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
-    build_table(game_dir)
+    build_table()
 
 
 def has_test_preset(source_dir, preset):
@@ -214,10 +213,10 @@ def test():
             sys.exit(rc)
 
 
-def install(game_dir=None):
+def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
-    build_table(game_dir)
+    build_table()
 
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
@@ -239,7 +238,7 @@ def deploy(game_dir):
         print("Correct --game-dir, or set VN_DIST_BUILD to build without deploying.")
         sys.exit(1)
 
-    build_table(game_dir)
+    build_table()
     unwrap_inner_pe_if_needed(game_dir)
 
     print(f"\nDeploying to {game_dir}...")
@@ -289,13 +288,13 @@ def main():
         sys.exit("--deploy needs --game-dir: the install path differs per machine")
 
     sync_translations()
-    build(args.game_dir)
+    build()
 
     if args.test:
         test()
 
     if args.install:
-        install(args.game_dir)
+        install()
 
     if args.deploy:
         deploy(args.game_dir)

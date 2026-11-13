@@ -5,24 +5,45 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Step-2 tests: the translatability predicates, the speaker lookup pattern,
-// and response parsing.  Several of these exist specifically
-// to catch a copy-paste from the BLACKCyc ports, whose equivalents differ.
-#include <gtest/gtest.h>
-
-#include <string>
+// Translation cache tests: the translatability predicates, the speaker lookup
+// pattern, and response parsing.  Several of these exist specifically to catch
+// a copy-paste from the BLACKCyc ports, whose equivalents differ.
+#include "cache/cache_core.h"
+#include "cache/glossary.h"
+#include "common/util.h"
 
 #include <boost/json.hpp>
+#include <gtest/gtest.h>
 
-#include "common/util.h"
-#include "cache/glossary.h"
-#include "cache/cache_core.h"
+#include <cstddef>
+#include <string>
 
 namespace bj = boost::json;
 using namespace shin;
 namespace tr = shin::translate;
 
 namespace {
+
+constexpr int kControlCodeMaxJpChars = 48;
+constexpr std::size_t kControlCodeMaxAllowedLen = 49u;
+constexpr std::size_t kControlCodeRejectedLen = 50u;
+constexpr int kTagSampleNum3 = 3;
+constexpr int kTagSampleNum5 = 5;
+constexpr int kTagSampleNum12 = 12;
+constexpr int kFirstLineNumber = 1;
+constexpr std::size_t kSingleEntryCount = 1u;
+constexpr std::size_t kEscapedCrLfLiteralLen = 6u;
+constexpr std::size_t kReseedEntryCount = 3u;
+constexpr std::size_t kExpectedGlossaryNameCount = 75u;
+constexpr std::size_t kExpectedStoryScriptCount = 91u;
+constexpr std::size_t kEmptyCacheCount = 0u;
+constexpr std::size_t kOnePastThresholdOffset = 1u;
+constexpr std::size_t kPaidCacheLineCount = 56103u;
+constexpr std::size_t kExpectedPurgedEchoCount = 2u;
+constexpr std::size_t kExpectedSurvivingCacheCount = 3u;
+constexpr std::size_t kIdx0 = 0u;
+constexpr std::size_t kIdx1 = 1u;
+constexpr std::size_t kIdx2 = 2u;
 
 bj::object rec(const char* type, const char* speaker, const char* text = "x") {
     bj::object o;
@@ -40,25 +61,27 @@ TEST(Translate, is_control_code_rules) {
     EXPECT_FALSE(tr::is_control_code("chr_a_02。"));          // 。 disqualifies
     EXPECT_FALSE(tr::is_control_code("chr_a_02「x」"));
     EXPECT_FALSE(tr::is_control_code("chr_a_02……"));
-    EXPECT_FALSE(tr::is_control_code("chr_a_02\xE2\x80\x95"));  // ― U+2015
-    EXPECT_FALSE(tr::is_control_code("chr_a_02\xE3\x80\x80"));  // U+3000
+    EXPECT_FALSE(tr::is_control_code("chr_a_02―"));  // U+2015
+    EXPECT_FALSE(tr::is_control_code("chr_a_02　"));  // U+3000
     EXPECT_FALSE(tr::is_control_code("no underscore here"));
 
     // The length bound counts CODEPOINTS.  49 Japanese characters plus '_' is
     // 150 bytes; a byte test would make this false and change the cache keys.
     std::string jp49;
-    for (int i = 0; i < 48; ++i) jp49 += "あ";
-    EXPECT_EQ(char_len(jp49 + "_"), 49u);
+    for (int i = 0; i < kControlCodeMaxJpChars; ++i) {
+        jp49 += "あ";
+    }
+    EXPECT_EQ(char_len(jp49 + "_"), kControlCodeMaxAllowedLen);
     EXPECT_TRUE(tr::is_control_code(jp49 + "_"));
-    std::string jp50 = jp49 + "あ";
-    EXPECT_EQ(char_len(jp50 + "_"), 50u);
+    const std::string jp50 = jp49 + "あ";
+    EXPECT_EQ(char_len(jp50 + "_"), kControlCodeRejectedLen);
     EXPECT_FALSE(tr::is_control_code(jp50 + "_"));
 }
 
 TEST(Translate, needs_translation_order_and_ideographic_space) {
     // The strip removes U+3000 as well as ASCII whitespace, so an
     // all-ideographic-space line is rejected rather than becoming a junk key.
-    EXPECT_FALSE(tr::needs_translation("\xE3\x80\x80\xE3\x80\x80"));
+    EXPECT_FALSE(tr::needs_translation("　　"));
     EXPECT_FALSE(tr::needs_translation(""));
     EXPECT_TRUE(tr::needs_translation("こんにちは"));
     EXPECT_FALSE(tr::needs_translation("Hello"));
@@ -80,41 +103,43 @@ TEST(Translate, parse_numbered_response_strips_a_leading_speaker_tag) {
     // The '&' in the character class is shingakkou-specific; without it the
     // tag stays glued to the front of the translation.
     auto t = tr::parse_numbered_response("[Michael & Gabby] 3. text");
-    ASSERT_EQ(t.count(3), 1u);
-    EXPECT_EQ(t[3], "text");
+    ASSERT_EQ(t.count(kTagSampleNum3), kSingleEntryCount);
+    EXPECT_EQ(t[kTagSampleNum3], "text");
 
-    EXPECT_EQ(tr::parse_numbered_response("[NARRATION] 5. hi")[5], "hi");
-    EXPECT_EQ(tr::parse_numbered_response("12) foo")[12], "foo");
+    EXPECT_EQ(tr::parse_numbered_response("[NARRATION] 5. hi")[kTagSampleNum5], "hi");
+    EXPECT_EQ(tr::parse_numbered_response("12) foo")[kTagSampleNum12], "foo");
 
     // The substitution is ^-anchored and runs BEFORE the number match, so a
     // tag AFTER the number is deliberately kept -- there it is part of the
     // translated line, not a wrapper around it.
-    EXPECT_EQ(tr::parse_numbered_response("3. [NARRATION] text")[3], "[NARRATION] text");
+    EXPECT_EQ(
+        tr::parse_numbered_response("3. [NARRATION] text")[kTagSampleNum3],
+        "[NARRATION] text");
 }
 
 // The BLACKCyc pipelines un-escape \r\n here; shingakkou must NOT, because a
 // real CR/LF in the value would break the TSV row it ends up in.
 TEST(Translate, parse_numbered_response_does_not_unescape_newlines) {
     const auto t = tr::parse_numbered_response("1. a\\r\\nb");
-    ASSERT_EQ(t.count(1), 1u);
+    ASSERT_EQ(t.count(kFirstLineNumber), kSingleEntryCount);
     // Six characters: a, backslash, r, backslash, n, b -- no CR and no LF.
-    EXPECT_EQ(t.at(1), "a\\r\\nb");
-    EXPECT_EQ(t.at(1).size(), 6u);
-    EXPECT_EQ(t.at(1).find('\r'), std::string::npos);
-    EXPECT_EQ(t.at(1).find('\n'), std::string::npos);
+    EXPECT_EQ(t.at(kFirstLineNumber), "a\\r\\nb");
+    EXPECT_EQ(t.at(kFirstLineNumber).size(), kEscapedCrLfLiteralLen);
+    EXPECT_EQ(t.at(kFirstLineNumber).find('\r'), std::string::npos);
+    EXPECT_EQ(t.at(kFirstLineNumber).find('\n'), std::string::npos);
 }
 
 TEST(Translate, sanitize_ascii_eight_replacements) {
-    EXPECT_EQ(tr::sanitize_ascii("a\xE2\x80\x94""b"), "a--b");        // em dash
-    EXPECT_EQ(tr::sanitize_ascii("a\xE2\x80\x93""b"), "a--b");        // en dash
-    EXPECT_EQ(tr::sanitize_ascii("a\xE2\x80\xA6""b"), "a...b");       // ellipsis
-    EXPECT_EQ(tr::sanitize_ascii("\xE2\x80\x98x\xE2\x80\x99"), "'x'");
-    EXPECT_EQ(tr::sanitize_ascii("\xE2\x80\x9Cx\xE2\x80\x9D"), "\"x\"");
-    EXPECT_EQ(tr::sanitize_ascii("a\xE3\x80\x80""b"), "a b");         // U+3000
+    EXPECT_EQ(tr::sanitize_ascii("a—b"), "a--b");   // em dash
+    EXPECT_EQ(tr::sanitize_ascii("a–b"), "a--b");   // en dash
+    EXPECT_EQ(tr::sanitize_ascii("a…b"), "a...b");  // ellipsis
+    EXPECT_EQ(tr::sanitize_ascii("‘x’"), "'x'");
+    EXPECT_EQ(tr::sanitize_ascii("“x”"), "\"x\"");
+    EXPECT_EQ(tr::sanitize_ascii("a　b"), "a b");   // U+3000
 }
 
 // Re-attaching a name plate here (as the BLACKCyc ports do) would double it:
-// step 3 already prepends one, giving "Michael\nMichael\nHello" at runtime.
+// the TSV builder already prepends one, giving "Michael\nMichael\nHello" at runtime.
 TEST(Translate, postprocess_does_not_reattach_a_speaker) {
     EXPECT_EQ(tr::postprocess("マイケル\\n「x」", "Hello"), "Hello");
     EXPECT_EQ(tr::postprocess("あ", "あ"), "あ");   // identical -> untouched
@@ -129,17 +154,17 @@ TEST(Translate, cache_preserves_insertion_order_across_reseed) {
     c.set("B", "2");
     c.set("C", "3");
     c.set("A", "9");
-    ASSERT_EQ(c.size(), 3u);
-    EXPECT_EQ(c.items()[0].first, "A");
-    EXPECT_EQ(c.items()[0].second, "9");
-    EXPECT_EQ(c.items()[1].first, "B");
-    EXPECT_EQ(c.items()[2].first, "C");
+    ASSERT_EQ(c.size(), kReseedEntryCount);
+    EXPECT_EQ(c.items()[kIdx0].first, "A");
+    EXPECT_EQ(c.items()[kIdx0].second, "9");
+    EXPECT_EQ(c.items()[kIdx1].first, "B");
+    EXPECT_EQ(c.items()[kIdx2].first, "C");
 }
 
 TEST(Translate, glossary_has_the_expected_shape) {
-    EXPECT_EQ(tr::name_translations_ordered().size(), 75u);
-    EXPECT_EQ(tr::name_translations().size(), 75u);
-    EXPECT_EQ(tr::story_order().size(), 91u);
+    EXPECT_EQ(tr::name_translations_ordered().size(), kExpectedGlossaryNameCount);
+    EXPECT_EQ(tr::name_translations().size(), kExpectedGlossaryNameCount);
+    EXPECT_EQ(tr::story_order().size(), kExpectedStoryScriptCount);
     EXPECT_EQ(tr::name_translations().at("マイケル・ガビィ"), "Michael & Gabby");
 }
 
@@ -147,14 +172,14 @@ TEST(Translate, glossary_has_the_expected_shape) {
 // --discard-cache confirms the intent.
 TEST(Translate, a_flag_that_deletes_a_paid_cache_is_refused_until_it_is_meant) {
     // An empty or nearly empty cache is what a from-scratch run was written for.
-    EXPECT_FALSE(tr::refuse_cache_discard(0, "--test", false).has_value());
+    EXPECT_FALSE(tr::refuse_cache_discard(kEmptyCacheCount, "--test", false).has_value());
     EXPECT_FALSE(tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD, "--test",
-                                      false).has_value());
+                                          false).has_value());
 
     // One entry past the threshold, every flag is refused.
     for (const char* flag : {"--test", "--retranslate", "--clean"}) {
-        auto why = tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD + 1, flag,
-                                        false);
+        auto why = tr::refuse_cache_discard(
+            tr::CACHE_DISCARD_THRESHOLD + kOnePastThresholdOffset, flag, false);
         ASSERT_TRUE(why.has_value()) << flag;
         EXPECT_NE(why->find(flag), std::string::npos) << *why;
         EXPECT_NE(why->find("--discard-cache"), std::string::npos) << *why;
@@ -162,12 +187,12 @@ TEST(Translate, a_flag_that_deletes_a_paid_cache_is_refused_until_it_is_meant) {
 
     // The count is in the message, because "some lines" is not a reason to
     // stop and "56103 lines" is.
-    auto why = tr::refuse_cache_discard(56103, "--test", false);
+    auto why = tr::refuse_cache_discard(kPaidCacheLineCount, "--test", false);
     ASSERT_TRUE(why.has_value());
     EXPECT_NE(why->find("56103"), std::string::npos) << *why;
 
     // --discard-cache is the caller saying they meant it.
-    EXPECT_FALSE(tr::refuse_cache_discard(56103, "--test", true).has_value());
+    EXPECT_FALSE(tr::refuse_cache_discard(kPaidCacheLineCount, "--test", true).has_value());
 }
 
 // An echo -- the model handing back the line it was given -- is a failure only
@@ -197,8 +222,8 @@ TEST(Translate, purge_removes_failed_entries_and_keeps_the_rest) {
     cache.set("Eスbg152n", "Eスbg152n");
     cache.set("bg152n", "bg152n");
 
-    EXPECT_EQ(tr::purge_failed_entries(cache), 2u);
-    EXPECT_EQ(cache.size(), 3u);
+    EXPECT_EQ(tr::purge_failed_entries(cache), kExpectedPurgedEchoCount);
+    EXPECT_EQ(cache.size(), kExpectedSurvivingCacheCount);
     EXPECT_FALSE(cache.contains("こんにちは"));
     EXPECT_FALSE(cache.contains("Eスbg152n"));
     ASSERT_TRUE(cache.get("朝が来た。"));
@@ -207,12 +232,12 @@ TEST(Translate, purge_removes_failed_entries_and_keeps_the_rest) {
     EXPECT_TRUE(cache.contains("bg152n"));
 
     const auto& items = cache.items();
-    ASSERT_EQ(items.size(), 3u);
-    EXPECT_EQ(items[0].first, "朝が来た。");
-    EXPECT_EQ(items[1].first, "OK");
-    EXPECT_EQ(items[2].first, "bg152n");
+    ASSERT_EQ(items.size(), kExpectedSurvivingCacheCount);
+    EXPECT_EQ(items[kIdx0].first, "朝が来た。");
+    EXPECT_EQ(items[kIdx1].first, "OK");
+    EXPECT_EQ(items[kIdx2].first, "bg152n");
 
     // Nothing left to remove on a second pass.
-    EXPECT_EQ(tr::purge_failed_entries(cache), 0u);
-    EXPECT_EQ(cache.size(), 3u);
+    EXPECT_EQ(tr::purge_failed_entries(cache), kEmptyCacheCount);
+    EXPECT_EQ(cache.size(), kExpectedSurvivingCacheCount);
 }

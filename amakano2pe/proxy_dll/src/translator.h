@@ -6,11 +6,9 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #pragma once
-// Runtime translator: loads JP→EN translation table and hooks the text
-// splitter to replace Japanese strings with English at runtime.
-// Eliminates the need for patching the SPT files on disk.
-
-#include <windows.h>
+// Runtime translator: loads JP->EN translation table and hooks CatSystem2's
+// text converter and font-height setter to replace and pixel-wrap dialogue
+// lines at runtime.
 
 void TranslatorInit();
 void TranslatorShutdown();

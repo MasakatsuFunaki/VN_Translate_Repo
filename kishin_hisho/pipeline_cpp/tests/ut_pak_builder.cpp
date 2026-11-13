@@ -7,16 +7,17 @@
 
 // Unit tests for the Nitroplus .pak v4 archive packer/reader and the .nps
 // script rebuilder.
+#include "common/util.h"
+#include "pak/nps_rebuilder.h"
+#include "pak/pak_archive.h"
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include "common/util.h"
-#include "pak/nps_rebuilder.h"
-#include "pak/pak_archive.h"
 
 using namespace ksh;
 using namespace ksh::pak;
@@ -27,7 +28,51 @@ constexpr std::uint32_t kExpectedKishinMagicHash = 0xCC09DBB5u;
 constexpr std::uint32_t kExpectedDa0100PathHash = 0x46EB80C6u;
 constexpr std::uint32_t kExpectedSignedByte80Hash = 0xFFFFFF80u;
 constexpr std::uint32_t kExpectedSignedByteFFHash = 0xFFFFFFFFu;
+constexpr std::uint32_t kPakHashMultiplier = 0x89u;
+constexpr std::uint8_t kMinNegativeSignedByte = 0x80u;
+constexpr std::uint8_t kAllOnesSignedByte = 0xFFu;
+constexpr std::uint8_t kCp932FullwidthSpaceLead = 0x81u;
+constexpr std::uint8_t kCp932FullwidthSpaceTrail = 0x40u;
 constexpr std::uint32_t kTestCipherKey = 0x11223344u;
+constexpr unsigned int kBitsPerByte = 8u;
+constexpr unsigned int kWordByte1Shift = kBitsPerByte;
+constexpr unsigned int kWordByte2Shift = 2u * kBitsPerByte;
+constexpr unsigned int kWordByte3Shift = 3u * kBitsPerByte;
+constexpr std::uint32_t kLowByteMask = 0xFFu;
+constexpr std::uint8_t kCipherKeyByte0 =
+    static_cast<std::uint8_t>(kTestCipherKey & kLowByteMask);
+constexpr std::uint8_t kCipherKeyByte1 =
+    static_cast<std::uint8_t>((kTestCipherKey >> kWordByte1Shift) & kLowByteMask);
+constexpr std::uint8_t kCipherKeyByte2 =
+    static_cast<std::uint8_t>((kTestCipherKey >> kWordByte2Shift) & kLowByteMask);
+constexpr std::uint8_t kCipherKeyByte3 =
+    static_cast<std::uint8_t>((kTestCipherKey >> kWordByte3Shift) & kLowByteMask);
+constexpr std::uint8_t kSinglePlainByte = 0xAAu;
+constexpr std::uint8_t kAlignedPlain0 = 0x01u;
+constexpr std::uint8_t kAlignedPlain1 = 0x02u;
+constexpr std::uint8_t kAlignedPlain2 = 0x03u;
+constexpr std::uint8_t kAlignedPlain3 = 0x04u;
+constexpr std::uint8_t kAlignedPlain4 = 0x05u;
+constexpr std::uint8_t kAlignedPlain5 = 0x06u;
+constexpr std::uint8_t kAlignedPlain6 = 0x07u;
+constexpr std::uint8_t kAlignedPlain7 = 0x08u;
+constexpr std::uint8_t kUnalignedPlain0 = 0x10u;
+constexpr std::uint8_t kUnalignedPlain1 = 0x20u;
+constexpr std::uint8_t kUnalignedPlain2 = 0x30u;
+constexpr std::uint8_t kUnalignedPlain3 = 0x40u;
+constexpr std::uint8_t kUnalignedTailByte0 = 0x50u;
+constexpr std::uint8_t kUnalignedTailByte1 = 0x60u;
+constexpr std::uint8_t kUnalignedTailByte2 = 0x70u;
+constexpr std::size_t kExpectedPakHeaderBytes = 0x114u;
+constexpr std::size_t kUnalignedTailIndex0 = 4;
+constexpr std::size_t kUnalignedTailIndex1 = 5;
+constexpr std::size_t kUnalignedTailIndex2 = 6;
+constexpr std::uint8_t kCp932EmDashLead = 0x81u;
+constexpr std::uint8_t kCp932EmDashTrail = 0x5Cu;
+constexpr std::uint8_t kCp932WaveDashLead = 0x81u;
+constexpr std::uint8_t kCp932WaveDashTrail = 0x60u;
+constexpr std::uint8_t kCp932NecKanjiLead = 0xEDu;
+constexpr std::uint8_t kCp932NecKanjiTrail = 0x56u;
 
 constexpr int kBox0Index = 0;
 constexpr int kBox1Index = 1;
@@ -38,6 +83,8 @@ constexpr int kBox9Index = 9;
 constexpr int kBox10Index = 10;
 constexpr int kBox12Index = 12;
 constexpr int kBox13Index = 13;
+constexpr int kSingleClauseCount = 1;
+constexpr int kTwoClauseCount = 2;
 
 std::vector<std::string> SplitCrLines(const std::string& text) {
     std::vector<std::string> out;
@@ -61,47 +108,62 @@ TEST(PakArchive, compute_pak_key_matches_system_dll_signed_byte_hash) {
     EXPECT_EQ(ComputePakKey(R"(script\da0100.nps)"), kExpectedDa0100PathHash);
     EXPECT_EQ(ComputePakKey(""), 0u);
 
-    const std::uint8_t byte_80 = 0x80u;
-    const std::uint8_t byte_ff = 0xFFu;
-    EXPECT_EQ(ComputePakKey(&byte_80, 1), kExpectedSignedByte80Hash);
-    EXPECT_EQ(ComputePakKey(&byte_ff, 1), kExpectedSignedByteFFHash);
+    const std::uint8_t byte_80 = kMinNegativeSignedByte;
+    const std::uint8_t byte_ff = kAllOnesSignedByte;
+    EXPECT_EQ(ComputePakKey(&byte_80, sizeof(byte_80)), kExpectedSignedByte80Hash);
+    EXPECT_EQ(ComputePakKey(&byte_ff, sizeof(byte_ff)), kExpectedSignedByteFFHash);
 
     // Two-byte sequence with high bit set exercises signed-char sign extension
     // before the 0x89 multiply-accumulate step.
-    const std::uint8_t high_pair[] = {0x81u, 0x40u};
+    const std::uint8_t high_pair[] = {kCp932FullwidthSpaceLead, kCp932FullwidthSpaceTrail};
     const std::uint32_t expected_pair =
-        static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(0x81u))) *
-            0x89u +
-        static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(0x40u)));
+        static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(static_cast<std::int8_t>(kCp932FullwidthSpaceLead))) *
+            kPakHashMultiplier +
+        static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(static_cast<std::int8_t>(kCp932FullwidthSpaceTrail)));
     EXPECT_EQ(ComputePakKey(high_pair, sizeof(high_pair)), expected_pair);
 }
 
 TEST(PakArchive, xor_word_stream_handles_aligned_and_unaligned_lengths) {
     EXPECT_TRUE(XorWordStream(Bytes{}, kTestCipherKey).empty());
 
-    const Bytes one_byte{0xAAu};
+    const Bytes one_byte{kSinglePlainByte};
     const Bytes enc_one = XorWordStream(one_byte, kTestCipherKey);
     ASSERT_EQ(enc_one.size(), 1u);
-    EXPECT_EQ(enc_one[0], static_cast<std::uint8_t>(0xAAu ^ 0x44u));
+    EXPECT_EQ(enc_one[0], static_cast<std::uint8_t>(kSinglePlainByte ^ kCipherKeyByte0));
     EXPECT_EQ(XorWordStream(enc_one, kTestCipherKey), one_byte);
 
-    const Bytes aligned{0x01u, 0x02u, 0x03u, 0x04u, 0x05u, 0x06u, 0x07u, 0x08u};
+    const Bytes aligned{
+        kAlignedPlain0, kAlignedPlain1, kAlignedPlain2, kAlignedPlain3,
+        kAlignedPlain4, kAlignedPlain5, kAlignedPlain6, kAlignedPlain7,
+    };
     const Bytes enc_aligned = XorWordStream(aligned, kTestCipherKey);
     const Bytes expected_aligned{
-        static_cast<std::uint8_t>(0x01u ^ 0x44u), static_cast<std::uint8_t>(0x02u ^ 0x33u),
-        static_cast<std::uint8_t>(0x03u ^ 0x22u), static_cast<std::uint8_t>(0x04u ^ 0x11u),
-        static_cast<std::uint8_t>(0x05u ^ 0x44u), static_cast<std::uint8_t>(0x06u ^ 0x33u),
-        static_cast<std::uint8_t>(0x07u ^ 0x22u), static_cast<std::uint8_t>(0x08u ^ 0x11u),
+        static_cast<std::uint8_t>(kAlignedPlain0 ^ kCipherKeyByte0),
+        static_cast<std::uint8_t>(kAlignedPlain1 ^ kCipherKeyByte1),
+        static_cast<std::uint8_t>(kAlignedPlain2 ^ kCipherKeyByte2),
+        static_cast<std::uint8_t>(kAlignedPlain3 ^ kCipherKeyByte3),
+        static_cast<std::uint8_t>(kAlignedPlain4 ^ kCipherKeyByte0),
+        static_cast<std::uint8_t>(kAlignedPlain5 ^ kCipherKeyByte1),
+        static_cast<std::uint8_t>(kAlignedPlain6 ^ kCipherKeyByte2),
+        static_cast<std::uint8_t>(kAlignedPlain7 ^ kCipherKeyByte3),
     };
     EXPECT_EQ(enc_aligned, expected_aligned);
     EXPECT_EQ(XorWordStream(enc_aligned, kTestCipherKey), aligned);
 
-    const Bytes unaligned{0x10u, 0x20u, 0x30u, 0x40u, 0x50u, 0x60u, 0x70u};
+    const Bytes unaligned{
+        kUnalignedPlain0,   kUnalignedPlain1,   kUnalignedPlain2, kUnalignedPlain3,
+        kUnalignedTailByte0, kUnalignedTailByte1, kUnalignedTailByte2,
+    };
     const Bytes enc_unaligned = XorWordStream(unaligned, kTestCipherKey);
     ASSERT_EQ(enc_unaligned.size(), unaligned.size());
-    EXPECT_EQ(enc_unaligned[4], static_cast<std::uint8_t>(0x50u ^ 0x44u));
-    EXPECT_EQ(enc_unaligned[5], static_cast<std::uint8_t>(0x60u ^ 0x33u));
-    EXPECT_EQ(enc_unaligned[6], static_cast<std::uint8_t>(0x70u ^ 0x22u));
+    EXPECT_EQ(enc_unaligned[kUnalignedTailIndex0],
+              static_cast<std::uint8_t>(kUnalignedTailByte0 ^ kCipherKeyByte0));
+    EXPECT_EQ(enc_unaligned[kUnalignedTailIndex1],
+              static_cast<std::uint8_t>(kUnalignedTailByte1 ^ kCipherKeyByte1));
+    EXPECT_EQ(enc_unaligned[kUnalignedTailIndex2],
+              static_cast<std::uint8_t>(kUnalignedTailByte2 ^ kCipherKeyByte2));
     EXPECT_EQ(XorWordStream(enc_unaligned, kTestCipherKey), unaligned);
 }
 
@@ -110,7 +172,7 @@ TEST(PakArchive, write_and_read_pak_archive_round_trip_compressed_and_uncompress
 
     PakEntry e1;
     e1.relative_path = R"(script\da0100.nps)";
-    e1.payload = Utf8ToCp932("<BOX type=\"0\">\r\xE3\x80\x80Hello Demonbane!<k>\r");
+    e1.payload = Utf8ToCp932("<BOX type=\"0\">\r　Hello Demonbane!<k>\r");
     e1.compress = true;
     entries.push_back(e1);
 
@@ -127,7 +189,7 @@ TEST(PakArchive, write_and_read_pak_archive_round_trip_compressed_and_uncompress
     entries.push_back(e3);
 
     const Bytes pak_bytes = WritePakArchive(entries, kDefaultPakMagicName);
-    ASSERT_GE(pak_bytes.size(), 0x114u);
+    ASSERT_GE(pak_bytes.size(), kExpectedPakHeaderBytes);
 
     const PakArchiveReader reader(pak_bytes);
     EXPECT_EQ(reader.Version(), kPakFormatVersion);
@@ -180,12 +242,12 @@ TEST(NpsRebuilder, token_aware_word_wrapping_respects_box_0_1_and_5_column_budge
     for (int box_type : {kBox0Index, kBox1Index, kBox5Index}) {
         NpsBlockMetadata meta;
         meta.box_type = box_type;
-        meta.first_indent = "\xE3\x80\x80";
+        meta.first_indent = "　";
         meta.trailing_k = true;
-        meta.k_clause_count = 1;
+        meta.k_clause_count = kSingleClauseCount;
         meta.orig_k_clauses_clean = {"old"};
         meta.orig_clean_en = "old";
-        meta.orig_raw_en = "\xE3\x80\x80old<k>";
+        meta.orig_raw_en = "　old<k>";
 
         const NpsBlockResult res = rebuilder.ReconstructBlock(text, meta);
         EXPECT_TRUE(res.was_modified);
@@ -212,7 +274,7 @@ TEST(NpsRebuilder, ruby_attribute_equals_sign_is_protected_in_da0504_block_2) {
     meta.box_type = kBox9Index;
     meta.first_indent = "";
     meta.trailing_k = false;
-    meta.k_clause_count = 2;
+    meta.k_clause_count = kTwoClauseCount;
     meta.orig_k_clauses_clean = {
         "Recollection/Correspondence. = [Memoirs].",
         "Dreams/Drops of overflowed feelings.",
@@ -256,7 +318,7 @@ TEST(NpsRebuilder, wait_tags_are_preserved_across_stripped_ruby_and_font_tags) {
     EXPECT_TRUE(wait_list.empty());
     EXPECT_EQ(annotated,
               "Behold the <r text=\"God Machine\">Deus Machina</r>.<WAIT TIME=\"15\"> "
-              "<FONT COLOR=\"#FF0000\">Awaken</FONT>\xE2\x80\x95\xE2\x80\x95now!<WAIT TIME=\"30\">");
+              "<FONT COLOR=\"#FF0000\">Awaken</FONT>――now!<WAIT TIME=\"30\">");
 }
 
 TEST(NpsRebuilder, boundary_font_tags_are_preserved_at_block_edges_and_before_mid_wait) {
@@ -264,9 +326,9 @@ TEST(NpsRebuilder, boundary_font_tags_are_preserved_at_block_edges_and_before_mi
 
     NpsBlockMetadata meta;
     meta.box_type = kBox12Index;
-    meta.first_indent = "\xE3\x80\x80\xE3\x80\x80\xE3\x80\x80";
+    meta.first_indent = "　　　";
     meta.trailing_k = false;
-    meta.k_clause_count = 1;
+    meta.k_clause_count = kSingleClauseCount;
     meta.orig_k_clauses_clean = {
         "Deus non est in suo caelo--Omnia rectus cum mundi. "
         "God's not in His heaven, All's right with the world.",
@@ -281,17 +343,16 @@ TEST(NpsRebuilder, boundary_font_tags_are_preserved_at_block_edges_and_before_mi
     };
     meta.orig_clean_en = meta.orig_k_clauses_clean.front();
     meta.orig_raw_en =
-        "\xE3\x80\x80" "Deus non est in suo caelo" "\xE2\x80\x95\xE2\x80\x95"
+        "　Deus non est in suo caelo――"
         "Omnia rectus cum mundi.</FONT><wait time=\"5\">\r"
         "<FONT FACE=\"ＭＳ Ｐ明朝\" SIZE=\"18\" COLOR=\"#0000FF\"><I>\r"
-        "\xE3\x80\x80" "God's not in His heaven, All's right with the world.</I></FONT>"
+        "　God's not in His heaven, All's right with the world.</I></FONT>"
         "<wait time=\"99999999999\">";
     meta.boundary_suffix_tag = "</FONT>";
 
     const std::string modified_en =
         "Deus non est in suo caelo--Omnia rectus cum mundi. "
         "God's not in His heaven, all is right with the world.";
-    // Adjust font_list target to match modified second sentence.
     meta.font_list[0].first = "God's not in His heaven, all is right with the world.";
 
     const NpsBlockResult res = rebuilder.ReconstructBlock(modified_en, meta);
@@ -305,14 +366,14 @@ TEST(NpsRebuilder, typewriter_reconstruction_emits_per_char_keystroke_se_and_pre
 
     NpsBlockMetadata meta;
     meta.box_type = kBox9Index;
-    meta.first_indent = "\xE3\x80\x80";
+    meta.first_indent = "　";
     meta.trailing_k = true;
     meta.is_typewriter = true;
     meta.has_complex_fx = true;
     meta.ruby_list = {{"restriction removal", "climax"}};
     meta.orig_clean_en = "Waiting for the restriction removal.";
     meta.orig_raw_en =
-        "\xE3\x80\x80W<WAIT TIME=\"2\">"
+        "　W<WAIT TIME=\"2\">"
         "<k>\r<SE ID=\"2\" SRC=\"se人体行動_手動タイプキャリッジ戻す飛翔\" MODE=\"normal\" TIME=\"\" LOOP=\"\" vol=\"\">";
 
     const std::string modified_en = "Awaiting the restriction removal.";
@@ -326,8 +387,12 @@ TEST(NpsRebuilder, typewriter_reconstruction_emits_per_char_keystroke_se_and_pre
 
 TEST(NpsRebuilder, utf8_to_cp932_normalizes_demonbane_symbols_and_nec_kanji) {
     // U+2014 EM DASH -> 0x815C, U+301C WAVE DASH -> 0x8160, U+4F94 -> 0xED56.
-    const std::string input = "\xE2\x80\x94\xE3\x80\x9C\xE4\xBE\x94";
+    const std::string input = "—〜侔";
     const Bytes cp932 = Utf8ToCp932(input);
-    const Bytes expected{0x81u, 0x5Cu, 0x81u, 0x60u, 0xEDu, 0x56u};
+    const Bytes expected{
+        kCp932EmDashLead,   kCp932EmDashTrail,
+        kCp932WaveDashLead, kCp932WaveDashTrail,
+        kCp932NecKanjiLead, kCp932NecKanjiTrail,
+    };
     EXPECT_EQ(cp932, expected);
 }

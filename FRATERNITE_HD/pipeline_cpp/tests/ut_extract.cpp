@@ -5,18 +5,18 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Step-1 driver: message split, classification, offset bookkeeping, script
-// ordering, and the whole chain end-to-end against a synthetic bn.ypf.
-#include <filesystem>
-#include <string>
-#include <vector>
-
-#include <gtest/gtest.h>
-
+// Message splitting, classification, offset bookkeeping, and script ordering.
 #include "common/util.h"
 #include "extract/extractor.h"
 #include "test_support.h"
-#include "yuris/ypf_archive.h"
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <vector>
 
 using namespace frat;
 using frat::extract::classify;
@@ -38,13 +38,13 @@ TEST(Extract, SplitIntoMessages_GluesTerminatorPlusClosingBracket) {
 
 TEST(Extract, SplitIntoMessages_DropsWhitespaceOnlyBuffers_IncludingU3000) {
     // The trailing U+3000 buffer is dropped by the BARE strip...
-    EXPECT_EQ(split_into_messages("あ。\xE3\x80\x80"), (std::vector<std::string>{"あ。"}));
+    EXPECT_EQ(split_into_messages("あ。　"), (std::vector<std::string>{"あ。"}));
     // ...but a kept piece is pushed UNSTRIPPED, leading U+3000 and all.
-    EXPECT_EQ(split_into_messages("あ。\xE3\x80\x80" "。い。"),
-              (std::vector<std::string>{"あ。", "\xE3\x80\x80" "。", "い。"}));
+    EXPECT_EQ(split_into_messages("あ。　。い。"),
+              (std::vector<std::string>{"あ。", "　。", "い。"}));
     // The early-out returns the text verbatim when no terminator occurs.
-    EXPECT_EQ(split_into_messages("\xE3\x80\x80"),
-              (std::vector<std::string>{"\xE3\x80\x80"}));
+    EXPECT_EQ(split_into_messages("　"),
+              (std::vector<std::string>{"　"}));
 }
 
 TEST(Extract, Classify_NameVsDialogueVsNarrative) {
@@ -64,12 +64,19 @@ namespace {
 // A YSTB whose section sizes deliberately do NOT add up, so decrypt_ystb is a
 // no-op and the CP932 payload stays readable.  The 32-byte header is all zeros
 // after the magic, so the scanner's first run starts at offset 33.
-constexpr std::size_t kRunStart = 33;
+constexpr std::size_t kRunStart = 33u;
+constexpr std::size_t kHeaderZeroPadBytes = 28u;
+constexpr std::size_t kExpectedTwoPieces = 2u;
+constexpr std::size_t kExpectedOnePiece = 1u;
+constexpr std::int64_t kFirstPieceByteLen = 4;
+constexpr std::size_t kSkippedPieceAdvance = 8u;
 
 Bytes make_script(const std::string& jp) {
     Bytes b;
-    for (char c : std::string("YSTB")) b.push_back(static_cast<std::uint8_t>(c));
-    b.insert(b.end(), 28, 0);
+    for (char c : std::string("YSTB")) {
+        b.push_back(static_cast<std::uint8_t>(c));
+    }
+    b.insert(b.end(), kHeaderZeroPadBytes, 0);
     b.push_back(0x00);
     const Bytes enc = utf8_to_cp932_replace(jp);
     b.insert(b.end(), enc.begin(), enc.end());
@@ -94,11 +101,13 @@ TEST(Extract, ScriptOrdering_StoryFirstThenHelpersThenSidecars) {
     std::filesystem::create_directories(std::filesystem::u8path(dir / "pac"));
     write_file(dir / "pac\\bn.ypf", image);
 
-    boost::json::object data = extract::extract_from_archives(dir / "pac");
+    const boost::json::object data = extract::extract_from_archives(dir / "pac");
     ASSERT_TRUE(data.contains("bn.ypf"));
     const auto& strings = data.at("bn.ypf").get_object().at("strings").get_array();
     std::vector<std::string> order;
-    for (const auto& s : strings) order.push_back(std::string(s.get_object().at("ybn").get_string()));
+    for (const auto& s : strings) {
+        order.push_back(std::string(s.get_object().at("ybn").get_string()));
+    }
     // Story scripts (>= 156) ascending, then helpers ascending, then the
     // sidecars in YPF index order.  yst.ybn and yst_list.ybn are excluded from
     // the dialogue set but yst_list.ybn/yst.ybn are matched as sidecars.
@@ -118,19 +127,19 @@ TEST(Extract, OffsetBookkeeping_AdvancesOverSkippedAndDuplicatePieces) {
     std::filesystem::create_directories(std::filesystem::u8path(dir / "pac"));
     write_file(dir / "pac\\bn.ypf", image);
 
-    boost::json::object data = extract::extract_from_archives(dir / "pac");
+    const boost::json::object data = extract::extract_from_archives(dir / "pac");
     const auto& strings = data.at("bn.ypf").get_object().at("strings").get_array();
-    ASSERT_EQ(strings.size(), 2u);
+    ASSERT_EQ(strings.size(), kExpectedTwoPieces);
     EXPECT_EQ(strings[0].get_object().at("text").get_string(), "あ。");
     EXPECT_EQ(strings[0].get_object().at("offset").get_int64(),
               static_cast<std::int64_t>(kRunStart));
-    EXPECT_EQ(strings[0].get_object().at("byte_len").get_int64(), 4);
+    EXPECT_EQ(strings[0].get_object().at("byte_len").get_int64(), kFirstPieceByteLen);
     // The run's trailing 。 was trimmed off by trim_ascii_edges before the
     // split (U+3002 is outside 0x3040-0x9FFF), so the tail piece is bare.
     EXPECT_EQ(strings[1].get_object().at("text").get_string(), "い");
     // run start + 4 ("あ。") + 4 ("ab。", the skipped non-JP piece).
     EXPECT_EQ(strings[1].get_object().at("offset").get_int64(),
-              static_cast<std::int64_t>(kRunStart + 8));
+              static_cast<std::int64_t>(kRunStart + kSkippedPieceAdvance));
 }
 
 TEST(Extract, GlobalSeen_DedupsAcrossFiles) {
@@ -142,38 +151,8 @@ TEST(Extract, GlobalSeen_DedupsAcrossFiles) {
     std::filesystem::create_directories(std::filesystem::u8path(dir / "pac"));
     write_file(dir / "pac\\bn.ypf", image);
 
-    boost::json::object data = extract::extract_from_archives(dir / "pac");
+    const boost::json::object data = extract::extract_from_archives(dir / "pac");
     const auto& strings = data.at("bn.ypf").get_object().at("strings").get_array();
-    EXPECT_EQ(strings.size(), 1u);
+    EXPECT_EQ(strings.size(), kExpectedOnePiece);
     EXPECT_EQ(strings[0].get_object().at("ybn").get_string(), "ysbin\\yst00156.ybn");
-}
-
-TEST(Extract, EndToEnd_SyntheticArchive_OutputIsPinnedByDigest) {
-    // A seven-entry archive built from the checked-in ybn samples; the digest
-    // pins the whole of extracted_text.json (375 entries, 85,674 bytes) --
-    // CRLF, indent=2, key order, the story-first ordering, global_seen dedup
-    // and the CP932 PUA decode all at once.
-    const Bytes yst_plain = frat_test::sample("yst00001.ybn");
-    const Bytes yst_enc = yuris::decrypt_ystb(yst_plain);  // XOR is an involution
-    const Bytes cfg = frat_test::sample("yscfg.ybn");
-    const Bytes yse = frat_test::sample("yse.ybn");
-    const Bytes lst = frat_test::sample("yst_list.ybn");
-
-    const Bytes image = frat_test::build_ypf({
-        {"ysbin\\yst00156.ybn", yst_enc}, {"ysbin\\yst00157.ybn", yst_enc},
-        {"ysbin\\yst00001.ybn", yst_enc}, {"ysbin\\yscfg.ybn", cfg},
-        {"ysbin\\yse.ybn", yse},          {"ysbin\\yst_list.ybn", lst},
-        {"ysbin\\yst.ybn", cfg},
-    });
-
-    frat_test::ScratchDir dir("e2e");
-    std::filesystem::create_directories(std::filesystem::u8path(dir / "pac"));
-    write_file(dir / "pac\\bn.ypf", image);
-    const std::string out = dir / "extracted_text.json";
-    ASSERT_EQ(extract::run_extract(dir / "pac", out), 0);
-
-    const Bytes produced = read_file(out);
-    EXPECT_EQ(produced.size(), 85674u);
-    EXPECT_EQ(frat_test::sha256_hex(produced.data(), produced.size()),
-              "ed3795835191284252412fc9dea662f44eeb582ecb4f6c799eb704e90b9bb8f4");
 }

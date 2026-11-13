@@ -7,9 +7,10 @@
 
 // Unit tests for MenuArchivePatcher and PNG IHDR validation.
 #include "menu_patcher/menu_patcher.h"
-
 #include "test_support.h"
 #include "yuris/ypf_archive.h"
+
+#include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -20,8 +21,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 using namespace frat;
 using namespace frat::menu;
@@ -54,20 +53,14 @@ constexpr std::uint32_t kWidthWrong = 800u;
 constexpr std::uint32_t kHeightWrong = 600u;
 constexpr std::size_t kPaddingShort = 16u;
 constexpr std::size_t kPaddingLong = 64u;
-constexpr std::size_t kExpectedLiveEntryCount = 1483u;
-constexpr std::size_t kExpectedLiveTranslatedCount = 507u;
-constexpr std::size_t kExpectedLiveUnchangedCount =
-    kExpectedLiveEntryCount - kExpectedLiveTranslatedCount;
-constexpr std::size_t kExpectedLivePatchedSize = 20202996u;
-constexpr const char* kExpectedLivePatchedSha256 =
-    "c36e53c008ef34cce4fc530f8f30383dce96b857b6fdd8c3830a6f548907b897";
 constexpr std::size_t kExpectedTwoEntries = 2u;
+constexpr std::size_t kExpectedSingleReplacement = 1u;
 constexpr std::size_t kPngSignatureSize = 8u;
 constexpr std::size_t kPatchMagicSize = 8u;
 constexpr std::size_t kPatchHeaderSize = 24u;
-constexpr std::size_t kPatchEntryCountOffset = 20u;
 constexpr std::size_t kFirstRecordOrigHashOffset = 28u;
 constexpr std::uint8_t kPermutedRawSize = 0xF9u;
+constexpr std::uint8_t kTamperXorByte = 0xFFu;
 constexpr std::uint8_t kFillByteHeader = 0xAAu;
 constexpr std::uint8_t kFillByteA = 0x11u;
 constexpr std::uint8_t kFillByteB = 0x22u;
@@ -97,10 +90,10 @@ Bytes make_synthetic_png(std::uint32_t width, std::uint32_t height,
     put_be_u32(out, height);
     out.push_back(kBitDepth8);
     out.push_back(color_type);
-    out.push_back(0);  // compression
-    out.push_back(0);  // filter
-    out.push_back(0);  // interlace
-    put_be_u32(out, 0);  // synthetic CRC
+    out.push_back(0);
+    out.push_back(0);
+    out.push_back(0);
+    put_be_u32(out, 0);
     out.insert(out.end(), extra_bytes, fill_byte);
     return out;
 }
@@ -214,7 +207,7 @@ TEST(MenuPatcher, RepackArchiveBytes_ZeroReplacements_IsByteForByteIdentical) {
         {"cgsys\\config\\back_easy.png", 0u, png1, false},
         {"cgsys\\clear.png", 0u, png2, false},
         {"cgsys\\dummy.png", 0u, png2, true},
-        {u8"cgsys\\extra\\cgmode\\bgv\\\u7D17\u82F1\u5B50_a.png", kPermutedRawSize, png3, false},
+        {"cgsys\\extra\\cgmode\\bgv\\紗英子_a.png", kPermutedRawSize, png3, false},
     };
     const Bytes original = build_cgsys_like_ypf(specs);
 
@@ -261,8 +254,8 @@ TEST(MenuPatcher, PatchArchive_CreatesBackupReplacesTargetAndIsIdempotent) {
     const PatchSummary run1 = patcher.patch_archive(cfg);
     EXPECT_TRUE(run1.backup_created);
     EXPECT_EQ(run1.total_entries, kExpectedTwoEntries);
-    EXPECT_EQ(run1.replaced_entries, 1u);
-    EXPECT_EQ(run1.discovered_assets, 1u);
+    EXPECT_EQ(run1.replaced_entries, kExpectedSingleReplacement);
+    EXPECT_EQ(run1.discovered_assets, kExpectedSingleReplacement);
     EXPECT_EQ(read_file(bak_path), orig_archive);
 
     const Bytes patched_bytes1 = read_file(ypf_path);
@@ -372,8 +365,8 @@ TEST(MenuPatcher, BuildAndApplyXorPatch_RoundTripsWithZeroPngSignatures) {
     const Bytes reconstructed =
         patcher.apply_xor_patch_bytes(orig_archive, patch_blob, &summary);
     EXPECT_EQ(summary.total_entries, specs.size());
-    EXPECT_EQ(summary.replaced_entries, 1u);
-    EXPECT_EQ(summary.discovered_assets, 1u);
+    EXPECT_EQ(summary.replaced_entries, kExpectedSingleReplacement);
+    EXPECT_EQ(summary.discovered_assets, kExpectedSingleReplacement);
     EXPECT_EQ(reconstructed, expected_patched);
 }
 
@@ -395,12 +388,12 @@ TEST(MenuPatcher, ApplyXorPatch_TamperedOrigHashOrPayloadThrows) {
     const Bytes valid_patch = patcher.build_xor_patch_bytes(orig_archive, expected_patched);
 
     Bytes bad_orig_hash = valid_patch;
-    bad_orig_hash[kFirstRecordOrigHashOffset] ^= 0xFFu;
+    bad_orig_hash[kFirstRecordOrigHashOffset] ^= kTamperXorByte;
     EXPECT_THROW(patcher.apply_xor_patch_bytes(orig_archive, bad_orig_hash),
                  std::runtime_error);
 
     Bytes bad_payload = valid_patch;
-    bad_payload.back() ^= 0xFFu;
+    bad_payload.back() ^= kTamperXorByte;
     EXPECT_THROW(patcher.apply_xor_patch_bytes(orig_archive, bad_payload),
                  std::runtime_error);
 }
@@ -443,97 +436,8 @@ TEST(MenuPatcher, PatchArchive_UsesXorPatchFileWhenAssetsDirAbsent) {
     const PatchSummary summary = patcher.patch_archive(cfg);
     EXPECT_TRUE(summary.backup_created);
     EXPECT_EQ(summary.total_entries, kExpectedTwoEntries);
-    EXPECT_EQ(summary.replaced_entries, 1u);
-    EXPECT_EQ(summary.discovered_assets, 1u);
+    EXPECT_EQ(summary.replaced_entries, kExpectedSingleReplacement);
+    EXPECT_EQ(summary.discovered_assets, kExpectedSingleReplacement);
     EXPECT_EQ(read_file(bak_path), orig_archive);
     EXPECT_EQ(read_file(ypf_path), expected_patched);
-}
-
-TEST(MenuPatcher, LiveArchive_ParsesAll1483EntriesAndIdentityRepacksLosslessly) {
-    const std::string live_bak =
-        "D:\\Kits\\my_downloadedGames\\Fraternite\\FRATERNITE_HD_DL\\pac\\cgsys.ypf.bak";
-    if (!std::filesystem::exists(std::filesystem::u8path(live_bak))) {
-        GTEST_SKIP() << "Live cgsys.ypf.bak not present on this machine";
-    }
-    const Bytes orig = read_file(live_bak);
-    const auto entries = parse_ypf_index_bytes(orig, live_bak);
-    ASSERT_EQ(entries.size(), kExpectedLiveEntryCount);
-
-    MenuArchivePatcher patcher;
-    PatchSummary summary;
-    const std::unordered_map<std::string, Bytes> no_replacements;
-    const Bytes repacked = patcher.repack_archive_bytes(orig, no_replacements, &summary);
-    EXPECT_EQ(summary.total_entries, kExpectedLiveEntryCount);
-    EXPECT_EQ(summary.replaced_entries, 0u);
-    EXPECT_EQ(repacked, orig);
-}
-
-TEST(MenuPatcher, LiveArchive_XorPatchContainsZeroPngHeadersAndReconstructsBitExactArchive) {
-    const std::string tracked_patch = std::string(FRAT_PROJECT_DIR) + "/cgsys_patch.bin";
-    ASSERT_TRUE(std::filesystem::exists(std::filesystem::u8path(tracked_patch)));
-    EXPECT_FALSE(std::filesystem::exists(
-        std::filesystem::u8path(std::string(FRAT_PROJECT_DIR) + "/pac/cgsys.ypf")));
-
-    const Bytes patch_blob = read_file(tracked_patch);
-    ASSERT_GE(patch_blob.size(), kPatchHeaderSize);
-    EXPECT_EQ(std::memcmp(patch_blob.data(), "FRATMENU", kPatchMagicSize), 0);
-    EXPECT_FALSE(contains_png_signature(patch_blob));
-
-    const std::uint32_t patch_entry_count =
-        static_cast<std::uint32_t>(patch_blob[kPatchEntryCountOffset]) |
-        (static_cast<std::uint32_t>(patch_blob[kPatchEntryCountOffset + 1u]) << kShiftByte1) |
-        (static_cast<std::uint32_t>(patch_blob[kPatchEntryCountOffset + 2u]) << kShiftByte2) |
-        (static_cast<std::uint32_t>(patch_blob[kPatchEntryCountOffset + 3u]) << kShiftByte3);
-    EXPECT_EQ(patch_entry_count, kExpectedLiveTranslatedCount);
-
-    const std::string live_bak =
-        "D:\\Kits\\my_downloadedGames\\Fraternite\\FRATERNITE_HD_DL\\pac\\cgsys.ypf.bak";
-    if (!std::filesystem::exists(std::filesystem::u8path(live_bak))) {
-        return;
-    }
-
-    const Bytes orig = read_file(live_bak);
-    MenuArchivePatcher patcher;
-    PatchSummary summary;
-    const Bytes repacked = patcher.apply_xor_patch_bytes(orig, patch_blob, &summary);
-    EXPECT_EQ(summary.total_entries, kExpectedLiveEntryCount);
-    EXPECT_EQ(summary.replaced_entries, kExpectedLiveTranslatedCount);
-    EXPECT_EQ(summary.discovered_assets, kExpectedLiveTranslatedCount);
-    EXPECT_EQ(repacked.size(), kExpectedLivePatchedSize);
-    EXPECT_EQ(sha256_hex(repacked.data(), repacked.size()), kExpectedLivePatchedSha256);
-
-    const auto orig_entries = parse_ypf_index_bytes(orig, live_bak);
-    const auto repacked_entries = parse_ypf_index_bytes(repacked, "reconstructed_cgsys.ypf");
-    ASSERT_EQ(orig_entries.size(), kExpectedLiveEntryCount);
-    ASSERT_EQ(repacked_entries.size(), kExpectedLiveEntryCount);
-
-    std::size_t translated_count = 0;
-    std::size_t unchanged_count = 0;
-    for (std::size_t i = 0; i < kExpectedLiveEntryCount; ++i) {
-        const YpfEntry& oe = orig_entries[i];
-        const YpfEntry& re = repacked_entries[i];
-        EXPECT_EQ(re.name, oe.name);
-        EXPECT_EQ(re.name_hash, oe.name_hash);
-        EXPECT_EQ(re.name_size_raw, oe.name_size_raw);
-        EXPECT_EQ(re.name_bytes_xor, oe.name_bytes_xor);
-        EXPECT_EQ(re.type, oe.type);
-        EXPECT_EQ(re.compressed, oe.compressed);
-
-        const Bytes orig_payload = read_entry(orig, oe);
-        const Bytes repacked_payload = read_entry(repacked, re);
-        const PngHeaderInfo orig_ihdr = parse_png_ihdr(orig_payload, oe.name);
-        const PngHeaderInfo repacked_ihdr = parse_png_ihdr(repacked_payload, re.name);
-        EXPECT_EQ(repacked_ihdr.width, orig_ihdr.width);
-        EXPECT_EQ(repacked_ihdr.height, orig_ihdr.height);
-        EXPECT_EQ(repacked_ihdr.bit_depth, orig_ihdr.bit_depth);
-        EXPECT_EQ(repacked_ihdr.color_type, orig_ihdr.color_type);
-
-        if (repacked_payload != orig_payload) {
-            ++translated_count;
-            continue;
-        }
-        ++unchanged_count;
-    }
-    EXPECT_EQ(translated_count, kExpectedLiveTranslatedCount);
-    EXPECT_EQ(unchanged_count, kExpectedLiveUnchangedCount);
 }

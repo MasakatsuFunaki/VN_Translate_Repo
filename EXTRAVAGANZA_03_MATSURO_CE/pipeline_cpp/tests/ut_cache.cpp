@@ -5,91 +5,82 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Step-2 tests: speaker parsing off the raw line text, postprocess's
-// name-plate re-attachment, and response parsing.
-#include <gtest/gtest.h>
-
-#include <string>
-
+// Unit tests for cache_core: speaker parsing off raw line text, postprocess
+// name-plate re-attachment, response parsing, and echo purging.
 #include "cache/cache_core.h"
 #include "cache/glossary.h"
 #include "common/util.h"
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <string>
 
 namespace tr = exm::translate;
 using namespace exm;
 
 namespace {
-constexpr const char* MIYAKA = "\xE7\xBE\x8E\xE5\xBC\xA5\xE9\xA6\x99";  // 美弥香
-constexpr const char* OPEN = "\xE3\x80\x8C";                            // 「
-constexpr const char* CLOSE = "\xE3\x80\x8D";                           // 」
+
+constexpr const char* kMiyaka = "美弥香";
+constexpr const char* kOpenBracket = "「";
+constexpr const char* kCloseBracket = "」";
+constexpr std::size_t kLargePaidCacheSize = 56103;
+
 }  // namespace
 
 TEST(Translate, has_real_japanese_excludes_fullwidth) {
-    EXPECT_TRUE(tr::has_real_japanese("\xE3\x81\x82"));   // あ
-    EXPECT_TRUE(tr::has_real_japanese(MIYAKA));
-    // Fullwidth Latin and CJK punctuation are NOT "real Japanese" here, even
-    // though the extractor's wider test accepts them.
-    EXPECT_FALSE(tr::has_real_japanese("\xEF\xBC\xA1"));  // Ａ
-    EXPECT_FALSE(tr::has_real_japanese("\xE3\x80\x8C"));  // 「
+    EXPECT_TRUE(tr::has_real_japanese("あ"));
+    EXPECT_TRUE(tr::has_real_japanese(kMiyaka));
+    EXPECT_FALSE(tr::has_real_japanese("Ａ"));
+    EXPECT_FALSE(tr::has_real_japanese("「"));
 }
 
 TEST(Translate, needs_translation_rules) {
-    EXPECT_TRUE(tr::needs_translation("\xE3\x81\x82\xE3\x81\x84"));
+    EXPECT_TRUE(tr::needs_translation("あい"));
     EXPECT_FALSE(tr::needs_translation(""));
     EXPECT_FALSE(tr::needs_translation("   "));
     EXPECT_FALSE(tr::needs_translation("abc"));
-    EXPECT_FALSE(tr::needs_translation("abcd"));  // no real Japanese at all
+    EXPECT_FALSE(tr::needs_translation("abcd"));
 }
 
 TEST(Translate, extract_speaker_needs_a_quote_bracket) {
-    // Name + bracketed dialogue -> resolved speaker.
-    EXPECT_EQ(tr::extract_speaker(std::string(MIYAKA) + "\r\n" + OPEN + "\xE3\x81\x82" + CLOSE),
+    EXPECT_EQ(tr::extract_speaker(std::string(kMiyaka) + "\r\n" + kOpenBracket + "あ" +
+                                  kCloseBracket),
               "Miyaka");
-    // Two-line NARRATIVE (no bracket) must not be mistaken for a speaker --
-    // this is exactly the mis-tag the bracket gate was added to prevent.
-    EXPECT_EQ(tr::extract_speaker("\xE3\x81\x9D\xE3\x81\xAE\xE4\xB8\x80\xE5\xBF\x83\xE3\x81\x8B"
-                                  "\xE3\x82\x89\xE3\x80\x81\r\n\xE7\xBE\x8E\xE5\xBC\xA5\xE9\xA6"
-                                  "\x99\xE3\x81\xAF"),
-              "NARRATION");
-    // No CRLF at all.
-    EXPECT_EQ(tr::extract_speaker("\xE3\x81\x82"), "NARRATION");
-    // Unknown JP name passes through verbatim.
-    EXPECT_EQ(tr::extract_speaker(std::string("\xE6\x9C\xAA\xE7\x9F\xA5") + "\r\n" + OPEN + "x" +
-                                  CLOSE),
-              "\xE6\x9C\xAA\xE7\x9F\xA5");
+    EXPECT_EQ(tr::extract_speaker("その一心から、\r\n美弥香は"), "NARRATION");
+    EXPECT_EQ(tr::extract_speaker("あ"), "NARRATION");
+    EXPECT_EQ(tr::extract_speaker(std::string("未知") + "\r\n" + kOpenBracket + "x" +
+                                  kCloseBracket),
+              "未知");
 }
 
 TEST(Translate, sanitize_ascii_replaces_smart_punctuation) {
-    EXPECT_EQ(tr::sanitize_ascii("a\xE2\x80\x94" "b"), "a--b");
-    EXPECT_EQ(tr::sanitize_ascii("\xE2\x80\x9C" "hi\xE2\x80\x9D"), "\"hi\"");
-    EXPECT_EQ(tr::sanitize_ascii("\xE2\x80\xA6"), "...");
-    EXPECT_EQ(tr::sanitize_ascii("a\xE3\x80\x80" "b"), "a b");
+    EXPECT_EQ(tr::sanitize_ascii("a—b"), "a--b");
+    EXPECT_EQ(tr::sanitize_ascii("“hi”"), "\"hi\"");
+    EXPECT_EQ(tr::sanitize_ascii("…"), "...");
+    EXPECT_EQ(tr::sanitize_ascii("a　b"), "a b");
 }
 
-// The engine renders the text before the first CRLF as the name plate, so the
-// English name has to be re-attached there.
 TEST(Translate, postprocess_reattaches_english_name_plate) {
-    const std::string original = std::string(MIYAKA) + "\r\n" + OPEN + "\xE3\x81\x82" + CLOSE;
+    const std::string original =
+        std::string(kMiyaka) + "\r\n" + kOpenBracket + "あ" + kCloseBracket;
     EXPECT_EQ(tr::postprocess(original, "\"Ah\""), "Miyaka\r\n\"Ah\"");
-    // If the model kept the Japanese plate, it is swapped rather than duplicated.
-    EXPECT_EQ(tr::postprocess(original, std::string(MIYAKA) + "\r\n\"Ah\""),
+    EXPECT_EQ(tr::postprocess(original, std::string(kMiyaka) + "\r\n\"Ah\""),
               "Miyaka\r\n\"Ah\"");
-    // Already-correct output is left alone.
     EXPECT_EQ(tr::postprocess(original, "Miyaka\r\n\"Ah\""), "Miyaka\r\n\"Ah\"");
 }
 
 TEST(Translate, postprocess_restores_trailing_crlf) {
-    const std::string original = "\xE3\x81\x82\r\n";
+    const std::string original = "あ\r\n";
     EXPECT_EQ(tr::postprocess(original, "Ah"), "Ah\r\n");
     EXPECT_EQ(tr::postprocess(original, "Ah\r\n"), "Ah\r\n");
 }
 
 TEST(Translate, postprocess_passes_empty_and_identical_through) {
-    EXPECT_EQ(tr::postprocess("\xE3\x81\x82", ""), "");
-    EXPECT_EQ(tr::postprocess("\xE3\x81\x82", "\xE3\x81\x82"), "\xE3\x81\x82");
+    EXPECT_EQ(tr::postprocess("あ", ""), "");
+    EXPECT_EQ(tr::postprocess("あ", "あ"), "あ");
 }
 
-// The response parser un-escapes \r\n so the engine gets real line breaks.
 TEST(Translate, parses_numbered_response_and_unescapes) {
     auto t = tr::parse_numbered_response("1. Miyaka\\r\\n\"Ah\"\n2) Second\n");
     ASSERT_EQ(t.size(), 2u);
@@ -106,59 +97,46 @@ TEST(Translate, parses_and_strips_leaked_speaker_tag) {
 TEST(Translate, glossary_and_story_order_are_well_formed) {
     const auto& ordered = tr::name_translations_ordered();
     EXPECT_FALSE(ordered.empty());
-    for (const auto& [jp, en] : ordered) EXPECT_FALSE(jp.empty());
+    for (const auto& [jp, en] : ordered) {
+        EXPECT_FALSE(jp.empty());
+    }
     EXPECT_EQ(ordered.size(), tr::name_translations().size())
         << "duplicate JP key in the glossary";
     EXPECT_FALSE(tr::story_order().empty());
 }
 
-// The guard refuses flags that would throw away a paid cache until
-// --discard-cache confirms the intent.
 TEST(Translate, a_flag_that_discards_a_paid_cache_is_refused_until_it_is_meant) {
-    // An empty or nearly empty cache is what a from-scratch run was written for.
     EXPECT_FALSE(tr::refuse_cache_discard(0, "--test", false).has_value());
-    EXPECT_FALSE(tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD, "--test",
-                                      false).has_value());
+    EXPECT_FALSE(
+        tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD, "--test", false).has_value());
 
-    // One entry past the threshold, every flag is refused.
     for (const char* flag : {"--test", "--retranslate", "--clean"}) {
-        auto why = tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD + 1, flag,
-                                        false);
+        auto why = tr::refuse_cache_discard(tr::CACHE_DISCARD_THRESHOLD + 1, flag, false);
         ASSERT_TRUE(why.has_value()) << flag;
         EXPECT_NE(why->find(flag), std::string::npos) << *why;
         EXPECT_NE(why->find("--max-batches"), std::string::npos) << *why;
         EXPECT_NE(why->find("--discard-cache"), std::string::npos) << *why;
     }
 
-    // The count is in the message, because "some lines" is not a reason to
-    // stop and "56103 lines" is.
-    auto why = tr::refuse_cache_discard(56103, "--test", false);
+    auto why = tr::refuse_cache_discard(kLargePaidCacheSize, "--test", false);
     ASSERT_TRUE(why.has_value());
     EXPECT_NE(why->find("56103"), std::string::npos) << *why;
 
-    // --discard-cache is the caller saying they meant it.
-    EXPECT_FALSE(tr::refuse_cache_discard(56103, "--test", true).has_value());
+    EXPECT_FALSE(tr::refuse_cache_discard(kLargePaidCacheSize, "--test", true).has_value());
 }
 
-// An echo -- the model handing back the line it was given -- is a failure only
-// when the line is Japanese.  An English string that survives translation
-// unchanged is a correct answer, so pure ASCII is never a failure.
 TEST(Translate, failed_entry_predicate_only_fires_on_japanese_identity) {
     EXPECT_TRUE(tr::is_failed_entry("こんにちは", "こんにちは"));
-    EXPECT_TRUE(tr::is_failed_entry("……", "……"));  // non-ASCII, still an echo
-    // A resource name carrying one stray Japanese byte is an echo like any
-    // other: the run re-requests it and pays for it again.
+    EXPECT_TRUE(tr::is_failed_entry("……", "……"));
     EXPECT_TRUE(tr::is_failed_entry("Eスbg152n", "Eスbg152n"));
 
     EXPECT_FALSE(tr::is_failed_entry("こんにちは", "Hello"));
     EXPECT_FALSE(tr::is_failed_entry("朝が来た。", "Morning came."));
-    EXPECT_FALSE(tr::is_failed_entry("OK", "OK"));          // ASCII identity is right
-    EXPECT_FALSE(tr::is_failed_entry("bg152n", "bg152n"));  // ASCII identifier
+    EXPECT_FALSE(tr::is_failed_entry("OK", "OK"));
+    EXPECT_FALSE(tr::is_failed_entry("bg152n", "bg152n"));
     EXPECT_FALSE(tr::is_failed_entry("", ""));
 }
 
-// The purge takes out exactly the echoes and leaves everything else where it
-// was, key order included -- that order is the cache file's key order.
 TEST(Translate, purge_removes_failed_entries_and_keeps_the_rest) {
     tr::Cache cache;
     cache.set("朝が来た。", "Morning came.");
@@ -182,7 +160,6 @@ TEST(Translate, purge_removes_failed_entries_and_keeps_the_rest) {
     EXPECT_EQ(items[1].first, "OK");
     EXPECT_EQ(items[2].first, "bg152n");
 
-    // Nothing left to remove on a second pass.
     EXPECT_EQ(tr::purge_failed_entries(cache), 0u);
     EXPECT_EQ(cache.size(), 3u);
 }

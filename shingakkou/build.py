@@ -142,7 +142,9 @@ def build_table():
     exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
     tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
     os.makedirs(os.path.dirname(tsv), exist_ok=True)
-    if not (os.path.isfile(tsv) and os.path.getsize(tsv) > 0 and os.path.getmtime(tsv) >= os.path.getmtime(doc)):
+    if not (os.path.isfile(tsv) and os.path.getsize(tsv) > 0
+            and os.path.getmtime(tsv) >= os.path.getmtime(doc)
+            and os.path.getmtime(tsv) >= os.path.getmtime(exe)):
         run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
     root_tsv = os.path.join(ROOT, "translation_table.tsv")
     if not os.path.isfile(root_tsv) or os.path.getmtime(root_tsv) < os.path.getmtime(tsv):
@@ -242,21 +244,12 @@ def deploy(game_dir):
             print(f"COPY menu_patch.bin FAILED ({exc})")
             sys.exit(1)
 
-    menu_assets_dir = os.path.join(ROOT, "menu_assets")
     sin_sysd = os.path.join(game_dir, "Data", "sin_sysd.dat")
-    if (os.path.isdir(menu_assets_dir) or os.path.isfile(patch_src)) and os.path.isfile(sin_sysd):
+    if os.path.isfile(patch_src) and os.path.isfile(sin_sysd):
         patch_menus_exe = os.path.join(INSTALL_DIR, "bin", "04_patch_menus.exe")
         if not os.path.isfile(patch_menus_exe):
             patch_menus_exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "04_patch_menus.exe")
-        cmd = [
-            patch_menus_exe,
-            "--dir", ROOT,
-            "--game-dir", game_dir,
-            "--verify",
-        ]
-        if os.path.isdir(menu_assets_dir):
-            cmd.extend(["--assets-dir", menu_assets_dir])
-        run(cmd, ROOT)
+        run([patch_menus_exe, "--game-dir", game_dir, "--verify"], ROOT)
 
     print(f"\nDeployed to {game_dir}.")
 

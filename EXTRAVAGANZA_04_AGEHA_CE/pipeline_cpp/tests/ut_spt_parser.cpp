@@ -7,13 +7,18 @@
 
 // SPT reader tests: the XOR-0xFF envelope, the 4-byte-aligned string walk,
 // and the classifier's rule ordering.
-#include <gtest/gtest.h>
-
-#include <cstring>
-#include <string>
+#include "spt/spt_script.h"
 
 #include "common/util.h"
-#include "spt/spt_script.h"
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace exm;
 
@@ -28,6 +33,10 @@ constexpr std::size_t kCountOffset = 0x18;
 constexpr unsigned int kShift8 = 8;
 constexpr unsigned int kShift16 = 16;
 constexpr unsigned int kShift24 = 24;
+constexpr std::size_t kByteIndex0 = 0;
+constexpr std::size_t kByteIndex1 = 1;
+constexpr std::size_t kByteIndex2 = 2;
+constexpr std::size_t kByteIndex3 = 3;
 constexpr std::size_t kAlignment = 4;
 constexpr std::size_t kShortInvalidBufSize = 0x20;
 constexpr std::uint32_t kTestHeaderCount = 0x1234u;
@@ -35,10 +44,10 @@ constexpr std::uint32_t kTestHeaderCount = 0x1234u;
 Bytes make_spt(const std::vector<Bytes>& payloads, std::uint32_t hdr_count = 0) {
     Bytes dec(kHeaderSize, kSpaceByte);
     std::memcpy(dec.data() + kMagicOffset, kMagicText, kMagicLen);
-    dec[kCountOffset] = static_cast<std::uint8_t>(hdr_count);
-    dec[kCountOffset + 1] = static_cast<std::uint8_t>(hdr_count >> kShift8);
-    dec[kCountOffset + 2] = static_cast<std::uint8_t>(hdr_count >> kShift16);
-    dec[kCountOffset + 3] = static_cast<std::uint8_t>(hdr_count >> kShift24);
+    dec[kCountOffset + kByteIndex0] = static_cast<std::uint8_t>(hdr_count);
+    dec[kCountOffset + kByteIndex1] = static_cast<std::uint8_t>(hdr_count >> kShift8);
+    dec[kCountOffset + kByteIndex2] = static_cast<std::uint8_t>(hdr_count >> kShift16);
+    dec[kCountOffset + kByteIndex3] = static_cast<std::uint8_t>(hdr_count >> kShift24);
     for (const auto& p : payloads) {
         dec.insert(dec.end(), p.begin(), p.end());
         dec.push_back(0);

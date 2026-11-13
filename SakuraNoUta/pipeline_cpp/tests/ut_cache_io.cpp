@@ -8,17 +8,18 @@
 // Reading the translation cache off disk.  An absent cache is a first run; a
 // cache that is there and cannot be read stops the run with a message naming
 // it, because the caller is usually about to delete or overwrite that file.
+#include "cache/cache_core.h"
+#include "common/util.h"
+
 #include <gtest/gtest.h>
 
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
-#include <utility>
-#include <vector>
-
-#include "common/util.h"
-#include "cache/cache_core.h"
+#include <string_view>
+#include <system_error>
 
 namespace fs = std::filesystem;
 namespace tr = snu::translate;
@@ -29,13 +30,28 @@ namespace {
 // two roots that parse cleanly but are not objects.
 const char* const NOT_A_CACHE[] = {"", "{\"unterminated\": ", "[]", "\"text\""};
 
-std::string scratch_cache() {
-    return (fs::temp_directory_path() / "snu_ut_cache_io.json").u8string();
-}
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view utf8_name)
+        : path_(fs::temp_directory_path() / fs::u8path(utf8_name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
 
-std::string scratch_purge_cache() {
-    return (fs::temp_directory_path() / "snu_ut_cache_purge.json").u8string();
-}
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
 
 std::string file_bytes(const std::string& path) {
     std::ifstream in(fs::u8path(path), std::ios::binary);
@@ -47,15 +63,18 @@ std::string file_bytes(const std::string& path) {
 
 // The first run of a fresh checkout has no cache, which is not an error.
 TEST(CacheIo, an_absent_cache_loads_as_a_first_run) {
-    const std::string path = scratch_cache();
-    fs::remove(fs::u8path(path));
+    const ScopedTempDir scratch("snu_ut_cache_io_absent");
+    const std::string path =
+        (scratch.path() / fs::u8path("absent.json")).u8string();
     EXPECT_EQ(tr::load_cache(path).size(), 0u);
 }
 
 // Boost's parse error carries an offset and its own header, never the file,
 // and a run reads several JSON files -- so the diagnosis names this one.
 TEST(CacheIo, a_cache_that_cannot_be_read_names_the_file) {
-    const std::string path = scratch_cache();
+    const ScopedTempDir scratch("snu_ut_cache_io_bad");
+    const std::string path =
+        (scratch.path() / fs::u8path("bad_cache.json")).u8string();
     for (const char* content : NOT_A_CACHE) {
         snu::write_file(path, std::string(content));
         try {
@@ -66,17 +85,19 @@ TEST(CacheIo, a_cache_that_cannot_be_read_names_the_file) {
                 << "the diagnosis must name the file: " << e.what();
         }
     }
-    fs::remove(fs::u8path(path));
 }
 
 // The cache-discard guard counts the same file before --clean or --test
 // deletes it, and it runs before the banner: an escaping throw would end the
 // run with no output at all.  It fails like the load, naming the file.
 TEST(CacheIo, the_discard_guard_refuses_a_cache_it_cannot_read) {
-    const std::string path = scratch_cache();
-    fs::remove(fs::u8path(path));
-    EXPECT_EQ(tr::cache_entry_count(path), 0u);
+    const ScopedTempDir scratch("snu_ut_cache_io_guard");
+    const std::string missing =
+        (scratch.path() / fs::u8path("missing.json")).u8string();
+    EXPECT_EQ(tr::cache_entry_count(missing), 0u);
 
+    const std::string path =
+        (scratch.path() / fs::u8path("guard_bad.json")).u8string();
     for (const char* content : NOT_A_CACHE) {
         snu::write_file(path, std::string(content));
         try {
@@ -87,7 +108,6 @@ TEST(CacheIo, the_discard_guard_refuses_a_cache_it_cannot_read) {
                 << "the diagnosis must name the file: " << e.what();
         }
     }
-    fs::remove(fs::u8path(path));
 }
 
 // The purge runs against the cache on disk, so what it keeps has to come back
@@ -95,8 +115,11 @@ TEST(CacheIo, the_discard_guard_refuses_a_cache_it_cannot_read) {
 // can rebuild it, so an entry the purge damaged on the way out would be lost
 // without a symptom.  Key order is part of the file, not an accident of it.
 TEST(CacheIo, a_purge_writes_back_every_entry_it_keeps) {
-    const std::string path = scratch_purge_cache();
-    const std::string expected = scratch_purge_cache() + ".expected";
+    const ScopedTempDir scratch("snu_ut_cache_io_purge");
+    const std::string path =
+        (scratch.path() / fs::u8path("purge.json")).u8string();
+    const std::string expected =
+        (scratch.path() / fs::u8path("purge.json.expected")).u8string();
 
     tr::Cache seed;
     seed.set("朝が来た。", "Morning came.");
@@ -113,8 +136,11 @@ TEST(CacheIo, a_purge_writes_back_every_entry_it_keeps) {
     // What the file must hold afterwards: every entry the predicate spares,
     // in the order it already had.
     tr::Cache survivors;
-    for (const auto& [jp, en] : before.items())
-        if (!tr::is_failed_entry(jp, en)) survivors.set(jp, en);
+    for (const auto& [jp, en] : before.items()) {
+        if (!tr::is_failed_entry(jp, en)) {
+            survivors.set(jp, en);
+        }
+    }
     tr::save_cache(survivors, expected);
 
     tr::Cache purged = tr::load_cache(path);
@@ -130,7 +156,4 @@ TEST(CacheIo, a_purge_writes_back_every_entry_it_keeps) {
     EXPECT_EQ(*reloaded.get("朝が来た。"), "Morning came.");
     EXPECT_FALSE(reloaded.contains("こんにちは"));
     EXPECT_FALSE(reloaded.contains("Eスbg152n"));
-
-    fs::remove(fs::u8path(path));
-    fs::remove(fs::u8path(expected));
 }

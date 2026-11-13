@@ -4,18 +4,15 @@ project(sakuranotoki_version_proxy CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # We replace the game's version.dll with our proxy. version.dll is in
 # sakuranotoki.exe's IAT (verified via dumpbin) and is NOT in the
 # Windows KnownDLLs list, so DLL search-order resolves the EXE folder
 # before System32 -- our proxy gets loaded first, then forwards every
-# export to the renamed system version (version_orig.dll, our own copy
-# of System32\version.dll alongside the proxy).
-#
-# An earlier scaffold tried iarsys.dll (the file present in the game
-# folder), but sakuranotoki.exe's import table does NOT actually
-# reference iarsys.dll -- the launcher worked fine with that DLL absent
-# -- so the proxy was never mapped. version.dll-as-proxy is the
-# corrected injection vector.
+# export to the system version.dll in System32.
 add_library(version_proxy SHARED
     src/dllmain.cpp
     src/proxy.cpp
@@ -36,6 +33,7 @@ set_target_properties(version_proxy PROPERTIES
     PREFIX ""
     OUTPUT_NAME "version"
     SUFFIX ".dll"
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
 
 target_compile_definitions(version_proxy PRIVATE
@@ -47,7 +45,7 @@ target_compile_definitions(version_proxy PRIVATE
 )
 
 if (MSVC)
-    target_compile_options(version_proxy PRIVATE /W3 /MT /GS- /Gy /GR- /utf-8)
+    target_compile_options(version_proxy PRIVATE /W3 /GS- /Gy /GR-)
     # Ensure 32-bit build (Sakura no Toki engine is x86).  Checked by pointer
     # size rather than CMAKE_GENERATOR_PLATFORM, which only the Visual Studio
     # generator sets and which is therefore always empty under Ninja.
@@ -63,23 +61,14 @@ endif()
 # Forward exports via .def file. proxy.cpp implements naked-jmp stubs
 # (proxy_GetFileVersionInfoA etc.) that jump through cached function
 # pointers resolved from System32\version.dll at DllMain ATTACH.
-# The .def maps each public name -> proxy_<name> stub. Same pattern
-# FAVORITE's winmm.dll uses; eliminates the need for a sibling
-# version_orig.dll alongside the proxy.
 set_target_properties(version_proxy PROPERTIES
     LINK_FLAGS "/DEF:\"${CMAKE_CURRENT_SOURCE_DIR}/src/version.def\""
 )
 
 # Install: game/ is what gets copied into the game folder, and it is kept
-# apart from the pipeline executables on purpose.  This DLL carries the name
-# of a system DLL and it is 32-bit; a version.dll sitting beside an x64
-# executable is a DLL the loader picks up and then refuses to load.  RUNTIME
-# alone also leaves the import library behind, which nothing outside this
-# build links against.
+# apart from the pipeline executables on purpose.
 install(TARGETS version_proxy RUNTIME DESTINATION game)
 
-# Optional: gtest harness (tests/SYSTEM uses GTest; UT/CT only kick in
-# once translator_logic is also carved out as an OBJECT lib).
 if (BUILD_TESTING)
     find_package(GTest CONFIG REQUIRED)
     enable_testing()

@@ -36,6 +36,7 @@ target_link_libraries(spot_checker_core PUBLIC
     openssl::openssl
     ws2_32
     crypt32
+    shell32
 )
 
 add_executable(01_spot_check

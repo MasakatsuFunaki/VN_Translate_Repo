@@ -13,8 +13,9 @@ resolver crashes on Windows 11, and the deliverable is a launcher plus an
 injected DLL that repair the stub in flight.
 
 The two halves are built for different architectures and that is the trap this
-script exists to hide: `pipeline_cpp` is x64 (the patcher driver and the six
-analysis/RE tools, on Boost.ProgramOptions + capstone), `helper_dll` is Win32
+script exists to hide: `pipeline_cpp` is x64 (the patcher driver `01_patch` and
+the script archive rebuilder `02_build_pak`, on Boost.ProgramOptions + capstone +
+zlib), `helper_dll` is Win32
 because both of its binaries live in the 32-bit game process — `launch.exe`
 starts it suspended and `alpharom_helper.dll` is injected into it. Its
 CMakeLists refuses outright to configure 64-bit. One CMake project cannot hold
@@ -33,16 +34,12 @@ a test preset); `helper_dll` has none and is skipped rather than failed. When
 `--test` and `--deploy` are given together the tests gate the deploy, so a
 regression is never shipped.
 
-Deploying copies `alpharom_helper.dll` and `launch.exe` — the two `helper_dll`
-outputs, nothing else — into the game folder named by `--game-dir`, which has
-no default because the install path differs per machine. A NitroPlus install
+Deploying copies `alpharom_helper.dll` and `launch.exe` plus rebuilt
+`0script.pak` / `script/*.nps` into the game folder named by `--game-dir`, which
+has no default because the install path differs per machine. A NitroPlus install
 sits under Program Files (x86) and therefore needs an elevated shell.
-Both are build outputs, so a failed copy is always a hard error; there is no
-generated data file to warn softly about, because this game ships no
-translation table. `01_patch.exe` performs the same copy from inside the
-tooling and additionally handles the distribution case (bundled artifacts next
-to the executable); this script does the copy itself so that building never
-depends on running a freshly built executable.
+`01_patch.exe` performs the same deployment for pre-built or staged distribution
+artifacts (`<project>/game` or `build/install/game`).
 
 Set VN_DIST_BUILD to skip the deploy, because a distribution build stages the
 artifacts itself and may run where no game is installed.

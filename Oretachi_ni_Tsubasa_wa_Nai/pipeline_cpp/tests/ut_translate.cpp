@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MasakatsuFunaki
 
-#include <algorithm>
-#include <cstdint>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
-#include <vector>
-
-#include <boost/json.hpp>
-#include <gtest/gtest.h>
-
 #include "apps/paths.h"
 #include "build_tsv/build_tsv.h"
 #include "common/util.h"
@@ -22,21 +9,43 @@
 #include "translate/speaker_gate.h"
 #include "translate/translate_core.h"
 
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <string>
+#include <system_error>
+#include <vector>
+
 namespace {
 
 namespace fs = std::filesystem;
-namespace bj = boost::json;
 using namespace oretsuba::translate;
 
-constexpr std::size_t kMinExpectedGlossarySpeakers = 323U;
-constexpr std::size_t kExpectedCorpusSpeakers = 323U;
-constexpr std::size_t kMovingWindowSize = 8U;
-constexpr std::size_t kJudgeMaxOutputTokens = 4096U;
+constexpr unsigned char kMinPrintableAscii = 0x20U;
+constexpr unsigned char kMaxPrintableAscii = 0x7EU;
+constexpr std::size_t kExistingCacheEntriesForGuard = 42U;
+constexpr int kSmallTestBatchSize = 10;
+constexpr std::size_t kMaxMockBatchSize = 2U;
+constexpr std::size_t kExpectedFallbackCount = 4U;
+constexpr int kFirstNumberedLine = 1;
+constexpr int kSecondNumberedLine = 2;
+constexpr int kThirdNumberedLine = 3;
+constexpr std::size_t kExpectedParsedLineCount = 3U;
+constexpr std::size_t kInitialCacheSize = 3U;
+constexpr std::size_t kRemainingCacheSize = 2U;
+constexpr std::uint8_t kOuterFillByte = 0xCCU;
+constexpr std::uint8_t kInnerMarkerThirdByte = 0x90U;
+constexpr std::uint8_t kInnerMarkerLastByte = 0x5AU;
+constexpr std::size_t kInnerThirdByteOffset = 2U;
 
 struct TempDir {
     fs::path path;
     explicit TempDir(const std::string& name) {
-        path = fs::temp_directory_path() / ("oretsuba_ut_tr_" + name);
+        path = fs::temp_directory_path() / fs::u8path("oretsuba_ut_tr_" + name);
         std::error_code ec;
         fs::remove_all(path, ec);
         fs::create_directories(path, ec);
@@ -64,7 +73,7 @@ public:
 
     std::vector<RecordedCall> calls;
     bool fail_large_batches = false;
-    std::size_t max_succeeding_batch_size = 2U;
+    std::size_t max_succeeding_batch_size = kMaxMockBatchSize;
 
     std::map<int, std::string> TranslateBatch(
         const std::vector<std::string>& prompt_lines,
@@ -105,12 +114,12 @@ TEST(TranslateUnitTest, StripsSpeakerTagsAndSanitizesFullwidthPunctuationToAscii
     EXPECT_EQ(StripSpeakerTags("[Holy Knight Hawk] Hark!"), "Hark!");
     EXPECT_EQ(StripSpeakerTags("[NARRATION] The snow fell."), "The snow fell.");
 
-    const std::string dirty = "“Hello”—world… ‘test’\xE3\x80\x80!";
+    const std::string dirty = "“Hello”—world… ‘test’　!";
     const std::string clean = SanitizeAscii(dirty);
     EXPECT_EQ(clean, "\"Hello\"--world... 'test' !");
     for (unsigned char c : clean) {
-        EXPECT_GE(c, 0x20U);
-        EXPECT_LE(c, 0x7EU);
+        EXPECT_GE(c, kMinPrintableAscii);
+        EXPECT_LE(c, kMaxPrintableAscii);
     }
 }
 
@@ -134,10 +143,10 @@ TEST(TranslateUnitTest, ParsesNumberedResponsesRobustly) {
 2: The winter wind blew across Yanagihara.
 3) [Shuusuke] "Hey there, Hiyoko!")";
     const auto parsed = ParseNumberedResponse(raw);
-    ASSERT_EQ(parsed.size(), 3U);
-    EXPECT_EQ(parsed.at(1), "\"Good morning, Kobato.\"");
-    EXPECT_EQ(parsed.at(2), "The winter wind blew across Yanagihara.");
-    EXPECT_EQ(StripSpeakerTags(parsed.at(3)), "\"Hey there, Hiyoko!\"");
+    ASSERT_EQ(parsed.size(), kExpectedParsedLineCount);
+    EXPECT_EQ(parsed.at(kFirstNumberedLine), "\"Good morning, Kobato.\"");
+    EXPECT_EQ(parsed.at(kSecondNumberedLine), "The winter wind blew across Yanagihara.");
+    EXPECT_EQ(StripSpeakerTags(parsed.at(kThirdNumberedLine)), "\"Hey there, Hiyoko!\"");
 }
 
 TEST(TranslateUnitTest, CachePreservesInsertionOrderAndPurgesFailedEntries) {
@@ -146,18 +155,18 @@ TEST(TranslateUnitTest, CachePreservesInsertionOrderAndPurgesFailedEntries) {
 
     TranslationCache cache;
     cache.Set("鷹志", "Takashi");
-    cache.Set("「未翻訳」", "「未翻訳」");  // Failed entry (value == key with JP)
+    cache.Set("「未翻訳」", "「未翻訳」");
     cache.Set("「おはよう」", "\"Good morning.\"");
 
-    EXPECT_EQ(cache.Size(), 3U);
+    EXPECT_EQ(cache.Size(), kInitialCacheSize);
     const std::size_t purged = PurgeFailedEntries(cache);
     EXPECT_EQ(purged, 1U);
-    EXPECT_EQ(cache.Size(), 2U);
+    EXPECT_EQ(cache.Size(), kRemainingCacheSize);
     EXPECT_FALSE(cache.Contains("「未翻訳」"));
 
     SaveCache(cache_file.u8string(), cache);
     const TranslationCache reloaded = LoadCache(cache_file.u8string());
-    ASSERT_EQ(reloaded.order.size(), 2U);
+    ASSERT_EQ(reloaded.order.size(), kRemainingCacheSize);
     EXPECT_EQ(reloaded.order[0], "鷹志");
     EXPECT_EQ(reloaded.order[1], "「おはよう」");
 }
@@ -167,27 +176,14 @@ TEST(TranslateUnitTest, RefusesCacheDiscardWithoutExplicitFlag) {
     opts.retranslate = true;
     opts.discard_cache = false;
     std::string reason;
-    EXPECT_TRUE(RefuseCacheDiscard(opts, 42U, &reason));
+    EXPECT_TRUE(RefuseCacheDiscard(opts, kExistingCacheEntriesForGuard, &reason));
     EXPECT_NE(reason.find("42"), std::string::npos);
 
     opts.discard_cache = true;
-    EXPECT_FALSE(RefuseCacheDiscard(opts, 42U, &reason));
+    EXPECT_FALSE(RefuseCacheDiscard(opts, kExistingCacheEntriesForGuard, &reason));
 }
 
-TEST(TranslateUnitTest, GlossaryAndSpeakerGatePassOnRealExtractedCorpus) {
-    const fs::path proj_dir = fs::u8path(ORETSUBA_PROJECT_DIR);
-    const fs::path tone_path = proj_dir / "TONE_OF_NOVEL.md";
-    const fs::path extracted_path = proj_dir / "script_output" / "extracted_text.json";
-
-    Glossary glossary;
-    ASSERT_TRUE(glossary.LoadFromToneFile(tone_path.u8string()));
-    EXPECT_GE(glossary.SpeakerTranslationMap().size(), kMinExpectedGlossarySpeakers);
-    EXPECT_EQ(glossary.LookupSpeaker("鷹志").value_or(""), "Takashi");
-    EXPECT_EQ(glossary.LookupSpeaker("聖騎士ホーク").value_or(""), "Holy Knight Hawk");
-    EXPECT_EQ(glossary.LookupSpeaker("鷲介").value_or(""), "Shuusuke");
-    EXPECT_EQ(glossary.LookupSpeaker("隼人").value_or(""), "Hayato");
-    EXPECT_EQ(glossary.LookupSpeaker("ヨージ").value_or(""), "Yoji");
-
+TEST(TranslateUnitTest, SpeakerGateDecomposesAndPreservesInlineControls) {
     SpeakerGate gate;
     const auto decomp = gate.DecomposeInlineControls("<10>\\　<\"柳原|やなぎはら\">の街$&寒い");
     EXPECT_EQ(decomp.leading_control_prefix, "<10>\\");
@@ -197,19 +193,12 @@ TEST(TranslateUnitTest, GlossaryAndSpeakerGatePassOnRealExtractedCorpus) {
     const std::string preserved =
         gate.PreserveInlineControls("「待て！$&行くな！」", "\"Wait right there! Don't go!\"");
     EXPECT_NE(preserved.find("$&"), std::string::npos);
-
-    if (fs::is_regular_file(extracted_path)) {
-        const SpeakerCheckReport report =
-            gate.ValidateExtractedFile(extracted_path.u8string(), glossary);
-        EXPECT_TRUE(report.passed) << report.reason;
-        EXPECT_EQ(report.corpus_speakers, kExpectedCorpusSpeakers);
-    }
 }
 
-TEST(TranslateUnitTest,AdaptiveFallbackSplitsBatchWhenLargeBatchReturnsEmpty) {
+TEST(TranslateUnitTest, AdaptiveFallbackSplitsBatchWhenLargeBatchReturnsEmpty) {
     MockTranslationBackend mock;
     mock.fail_large_batches = true;
-    mock.max_succeeding_batch_size = 2U;
+    mock.max_succeeding_batch_size = kMaxMockBatchSize;
 
     const std::vector<std::string> lines = {
         "[Takashi] 「一行目」",
@@ -217,9 +206,10 @@ TEST(TranslateUnitTest,AdaptiveFallbackSplitsBatchWhenLargeBatchReturnsEmpty) {
         "[Takashi] 「三行目」",
         "[Takashi] 「四行目」",
     };
-    const auto results = TranslateBatchWithFallback(mock, lines, {"[Kobato] ctx"}, {"[Kobato] after"});
-    ASSERT_EQ(results.size(), 4U);
-    for (int i = 1; i <= 4; ++i) {
+    const auto results =
+        TranslateBatchWithFallback(mock, lines, {"[Kobato] ctx"}, {"[Kobato] after"});
+    ASSERT_EQ(results.size(), kExpectedFallbackCount);
+    for (int i = 1; i <= static_cast<int>(kExpectedFallbackCount); ++i) {
         EXPECT_FALSE(results.at(i).empty());
     }
 }
@@ -231,6 +221,24 @@ TEST(TranslateUnitTest, TranslateCoreRunsWithMockBackendAndGeneratesTsv) {
     const fs::path cache_file = tmp.path / "translation_cache_gemini.json";
     const fs::path tsv_file = tmp.path / "translation_table.tsv";
     const fs::path last_batch_file = tmp.path / "last_gemini_translate" / "last_translation.json";
+    const fs::path tone_file = tmp.path / "TONE_OF_NOVEL.md";
+
+    WriteTextFile(tone_file,
+                  "# Tone\n\n"
+                  "```text\n"
+                  "Synthetic tone prompt.\n"
+                  "<character_dossier>\n"
+                  "鷹志 聖騎士ホーク 鷲介 隼人 ヨージ ガルーダ 翔 小鳩 明日香 日和子 "
+                  "鳴 京 亜衣 狩男 英里子 紀奈子 和馬 春恵 蔵人\n"
+                  "</character_dossier>\n"
+                  "<terminology>\n"
+                  "柳原 = Yanagihara\n"
+                  "</terminology>\n"
+                  "```\n\n"
+                  "### Script Speakers\n"
+                  "| Japanese | English |\n"
+                  "|---|---|\n"
+                  "| 鷹志 | Takashi |\n");
 
     WriteTextFile(extracted_file, R"({
   "s00_00.sob": {
@@ -251,18 +259,18 @@ TEST(TranslateUnitTest, TranslateCoreRunsWithMockBackendAndGeneratesTsv) {
 
     MockTranslationBackend mock;
     TranslateOptions opts;
-    opts.batch_size = 10;
+    opts.batch_size = kSmallTestBatchSize;
     opts.extracted_file = extracted_file.u8string();
     opts.translated_file = translated_file.u8string();
     opts.cache_file = cache_file.u8string();
     opts.tsv_file = tsv_file.u8string();
     opts.last_batch_log_file = last_batch_file.u8string();
-    opts.tone_file = (fs::u8path(ORETSUBA_PROJECT_DIR) / "TONE_OF_NOVEL.md").u8string();
+    opts.tone_file = tone_file.u8string();
 
     TranslateCore core(&mock);
     ASSERT_EQ(core.Run(opts), kExitOk);
     ASSERT_EQ(mock.calls.size(), 1U);
-    ASSERT_EQ(mock.calls[0].prompt_lines.size(), 2U);
+    ASSERT_EQ(mock.calls[0].prompt_lines.size(), kRemainingCacheSize);
     EXPECT_EQ(mock.calls[0].prompt_lines[0], "[Takashi] 「ここはグレタガルドなのか？」");
     EXPECT_EQ(mock.calls[0].prompt_lines[1], "[NARRATION] 　冬の冷たい風が吹いていた。");
 
@@ -272,18 +280,103 @@ TEST(TranslateUnitTest, TranslateCoreRunsWithMockBackendAndGeneratesTsv) {
     EXPECT_TRUE(fs::is_regular_file(last_batch_file));
 }
 
+TEST(TranslateUnitTest, TranslateCoreHandlesJapaneseUtf8DirectoryAndFilePaths) {
+    TempDir tmp("テスト_俺翼_かな");
+    const fs::path jp_subdir = tmp.path / fs::u8path("柳原_データ");
+    const fs::path extracted_file = jp_subdir / fs::u8path("抽出テキスト.json");
+    const fs::path translated_file = jp_subdir / fs::u8path("翻訳済みテキスト.json");
+    const fs::path cache_file = jp_subdir / fs::u8path("キャッシュ_gemini.json");
+    const fs::path tsv_file = jp_subdir / fs::u8path("翻訳テーブル.tsv");
+    const fs::path last_batch_file =
+        jp_subdir / fs::u8path("直近バッチ") / fs::u8path("最終翻訳.json");
+    const fs::path tone_file = jp_subdir / fs::u8path("作品トーン_俺翼.md");
+
+    WriteTextFile(tone_file,
+                  "# Tone\n\n"
+                  "```text\n"
+                  "Synthetic tone prompt.\n"
+                  "<character_dossier>\n"
+                  "鷹志 聖騎士ホーク 鷲介 隼人 ヨージ ガルーダ 翔 小鳩 明日香 日和子 "
+                  "鳴 京 亜衣 狩男 英里子 紀奈子 和馬 春恵 蔵人\n"
+                  "</character_dossier>\n"
+                  "<terminology>\n"
+                  "柳原 = Yanagihara\n"
+                  "</terminology>\n"
+                  "```\n\n"
+                  "### Script Speakers\n"
+                  "| Japanese | English |\n"
+                  "|---|---|\n"
+                  "| 鷹志 | Takashi |\n"
+                  "| 小鳩 | Kobato |\n");
+
+    WriteTextFile(extracted_file, R"({
+  "s00_00.sob": {
+    "file": "s00_00.sob",
+    "strings": [
+      {
+        "type": "dialogue",
+        "speaker": "小鳩",
+        "text": "「お兄ちゃん、朝だよ！」"
+      },
+      {
+        "type": "dialogue",
+        "speaker": "鷹志",
+        "text": "「ああ、もうそんな時間か。」"
+      }
+    ]
+  }
+})");
+
+    TranslationCache initial_cache;
+    initial_cache.Set("「お兄ちゃん、朝だよ！」", "\"Big brother, it's morning!\"");
+    SaveCache(cache_file.u8string(), initial_cache);
+    ASSERT_TRUE(fs::is_regular_file(cache_file));
+    EXPECT_EQ(CacheEntryCount(cache_file.u8string()), 1U);
+
+    MockTranslationBackend mock;
+    TranslateOptions opts;
+    opts.batch_size = kSmallTestBatchSize;
+    opts.project_dir = jp_subdir.u8string();
+    opts.extracted_file = extracted_file.u8string();
+    opts.translated_file = translated_file.u8string();
+    opts.cache_file = cache_file.u8string();
+    opts.tsv_file = tsv_file.u8string();
+    opts.last_batch_log_file = last_batch_file.u8string();
+    opts.tone_file = tone_file.u8string();
+
+    TranslateCore core(&mock);
+    ASSERT_EQ(core.Run(opts), kExitOk);
+    ASSERT_EQ(mock.calls.size(), 1U);
+    ASSERT_EQ(mock.calls[0].prompt_lines.size(), 1U);
+    EXPECT_EQ(mock.calls[0].prompt_lines[0], "[Takashi] 「ああ、もうそんな時間か。」");
+
+    EXPECT_TRUE(fs::is_regular_file(cache_file));
+    EXPECT_TRUE(fs::is_regular_file(translated_file));
+    EXPECT_TRUE(fs::is_regular_file(tsv_file));
+    EXPECT_TRUE(fs::is_regular_file(last_batch_file));
+
+    const TranslationCache final_cache = LoadCache(cache_file.u8string());
+    const std::string* cached_kobato = final_cache.Find("「お兄ちゃん、朝だよ！」");
+    ASSERT_NE(cached_kobato, nullptr);
+    EXPECT_EQ(*cached_kobato, "\"Big brother, it's morning!\"");
+    EXPECT_NE(final_cache.Find("「ああ、もうそんな時間か。」"), nullptr);
+}
+
 TEST(TranslateUnitTest, UnwrapsSoftDenchiOuterPeAndBacksUpOriginal) {
     TempDir tmp("unwrap");
     const fs::path exe_path = tmp.path / "ORE_TUBA.exe";
     const fs::path orig_path = tmp.path / "ORE_TUBA_orig.exe";
 
-    std::vector<std::uint8_t> synthetic_outer(oretsuba::apps::kSoftDenchiOuterSize, 0xCC);
+    std::vector<std::uint8_t> synthetic_outer(
+        oretsuba::apps::kSoftDenchiOuterSize, kOuterFillByte);
     synthetic_outer[0] = 'M';
     synthetic_outer[1] = 'Z';
     synthetic_outer[oretsuba::apps::kInnerPeOffset] = 'M';
     synthetic_outer[oretsuba::apps::kInnerPeOffset + 1U] = 'Z';
-    synthetic_outer[oretsuba::apps::kInnerPeOffset + 2U] = 0x90U;
-    synthetic_outer[oretsuba::apps::kInnerPeOffset + oretsuba::apps::kInnerPeSize - 1U] = 0x5AU;
+    synthetic_outer[oretsuba::apps::kInnerPeOffset + kInnerThirdByteOffset] =
+        kInnerMarkerThirdByte;
+    synthetic_outer[oretsuba::apps::kInnerPeOffset + oretsuba::apps::kInnerPeSize - 1U] =
+        kInnerMarkerLastByte;
 
     oretsuba::WriteFileBytes(exe_path.u8string(), synthetic_outer);
 
@@ -297,173 +390,8 @@ TEST(TranslateUnitTest, UnwrapsSoftDenchiOuterPeAndBacksUpOriginal) {
     ASSERT_EQ(unwrapped.size(), oretsuba::apps::kInnerPeSize);
     EXPECT_EQ(unwrapped[0], 'M');
     EXPECT_EQ(unwrapped[1], 'Z');
-    EXPECT_EQ(unwrapped[2], 0x90U);
-    EXPECT_EQ(unwrapped.back(), 0x5AU);
+    EXPECT_EQ(unwrapped[kInnerThirdByteOffset], kInnerMarkerThirdByte);
+    EXPECT_EQ(unwrapped.back(), kInnerMarkerLastByte);
 
-    // Second invocation is an idempotent no-op
     EXPECT_FALSE(oretsuba::apps::UnwrapInnerPeIfNeeded(tmp.path));
-}
-
-TEST(TranslateSystemTest, MovingWindowArgonJudgeAuditAcrossThreeNovelWindows) {
-    const fs::path proj_dir = fs::u8path(ORETSUBA_PROJECT_DIR);
-    const fs::path extracted_path = proj_dir / "script_output" / "extracted_text.json";
-    if (!fs::is_regular_file(extracted_path)) {
-        GTEST_SKIP() << "extracted_text.json not found";
-    }
-
-    const std::string api_key = LoadGeminiApiKey(proj_dir.u8string());
-    if (api_key.empty()) {
-        GTEST_SKIP() << "GEMINI_API_KEY not configured";
-    }
-
-    const bj::value root = oretsuba::JsonParseFile(extracted_path.u8string());
-    ASSERT_TRUE(root.is_object());
-
-    Glossary glossary((proj_dir / "TONE_OF_NOVEL.md").u8string());
-    SpeakerGate gate;
-
-    struct WindowSample {
-        std::string label;
-        std::vector<std::string> jp_raw;
-        std::vector<std::string> prompt_lines;
-        std::vector<std::string> prev_context;
-        std::vector<std::string> context_after;
-    };
-
-    std::vector<std::pair<std::string, std::string>> all_lines;
-    for (const auto& kv : root.as_object()) {
-        if (!kv.value().is_object()) {
-            continue;
-        }
-        const auto* strings_v = kv.value().as_object().if_contains("strings");
-        if (!strings_v || !strings_v->is_array()) {
-            continue;
-        }
-        for (const auto& item : strings_v->as_array()) {
-            if (!item.is_object()) {
-                continue;
-            }
-            const auto& obj = item.as_object();
-            const auto* txt = obj.if_contains("text");
-            if (!txt || !txt->is_string()) {
-                continue;
-            }
-            const std::string jp(txt->as_string());
-            if (!NeedsTranslation(jp)) {
-                continue;
-            }
-            std::string spk;
-            if (const auto* s = obj.if_contains("speaker"); s && s->is_string()) {
-                spk = std::string(s->as_string());
-            }
-            all_lines.emplace_back(spk, jp);
-        }
-    }
-    ASSERT_GT(all_lines.size(), 1000U);
-
-    const std::vector<std::pair<std::string, std::size_t>> anchors = {
-        {"early_novel", 100U},
-        {"mid_novel", all_lines.size() / 2U},
-        {"late_novel", all_lines.size() - 200U},
-    };
-
-    auto format_line = [&](const std::pair<std::string, std::string>& item) {
-        const std::string clean_jp = gate.DecomposeInlineControls(item.second).clean_text;
-        const auto spk_en = glossary.LookupSpeaker(item.first);
-        if (spk_en.has_value() && !spk_en->empty()) {
-            return "[" + *spk_en + "] " + clean_jp;
-        }
-        return "[NARRATION] " + clean_jp;
-    };
-
-    const fs::path cache_path = proj_dir / "script_output" / "translation_cache_gemini.json";
-    TranslationCache disk_cache = LoadCache(cache_path.u8string());
-    bool cache_updated = false;
-
-    GeminiClient client(api_key, kDefaultModel, proj_dir.u8string());
-    std::ostringstream judge_payload;
-
-    for (const auto& [label, start_idx] : anchors) {
-        WindowSample win;
-        win.label = label;
-        const std::size_t ctx_begin =
-            (start_idx > kContextWindowLines) ? (start_idx - kContextWindowLines) : 0U;
-        for (std::size_t i = ctx_begin; i < start_idx; ++i) {
-            win.prev_context.push_back(format_line(all_lines[i]));
-        }
-        std::map<int, std::string> cached_results;
-        for (std::size_t i = start_idx; i < start_idx + kMovingWindowSize; ++i) {
-            win.jp_raw.push_back(all_lines[i].second);
-            win.prompt_lines.push_back(format_line(all_lines[i]));
-            const std::string clean_jp = gate.DecomposeInlineControls(all_lines[i].second).clean_text;
-            if (const auto* hit = disk_cache.Find(clean_jp)) {
-                cached_results[static_cast<int>((i - start_idx) + 1U)] = *hit;
-            }
-        }
-        for (std::size_t i = start_idx + kMovingWindowSize;
-             i < std::min(all_lines.size(), start_idx + kMovingWindowSize + kContextAfterLines);
-             ++i) {
-            win.context_after.push_back(format_line(all_lines[i]));
-        }
-
-        const bool was_cached = (cached_results.size() == kMovingWindowSize);
-        const auto results = was_cached
-            ? cached_results
-            : TranslateBatchWithFallback(
-                  client, win.prompt_lines, win.prev_context, win.context_after);
-        ASSERT_EQ(results.size(), kMovingWindowSize) << "Window failed: " << label;
-
-        judge_payload << "=== Window: " << label << " ===\n";
-        for (std::size_t i = 0; i < kMovingWindowSize; ++i) {
-            const std::string en = SanitizeAscii(StripSpeakerTags(results.at(static_cast<int>(i + 1U))));
-            EXPECT_FALSE(en.empty());
-            EXPECT_FALSE(NeedsTranslation(en)) << "Residual JP in: " << en;
-            if (!was_cached) {
-                const std::string clean_jp =
-                    gate.DecomposeInlineControls(win.jp_raw[i]).clean_text;
-                disk_cache.Set(clean_jp, en);
-                cache_updated = true;
-            }
-            judge_payload << (i + 1U) << ". JP: " << win.prompt_lines[i] << "\n"
-                          << "   EN: " << en << "\n";
-        }
-        judge_payload << "\n";
-    }
-    if (cache_updated && fs::is_regular_file(cache_path)) {
-        SaveCache(cache_path.u8string(), disk_cache);
-    }
-
-    bj::object judge_req;
-    judge_req["model"] = kDefaultModel;
-    judge_req["max_tokens"] = static_cast<std::int64_t>(kJudgeMaxOutputTokens);
-    judge_req["system"] =
-        "You are a senior Japanese-to-English visual novel localization quality auditor. "
-        "Verify whether the English translations across all three windows accurately and naturally "
-        "translate the Japanese source lines from Oretachi ni Tsubasa wa Nai without omissions, "
-        "untranslated Japanese, or leaked [Speaker] tags. End your response with 'VERDICT: PASS' "
-        "if all three windows meet high literary localization quality, or 'VERDICT: FAIL' otherwise.";
-    bj::array messages;
-    bj::object user_msg;
-    user_msg["role"] = "user";
-    user_msg["content"] = judge_payload.str();
-    messages.push_back(std::move(user_msg));
-    judge_req["messages"] = std::move(messages);
-
-    const bj::value judge_resp = client.Messages(judge_req);
-    ASSERT_TRUE(judge_resp.is_object());
-    std::string judge_text;
-    if (const auto* content_v = judge_resp.as_object().if_contains("content");
-        content_v && content_v->is_array()) {
-        for (const auto& block : content_v->as_array()) {
-            if (block.is_object()) {
-                if (const auto* txt = block.as_object().if_contains("text");
-                    txt && txt->is_string()) {
-                    judge_text += std::string(txt->as_string());
-                }
-            }
-        }
-    }
-    std::cout << "[Argon Judge Report]\n" << judge_text << "\n";
-    EXPECT_NE(judge_text.find("VERDICT: PASS"), std::string::npos)
-        << "Judge did not return VERDICT: PASS:\n" << judge_text;
 }

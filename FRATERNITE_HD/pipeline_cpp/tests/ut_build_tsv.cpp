@@ -5,16 +5,18 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Step-3: runtime-byte variant expansion and the CP932 TSV writer.
-#include <string>
-#include <vector>
-
-#include <gtest/gtest.h>
-
+// Runtime-byte variant expansion and the CP932 TSV writer.
 #include "build_tsv/build_tsv.h"
 #include "build_tsv/name_fixups.h"
 #include "common/util.h"
 #include "test_support.h"
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace frat;
 using namespace frat::build_tsv;
@@ -22,6 +24,10 @@ using namespace frat::build_tsv;
 namespace {
 
 using Pairs = std::vector<std::pair<std::string, std::string>>;
+
+constexpr std::size_t kExpectedNameFixupCount = 26u;
+constexpr int kExitOk = 0;
+constexpr char32_t kNoBreakSpaceCodepoint = 0x00A0u;
 
 std::string decode_tsv(const std::string& path) {
     const Bytes raw = read_file(path);
@@ -42,7 +48,8 @@ TEST(BuildTsv, StripRuby_ReplacesWithHeadWordOnly) {
 }
 
 TEST(BuildTsv, SpeakerMatch_NonGreedyNameThenQuote) {
-    std::string name, quote;
+    std::string name;
+    std::string quote;
     ASSERT_TRUE(speaker_match("／美桜「あ」", name, quote));
     EXPECT_EQ(name, "美桜");
     EXPECT_EQ(quote, "「あ」");
@@ -113,12 +120,13 @@ TEST(BuildTsv, Variants_MysteryQuoteMinimum14Cp932Bytes) {
 TEST(BuildTsv, Cp932Safe_UnmappableBecomesQuestionMark_NotBestFit) {
     // WideCharToMultiByte(932, 0, ...) would best-fit this to 'e'; an
     // unmappable character has to become '?' instead.
-    EXPECT_EQ(cp932_safe("Fraternit\xC3\xA9"), "Fraternit?");
-    EXPECT_EQ(cp932_safe("\xE2\x80\x94"), "\xE2\x80\x95");  // U+2014 -> U+2015
-    EXPECT_EQ(cp932_safe("\xE2\x80\x98x\xE2\x80\x99"), "'x'");
-    EXPECT_EQ(cp932_safe("a\xC2\xA0" "b"), "a b");  // U+00A0 -> ' '
+    EXPECT_EQ(cp932_safe("Fraternité"), "Fraternit?");
+    EXPECT_EQ(cp932_safe("—"), "―");  // U+2014 -> U+2015
+    EXPECT_EQ(cp932_safe("‘x’"), "'x'");
+    EXPECT_EQ(cp932_safe("a" + utf8_encode_cp(kNoBreakSpaceCodepoint) + "b"),
+              "a b");  // U+00A0 -> ' '
     // Curly double quotes ARE CP932-encodable, so they survive verbatim.
-    EXPECT_EQ(cp932_safe("\xE2\x80\x9C" "x" "\xE2\x80\x9D"), "\xE2\x80\x9C" "x" "\xE2\x80\x9D");
+    EXPECT_EQ(cp932_safe("“x”"), "“x”");
 }
 
 TEST(BuildTsv, EscapeForTsv_OrderBackslashThenTab) {
@@ -129,11 +137,11 @@ TEST(BuildTsv, EscapeForTsv_OrderBackslashThenTab) {
 }
 
 TEST(BuildTsv, Flatten_StripsU3000AsWellAsAscii) {
-    EXPECT_EQ(flatten("  a\r\nb\rc\nd\xE3\x80\x80"), "a b c d");
+    EXPECT_EQ(flatten("  a\r\nb\rc\nd　"), "a b c d");
 }
 
 TEST(BuildTsv, CleanEn_UsesThe26EntryTable_AppliesAllNotJustFirst) {
-    EXPECT_EQ(NameFixups().size(), 26u);
+    EXPECT_EQ(NameFixups().size(), kExpectedNameFixupCount);
     EXPECT_EQ(clean_en("園田Ｈ and 大智 and 園田"), "Sonoda (H) and Daichi and Sonoda");
     // Fast path: nothing in [0x3040, 0x9FFF] -> returned untouched.
     EXPECT_EQ(clean_en("no japanese here"), "no japanese here");
@@ -156,7 +164,7 @@ TEST(BuildTsv, EndToEnd_KeyFallthroughSemanticsAndTsvBytes) {
     const std::string in = dir / "translated_text.json";
     const std::string out = dir / "table.tsv";
     write_file(in, std::string(json_text));
-    ASSERT_EQ(run_build(in, out), 0);
+    ASSERT_EQ(run_build(in, out), kExitOk);
 
     // "同じだ" is skipped (jp == en); the empty "text" falls through to
     // "content"; the tab is escaped on BOTH sides.

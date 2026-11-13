@@ -7,17 +7,18 @@
 
 #include "cache/speaker_gate.h"
 
+#include "cache/cache_core.h"
+#include "cache/glossary.h"
+#include "common/util.h"
+
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <map>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include "cache/cache_core.h"
-#include "cache/glossary.h"
-#include "common/util.h"
 
 namespace exc::translate {
 
@@ -82,7 +83,7 @@ std::string raw_jp_speaker(const std::string& text) {
     const std::string raw = trim(text.substr(0, crlf));
     const std::string rest = trim_left(text.substr(crlf + 2));
     if (raw.empty() || char_len(raw) > 20 || rest.empty()) return {};
-    if (rest.rfind("\xE3\x80\x8C", 0) != 0 && rest.rfind("\xE3\x80\x8E", 0) != 0) return {};
+    if (rest.rfind("「", 0) != 0 && rest.rfind("『", 0) != 0) return {};
     return raw;
 }
 
@@ -93,9 +94,16 @@ std::string build_gate_prompt(
         std::string escaped;
         const std::string& text = batch_lines[i].second;
         for (std::size_t k = 0; k < text.size(); ++k) {
-            if (text.compare(k, 2, "\r\n") == 0) { escaped += "\\r\\n"; ++k; }
-            else if (text[k] == '\n') escaped += "\\n";
-            else escaped += text[k];
+            if (text.compare(k, 2, "\r\n") == 0) {
+                escaped += "\\r\\n";
+                ++k;
+                continue;
+            }
+            if (text[k] == '\n') {
+                escaped += "\\n";
+                continue;
+            }
+            escaped += text[k];
         }
         prompt += std::to_string(i + 1) + ". [" + batch_lines[i].first + "] " + escaped + "\n";
     }
@@ -130,7 +138,6 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
                         " dialogue entries -- the extraction looks empty");
     }
 
-    // ── 1: extract_speaker returns real speakers, not 'NARRATION' ──
     std::size_t narration = 0;
     std::set<std::string> speakers_seen;
     for (const auto& d : dialogue) {
@@ -154,17 +161,16 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
         return fail(report, 1,
                     "too many lines tagged NARRATION -- speaker prefix not flowing");
 
-    // ── 2: JP names resolve to their pinned English ──
     print_line("[2/5] JP -> EN name resolution:");
     const std::vector<std::pair<std::string, std::string>> cases = {
-        {u8"夢美", "Yumemi"},
-        {u8"アゲハ", "Ageha"},
-        {u8"煉悟", "Rengo"},
-        {u8"美弥香", "Miyaka"},
-        {u8"西", "Nishi"},
+        {"夢美", "Yumemi"},
+        {"アゲハ", "Ageha"},
+        {"煉悟", "Rengo"},
+        {"美弥香", "Miyaka"},
+        {"西", "Nishi"},
     };
     for (const auto& [jp, en] : cases) {
-        const std::string text = jp + "\r\n\xE3\x80\x8C" "dummy" "\xE3\x80\x8D";
+        const std::string text = jp + "\r\n「dummy」";
         const std::string got = extract_speaker(text);
         print_line(std::string(got == en ? "      OK   " : "      FAIL ") + "'" + jp +
                    "' -> '" + got + "' (expected '" + en + "')");
@@ -173,15 +179,11 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
                         "'" + jp + "' resolved to '" + got + "', not '" + en + "'");
     }
 
-    // ── 3: the assembled user prompt carries real [Speaker] tags ──
     // Built by the same function the requests are built with, so the check
     // cannot pass against a copy of the prompt that has drifted from it.
-    //
-    // A handful of two-line NARRATIVE entries are mis-typed as 'dialogue' in
-    // the extraction; extract_speaker correctly tags those NARRATION.  Sample
-    // the first 10 dialogues that DO yield a real speaker, so this check reads
-    // prompt format on actual dialogue.  If the pipeline is genuinely broken
-    // the filter starves and the check fails.
+    // A handful of two-line narrative entries are mis-typed as 'dialogue' in
+    // the extraction; extract_speaker tags those NARRATION, so sample the first
+    // 10 dialogues that yield a real speaker.
     std::vector<std::pair<std::string, std::string>> batch;
     for (const auto& d : dialogue_all) {
         const std::string sp = extract_speaker(d);
@@ -221,13 +223,11 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
                             " dialogue lines tagged [NARRATION] in the prompt");
     }
 
-    // ── 4 (sanity): the speaker table still holds the core cast ──
     const auto& name_dict = name_translations();
-    if (!name_dict.count(u8"夢美"))
+    if (!name_dict.count("夢美"))
         return fail(report, 4, "the speaker table is missing the core character names");
-    print_line(u8"[4/5] the speaker table contains the core character names (夢美 etc.): OK");
+    print_line("[4/5] the speaker table contains the core character names (夢美 etc.): OK");
 
-    // ── 5: exhaustive bidirectional speaker coverage ──
     std::map<std::string, int> seen;
     for (const auto& d : dialogue_all) {
         const std::string raw = raw_jp_speaker(d);

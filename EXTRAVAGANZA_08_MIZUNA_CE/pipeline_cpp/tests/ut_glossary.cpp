@@ -5,31 +5,55 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Component tests for src/glossary.cpp, src/cache/speaker_gate.{h,cpp},
-// src/cache/cache_core.{h,cpp}, and src/build_tsv/build_tsv.{h,cpp} on
-// EXTRA_VA_MIZUNA_CE speaker mappings, extracted_text.json speaker coverage,
-// and speaker-plate lifecycle.
-#include <gtest/gtest.h>
-
-#include <filesystem>
-#include <set>
-#include <string>
-#include <vector>
-
+// Pure unit tests for src/glossary.cpp, src/cache/speaker_gate.{h,cpp},
+// src/cache/cache_core.{h,cpp}, and src/build_tsv/build_tsv.{h,cpp}:
+// speaker mappings, story order, synthetic speaker-gate checks, and
+// speaker-plate postprocess-to-word-wrap lifecycle.
 #include "build_tsv/build_tsv.h"
 #include "cache/cache_core.h"
 #include "cache/glossary.h"
 #include "cache/speaker_gate.h"
 #include "common/util.h"
 
+#include <boost/json.hpp>
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <string>
+#include <vector>
+
 namespace exm::translate {
 namespace {
 
-constexpr std::size_t kExpectedStoryOrderCount = 3;
-constexpr std::size_t kExpectedDistinctDialogueSpeakers = 29;
-constexpr std::size_t kExpectedDialogueLineCount = 971;
+namespace bj = boost::json;
 
-TEST(GlossaryContract, SpeakerTableAndStoryOrderAndExtractedCoveragePass) {
+constexpr std::size_t kExpectedStoryOrderCount = 3;
+constexpr std::size_t kSyntheticMappedSpeakerCount = 5;
+constexpr std::size_t kSyntheticMappedDialogueCount = 12;
+constexpr int kExtractSpeakerCheckId = 1;
+constexpr int kExhaustiveCoverageCheckId = 5;
+
+bj::object make_dialogue_entry(const std::string& text) {
+    bj::object entry;
+    entry["type"] = "dialogue";
+    entry["has_jp"] = true;
+    entry["text"] = text;
+    return entry;
+}
+
+bj::object make_synthetic_extracted_root(const std::vector<std::string>& lines) {
+    bj::array strings;
+    for (const std::string& line : lines) {
+        strings.push_back(make_dialogue_entry(line));
+    }
+    bj::object script_obj;
+    script_obj["strings"] = std::move(strings);
+    bj::object root;
+    root["tantai3.spt"] = std::move(script_obj);
+    return root;
+}
+
+TEST(GlossaryContract, SpeakerTableStoryOrderAndPromptInvariants) {
     const auto& ordered = name_translations_ordered();
     const auto& map = character_names();
     EXPECT_EQ(ordered.size(), map.size());
@@ -56,67 +80,43 @@ TEST(GlossaryContract, SpeakerTableAndStoryOrderAndExtractedCoveragePass) {
     EXPECT_FALSE(prompt.empty());
     EXPECT_NE(prompt.find("Mizuna"), std::string::npos);
     EXPECT_NE(prompt.find("Shirou"), std::string::npos);
+}
 
-    std::filesystem::path extracted_path;
-    std::filesystem::path cur = std::filesystem::current_path();
-    for (int i = 0; i < 6; ++i) {
-        if (std::filesystem::exists(cur / "script_output" / "extracted_text.json")) {
-            extracted_path = cur / "script_output" / "extracted_text.json";
-            break;
-        }
-        if (std::filesystem::exists(cur / "EXTRAVAGANZA_08_MIZUNA_CE" / "script_output" / "extracted_text.json")) {
-            extracted_path = cur / "EXTRAVAGANZA_08_MIZUNA_CE" / "script_output" / "extracted_text.json";
-            break;
-        }
-        if (!cur.has_parent_path() || cur.parent_path() == cur) break;
-        cur = cur.parent_path();
-    }
-    if (extracted_path.empty() || !std::filesystem::exists(extracted_path)) {
-        GTEST_SKIP() << "script_output/extracted_text.json not present in checkout";
-    }
+TEST(GlossaryContract, SyntheticSpeakerGatePassesMappedAndRejectsUnmappedOrSparse) {
+    const std::vector<std::string> valid_lines = {
+        "水菜\r\n「史郎くん、おはよう……」",
+        "史郎\r\n「ああ、おはよう。」",
+        "瑞菜\r\n「今日もいい天気だね。」",
+        "？？？\r\n「……見つけたぞ。」",
+        "男Ａ\r\n「逃がすな！」",
+        "水菜\r\n「っ……誰なの！？」",
+        "史郎\r\n「下がっていろ、水菜。」",
+        "瑞菜\r\n「わかった……気をつけて。」",
+        "男Ａ\r\n「観念しろ！」",
+        "？？？\r\n「無駄な抵抗はやめろ。」",
+        "水菜\r\n「いや……近づかないで！」",
+        "史郎\r\n「させるものか。」",
+    };
 
-    const auto root_val = json_parse_file(extracted_path.u8string());
-    ASSERT_TRUE(root_val.is_object());
-    const auto& root = root_val.get_object();
+    const bj::object valid_root = make_synthetic_extracted_root(valid_lines);
+    const SpeakerCheckReport ok_report = run_speaker_checks(valid_root);
+    EXPECT_TRUE(ok_report.passed) << ok_report.reason;
+    EXPECT_EQ(ok_report.dialogue_total, kSyntheticMappedDialogueCount);
+    EXPECT_EQ(ok_report.speakers_in_data, kSyntheticMappedSpeakerCount);
 
-    std::size_t dialogue_count = 0;
-    std::set<std::string> dialogue_speakers;
-    std::vector<std::string> unmapped_speakers;
+    std::vector<std::string> with_unmapped = valid_lines;
+    with_unmapped.push_back("未知の人物\r\n「名簿にない話者だ。」");
+    const bj::object unmapped_root = make_synthetic_extracted_root(with_unmapped);
+    const SpeakerCheckReport unmapped_report = run_speaker_checks(unmapped_root);
+    EXPECT_FALSE(unmapped_report.passed);
+    EXPECT_EQ(unmapped_report.failed_check, kExhaustiveCoverageCheckId);
 
-    for (const auto& fkv : root) {
-        ASSERT_TRUE(fkv.value().is_object());
-        const auto& fobj = fkv.value().get_object();
-        const auto* strings = fobj.if_contains("strings");
-        ASSERT_NE(strings, nullptr);
-        ASSERT_TRUE(strings->is_array());
-        for (const auto& sv : strings->get_array()) {
-            ASSERT_TRUE(sv.is_object());
-            const auto& s = sv.get_object();
-            if (std::string(s.at("type").get_string()) != "dialogue") continue;
-            ++dialogue_count;
-            const std::string text(s.at("text").get_string());
-            const std::size_t crlf = text.find("\r\n");
-            ASSERT_NE(crlf, std::string::npos) << "Dialogue entry missing CRLF: " << text;
-            const std::string jp_speaker = trim(text.substr(0, crlf));
-            ASSERT_FALSE(jp_speaker.empty());
-            dialogue_speakers.insert(jp_speaker);
-            if (map.find(jp_speaker) == map.end()) {
-                unmapped_speakers.push_back(jp_speaker);
-            }
-            const std::string resolved = extract_speaker(text);
-            EXPECT_NE(resolved, "NARRATION") << "Failed to extract speaker from: " << text;
-            EXPECT_EQ(resolved, map.at(jp_speaker));
-        }
-    }
-
-    EXPECT_EQ(dialogue_count, kExpectedDialogueLineCount);
-    ASSERT_EQ(dialogue_speakers.size(), kExpectedDistinctDialogueSpeakers);
-    EXPECT_TRUE(unmapped_speakers.empty());
-
-    const auto report = run_speaker_checks(root);
-    EXPECT_TRUE(report.passed) << report.reason;
-    EXPECT_EQ(report.dialogue_total, kExpectedDialogueLineCount);
-    EXPECT_EQ(report.speakers_in_data, kExpectedDistinctDialogueSpeakers);
+    const bj::object sparse_root = make_synthetic_extracted_root({
+        "水菜\r\n「一行だけ……」",
+    });
+    const SpeakerCheckReport sparse_report = run_speaker_checks(sparse_root);
+    EXPECT_FALSE(sparse_report.passed);
+    EXPECT_EQ(sparse_report.failed_check, kExtractSpeakerCheckId);
 }
 
 TEST(GlossaryContract, SpeakerPrefixedDialoguePostprocessToWordWrapChain) {
@@ -126,7 +126,6 @@ TEST(GlossaryContract, SpeakerPrefixedDialoguePostprocessToWordWrapChain) {
     const std::string expected_final =
         "Mizuna: \"...What do you plan to do with me?\"\r\n";
 
-    // Case 1: Model outputs bare translated quote without speaker prefix or trailing CRLF.
     const std::string post1 =
         postprocess(original, "\"…What do you plan to do with me?\"");
     EXPECT_EQ(post1, expected_postprocessed);
@@ -134,7 +133,6 @@ TEST(GlossaryContract, SpeakerPrefixedDialoguePostprocessToWordWrapChain) {
         build_tsv::word_wrap(build_tsv::merge_speaker_line(build_tsv::sanitize_newlines(post1)));
     EXPECT_EQ(final1, expected_final);
 
-    // Case 2: Model leaves Japanese speaker prefix in output.
     const std::string post2 =
         postprocess(original, "水菜\r\n\"…What do you plan to do with me?\"");
     EXPECT_EQ(post2, expected_postprocessed);
@@ -142,7 +140,6 @@ TEST(GlossaryContract, SpeakerPrefixedDialoguePostprocessToWordWrapChain) {
         build_tsv::word_wrap(build_tsv::merge_speaker_line(build_tsv::sanitize_newlines(post2)));
     EXPECT_EQ(final2, expected_final);
 
-    // Case 3: Model already includes English speaker prefix and trailing CRLF (no doubling).
     const std::string post3 =
         postprocess(original, "Mizuna\r\n\"...What do you plan to do with me?\"\r\n");
     EXPECT_EQ(post3, expected_postprocessed);

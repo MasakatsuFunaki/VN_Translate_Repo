@@ -6,53 +6,82 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "translator.h"
-#include "translator_logic.h"
-#include "text_display_abi.h"
+
 #include "iat_hook.h"
 #include "log.h"
+#include "text_display_abi.h"
+#include "translator_logic.h"
 
 #include <windows.h>
+
 #include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <intrin.h>
 #include <mutex>
 #include <string>
 #include <vector>
 
-// ==========================================================================
 // SakuraNoUta runtime translator (BGI / Buriko / Ethornell engine).
 // Hook target: RVA 0x033900 -- ECX+EDX register params, eleven stack dwords,
 // caller-cleans.  text_display_abi.h reproduces the convention.
-// ==========================================================================
 
-// ── Hook target ────────────────────────────────────────────────────
-static const DWORD TEXT_DISPLAY_RVA = 0x00033900;
-static const SIZE_T STOLEN_LEN      = 6;
-static const BYTE   EXPECTED_BYTES[STOLEN_LEN] = {
+// Hook target.
+constexpr DWORD TEXT_DISPLAY_RVA = 0x00033900;
+constexpr SIZE_T STOLEN_LEN      = 6;
+constexpr BYTE   EXPECTED_BYTES[STOLEN_LEN] = {
     0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8
 };
 
-// ── Line pitch ──────────────────────────────────────────────────────
+// Line pitch.
 // English needs 4 lines; stock pitch only fits 3.  Substituted per call
 // because the engine builds the value from font metrics -- no constant to
 // patch.  The backlog gets the same treatment (26 px fits 4 rows in its clip).
-static const int DIALOGUE_LINE_PITCH_STOCK = 0x2A;   // 42 px, what BGI passes
-static const int DIALOGUE_LINE_PITCH       = 30;     // what the box gets
-static const int NAME_PLATE_LINE_PITCH     = 0x18;   // 24 px, left alone
-static const int HISTORY_LINE_PITCH_STOCK  = 0x28;   // 40 px, what BGI passes
-static const int HISTORY_LINE_PITCH        = 26;     // what the backlog gets
+constexpr int DIALOGUE_LINE_PITCH_STOCK = 0x2A;   // 42 px, what BGI passes
+constexpr int DIALOGUE_LINE_PITCH       = 30;     // what the box gets
+constexpr int NAME_PLATE_LINE_PITCH     = 0x18;   // 24 px, left alone
+constexpr int HISTORY_LINE_PITCH_STOCK  = 0x28;   // 40 px, what BGI passes
+constexpr int HISTORY_LINE_PITCH        = 26;     // what the backlog gets
 
-// ── The renderer's rectangle array ──────────────────────────────────
+// Renderer rectangle array.
 // Callers allocate 4 rects/byte from the JP buffer length; the hook swaps in
 // longer English, so the array overruns.  Patching the immediate 0x10 -> 0x80
 // gives 8x room.  On mismatch the patch is skipped and the budget stays at 4.
-static const DWORD RECT_ARRAY_SITES[] = { 0x00033232, 0x00029E9F };
-static const BYTE  RECT_ARRAY_EXPECTED[5] = { 0xBA, 0x10, 0x00, 0x00, 0x00 };
-static const BYTE  RECT_ARRAY_PATCHED     = 0x80;
-static const size_t RECT_ARRAY_GROWTH     = RECT_ARRAY_PATCHED /
-                                            RECT_ARRAY_EXPECTED[1];
+constexpr DWORD RECT_ARRAY_SITES[] = { 0x00033232, 0x00029E9F };
+constexpr size_t kRectArrayExpectedBytes = 5;
+constexpr BYTE  RECT_ARRAY_EXPECTED[kRectArrayExpectedBytes] = {
+    0xBA, 0x10, 0x00, 0x00, 0x00
+};
+constexpr BYTE  RECT_ARRAY_PATCHED     = 0x80;
+constexpr size_t RECT_ARRAY_GROWTH     = RECT_ARRAY_PATCHED /
+                                         RECT_ARRAY_EXPECTED[1];
+
+constexpr size_t kMinDerivedSurfaceLines = 2;
+constexpr uintptr_t kGoldenRatioMix32 = 0x9E3779B9u;
+constexpr size_t kInitialModulePathChars = MAX_PATH;
+constexpr size_t kMaxModulePathChars = 32768;
+constexpr size_t kPathBufferGrowthFactor = 2;
+constexpr size_t kMaxLoggedMarkupRows = 20;
+constexpr size_t kMaxLoggedUnmappableChars = 50;
+constexpr size_t kMaxLoggedWideRows = 20;
+constexpr int kMaxLoggedEngineFaults = 16;
+constexpr int kMaxLoggedUnmeasuredSurfaces = 8;
+constexpr SIZE_T kTrampolineAllocBytes = 64;
+constexpr BYTE kRel32JmpOpcode = 0xE9;
+constexpr BYTE kNopOpcode = 0x90;
+constexpr size_t kRel32DispBytes = 4;
+constexpr size_t kRel32JmpInstructionLen = 5;
+constexpr int kMaxLoggedNarrowChars = 16;
+constexpr int kMaxLoggedWideChars = 12;
+constexpr size_t kNarrowHexBufBytes = 64;
+constexpr size_t kWideHexBufBytes = 80;
+constexpr int kNarrowHexCharsPerByte = 3;
+constexpr int kWideHexCharsPerUnit = 5;
+constexpr ULONG kFirstHandlerPriority = 1;
 
 static size_t g_rectsPerWireByte = translator_logic::RECTS_PER_WIRE_BYTE;
 
@@ -86,7 +115,7 @@ static bool PatchRectArraySites(BYTE* base) {
     return true;
 }
 
-// ── Surfaces ────────────────────────────────────────────────────────
+// Surfaces.
 // The line advance identifies the surface: 0x2A = dialogue panel, 0x18 = name
 // plate, 0x28 = history.  Other advances come from script font-size changes;
 // those are derived (width/lines from advance) and only take one-line values.
@@ -105,7 +134,7 @@ static translator_logic::Surface SurfaceForPitch(intptr_t engine_pitch,
         engine_pitch == NAME_PLATE_LINE_PITCH)
         return translator_logic::DIALOGUE_PANEL;
     const size_t pitch = engine_pitch > 0 ? static_cast<size_t>(engine_pitch) : 0;
-    if (translator_logic::LinesAtPitch(pitch) < 2) {
+    if (translator_logic::LinesAtPitch(pitch) < kMinDerivedSurfaceLines) {
         kind = SurfaceKind::Refused;
         return translator_logic::DIALOGUE_PANEL;
     }
@@ -119,10 +148,10 @@ static translator_logic::Surface SurfaceForPitch(intptr_t engine_pitch,
 // sizes, so the advance is mixed in to keep separate surfaces separate.
 static uintptr_t SurfaceId(const void* layout_state, intptr_t engine_pitch) {
     return reinterpret_cast<uintptr_t>(layout_state) ^
-           (static_cast<uintptr_t>(engine_pitch) * 0x9E3779B9u);
+           (static_cast<uintptr_t>(engine_pitch) * kGoldenRatioMix32);
 }
 
-// ── Module / state ──────────────────────────────────────────────────
+// Module and hook state.
 
 static BYTE* g_exeBase = nullptr;
 static BYTE* g_trampoline = nullptr;
@@ -147,55 +176,97 @@ static std::atomic<int> g_rectOverruns { 0 };
 // Per-box line count, surviving across the chain of calls that fill one box.
 static translator_logic::BoxLineBudget g_boxLines;
 
-// ── TSV loading ─────────────────────────────────────────────────────
+// TSV loading.
+
+static std::string ResolveSiblingTsvPathUtf8() {
+    try {
+        std::wstring wbuf(kInitialModulePathChars, L'\0');
+        for (;;) {
+            const DWORD len = GetModuleFileNameW(
+                nullptr, wbuf.data(), static_cast<DWORD>(wbuf.size()));
+            if (len == 0) {
+                return {};
+            }
+            if (len < wbuf.size()) {
+                wbuf.resize(len);
+                break;
+            }
+            if (wbuf.size() >= kMaxModulePathChars) {
+                return {};
+            }
+            wbuf.resize(
+                std::min(wbuf.size() * kPathBufferGrowthFactor,
+                         kMaxModulePathChars),
+                L'\0');
+        }
+        const std::wstring tsv_wide =
+            (std::filesystem::path(wbuf).parent_path() / L"translations.tsv")
+                .wstring();
+        if (tsv_wide.empty()) {
+            return {};
+        }
+        const int utf8_len = WideCharToMultiByte(
+            CP_UTF8, WC_ERR_INVALID_CHARS, tsv_wide.data(),
+            static_cast<int>(tsv_wide.size()), nullptr, 0, nullptr, nullptr);
+        if (utf8_len <= 0) {
+            return {};
+        }
+        std::string tsv_utf8(static_cast<size_t>(utf8_len), '\0');
+        const int written = WideCharToMultiByte(
+            CP_UTF8, WC_ERR_INVALID_CHARS, tsv_wide.data(),
+            static_cast<int>(tsv_wide.size()), tsv_utf8.data(), utf8_len,
+            nullptr, nullptr);
+        if (written != utf8_len) {
+            return {};
+        }
+        return tsv_utf8;
+    } catch (...) {
+        return {};
+    }
+}
 
 static bool LoadTranslations() {
-    wchar_t exePath[MAX_PATH];
-    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-    wchar_t* slash = wcsrchr(exePath, L'\\');
-    if (slash) wcscpy(slash + 1, L"translations.tsv");
-    else       wcscpy(exePath, L"translations.tsv");
-
-    char pathA[MAX_PATH];
-    WideCharToMultiByte(CP_ACP, 0, exePath, -1,
-                        pathA, sizeof(pathA), nullptr, nullptr);
+    const std::string tsv_path = ResolveSiblingTsvPathUtf8();
+    if (tsv_path.empty()) {
+        Log("Translator: failed to resolve translations.tsv path -- JP passthrough");
+        return false;
+    }
 
     // Collect characters that have no CP932 form, so the log can name them.
     std::vector<translator_logic::UnmappableChar> unmappable;
     std::vector<std::string> markup_rows;
-    bool ok = translator_logic::LoadTsvFile(pathA, g_translations, &unmappable,
-                                            &markup_rows);
+    const bool ok = translator_logic::LoadTsvFile(
+        tsv_path, g_translations, &unmappable, &markup_rows);
     if (!ok) {
-        Log("Translator: translations.tsv NOT FOUND at %s -- JP passthrough", pathA);
+        Log("Translator: translations.tsv NOT FOUND at %s -- JP passthrough",
+            tsv_path.c_str());
         return false;
     }
     Log("Translator: loaded %zu entries from translations.tsv", g_translations.size());
 
     // Log rows whose English carried engine markup (stripped at load time).
-    const size_t kMaxMarkup = 20;
-    for (size_t i = 0; i < markup_rows.size() && i < kMaxMarkup; ++i)
+    for (size_t i = 0; i < markup_rows.size() && i < kMaxLoggedMarkupRows; ++i)
         Log("Translator: ruby markup removed from the English for '%s'",
             markup_rows[i].c_str());
-    if (markup_rows.size() > kMaxMarkup)
+    if (markup_rows.size() > kMaxLoggedMarkupRows)
         Log("Translator: %zu further rows carried ruby markup",
-            markup_rows.size() - kMaxMarkup);
+            markup_rows.size() - kMaxLoggedMarkupRows);
     if (!markup_rows.empty())
         Log("Translator: %zu of %zu English values carried ruby markup",
             markup_rows.size(), g_translations.size());
 
-    const size_t kMaxNamed = 50;
-    for (size_t i = 0; i < unmappable.size() && i < kMaxNamed; ++i)
+    for (size_t i = 0; i < unmappable.size() && i < kMaxLoggedUnmappableChars; ++i)
         Log("Translator: no CP932 form for U+%04X in the English for '%s' -- drawn as '?'",
             unmappable[i].codepoint, unmappable[i].jp_key.c_str());
-    if (unmappable.size() > kMaxNamed)
+    if (unmappable.size() > kMaxLoggedUnmappableChars)
         Log("Translator: %zu further characters had no CP932 form",
-            unmappable.size() - kMaxNamed);
+            unmappable.size() - kMaxLoggedUnmappableChars);
 
     // Log values that still draw a fullwidth glyph (fold table gaps).
     size_t wide_rows = 0;
     for (const auto& kv : g_translations) {
         if (!translator_logic::HasWideCharacter(kv.second)) continue;
-        if (wide_rows < 20)
+        if (wide_rows < kMaxLoggedWideRows)
             Log("Translator: English value draws a fullwidth glyph: '%s'",
                 translator_logic::Cp932ToUtf8(kv.second).c_str());
         ++wide_rows;
@@ -206,11 +277,11 @@ static bool LoadTranslations() {
     return true;
 }
 
-// ── Word wrap ───────────────────────────────────────────────────────
+// Word wrap.
 // The engine handles 0x0A as a line break, so inserting 0x0A at word
 // boundaries wraps English safely.  Measurements in translator_logic.h.
 
-// ── SEH exception capture ────────────────────────────────────────────
+// SEH exception capture.
 
 static volatile DWORD g_exCode      = 0;
 static volatile DWORD g_exFaultAddr = 0;
@@ -250,11 +321,11 @@ static bool CallTrampolineSEH(
     }
 }
 
-// ── The engine's own ceiling on one render ───────────────────────────
+// Engine ceiling on one render.
 // The render fills a segment list (linked at +0x44 off the header) with no
 // count check, so we walk it after each call to detect rectangle overruns.
-static const size_t SEGMENT_NEXT_OFFSET = 0x44;
-static const int    SEGMENT_WALK_LIMIT  = 8192;
+constexpr size_t SEGMENT_NEXT_OFFSET = 0x44;
+constexpr int    SEGMENT_WALK_LIMIT  = 8192;
 
 static int CountSegmentsSEH(const void* header) {
     int n = 0;
@@ -288,7 +359,7 @@ static void LogSegmentBudget(int call_n, const void* header,
     }
 }
 
-// ── First-chance exceptions inside the engine ────────────────────────
+// First-chance exceptions inside the engine.
 // A patch the engine does not accept kills the process without a word: the
 // SEH around the trampoline only covers the render.  This names the faulting
 // instruction and passes the exception on, so it changes nothing.  Faults
@@ -301,7 +372,7 @@ static LONG CALLBACK LogFirstChance(EXCEPTION_POINTERS* ep) {
     const DWORD base = reinterpret_cast<DWORD>(g_exeBase);
     if (g_exeSize && eip >= base && eip < base + g_exeSize) {
         const int n = g_engineFaults.fetch_add(1, std::memory_order_relaxed) + 1;
-        if (n <= 16)
+        if (n <= kMaxLoggedEngineFaults)
             Log("EngineFault[%d]: code=0x%08X eip=0x%08X (RVA 0x%X) "
                 "fault=0x%08X eax=0x%08X ecx=0x%08X edx=0x%08X esp=0x%08X",
                 n, ep->ExceptionRecord->ExceptionCode, eip, eip - base,
@@ -319,19 +390,19 @@ static void LogTrampolineException(int call_n) {
         g_exFaultAddr, g_exEsp, g_exEbp, g_exEax, g_exEcx, g_exEdx);
 }
 
-// ── Counters ─────────────────────────────────────────────────────────
+// Counters.
 // Printed periodically because the process is usually killed, skipping detach.
-static const int STATS_EVERY = 100;
+constexpr int STATS_EVERY = 100;
 
 // Defined below, next to the GDI counters it also reports.
 static void LogCounters(const char* when);
 
-// ── Re-entrancy guard ────────────────────────────────────────────────
+// Re-entrancy guard.
 // The renderer's PeekMessage loop can trigger a nested call; skip it so
 // the outer call's shared GDI state stays consistent.
 static thread_local int t_hookDepth = 0;
 
-// ── The hook ────────────────────────────────────────────────────────
+// Renderer hook.
 
 static DWORD __cdecl HookedTextDisplay(
     DWORD ecx, DWORD edx,
@@ -401,7 +472,7 @@ static DWORD __cdecl HookedTextDisplay(
         if (!measured_surface && g_translationsLoaded && text) {
             const int n = g_unmeasuredSurface.fetch_add(
                               1, std::memory_order_relaxed);
-            if (n < 8)
+            if (n < kMaxLoggedUnmeasuredSurfaces)
                 Log("HOOK[%d]: line advance 0x%X leaves the panel one line, "
                     "which the engine could re-break -- it draws its own text "
                     "here", call_n, (unsigned)pitch_in);
@@ -443,7 +514,7 @@ static DWORD __cdecl HookedTextDisplay(
               sub.bytes, static_cast<size_t>(pitch_in)))) {
         g_passthrough.fetch_add(1, std::memory_order_relaxed);
         const int n = g_unmeasuredSurface.fetch_add(1, std::memory_order_relaxed);
-        if (n < 8)
+        if (n < kMaxLoggedUnmeasuredSurfaces)
             Log("HOOK[%d]: line advance 0x%X holds %zu columns on %zu lines; "
                 "this value is not one line of them -- the engine draws its "
                 "own text here", call_n, (unsigned)pitch_in,
@@ -529,7 +600,7 @@ static DWORD __cdecl HookedTextDisplay(
     return result;
 }
 
-// ── Inline trampoline install ───────────────────────────────────────
+// Inline trampoline installation.
 
 static bool InstallTextDisplayHook(BYTE* base) {
     BYTE* site = base + TEXT_DISPLAY_RVA;
@@ -540,27 +611,34 @@ static bool InstallTextDisplayHook(BYTE* base) {
         return false;
     }
 
-    g_trampoline = (BYTE*)VirtualAlloc(nullptr, 64,
-        MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    g_trampoline = static_cast<BYTE*>(VirtualAlloc(
+        nullptr, kTrampolineAllocBytes, MEM_COMMIT | MEM_RESERVE,
+        PAGE_EXECUTE_READWRITE));
     if (!g_trampoline) { Log("Hook: VirtualAlloc FAILED"); return false; }
 
     memcpy(g_trampoline, EXPECTED_BYTES, STOLEN_LEN);
     BYTE* p = g_trampoline + STOLEN_LEN;
-    *p++ = 0xE9;
-    *(DWORD*)p = (DWORD)(site + STOLEN_LEN) - (DWORD)(p + 4);
+    *p++ = kRel32JmpOpcode;
+    *reinterpret_cast<DWORD*>(p) =
+        reinterpret_cast<DWORD>(site + STOLEN_LEN) -
+        reinterpret_cast<DWORD>(p + kRel32DispBytes);
 
     // Wire both halves before patching; the engine can call as soon as the JMP lands.
     g_textDisplayTrampoline = g_trampoline;
     g_textDisplayHandler    = &HookedTextDisplay;
 
-    DWORD oldProtect;
+    DWORD oldProtect = 0;
     if (!VirtualProtect(site, STOLEN_LEN, PAGE_EXECUTE_READWRITE, &oldProtect)) {
         Log("Hook: VirtualProtect FAILED"); return false;
     }
-    site[0] = 0xE9;
-    *(DWORD*)(site + 1) = (DWORD)(BYTE*)&TextDisplayHookEntry - (DWORD)(site + 5);
-    for (size_t i = 5; i < STOLEN_LEN; ++i) site[i] = 0x90;
-    DWORD dummy;
+    site[0] = kRel32JmpOpcode;
+    *reinterpret_cast<DWORD*>(site + 1) =
+        reinterpret_cast<DWORD>(&TextDisplayHookEntry) -
+        reinterpret_cast<DWORD>(site + kRel32JmpInstructionLen);
+    for (size_t i = kRel32JmpInstructionLen; i < STOLEN_LEN; ++i) {
+        site[i] = kNopOpcode;
+    }
+    DWORD dummy = 0;
     VirtualProtect(site, STOLEN_LEN, oldProtect, &dummy);
     FlushInstructionCache(GetCurrentProcess(), site, STOLEN_LEN);
 
@@ -569,9 +647,7 @@ static bool InstallTextDisplayHook(BYTE* base) {
     return true;
 }
 
-// ── Init / shutdown ─────────────────────────────────────────────────
-
-// ── GDI TextOut* IAT hooks (diagnostic) ──────────────────────────────
+// GDI TextOut* IAT hooks (diagnostic).
 // IAT-hook TextOutA/W and ExtTextOutA/W to log GDI text calls.
 typedef BOOL (WINAPI *PFN_TextOutA)(HDC, int, int, LPCSTR, int);
 typedef BOOL (WINAPI *PFN_TextOutW)(HDC, int, int, LPCWSTR, int);
@@ -594,10 +670,10 @@ static BOOL WINAPI HookedTextOutA(HDC hdc, int x, int y, LPCSTR lpStr, int c) {
     DWORD textRva = retAddr - (DWORD)g_exeBase;
     if (lpStr && c > 0) {
         const unsigned char* p = (const unsigned char*)lpStr;
-        char buf[64] = {0};
-        int blen = c < 16 ? c : 16;
+        char buf[kNarrowHexBufBytes] = {0};
+        const int blen = c < kMaxLoggedNarrowChars ? c : kMaxLoggedNarrowChars;
         for (int i = 0; i < blen; ++i)
-            sprintf(buf + i*3, "%02X ", p[i]);
+            sprintf(buf + i * kNarrowHexCharsPerByte, "%02X ", p[i]);
         Log("TextOutA[%d]: ret=0x%08X (RVA 0x%X) hdc=%p x=%d y=%d c=%d bytes: %s",
             n, retAddr, textRva, hdc, x, y, c, buf);
     } else {
@@ -612,10 +688,10 @@ static BOOL WINAPI HookedTextOutW(HDC hdc, int x, int y, LPCWSTR lpStr, int c) {
     DWORD retAddr = (DWORD)_ReturnAddress();
     DWORD textRva = retAddr - (DWORD)g_exeBase;
     if (lpStr && c > 0) {
-        char buf[80] = {0};
-        int wlen = c < 12 ? c : 12;
+        char buf[kWideHexBufBytes] = {0};
+        const int wlen = c < kMaxLoggedWideChars ? c : kMaxLoggedWideChars;
         for (int i = 0; i < wlen; ++i)
-            sprintf(buf + i*5, "%04X ", (unsigned)lpStr[i]);
+            sprintf(buf + i * kWideHexCharsPerUnit, "%04X ", (unsigned)lpStr[i]);
         Log("TextOutW[%d]: ret=0x%08X (RVA 0x%X) hdc=%p x=%d y=%d c=%d wchars: %s",
             n, retAddr, textRva, hdc, x, y, c, buf);
     } else {
@@ -632,10 +708,11 @@ static BOOL WINAPI HookedExtTextOutA(HDC hdc, int x, int y, UINT opts, const REC
     DWORD textRva = retAddr - (DWORD)g_exeBase;
     if (lpStr && c > 0) {
         const unsigned char* p = (const unsigned char*)lpStr;
-        char buf[64] = {0};
-        UINT blen = c < 16 ? c : 16;
+        char buf[kNarrowHexBufBytes] = {0};
+        const UINT max_chars = static_cast<UINT>(kMaxLoggedNarrowChars);
+        const UINT blen = c < max_chars ? c : max_chars;
         for (UINT i = 0; i < blen; ++i)
-            sprintf(buf + i*3, "%02X ", p[i]);
+            sprintf(buf + i * static_cast<UINT>(kNarrowHexCharsPerByte), "%02X ", p[i]);
         Log("ExtTextOutA[%d]: ret=0x%08X (RVA 0x%X) hdc=%p x=%d y=%d opts=0x%X c=%u bytes: %s",
             n, retAddr, textRva, hdc, x, y, opts, c, buf);
     } else {
@@ -651,10 +728,11 @@ static BOOL WINAPI HookedExtTextOutW(HDC hdc, int x, int y, UINT opts, const REC
     DWORD retAddr = (DWORD)_ReturnAddress();
     DWORD textRva = retAddr - (DWORD)g_exeBase;
     if (lpStr && c > 0) {
-        char buf[80] = {0};
-        UINT wlen = c < 12 ? c : 12;
+        char buf[kWideHexBufBytes] = {0};
+        const UINT max_chars = static_cast<UINT>(kMaxLoggedWideChars);
+        const UINT wlen = c < max_chars ? c : max_chars;
         for (UINT i = 0; i < wlen; ++i)
-            sprintf(buf + i*5, "%04X ", (unsigned)lpStr[i]);
+            sprintf(buf + i * static_cast<UINT>(kWideHexCharsPerUnit), "%04X ", (unsigned)lpStr[i]);
         Log("ExtTextOutW[%d]: ret=0x%08X (RVA 0x%X) hdc=%p x=%d y=%d opts=0x%X c=%u wchars: %s",
             n, retAddr, textRva, hdc, x, y, opts, c, buf);
     } else {
@@ -664,7 +742,7 @@ static BOOL WINAPI HookedExtTextOutW(HDC hdc, int x, int y, UINT opts, const REC
     return g_origExtTextOutW(hdc, x, y, opts, rc, lpStr, c, dx);
 }
 
-// ── Glyph rasterizer call sites (diagnostic) ─────────────────────────
+// Glyph rasterizer call sites (diagnostic).
 // The engine reaches its rasterizer through function pointers, so a static
 // call graph cannot say which code draws a given surface.  Naming each
 // GetGlyphOutlineA return address once does, and it draws nothing itself.
@@ -730,7 +808,7 @@ void TranslatorInit() {
     const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(
         g_exeBase + dos->e_lfanew);
     g_exeSize = nt->OptionalHeader.SizeOfImage;
-    AddVectoredExceptionHandler(1, &LogFirstChance);
+    AddVectoredExceptionHandler(kFirstHandlerPriority, &LogFirstChance);
     Log("Translator: BGI.exe base = %p, image 0x%X bytes", g_exeBase, g_exeSize);
     g_translationsLoaded = LoadTranslations();
     if (PatchRectArraySites(g_exeBase))

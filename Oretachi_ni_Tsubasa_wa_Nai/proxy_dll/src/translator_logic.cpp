@@ -3,21 +3,24 @@
 
 #include "translator_logic.h"
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <exception>
+#include <filesystem>
 #include <fstream>
 #include <istream>
 #include <sstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
 
 namespace oretsuba::proxy {
 
@@ -33,8 +36,7 @@ constexpr std::string_view kAngleRubyOpenTag = "<\"";
 constexpr std::string_view kAngleRubyCloseTag = "\">";
 constexpr std::size_t kRubyOpenTagLen = kAngleRubyOpenTag.size();
 constexpr std::string_view kUtf8Bom = "\xEF\xBB\xBF";
-constexpr std::string_view kUtf8FullwidthSpace = "\xE3\x80\x80";
-constexpr std::string_view kCp932FullwidthSpace = "\x81\x40";
+constexpr std::string_view kUtf8FullwidthSpace = "　";
 
 constexpr std::uint8_t kAsciiUpperBound = 0x80;
 constexpr std::uint8_t kUtf8MinTwoByteLead = 0xC2;
@@ -216,7 +218,38 @@ bool IsAsciiWhitespace(char c) noexcept {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
 
+const std::string& Cp932FullwidthSpace() {
+    static const std::string kSpace = [] {
+        constexpr std::wstring_view kWideFullwidthSpace = L"　";
+        const int byte_len = ::WideCharToMultiByte(
+            kCodePageShiftJis,
+            WC_NO_BEST_FIT_CHARS,
+            kWideFullwidthSpace.data(),
+            static_cast<int>(kWideFullwidthSpace.size()),
+            nullptr,
+            0,
+            nullptr,
+            nullptr);
+        if (byte_len <= 0) {
+            return std::string{};
+        }
+        std::string encoded(static_cast<std::size_t>(byte_len), '\0');
+        ::WideCharToMultiByte(
+            kCodePageShiftJis,
+            WC_NO_BEST_FIT_CHARS,
+            kWideFullwidthSpace.data(),
+            static_cast<int>(kWideFullwidthSpace.size()),
+            encoded.data(),
+            byte_len,
+            nullptr,
+            nullptr);
+        return encoded;
+    }();
+    return kSpace;
+}
+
 std::string TrimLeadingAndTrailingSpaces(std::string_view input) {
+    const std::string_view cp932_fullwidth_space = Cp932FullwidthSpace();
     std::size_t start = 0;
     while (start < input.size()) {
         if (IsAsciiWhitespace(input[start])) {
@@ -227,8 +260,9 @@ std::string TrimLeadingAndTrailingSpaces(std::string_view input) {
             start += kUtf8FullwidthSpace.size();
             continue;
         }
-        if (input.substr(start).rfind(kCp932FullwidthSpace, 0) == 0) {
-            start += kCp932FullwidthSpace.size();
+        if (!cp932_fullwidth_space.empty() &&
+            input.substr(start).rfind(cp932_fullwidth_space, 0) == 0) {
+            start += cp932_fullwidth_space.size();
             continue;
         }
         break;
@@ -246,10 +280,11 @@ std::string TrimLeadingAndTrailingSpaces(std::string_view input) {
             end -= kUtf8FullwidthSpace.size();
             continue;
         }
-        if (end >= start + kCp932FullwidthSpace.size() &&
-            input.substr(end - kCp932FullwidthSpace.size(), kCp932FullwidthSpace.size()) ==
-                kCp932FullwidthSpace) {
-            end -= kCp932FullwidthSpace.size();
+        if (!cp932_fullwidth_space.empty() &&
+            end >= start + cp932_fullwidth_space.size() &&
+            input.substr(end - cp932_fullwidth_space.size(), cp932_fullwidth_space.size()) ==
+                cp932_fullwidth_space) {
+            end -= cp932_fullwidth_space.size();
             continue;
         }
         break;
@@ -678,7 +713,7 @@ TranslationCatalog& TranslationCatalog::operator=(TranslationCatalog&& other) no
 TranslationCatalog::~TranslationCatalog() = default;
 
 std::size_t TranslationCatalog::LoadFromFile(const wchar_t* path) {
-    if (!path) {
+    if (path == nullptr || *path == L'\0') {
         return 0;
     }
     std::ifstream ifs(path, std::ios::binary);
@@ -689,14 +724,18 @@ std::size_t TranslationCatalog::LoadFromFile(const wchar_t* path) {
 }
 
 std::size_t TranslationCatalog::LoadFromFile(const char* path) {
-    if (!path) {
+    if (path == nullptr || *path == '\0') {
         return 0;
     }
-    std::ifstream ifs(path, std::ios::binary);
-    if (!ifs.is_open()) {
+    try {
+        std::ifstream ifs(std::filesystem::u8path(path), std::ios::binary);
+        if (!ifs.is_open()) {
+            return 0;
+        }
+        return LoadFromStream(ifs);
+    } catch (const std::exception&) {
         return 0;
     }
-    return LoadFromStream(ifs);
 }
 
 std::size_t TranslationCatalog::LoadFromStream(std::istream& stream) {
@@ -835,13 +874,18 @@ std::string TranslationCatalog::Utf8ToCp932(std::string_view utf8_str) {
         return {};
     }
     const int wide_len = MultiByteToWideChar(
-        CP_UTF8, 0, utf8_str.data(), static_cast<int>(utf8_str.size()), nullptr, 0);
+        CP_UTF8, MB_ERR_INVALID_CHARS, utf8_str.data(),
+        static_cast<int>(utf8_str.size()), nullptr, 0);
     if (wide_len <= 0) {
         return std::string(utf8_str);
     }
     std::wstring wide(static_cast<std::size_t>(wide_len), L'\0');
-    MultiByteToWideChar(
-        CP_UTF8, 0, utf8_str.data(), static_cast<int>(utf8_str.size()), wide.data(), wide_len);
+    const int wide_written = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, utf8_str.data(),
+        static_cast<int>(utf8_str.size()), wide.data(), wide_len);
+    if (wide_written != wide_len) {
+        return std::string(utf8_str);
+    }
 
     const int cp932_len = WideCharToMultiByte(
         kCodePageShiftJis, 0, wide.data(), wide_len, nullptr, 0, nullptr, nullptr);
@@ -849,8 +893,11 @@ std::string TranslationCatalog::Utf8ToCp932(std::string_view utf8_str) {
         return std::string(utf8_str);
     }
     std::string cp932(static_cast<std::size_t>(cp932_len), '\0');
-    WideCharToMultiByte(
+    const int cp932_written = WideCharToMultiByte(
         kCodePageShiftJis, 0, wide.data(), wide_len, cp932.data(), cp932_len, nullptr, nullptr);
+    if (cp932_written != cp932_len) {
+        return std::string(utf8_str);
+    }
     return cp932;
 }
 
@@ -864,17 +911,23 @@ std::string TranslationCatalog::Cp932ToUtf8(std::string_view cp932_str) {
         return std::string(cp932_str);
     }
     std::wstring wide(static_cast<std::size_t>(wide_len), L'\0');
-    MultiByteToWideChar(
+    const int wide_written = MultiByteToWideChar(
         kCodePageShiftJis, 0, cp932_str.data(), static_cast<int>(cp932_str.size()), wide.data(), wide_len);
+    if (wide_written != wide_len) {
+        return std::string(cp932_str);
+    }
 
     const int utf8_len = WideCharToMultiByte(
-        CP_UTF8, 0, wide.data(), wide_len, nullptr, 0, nullptr, nullptr);
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), wide_len, nullptr, 0, nullptr, nullptr);
     if (utf8_len <= 0) {
         return std::string(cp932_str);
     }
     std::string utf8(static_cast<std::size_t>(utf8_len), '\0');
-    WideCharToMultiByte(
-        CP_UTF8, 0, wide.data(), wide_len, utf8.data(), utf8_len, nullptr, nullptr);
+    const int utf8_written = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), wide_len, utf8.data(), utf8_len, nullptr, nullptr);
+    if (utf8_written != utf8_len) {
+        return std::string(cp932_str);
+    }
     return utf8;
 }
 

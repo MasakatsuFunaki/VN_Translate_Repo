@@ -12,6 +12,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -23,8 +24,13 @@ using translator_logic::SINGLE_LINE_MAX;
 using translator_logic::Substitution;
 using translator_logic::SubstitutionStatus;
 using translator_logic::TranslationMap;
+using translator_logic::Utf8ToCp932;
 
 namespace {
+
+std::string Cp932(const char* utf8) {
+    return Utf8ToCp932(utf8);
+}
 
 TranslationMap MapOf(const std::string& key, const std::string& value) {
     TranslationMap m;
@@ -155,7 +161,7 @@ TEST(BuildSubstitution, WrapAndTrailingBytesAndPrefixAllSurviveTogether) {
     EXPECT_EQ(sub.lines, 2u);
 }
 
-// --- the box a chain of segments shares -------------------------------
+// Shared box state across chained segments.
 //
 // Segments share one box's lines: the first has no prefix, continuations
 // carry one, and 0x0A says more follows.  The panel flows the chain: the
@@ -163,8 +169,8 @@ TEST(BuildSubstitution, WrapAndTrailingBytesAndPrefixAllSurviveTogether) {
 
 namespace {
 
-const uintptr_t kDialogue = 0xADEE28;
-const uintptr_t kNamePlate = 0xADED20;
+const std::uintptr_t kDialogue = 0xADEE28;
+const std::uintptr_t kNamePlate = 0xADED20;
 
 }  // namespace
 
@@ -225,8 +231,8 @@ TEST(BoxBudget, AChainedBoxReadsAsOneStream) {
     EXPECT_EQ(sub.box_lines_after, 3u) << "a line each would have taken four";
     EXPECT_FALSE(sub.truncated);
     // Every line but the last is more than half full -- the gaps are gone.
-    size_t start = 0;
-    for (size_t nl = drawn.find('\n'); nl != std::string::npos;
+    std::size_t start = 0;
+    for (std::size_t nl = drawn.find('\n'); nl != std::string::npos;
          nl = drawn.find('\n', nl + 1)) {
         EXPECT_GT(nl - start, translator_logic::BOX_COLUMNS / 2);
         start = nl + 1;
@@ -318,7 +324,7 @@ TEST(BoxBudget, ARerenderedContinuationDrawsExactlyWhatItDrewFirst) {
     ASSERT_EQ(BuildSubstitution("\x05" "B\n", m, budget, kDialogue, sub),
               SubstitutionStatus::Substituted);
     const std::string first = sub.bytes;
-    const size_t lines_after = sub.box_lines_after;
+    const std::size_t lines_after = sub.box_lines_after;
 
     for (int repeat = 0; repeat < 3; ++repeat) {
         ASSERT_EQ(BuildSubstitution("\x05" "B\n", m, budget, kDialogue, sub),
@@ -361,7 +367,7 @@ TEST(BoxBudget, ARerenderedUntranslatedSegmentChargesItsLinesOnce) {
     ASSERT_EQ(BuildSubstitution("\x05" "untranslated\n", m, budget,
                                 kDialogue, sub),
               SubstitutionStatus::NotFound);
-    const size_t lines_after = sub.box_lines_after;
+    const std::size_t lines_after = sub.box_lines_after;
     ASSERT_EQ(BuildSubstitution("\x05" "untranslated\n", m, budget,
                                 kDialogue, sub),
               SubstitutionStatus::NotFound);
@@ -539,14 +545,15 @@ TEST(BoxBudget, AnUntranslatedSegmentWrapsOnCharactersWhenItIsJapanese) {
     Substitution sub;
 
     // A line holds BOX_COLUMNS / 2 of them; the next one starts a line.
+    const std::string cp932_a = Cp932("あ");
     std::string fits;
-    for (size_t i = 0; i < BOX_COLUMNS / 2; ++i) fits += "\x82\xA0";
+    for (std::size_t i = 0; i < BOX_COLUMNS / 2; ++i) fits += cp932_a;
     ASSERT_EQ(BuildSubstitution(fits.c_str(), m, budget, kDialogue, sub),
               SubstitutionStatus::NotFound);
     EXPECT_EQ(sub.box_lines_after, 1u);
 
     budget.Clear();
-    ASSERT_EQ(BuildSubstitution((fits + "\x82\xA0").c_str(), m, budget,
+    ASSERT_EQ(BuildSubstitution((fits + cp932_a).c_str(), m, budget,
                                 kDialogue, sub),
               SubstitutionStatus::NotFound);
     EXPECT_EQ(sub.box_lines_after, 2u);
@@ -615,7 +622,7 @@ TEST(BoxBudget, ManyBoxesKeepTheirOwnCounts) {
     m["B"] = std::string(translator_logic::MAX_LINES * translator_logic::WRAP_AT, 'x');
     BoxLineBudget budget;
     Substitution sub;
-    for (uintptr_t box = 1; box <= 20; ++box) {
+    for (std::uintptr_t box = 1; box <= 20; ++box) {
         ASSERT_EQ(BuildSubstitution("A\n", m, budget, box, sub),
                   SubstitutionStatus::Substituted);
         ASSERT_EQ(BuildSubstitution("\x05" "B", m, budget, box, sub),
@@ -653,7 +660,7 @@ TEST(BoxBudget, AChainedSegmentLeavesRoomForTheEnginesOwnIndent) {
     EXPECT_EQ(sub.lines, 1u);
 }
 
-// --- kinsoku: where the engine may break and where it may not ---------
+// Kinsoku line-breaking rules.
 //
 // The engine shifts a break when kinsoku forbids the character at a line
 // boundary; cases are built long enough to show the cascade.
@@ -662,20 +669,21 @@ namespace {
 
 // Full-width CP932 characters.  Only the last three are named by the engine's
 // line-breaking tables.
-const char kA[]       = "\x82\xA0";  // あ, forbidden nowhere
-const char kFullStop[] = "\x81\x42";  // 。, may not start a line
-const char kCloser[]  = "\x81\x76";  // 」, may not start a line
-const char kOpener[]  = "\x81\x75";  // 「, may not end a line
+const std::string kA        = Cp932("あ");  // forbidden nowhere
+const std::string kFullStop = Cp932("。");  // may not start a line
+const std::string kCloser   = Cp932("」");  // may not start a line
+const std::string kOpener   = Cp932("「");  // may not end a line
 
-std::string Repeat(const char* glyph, size_t n) {
+std::string Repeat(const std::string& glyph, std::size_t n) {
     std::string out;
-    for (size_t i = 0; i < n; ++i) out += glyph;
+    out.reserve(n * glyph.size());
+    for (std::size_t i = 0; i < n; ++i) out += glyph;
     return out;
 }
 
 // The lines the engine draws for a buffer it renders itself.  Every outcome
 // commits, so a miss reports what it charged the box.
-size_t EngineLinesFor(const std::string& wire) {
+std::size_t EngineLinesFor(const std::string& wire) {
     TranslationMap empty;
     BoxLineBudget budget;
     Substitution sub;
@@ -684,7 +692,7 @@ size_t EngineLinesFor(const std::string& wire) {
 }
 
 // Full-width characters a line holds: two columns each.
-size_t PerLine() { return translator_logic::BOX_COLUMNS / 2; }
+std::size_t PerLine() { return translator_logic::BOX_COLUMNS / 2; }
 
 }  // namespace
 
@@ -723,7 +731,7 @@ TEST(EngineLines, MarkupCostsNoColumnBecauseTheEngineDrawsNoneOfIt) {
     // The engine consumes "<r かな>" and draws none of it, so charging the box
     // for its bytes would fill the box with text nobody sees and cut the
     // English of the next segment for room that was there all along.
-    const std::string tag = std::string("<r ") + "\x82\xA9" "\x82\xC8" + ">";
+    const std::string tag = Cp932("<r かな>");
     const std::string base = Repeat(kA, PerLine());
     EXPECT_EQ(EngineLinesFor(tag + base + "</r>"), 1u);
     EXPECT_GT(tag.size() + base.size() + 4, translator_logic::BOX_COLUMNS);
@@ -781,8 +789,8 @@ TEST(DrawBudget, NoValueOfAnyShapeGetsPastTheBudgetItIsGiven) {
     // none, alone and inside a chain, and a value of nothing but two-byte
     // characters.
     const translator_logic::Surface surface { MAX_LINES, 176 };
-    for (size_t n : { size_t(1), size_t(60), size_t(140), size_t(176),
-                      size_t(210), size_t(400), size_t(4000) }) {
+    for (std::size_t n : { std::size_t(1), std::size_t(60), std::size_t(140), std::size_t(176),
+                      std::size_t(210), std::size_t(400), std::size_t(4000) }) {
         std::string prose;
         while (prose.size() < n) prose += "abcdef ";
         prose.resize(n);
@@ -826,8 +834,8 @@ TEST(DrawBudget, TheCutNeverSplitsATwoByteCharacter) {
               SubstitutionStatus::Substituted);
     ASSERT_LE(sub.bytes.size(), surface.max_bytes);
 
-    size_t i = 0;
-    size_t last_start = 0;
+    std::size_t i = 0;
+    std::size_t last_start = 0;
     while (i < sub.bytes.size()) {
         last_start = i;
         const unsigned char b = static_cast<unsigned char>(sub.bytes[i]);
@@ -915,7 +923,7 @@ TEST(EngineLines, ABracketTheEngineDrawsItselfStillCostsItsColumn) {
     EXPECT_EQ(EngineLinesFor("<" + full), 2u);
 }
 
-// --- The surfaces nobody photographed ----------------------------------
+// Unmeasured script font-size surfaces.
 //
 // Nineteen font sizes appear in the corpus; only three are screen-measured.
 // These pin the derivation for the other sixteen and gate against overflow.
@@ -941,7 +949,7 @@ TEST(UnmeasuredSurface, the_derived_geometry_reproduces_the_measured_one) {
     EXPECT_EQ(LinesAtPitch(60), 2u);
 
     // Wider advances hold fewer columns and fewer lines, monotonically.
-    for (size_t pitch = 21; pitch < 135; ++pitch) {
+    for (std::size_t pitch = 21; pitch < 135; ++pitch) {
         EXPECT_GE(ColumnsAtPitch(pitch), ColumnsAtPitch(pitch + 1)) << pitch;
         EXPECT_GE(LinesAtPitch(pitch), LinesAtPitch(pitch + 1)) << pitch;
     }
@@ -976,8 +984,8 @@ TEST(UnmeasuredSurface, the_backlog_entry_holds_a_fourth_row_at_the_shorter_adva
 TEST(UnmeasuredSurface, only_one_short_line_with_no_break_of_its_own_is_taken) {
     using translator_logic::ColumnsAtPitch;
     using translator_logic::FitsUnmeasuredSurface;
-    const size_t pitch = 52;
-    const size_t columns = ColumnsAtPitch(pitch);
+    const std::size_t pitch = 52;
+    const std::size_t columns = ColumnsAtPitch(pitch);
 
     EXPECT_TRUE(FitsUnmeasuredSurface(std::string(columns, 'x'), pitch));
     EXPECT_FALSE(FitsUnmeasuredSurface(std::string(columns + 1, 'x'), pitch));
@@ -1003,7 +1011,7 @@ TEST(UnmeasuredSurface, only_one_short_line_with_no_break_of_its_own_is_taken) {
 // line to give, so the wrap marks it the moment the wire says another segment
 // follows, and the hook then leaves the whole call to the engine.
 TEST(UnmeasuredSurface, one_line_is_taken_and_a_chained_segment_is_not) {
-    const size_t pitch = 52;
+    const std::size_t pitch = 52;
     translator_logic::Surface surface;
     surface.lines = 1;
 
@@ -1026,12 +1034,18 @@ TEST(UnmeasuredSurface, one_line_is_taken_and_a_chained_segment_is_not) {
         << "one line and another segment coming is a line that loses text";
 }
 
-// --- Positioned message boxes (yuzu_2g SET_CURSOR + op140) ------------
+// Positioned message boxes (yuzu_2g SET_CURSOR + op140).
 //
 // yuzu_2g's iMessage*/Message* helpers open boxes with a dummy fullwidth space
-// ("\x81\x40"), compute SET_CURSOR (0x146) coordinates from Japanese byte
-// length and the stock 42 px row pitch, and emit segments with 0x05 prefixes
-// and no trailing 0x0A.
+// ("　", CP932 0x81 0x40), compute SET_CURSOR (0x146) coordinates from Japanese
+// byte length and the stock 42 px row pitch, and emit segments with 0x05
+// prefixes and no trailing 0x0A.
+
+namespace {
+
+const std::string kFwSpace = Cp932("　");
+
+}  // namespace
 
 TEST(PositionedBox, DummyFullwidthSpaceOpensPositionedBoxAndDrawsNothing) {
     using translator_logic::DIALOGUE_PANEL;
@@ -1041,7 +1055,7 @@ TEST(PositionedBox, DummyFullwidthSpaceOpensPositionedBoxAndDrawsNothing) {
     const int box_rect[4] = { 48, 24, 1083, 151 };
     int cursor_xy[2] = { 48, 24 };
 
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, cursor_xy, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_TRUE(sub.bytes.empty());
@@ -1073,7 +1087,7 @@ TEST(PositionedBox, Screenshot1ThreeSegmentPositionedBoxLayout) {
 
     // Dummy opener from iMessageLeftIg.
     int c0[2] = { 48, 24 };
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, c0, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_TRUE(sub.bytes.empty());
@@ -1138,7 +1152,7 @@ TEST(PositionedBox, Screenshot2TwoSegmentPositionedBoxLayout) {
     const int box_rect[4] = { 48, 24, 1083, 151 };
 
     int c0[2] = { 48, 24 };
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, c0, box_rect, 30),
               SubstitutionStatus::Substituted);
 
@@ -1185,7 +1199,7 @@ TEST(PositionedBox, Screenshot3SingleSegmentCenteredBoxLayout) {
     const int box_rect[4] = { 48, 24, 1083, 151 };
 
     int c0[2] = { 48, 24 };
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, c0, box_rect, 30),
               SubstitutionStatus::Substituted);
 
@@ -1207,8 +1221,8 @@ TEST(PositionedBox, Screenshot3SingleSegmentCenteredBoxLayout) {
 
 TEST(PositionedBox, WindowRedrawWithoutControlPrefixReproducesLayout) {
     using translator_logic::DIALOGUE_PANEL;
-    // msgwndctrl._bp redraws a positioned box by re-issuing "\x81\x40" and
-    // each segment WITHOUT the 0x05 prefix that scrmsg._bp prepended.
+    // msgwndctrl._bp redraws a positioned box by re-issuing "　" (0x81 0x40)
+    // and each segment WITHOUT the 0x05 prefix that scrmsg._bp prepended.
     TranslationMap m;
     m["S1"] = "The gazelle's endearing eyes, its beautiful coat--";
     m["S2"] = "to the lion, none of it matters much.";
@@ -1223,7 +1237,7 @@ TEST(PositionedBox, WindowRedrawWithoutControlPrefixReproducesLayout) {
     int c1[2] = { 48, 24 };
     int c2[2] = { 552, 66 };
     int c3[2] = { 188, 108 };
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, c0, box_rect, 30),
               SubstitutionStatus::Substituted);
     ASSERT_EQ(BuildSubstitution("S1", m, budget, kDialogue,
@@ -1268,7 +1282,7 @@ TEST(PositionedBox, SameRowAndFiveSegmentBoxesJoinOpenLineWithoutDropping) {
     int c4[2] = { 496, 108 };  // same row_y = 108, different col_x
     int c5[2] = { 552, 108 };  // same row_y = 108
 
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, c0, box_rect, 30),
               SubstitutionStatus::Substituted);
     ASSERT_EQ(BuildSubstitution("\x05S1", m, budget, kDialogue,
@@ -1323,7 +1337,7 @@ TEST(PositionedBox, PremonitionScreenshotsFlowAsContinuousParagraphs) {
     // Box 81: flows across 3 lines instead of 4 ragged lines.
     int c0[2] = { 48, 24 }, c1[2] = { 48, 24 }, c2[2] = { 48, 66 },
         c3[2] = { 888, 108 };
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, c0, box_rect, 30),
               SubstitutionStatus::Substituted);
     ASSERT_EQ(BuildSubstitution("\x05" "B81_1", m, budget, kDialogue,
@@ -1350,7 +1364,7 @@ TEST(PositionedBox, PremonitionScreenshotsFlowAsContinuousParagraphs) {
     // Box 92: flows across 4 lines continuously.
     int d0[2] = { 48, 24 }, d1[2] = { 48, 24 }, d2[2] = { 244, 66 },
         d3[2] = { 328, 108 };
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, d0, box_rect, 30),
               SubstitutionStatus::Substituted);
     ASSERT_EQ(BuildSubstitution("\x05" "B92_1", m, budget, kDialogue,
@@ -1388,7 +1402,7 @@ TEST(PositionedBox, LongThreeSegmentBoxesFlowWithoutTruncation) {
 
     int c0[2] = { 48, 24 }, c1[2] = { 48, 24 }, c2[2] = { 216, 66 },
         c3[2] = { 664, 108 };
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, c0, box_rect, 30),
               SubstitutionStatus::Substituted);
     ASSERT_EQ(BuildSubstitution("\x05" "B6_1", m, budget, kDialogue,
@@ -1409,10 +1423,10 @@ TEST(PositionedBox, LongThreeSegmentBoxesFlowWithoutTruncation) {
 }
 
 TEST(PositionedBox, BacklogHistoryStripsLeadingFullwidthSpaceAndJoinsSegments) {
-    // logwnd._bp concatenates seg[0..k] directly ("\x81\x40" + jp1 + jp2...).
-    const std::string kJp1 = "\x83\x4B\x83\x5B\x83\x8B";  // ガゼル
-    const std::string kJp2 = "\x83\x89\x83\x43\x83\x49";  // ライオ
-    const std::string kJp3 = "\x8A\x4F\x8C\xA9\x82\xC8";  // 外見な
+    // logwnd._bp concatenates seg[0..k] directly ("　" + jp1 + jp2...).
+    const std::string kJp1 = Cp932("ガゼル");
+    const std::string kJp2 = Cp932("ライオ");
+    const std::string kJp3 = Cp932("外見な");
 
     TranslationMap m;
     m[kJp1] = "The gazelle's endearing eyes, its beautiful coat--";
@@ -1423,15 +1437,15 @@ TEST(PositionedBox, BacklogHistoryStripsLeadingFullwidthSpaceAndJoinsSegments) {
     BoxLineBudget budget;
     Substitution sub;
 
-    // Single-segment iMessage* in backlog ("\x81\x40" + kJp1).
-    ASSERT_EQ(BuildSubstitution(("\x81\x40" + kJp1).c_str(), m, budget,
+    // Single-segment iMessage* in backlog ("　" + kJp1).
+    ASSERT_EQ(BuildSubstitution((kFwSpace + kJp1).c_str(), m, budget,
                                 kDialogue, HISTORY_WINDOW, sub),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(sub.bytes, "The gazelle's endearing eyes, its beautiful coat--");
     EXPECT_FALSE(sub.truncated);
 
-    // Multi-segment iMessage* in backlog ("\x81\x40" + kJp1 + kJp2 + kJp3).
-    ASSERT_EQ(BuildSubstitution(("\x81\x40" + kJp1 + kJp2 + kJp3).c_str(),
+    // Multi-segment iMessage* in backlog ("　" + kJp1 + kJp2 + kJp3).
+    ASSERT_EQ(BuildSubstitution((kFwSpace + kJp1 + kJp2 + kJp3).c_str(),
                                 m, budget, kDialogue, HISTORY_WINDOW, sub),
               SubstitutionStatus::Substituted);
     EXPECT_FALSE(sub.truncated);
@@ -1445,7 +1459,7 @@ TEST(PositionedBox, NoClearContinuationDoesNotOverwritePreviousSentences) {
     using translator_logic::DIALOGUE_PANEL;
     // 03_zypressen_02 ("Premonition II"): *NC ("No Clear") helpers wait for a
     // click without clearing the message box, emit "\n" on p4=0xEFE958, and
-    // then the following iMessage* helper emits "\x81\x40" with cursor_xy
+    // then the following iMessage* helper emits "　" (0x81 0x40) with cursor_xy
     // still below top_y (e.g. (48, 54) or (48, 84)).  It must continue the
     // open box rather than resetting to (48, 24) and overwriting Line 1.
     TranslationMap m;
@@ -1465,11 +1479,11 @@ TEST(PositionedBox, NoClearContinuationDoesNotOverwritePreviousSentences) {
     BoxLineBudget budget;
     Substitution sub;
     const int box_rect[4] = {48, 24, 1024, 150};
-    const uintptr_t kNcNewlineBox = 0xEFE958;
+    const std::uintptr_t kNcNewlineBox = 0xEFE958;
 
-    // --- Screenshot 1: iMessageLeftIg -> MessageLeftNC -> iMessageRight ---
+    // Screenshot 1: iMessageLeftIg -> MessageLeftNC -> iMessageRight.
     int d1[2] = {48, 24};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, d1, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(d1[0], 48);
@@ -1495,13 +1509,13 @@ TEST(PositionedBox, NoClearContinuationDoesNotOverwritePreviousSentences) {
     EXPECT_FALSE(sub.truncated);
 
     // Player clicks after MessageLeftNC: engine emits "\n" on 0xEFE958, then
-    // iMessageRight emits "\x81\x40" on kDialogue with cursor_xy=(48, 84).
+    // iMessageRight emits "　" on kDialogue with cursor_xy=(48, 84).
     ASSERT_EQ(BuildSubstitution("\n", m, budget, kNcNewlineBox,
                                 DIALOGUE_PANEL, sub, nullptr, box_rect, 30),
               SubstitutionStatus::EmptyKey);
 
     int d2[2] = {48, 84};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, d2, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(d2[0], 48);
@@ -1520,9 +1534,9 @@ TEST(PositionedBox, NoClearContinuationDoesNotOverwritePreviousSentences) {
     EXPECT_EQ(sub.box_lines_after, 2u);
     EXPECT_FALSE(sub.truncated);
 
-    // --- Screenshot 2: iMessageCenterNC -> iMessageCenterNC -> iMessageCenter
+    // Screenshot 2: iMessageCenterNC -> iMessageCenterNC -> iMessageCenter.
     int s2_d1[2] = {48, 24};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, s2_d1, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(s2_d1[1], 24) << "fresh cleared box at (48, 24) resets to 0";
@@ -1542,7 +1556,7 @@ TEST(PositionedBox, NoClearContinuationDoesNotOverwritePreviousSentences) {
               SubstitutionStatus::EmptyKey);
 
     int s2_d2[2] = {48, 84};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, s2_d2, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(s2_d2[1], 84);
@@ -1563,7 +1577,7 @@ TEST(PositionedBox, NoClearContinuationDoesNotOverwritePreviousSentences) {
               SubstitutionStatus::EmptyKey);
 
     int s2_d3[2] = {48, 84};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, s2_d3, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(s2_d3[1], 114);
@@ -1586,7 +1600,7 @@ TEST(PositionedBox, SaveLoadPreviewResetsMidNoClearBoxWhenNoNewlineFollows) {
     using translator_logic::Surface;
     // Loading a save created on the segment after *NC (HOOK[161..164] and
     // HOOK[393..396]) renders 1-line save-slot previews on a derived surface
-    // (Surface{1, false}) and then re-executes iMessage* ("\x81\x40" at
+    // (Surface{1, false}) and then re-executes iMessage* ("　", 0x81 0x40 at
     // saved cursor_xy=(48, 54)) on a freshly cleared screen WITHOUT the "\n"
     // no-clear click call.  That load must start at (48, 24), whereas
     // cancelling the Save/Load menu and clicking through *NC (which emits
@@ -1599,12 +1613,12 @@ TEST(PositionedBox, SaveLoadPreviewResetsMidNoClearBoxWhenNoNewlineFollows) {
     Substitution sub;
     const int box_rect[4] = {48, 24, 1024, 150};
     const Surface kSaveSlotPreview = {1, false};
-    const uintptr_t kPreviewBox = 0xEFEC00;
-    const uintptr_t kNcNewlineBox = 0xEFE958;
+    const std::uintptr_t kPreviewBox = 0xEFEC00;
+    const std::uintptr_t kNcNewlineBox = 0xEFE958;
 
     // 1. Open box with SEG1 (*NC).
     int d1[2] = {48, 24};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, d1, box_rect, 30),
               SubstitutionStatus::Substituted);
     int c1[2] = {244, 24};
@@ -1615,15 +1629,15 @@ TEST(PositionedBox, SaveLoadPreviewResetsMidNoClearBoxWhenNoNewlineFollows) {
 
     // 2. Player opens Save/Load menu (renders 1-line preview) and cancels back
     //    to the game, then clicks to advance past *NC (emits "\n").
-    ASSERT_EQ(BuildSubstitution("\x81\x40" "SEG2", m, budget, kPreviewBox,
-                                kSaveSlotPreview, sub),
+    ASSERT_EQ(BuildSubstitution((kFwSpace + "SEG2").c_str(), m, budget,
+                                kPreviewBox, kSaveSlotPreview, sub),
               SubstitutionStatus::Substituted);
     ASSERT_EQ(BuildSubstitution("\n", m, budget, kNcNewlineBox,
                                 DIALOGUE_PANEL, sub, nullptr, box_rect, 30),
               SubstitutionStatus::EmptyKey);
 
     int d2[2] = {48, 54};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, d2, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(d2[1], 54) << "cancelled menu + *NC click continues open box";
@@ -1636,13 +1650,13 @@ TEST(PositionedBox, SaveLoadPreviewResetsMidNoClearBoxWhenNoNewlineFollows) {
     EXPECT_EQ(sub.box_lines_after, 2u);
 
     // 3. Player opens Load menu (renders 1-line preview) and loads the save
-    //    at SEG2: "\x81\x40" arrives at saved cursor_xy=(48, 54) with NO "\n".
-    ASSERT_EQ(BuildSubstitution("\x81\x40" "SEG2", m, budget, kPreviewBox,
-                                kSaveSlotPreview, sub),
+    //    at SEG2: "　" arrives at saved cursor_xy=(48, 54) with NO "\n".
+    ASSERT_EQ(BuildSubstitution((kFwSpace + "SEG2").c_str(), m, budget,
+                                kPreviewBox, kSaveSlotPreview, sub),
               SubstitutionStatus::Substituted);
 
     int d_load[2] = {48, 54};
-    ASSERT_EQ(BuildSubstitution("\x81\x40", m, budget, kDialogue,
+    ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), m, budget, kDialogue,
                                 DIALOGUE_PANEL, sub, d_load, box_rect, 30),
               SubstitutionStatus::Substituted);
     EXPECT_EQ(d_load[0], 48);

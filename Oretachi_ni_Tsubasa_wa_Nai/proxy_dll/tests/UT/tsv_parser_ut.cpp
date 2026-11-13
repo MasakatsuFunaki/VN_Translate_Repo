@@ -4,14 +4,15 @@
 #include "runtime_hooks.h"
 #include "translator_logic.h"
 
+#include <gtest/gtest.h>
+
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 namespace oretsuba::proxy {
 namespace {
@@ -40,7 +41,7 @@ TEST(TsvParserUnitTest, LoadsEntriesAndNormalizesKeysAcrossUtf8AndCp932) {
     EXPECT_EQ(*utf8_hit, "\"Is this really Gretagard?\"");
 
     const std::string cp932_key =
-        TranslationCatalog::Utf8ToCp932("　「ここはグレタガルドなのか？」");
+        TranslationCatalog::Utf8ToCp932("　「ここはグレタガルドなのか？」　");
     const auto cp932_hit = catalog.LookupTranslation(cp932_key);
     ASSERT_TRUE(cp932_hit.has_value());
     EXPECT_EQ(*cp932_hit, "\"Is this really Gretagard?\"");

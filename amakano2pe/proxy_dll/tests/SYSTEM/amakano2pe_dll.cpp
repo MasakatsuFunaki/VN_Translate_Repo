@@ -5,91 +5,193 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// SYSTEM -- End-to-end black-box test for the built proxy DLL.
+// End-to-end black-box system test for the built proxy DLL.
 //
-// Strategy: build a tiny "driver" EXE that LoadLibraryW's the proxy
-// (driver_exe.cpp, in the same directory). This gtest spawns the
-// driver, waits for it to exit, then reads the log file the proxy
-// wrote during DllMain and asserts the game-specific banner is in
-// there.
+// Spawns amakano2pe_driver with the built proxy DLL path over CreateProcessW,
+// waits for completion, reads the log written during DllMain, and asserts that
+// the game-specific startup banner prefix is present.
 //
-// What this catches (that DONT_RESOLVE_DLL_REFERENCES inspection
-// could not):
-//   - DllMain crashes / returns FALSE
-//   - Log subsystem is broken (file never opens, flush missing)
-//   - Wrong proxy got built/linked (banner mismatch)
-//   - ProxyInit fails before banner is written
-//
-// All four compile-time #defines are set by the SYSTEM CMakeLists:
-//   PROXY_DLL_PATH    -- absolute path to the built proxy DLL
-//   DRIVER_EXE_PATH   -- absolute path to the driver_exe
-//   LOG_FILE_PATH     -- where the proxy writes its log (relative or
-//                        absolute; if relative, must resolve against
-//                        the gtest's WORKING_DIRECTORY, which the
-//                        driver inherits via CreateProcess)
-//   EXPECTED_BANNER   -- substring that must appear in the log
+// Compile-time definitions provided by SYSTEM/CMakeLists.txt:
+//   PROXY_DLL_PATH:  absolute UTF-8 path to the built proxy DLL
+//   DRIVER_EXE_PATH: absolute UTF-8 path to amakano2pe_driver
+//   LOG_FILE_PATH:   UTF-8 path to the log file written by the proxy
+//   EXPECTED_BANNER: substring that must appear in the log
 
 #include <gtest/gtest.h>
 
-#include <cstdio>
-#include <cstring>
-#include <fstream>
-#include <sstream>
-#include <string>
-
-#define WIN32_LEAN_AND_MEAN
+#ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#  define NOMINMAX
+#endif
 #include <windows.h>
 
-#ifndef PROXY_DLL_PATH
-#  define PROXY_DLL_PATH ""
-#endif
-#ifndef DRIVER_EXE_PATH
-#  define DRIVER_EXE_PATH ""
-#endif
-#ifndef LOG_FILE_PATH
-#  define LOG_FILE_PATH ""
-#endif
-#ifndef EXPECTED_BANNER
-#  define EXPECTED_BANNER ""
-#endif
+#include <cstddef>
+#include <exception>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
+#include <vector>
+
+namespace fs = std::filesystem;
 
 namespace {
 
-std::string ReadAllBytes(const char* path) {
-    std::ifstream f(path, std::ios::binary);
-    if (!f) return {};
-    std::stringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
+constexpr DWORD kDriverWaitTimeoutMs = 30000;
+constexpr UINT kTimeoutTerminateExitCode = 99;
+constexpr DWORD kSentinelExitCode = 0xDEADBEEFu;
+constexpr std::size_t kEscapedBackslashMultiplier = 2;
+constexpr std::size_t kEscapedQuoteSlashCount = 1;
+
+class ScopedHandle {
+public:
+    explicit ScopedHandle(HANDLE h) noexcept : h_(h) {}
+
+    ScopedHandle(const ScopedHandle&) = delete;
+    ScopedHandle& operator=(const ScopedHandle&) = delete;
+
+    ~ScopedHandle() {
+        if (h_ != nullptr && h_ != INVALID_HANDLE_VALUE) {
+            CloseHandle(h_);
+        }
+    }
+
+    HANDLE get() const noexcept { return h_; }
+
+private:
+    HANDLE h_;
+};
+
+class ScopedFileRemover {
+public:
+    explicit ScopedFileRemover(fs::path path) noexcept
+        : path_(std::move(path)) {}
+
+    ScopedFileRemover(const ScopedFileRemover&) = delete;
+    ScopedFileRemover& operator=(const ScopedFileRemover&) = delete;
+
+    ~ScopedFileRemover() {
+        std::error_code ec;
+        fs::remove(path_, ec);
+    }
+
+private:
+    fs::path path_;
+};
+
+bool Utf8ToWide(std::string_view s, std::wstring& out) {
+    if (s.empty()) {
+        return false;
+    }
+    const int len = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, s.data(), static_cast<int>(s.size()),
+        nullptr, 0);
+    if (len <= 0) {
+        return false;
+    }
+    std::wstring wide(static_cast<std::size_t>(len), L'\0');
+    const int written = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, s.data(), static_cast<int>(s.size()),
+        wide.data(), len);
+    if (written != len) {
+        return false;
+    }
+    out = std::move(wide);
+    return true;
 }
 
-// Spawn the driver EXE with the proxy DLL path as argv[1]. Wait up
-// to 30s for exit (DllMain spawns a polling thread in some games
-// that observes g_shutdownRequested and bails within ms of
-// FreeLibrary; 30s is a generous ceiling on top of that).
-bool RunDriverExe(const char* exe_path, const char* dll_arg,
-                  DWORD* out_exit_code) {
-    std::string cmd = std::string("\"") + exe_path + "\" \"" + dll_arg + "\"";
-    char buf[2048];
-    std::strncpy(buf, cmd.c_str(), sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+std::wstring QuoteWindowsArg(std::wstring_view arg) {
+    if (!arg.empty() &&
+        arg.find_first_of(L" \t\n\v\"") == std::wstring_view::npos) {
+        return std::wstring(arg);
+    }
 
-    STARTUPINFOA si = {sizeof(si)};
-    PROCESS_INFORMATION pi = {};
-    if (!CreateProcessA(nullptr, buf, nullptr, nullptr, FALSE,
+    std::wstring quoted;
+    quoted.push_back(L'"');
+    std::size_t pending_backslashes = 0;
+    for (const wchar_t ch : arg) {
+        if (ch == L'\\') {
+            ++pending_backslashes;
+            continue;
+        }
+        if (ch == L'"') {
+            quoted.append(
+                pending_backslashes * kEscapedBackslashMultiplier +
+                    kEscapedQuoteSlashCount,
+                L'\\');
+            quoted.push_back(L'"');
+            pending_backslashes = 0;
+            continue;
+        }
+        quoted.append(pending_backslashes, L'\\');
+        quoted.push_back(ch);
+        pending_backslashes = 0;
+    }
+    quoted.append(pending_backslashes * kEscapedBackslashMultiplier, L'\\');
+    quoted.push_back(L'"');
+    return quoted;
+}
+
+std::string ReadAllBytes(std::string_view utf8_path) {
+    if (utf8_path.empty()) {
+        return {};
+    }
+    try {
+        std::ifstream f(fs::u8path(utf8_path), std::ios::binary);
+        if (!f) {
+            return {};
+        }
+        std::stringstream ss;
+        ss << f.rdbuf();
+        return ss.str();
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
+bool RunDriverExe(std::string_view exe_path, std::string_view dll_arg,
+                  DWORD* out_exit_code) {
+    if (out_exit_code == nullptr ||
+        exe_path.find('"') != std::string_view::npos) {
+        return false;
+    }
+
+    std::wstring exe_wide;
+    std::wstring dll_wide;
+    if (!Utf8ToWide(exe_path, exe_wide) || !Utf8ToWide(dll_arg, dll_wide)) {
+        return false;
+    }
+
+    std::wstring cmd = L"\"" + exe_wide + L"\" " + QuoteWindowsArg(dll_wide);
+    std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
+    cmd_buf.push_back(L'\0');
+
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(nullptr, cmd_buf.data(), nullptr, nullptr, FALSE,
                         CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
         return false;
     }
-    DWORD wait_rc = WaitForSingleObject(pi.hProcess, 30000);
+
+    const ScopedHandle process_handle(pi.hProcess);
+    const ScopedHandle thread_handle(pi.hThread);
+
+    const DWORD wait_rc =
+        WaitForSingleObject(process_handle.get(), kDriverWaitTimeoutMs);
     if (wait_rc != WAIT_OBJECT_0) {
-        TerminateProcess(pi.hProcess, 99);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        TerminateProcess(process_handle.get(), kTimeoutTerminateExitCode);
         return false;
     }
-    GetExitCodeProcess(pi.hProcess, out_exit_code);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
+    if (!GetExitCodeProcess(process_handle.get(), out_exit_code)) {
+        return false;
+    }
     return true;
 }
 
@@ -105,33 +207,32 @@ TEST(ProxyDllSystem, DriverLoadsDllAndDllMainWritesBanner) {
     ASSERT_STRNE(EXPECTED_BANNER, "")
         << "EXPECTED_BANNER must be set at build time";
 
-    // Remove any leftover log from a previous test run so we are
-    // certain the bytes we read came from THIS driver invocation.
-    DeleteFileA(LOG_FILE_PATH);
+    std::wstring log_wide;
+    ASSERT_TRUE(Utf8ToWide(LOG_FILE_PATH, log_wide))
+        << "LOG_FILE_PATH must be valid UTF-8";
 
-    DWORD exit_code = 0xDEADBEEF;
+    const fs::path log_path = fs::u8path(LOG_FILE_PATH);
+    std::error_code ec;
+    fs::remove(log_path, ec);
+    const ScopedFileRemover cleanup_log(log_path);
+
+    DWORD exit_code = kSentinelExitCode;
     ASSERT_TRUE(RunDriverExe(DRIVER_EXE_PATH, PROXY_DLL_PATH, &exit_code))
-        << "driver EXE failed to spawn or timed out -- DllMain may "
-           "have hung, or CreateProcess failed (gle="
+        << "driver EXE failed to spawn or timed out (gle="
         << GetLastError() << ")";
-    // exit_code is INFORMATIONAL only. Some proxies (Adieu, SakuraNoUta)
-    // install a hook in DllMain that reads a fixed game RVA; in our
-    // non-game host that page is unmapped, the read AVs inside DllMain,
-    // and LoadLibraryW returns NULL with gle=1114. The banner is still
-    // on disk (Log() fflushes each line), which is what the test cares
-    // about. We surface exit_code in the message stream so a real
-    // regression (early DllMain crash before banner) is debuggable.
-    std::cout << "[ NOTE     ] driver exit_code=" << exit_code
-              << " (0 = clean ATTACH; non-zero usually = post-banner DllMain hook crash)\n";
 
-    std::string log = ReadAllBytes(LOG_FILE_PATH);
+    // Informational: in a non-game host, post-banner hook installation may fail
+    // or fault after Log() has already flushed the startup banner to disk.
+    std::cout << "[ NOTE     ] driver exit_code=" << exit_code
+              << " (0 = clean ATTACH; non-zero = post-banner hook failure)\n";
+
+    const std::string log = ReadAllBytes(LOG_FILE_PATH);
     ASSERT_FALSE(log.empty())
-        << "log file empty or missing: " << LOG_FILE_PATH
-        << " -- did DllMain run and reach LogInit/log_init?";
+        << "log file empty or missing: " << LOG_FILE_PATH;
 
     EXPECT_NE(log.find(EXPECTED_BANNER), std::string::npos)
         << "log did not contain expected banner.\n"
         << "  expected substring: " << EXPECTED_BANNER << "\n"
         << "  log path:           " << LOG_FILE_PATH << "\n"
-        << "  ---- log contents ----\n" << log;
+        << "  log contents:\n" << log;
 }

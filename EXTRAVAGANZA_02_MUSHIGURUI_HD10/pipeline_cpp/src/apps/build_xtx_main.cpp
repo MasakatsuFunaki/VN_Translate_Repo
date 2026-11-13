@@ -10,27 +10,31 @@
 // A one-shot asset tool, not part of 00_run_all: it rewrites files that ship
 // with the game rather than the script text, and it only has to run once per
 // installation.
-#include <string>
-
+#include "apps/paths.h"
 #include "common/util.h"
 #include "xtx/xtx.h"
 
-#include "apps/paths.h"
+#include <exception>
+#include <iostream>
+#include <string>
 
-int main(int argc, char** argv) {
-    mgi::setup_console_utf8();
+int main() {
     namespace po = mgi::apps::po;
 
-    std::string project, game;
-    po::options_description desc("03_build_xtx -- translate .xtx config files");
-    desc.add(mgi::apps::common_options(project, game));
-    po::variables_map vm;
-    if (auto rc = mgi::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
     try {
+        mgi::setup_console_utf8();
+
+        std::string game;
+        po::options_description desc("03_build_xtx -- translate .xtx config files");
+        desc.add(mgi::apps::game_only_options(game));
+        po::variables_map vm;
+        if (const auto rc = mgi::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
         return mgi::xtx::run_translate_xtx(game);
     } catch (const std::exception& e) {
-        mgi::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        std::cerr << "[FATAL] " << e.what() << "\n";
+        return mgi::apps::kExitError;
     }
 }

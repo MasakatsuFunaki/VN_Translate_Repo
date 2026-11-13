@@ -4,20 +4,49 @@
 #include "runtime_hooks.h"
 #include "translator_logic.h"
 
+#include <gtest/gtest.h>
+
+#include <atomic>
+#include <cstddef>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 namespace oretsuba::proxy {
 namespace {
 
 namespace fs = std::filesystem;
 
-constexpr std::size_t kMinExpectedProductionTsvEntries = 400;
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view prefix) {
+        static std::atomic<unsigned int> seq{0U};
+        const unsigned int id = seq.fetch_add(1U, std::memory_order_relaxed);
+        const std::string dir_name =
+            std::string(prefix) + "_日本語_" + std::to_string(id);
+        dir_ = fs::temp_directory_path() / fs::u8path(dir_name);
+        std::error_code ec;
+        fs::remove_all(dir_, ec);
+        fs::create_directories(dir_, ec);
+    }
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(dir_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const fs::path& path() const noexcept { return dir_; }
+
+private:
+    fs::path dir_;
+};
 
 TEST(TranslationPipelineComponentTest, ScratchRingPreservesConcurrentBacklogAndActiveMessages) {
     TranslationCatalog catalog;
@@ -37,7 +66,6 @@ TEST(TranslationPipelineComponentTest, ScratchRingPreservesConcurrentBacklogAndA
         char* buf = hook_mgr.FormatIntoNextScratchBuffer(raw);
         ASSERT_NE(buf, nullptr);
 
-        // Simulate 0x00455b49 mutating the first '$' to '\0'
         char* first_dollar = std::strchr(buf, '$');
         ASSERT_NE(first_dollar, nullptr);
         *first_dollar = '\0';
@@ -55,56 +83,36 @@ TEST(TranslationPipelineComponentTest, ScratchRingPreservesConcurrentBacklogAndA
     }
 }
 
-TEST(TranslationPipelineComponentTest, LoadsProductionTsvWhenAvailableAndTranslatesCp932Records) {
-    const fs::path tsv_path =
-        fs::u8path(ORETSUBA_ROOT_DIR) / "build" / "install" / "game" / "translation_table.tsv";
-    if (!fs::is_regular_file(tsv_path)) {
-        GTEST_SKIP() << "Production translation_table.tsv not yet staged at "
-                     << tsv_path.u8string();
+TEST(TranslationPipelineComponentTest, LoadsUtf8AndWideFilePathsAndFormatsMessages) {
+    const ScopedTempDir temp_dir("oretsuba_ct_tsv");
+    const fs::path tsv_path = temp_dir.path() / fs::u8path("translation_table_日本語.tsv");
+    {
+        std::ofstream ofs(tsv_path, std::ios::binary);
+        ASSERT_TRUE(ofs.is_open());
+        ofs << "\xEF\xBB\xBF"
+            << "# Comment header\r\n"
+            << "タカシ\tTakashi\r\n"
+            << "「ここはグレタガルドなのか？」\t\"Is this really Gretagard?\"\r\n"
+            << "声をかける\tCall out to her\r\n";
     }
 
-    TranslationCatalog catalog;
-    const std::size_t count = catalog.LoadFromFile(tsv_path.wstring().c_str());
-    EXPECT_GT(count, kMinExpectedProductionTsvEntries);
+    TranslationCatalog narrow_catalog;
+    EXPECT_EQ(narrow_catalog.LoadFromFile(static_cast<const char*>(nullptr)), 0U);
+    EXPECT_EQ(narrow_catalog.LoadFromFile(""), 0U);
+    EXPECT_EQ(narrow_catalog.LoadFromFile("\xFF\xFE"), 0U);
+    ASSERT_EQ(narrow_catalog.LoadFromFile(tsv_path.u8string().c_str()), 3U);
 
-    std::ifstream ifs(tsv_path, std::ios::binary);
-    ASSERT_TRUE(ifs.is_open());
+    TranslationCatalog wide_catalog;
+    EXPECT_EQ(wide_catalog.LoadFromFile(static_cast<const wchar_t*>(nullptr)), 0U);
+    EXPECT_EQ(wide_catalog.LoadFromFile(L""), 0U);
+    ASSERT_EQ(wide_catalog.LoadFromFile(tsv_path.wstring().c_str()), 3U);
 
-    std::string line;
-    std::size_t verified = 0;
-    while (std::getline(ifs, line)) {
-        if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
-        }
-        if (line.empty() || line.front() == '#') {
-            continue;
-        }
-        const std::size_t tab = line.find('\t');
-        if (tab == std::string::npos) {
-            continue;
-        }
-        const std::string jp_utf8 = line.substr(0, tab);
-        const std::string jp_cp932 = TranslationCatalog::Utf8ToCp932(jp_utf8);
-        ASSERT_FALSE(jp_cp932.empty()) << "Failed CP932 conversion for: " << jp_utf8;
-
-        const auto hit = catalog.LookupTranslation(jp_cp932);
-        ASSERT_TRUE(hit.has_value()) << "Failed CP932 lookup for: " << jp_utf8;
-        EXPECT_FALSE(hit->empty());
-        EXPECT_EQ(hit->find('\t'), std::string::npos) << "Corrupted tab in: " << *hit;
-        EXPECT_EQ(hit->find("\\ow."), std::string::npos) << "Corrupted \\now in: " << *hit;
-
-        const std::string msg_record =
-            TranslationCatalog::Utf8ToCp932("#タカシ\\01_01_001$&$") + jp_cp932 + "$";
-        const std::string formatted = catalog.TranslateMessageRecord(msg_record);
-        EXPECT_EQ(formatted.rfind("#Takashi\\01_01_001$&$", 0), 0U);
-        EXPECT_EQ(formatted.back(), '$');
-        EXPECT_EQ(formatted.find('\t'), std::string::npos)
-            << "Corrupted tab in formatted: " << formatted;
-        EXPECT_EQ(formatted.find("\\ow."), std::string::npos)
-            << "Corrupted \\now in formatted: " << formatted;
-        ++verified;
-    }
-    EXPECT_EQ(verified, count);
+    const std::string raw = TranslationCatalog::Utf8ToCp932(
+        "#タカシ\\01_01_001$&$「ここはグレタガルドなのか？」$");
+    EXPECT_EQ(narrow_catalog.TranslateMessageRecord(raw),
+              "#Takashi\\01_01_001$&$\"Is this really Gretagard?\"$");
+    EXPECT_EQ(wide_catalog.TranslateMessageRecord(raw),
+              "#Takashi\\01_01_001$&$\"Is this really Gretagard?\"$");
 }
 
 }  // namespace

@@ -14,7 +14,7 @@ All reverse engineering, runtime hook development, UI/menu translation, and LLM 
 | Game | Folder | Status |
 |------|--------|--------|
 | EXTRAVAGANZA \~Mushi Mederu Shoujo\~ CE | `EXTRAVAGANZA_01_CE` | Shipped |
-| Mushigurui HD10 | `EXTRAVAGANZA_02_MUSHIGURUI_HD10` | Shipped |
+| Mushigurui (HD10 & CE) | `EXTRAVAGANZA_02_MUSHIGURUI_HD10` | Shipped |
 | EXTRAVAGANZA \~Matsuro\~ CE | `EXTRAVAGANZA_03_MATSURO_CE` | Shipped |
 | AGEHA \~EXTRAVAGANZA\~ CE | `EXTRAVAGANZA_04_AGEHA_CE` | Shipped |
 | Welcome to AnzU! CE | `EXTRAVAGANZA_05_ANZU_CE` | Shipped |
@@ -43,7 +43,7 @@ All reverse engineering, runtime hook development, UI/menu translation, and LLM 
 | `CROSS_CHANNEL` | Copy everything inside `CROSS_CHANNEL\game\` (`xinput1_3.dll` + `translations.tsv`) into your game's install directory. |
 | `SakuraNoUta` | Copy everything inside `SakuraNoUta\game\` (`winmm.dll` + `translations.tsv`) into your game's install directory. |
 | `EXTRAVAGANZA_01_CE` | Copy everything inside `EXTRAVAGANZA_01_CE\game\` (`winmm.dll` + `extravaganza_patch.bin`) into your game's install directory. |
-| `EXTRAVAGANZA_02_MUSHIGURUI_HD10` | Copy everything inside `EXTRAVAGANZA_02_MUSHIGURUI_HD10\game\` (`winmm.dll` + `translation_table.tsv`) into your game's install directory and run `EXTRAVAGANZA_02_MUSHIGURUI_HD10\bin\03_build_xtx.exe --game-dir "C:\path\to\game"`. |
+| `EXTRAVAGANZA_02_MUSHIGURUI_HD10` | Copy everything inside `EXTRAVAGANZA_02_MUSHIGURUI_HD10\game\` (`winmm.dll` + `translation_table.tsv` + `menu_patch.bin`) into your game's install directory — works with both Mushigurui HD10 and EXTRAVAGANZA Complete Edition (`winmm.dll` automatically patches `dwq\sys0`, `dwq\ta0`, `dwq\ev0`, `init2\*.fxf`, and `spt\charaname.xtx` on first launch with `.bak` backups). |
 | `EXTRAVAGANZA_03_MATSURO_CE` | Copy everything inside `EXTRAVAGANZA_03_MATSURO_CE\game\` (`winmm.dll` + `translation_table.tsv` + `menu_patch.bin`) into your game's install directory (`winmm.dll` automatically patches `dwq\sys0.gpk`, `dwq\sys0.gtb`, `init2\*.fxf`, and `spt\charaname.xtx` on first launch with `.bak` backups). |
 | `EXTRAVAGANZA_04_AGEHA_CE` | Copy everything inside `EXTRAVAGANZA_04_AGEHA_CE\game\` (`winmm.dll` + `translation_table.tsv` + `menu_patch.bin`) into your game's install directory (`winmm.dll` automatically patches `dwq\sys0.gpk`, `dwq\sys0.gtb`, `init2\*.fxf`, and `spt\charaname.xtx` on first launch with `.bak` backups). |
 | `EXTRAVAGANZA_05_ANZU_CE` | Copy everything inside `EXTRAVAGANZA_05_ANZU_CE\game\` (`winmm.dll` + `translation_table.tsv` + `menu_patch.bin`) into your game's install directory (`winmm.dll` automatically patches `dwq\sys0.gpk`, `dwq\sys0.gtb`, `init2\*.fxf`, and `spt\charaname.xtx` on first launch with `.bak` backups). |

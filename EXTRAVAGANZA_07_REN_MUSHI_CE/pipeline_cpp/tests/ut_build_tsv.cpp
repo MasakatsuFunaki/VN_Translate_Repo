@@ -7,16 +7,21 @@
 
 // Unit tests for src/build_tsv/build_tsv.{h,cpp}: speaker merge, newline
 // sanitising, word wrap, TSV escaping, and CP932 translation_table.tsv output.
+#include "build_tsv/build_tsv.h"
+
+#include "common/util.h"
+
+#include <boost/json.hpp>
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <string>
-
-#include <boost/json.hpp>
-
-#include "build_tsv/build_tsv.h"
-#include "common/util.h"
+#include <string_view>
+#include <system_error>
+#include <utility>
 
 namespace fs = std::filesystem;
 namespace bt = exm::build_tsv;
@@ -31,6 +36,27 @@ constexpr int kTestWrapWidthWide = 20;
 constexpr int kTestWrapWidthNarrow = 4;
 constexpr std::size_t kMinExpectedTsvBytes = 6;
 constexpr std::uint8_t kCp932KatakanaLeadByte = 0x83;
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const fs::path& path() const { return path_; }
+
+private:
+    fs::path path_;
+};
 
 std::string write_translated(const std::string& path, bj::array strings) {
     bj::object fd;
@@ -92,8 +118,9 @@ TEST(BuildTsv, escape_covers_backslash_cr_lf_tab) {
 }
 
 TEST(BuildTsv, output_is_cp932_encoded) {
-    const std::string in = (fs::temp_directory_path() / "ageha_ut_tr.json").u8string();
-    const std::string out = (fs::temp_directory_path() / "ageha_ut.tsv").u8string();
+    const ScopedTempDir tmp("ageha_ut_tsv_cp932");
+    const std::string in = (tmp.path() / "tr.json").u8string();
+    const std::string out = (tmp.path() / "out.tsv").u8string();
 
     write_translated(in, bj::array{
         mk("アゲハ", "Ageha"),
@@ -108,14 +135,12 @@ TEST(BuildTsv, output_is_cp932_encoded) {
     auto decoded = cp932_to_utf8_strict(raw);
     ASSERT_TRUE(decoded.has_value()) << "output is not valid CP932";
     EXPECT_EQ(*decoded, "アゲハ\tAgeha\n");
-
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
 }
 
 TEST(BuildTsv, every_row_has_exactly_one_tab) {
-    const std::string in = (fs::temp_directory_path() / "ageha_ut_tr2.json").u8string();
-    const std::string out = (fs::temp_directory_path() / "ageha_ut2.tsv").u8string();
+    const ScopedTempDir tmp("ageha_ut_tsv_tabs");
+    const std::string in = (tmp.path() / "tr2.json").u8string();
+    const std::string out = (tmp.path() / "out2.tsv").u8string();
 
     write_translated(in, bj::array{
         mk("あ\ttabbed", "with\ttab"),
@@ -129,11 +154,8 @@ TEST(BuildTsv, every_row_has_exactly_one_tab) {
         if (b == '\n') {
             EXPECT_EQ(std::count(line.begin(), line.end(), '\t'), 1) << line;
             line.clear();
-        } else {
-            line += static_cast<char>(b);
+            continue;
         }
+        line += static_cast<char>(b);
     }
-
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
 }

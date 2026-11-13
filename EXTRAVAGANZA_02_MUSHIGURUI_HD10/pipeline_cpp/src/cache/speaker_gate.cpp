@@ -5,18 +5,20 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "speaker_gate.h"
+#include "cache/speaker_gate.h"
+
+#include "cache/cache_core.h"
+#include "cache/glossary.h"
+#include "common/util.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <map>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
-
-#include "common/util.h"
-#include "glossary.h"
-#include "cache_core.h"
 
 namespace mgi::translate {
 
@@ -26,19 +28,35 @@ namespace {
 
 // Enough dialogue to make a broken speaker plate obvious and few enough that
 // the printed sample stays readable.
-constexpr std::size_t SAMPLE_SIZE = 50;
+constexpr std::size_t kSampleSize = 50;
 
 // Above this share of NARRATION among dialogue lines the plate is not being
 // parsed at all.  A handful of genuinely unattributed lines is normal; a
 // twentieth of them is the edge of normal.
-constexpr double MAX_NARRATION_PCT = 5.0;
+constexpr double kMaxNarrationPercent = 5.0;
 
 // How many entries of a failing list are worth printing.  The list exists to
 // be pasted into the glossary, and beyond this it is a wall.
-constexpr std::size_t MAX_LISTED = 30;
+constexpr std::size_t kMaxListedEntries = 30;
+
+constexpr std::size_t kCrlfByteLen = 2;
+constexpr std::size_t kMaxSpeakerNameChars = 20;
+constexpr std::size_t kMinSampledDialogues = 10;
+constexpr double kPercentScale = 100.0;
+constexpr std::size_t kPercentBufSize = 64;
+constexpr std::size_t kMaxDisplayedSpeakers = 8;
+constexpr std::size_t kPromptSampleCount = 10;
+constexpr int kPromptPreviewLines = 8;
+
+constexpr int kCheckSpeakerExtraction = 1;
+constexpr int kCheckNameResolution = 2;
+constexpr int kCheckPromptFormatting = 3;
+constexpr int kCheckCoreCastPresent = 4;
+constexpr int kCheckExhaustiveCoverage = 5;
 
 std::size_t char_len(const std::string& utf8) {
-    std::size_t n = 0, i = 0;
+    std::size_t n = 0;
+    std::size_t i = 0;
     while (i < utf8.size()) {
         utf8_next(utf8, i);
         ++n;
@@ -49,7 +67,9 @@ std::size_t char_len(const std::string& utf8) {
 std::string join(const std::vector<std::string>& v, const char* sep) {
     std::string out;
     for (const auto& s : v) {
-        if (!out.empty()) out += sep;
+        if (!out.empty()) {
+            out += sep;
+        }
         out += s;
     }
     return out;
@@ -59,15 +79,23 @@ std::string join(const std::vector<std::string>& v, const char* sep) {
 std::vector<std::string> collect_dialogues(const bj::object& extracted) {
     std::vector<std::string> out;
     for (const auto& kv : extracted) {
-        if (!kv.value().is_object()) continue;
+        if (!kv.value().is_object()) {
+            continue;
+        }
         const auto* strings = kv.value().get_object().if_contains("strings");
-        if (!strings || !strings->is_array()) continue;
+        if (strings == nullptr || !strings->is_array()) {
+            continue;
+        }
         for (const auto& sv : strings->get_array()) {
             const auto& s = sv.get_object();
-            auto* t = s.if_contains("type");
-            if (!t || !t->is_string() || t->get_string() != "dialogue") continue;
-            if (auto* txt = s.if_contains("text"))
-                if (txt->is_string()) out.emplace_back(txt->get_string());
+            const auto* t = s.if_contains("type");
+            if (t == nullptr || !t->is_string() || t->get_string() != "dialogue") {
+                continue;
+            }
+            if (const auto* txt = s.if_contains("text");
+                txt != nullptr && txt->is_string()) {
+                out.emplace_back(txt->get_string());
+            }
         }
     }
     return out;
@@ -77,11 +105,17 @@ std::vector<std::string> collect_dialogues(const bj::object& extracted) {
 // translate::extract_speaker -- if you change one, change the other.
 std::string raw_jp_speaker(const std::string& text) {
     const std::size_t crlf = text.find("\r\n");
-    if (crlf == std::string::npos) return {};
+    if (crlf == std::string::npos) {
+        return {};
+    }
     const std::string raw = trim(text.substr(0, crlf));
-    const std::string rest = trim_left(text.substr(crlf + 2));
-    if (raw.empty() || char_len(raw) > 20 || rest.empty()) return {};
-    if (rest.rfind("\xE3\x80\x8C", 0) != 0 && rest.rfind("\xE3\x80\x8E", 0) != 0) return {};
+    const std::string rest = trim_left(text.substr(crlf + kCrlfByteLen));
+    if (raw.empty() || char_len(raw) > kMaxSpeakerNameChars || rest.empty()) {
+        return {};
+    }
+    if (rest.rfind("「", 0) != 0 && rest.rfind("『", 0) != 0) {
+        return {};
+    }
     return raw;
 }
 
@@ -102,62 +136,67 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
     std::vector<std::string> dialogues(
         dialogues_all.begin(),
         dialogues_all.begin() +
-            static_cast<std::ptrdiff_t>(std::min(SAMPLE_SIZE, dialogues_all.size())));
+            static_cast<std::ptrdiff_t>(std::min(kSampleSize, dialogues_all.size())));
     report.dialogue_sampled = dialogues.size();
     report.dialogue_total = dialogues_all.size();
-    if (dialogues.size() < 10) {
+    if (dialogues.size() < kMinSampledDialogues) {
         print_line("[1/5] extract_speaker on the extracted dialogue:");
-        return fail(report, 1,
+        return fail(report, kCheckSpeakerExtraction,
                     "only " + std::to_string(dialogues.size()) +
                         " dialogue entries -- the extraction looks empty");
     }
 
-    // ── 1: extract_speaker returns real speakers, not 'NARRATION' ──
+    // Check 1: extract_speaker returns real speakers, not 'NARRATION'.
     std::size_t narration = 0;
     std::set<std::string> speakers_seen;
     for (const auto& d : dialogues) {
         const std::string sp = extract_speaker(d);
-        if (sp == "NARRATION") ++narration;
-        else speakers_seen.insert(sp);
+        if (sp == "NARRATION") {
+            ++narration;
+            continue;
+        }
+        speakers_seen.insert(sp);
     }
-    const double pct =
-        100.0 * static_cast<double>(narration) / static_cast<double>(dialogues.size());
-    char buf[64];
+    const double pct = kPercentScale * static_cast<double>(narration) /
+                       static_cast<double>(dialogues.size());
+    char buf[kPercentBufSize];
     std::snprintf(buf, sizeof(buf), "%.0f", pct);
     print_line("[1/5] extract_speaker on " + std::to_string(dialogues.size()) +
                " dialogue entries:");
     print_line("      NARRATION returned: " + std::to_string(narration) + " (" + buf + "%)");
     {
-        std::vector<std::string> first8(speakers_seen.begin(), speakers_seen.end());
-        if (first8.size() > 8) first8.resize(8);
-        print_line("      distinct speakers:  [" + join(first8, ", ") + "]");
+        std::vector<std::string> preview(speakers_seen.begin(), speakers_seen.end());
+        if (preview.size() > kMaxDisplayedSpeakers) {
+            preview.resize(kMaxDisplayedSpeakers);
+        }
+        print_line("      distinct speakers:  [" + join(preview, ", ") + "]");
     }
-    if (pct >= MAX_NARRATION_PCT)
-        return fail(report, 1,
+    if (pct >= kMaxNarrationPercent) {
+        return fail(report, kCheckSpeakerExtraction,
                     "too many lines tagged NARRATION -- the speaker plate is not being parsed");
+    }
 
-    // ── 2: JP names resolve to their pinned English ──
+    // Check 2: JP names resolve to their pinned English.
     print_line("[2/5] JP -> EN name resolution:");
     const std::vector<std::pair<std::string, std::string>> cases = {
-        {u8"レン", "Ren"},
-        {u8"美弥香", "Miyaka"},
-        {u8"綾佳", "Ayaka"},
-        {u8"ユーリア", "Yuria"},
-        {u8"夢美", "Yumemi"},
+        {"レン", "Ren"},
+        {"美弥香", "Miyaka"},
+        {"綾佳", "Ayaka"},
+        {"ユーリア", "Yuria"},
+        {"夢美", "Yumemi"},
     };
     for (const auto& [jp, en] : cases) {
-        const std::string text = jp + "\r\n\xE3\x80\x8C" "dummy" "\xE3\x80\x8D";
+        const std::string text = jp + "\r\n「dummy」";
         const std::string got = extract_speaker(text);
         print_line(std::string(got == en ? "      OK   " : "      FAIL ") + "'" + jp + "' -> '" +
                    got + "' (expected '" + en + "')");
-        if (got != en)
-            return fail(report, 2, "'" + jp + "' resolved to '" + got + "', not '" + en + "'");
+        if (got != en) {
+            return fail(report, kCheckNameResolution,
+                        "'" + jp + "' resolved to '" + got + "', not '" + en + "'");
+        }
     }
 
-    // ── 3: the assembled API user-prompt carries real [Speaker] tags ──
-    // Built by the same function the requests are built with, so the check
-    // cannot pass against a copy of the prompt that has drifted from it.
-    //
+    // Check 3: the assembled API user-prompt carries real [Speaker] tags.
     // A handful of two-line NARRATIVE entries are mis-typed as 'dialogue' in
     // the extraction; extract_speaker correctly tags those NARRATION.  Sample
     // the first 10 dialogues that DO yield a real speaker so this check reads
@@ -166,13 +205,17 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
     std::vector<std::pair<std::string, std::string>> batch;
     for (const auto& d : dialogues_all) {
         const std::string sp = extract_speaker(d);
-        if (sp == "NARRATION") continue;
+        if (sp == "NARRATION") {
+            continue;
+        }
         batch.emplace_back(sp, d);
-        if (batch.size() == 10) break;
+        if (batch.size() == kPromptSampleCount) {
+            break;
+        }
     }
-    if (batch.size() < 10) {
+    if (batch.size() < kPromptSampleCount) {
         print_line("[3/5] reconstructed user-prompt:");
-        return fail(report, 3,
+        return fail(report, kCheckPromptFormatting,
                     "only " + std::to_string(batch.size()) +
                         " dialogues yielded a real speaker -- the pipeline is broken");
     }
@@ -183,46 +226,66 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
             std::string escaped;
             const std::string& text = batch[i].second;
             for (std::size_t k = 0; k < text.size(); ++k) {
-                if (text.compare(k, 2, "\r\n") == 0) { escaped += "\\r\\n"; ++k; }
-                else if (text[k] == '\n') escaped += "\\n";
-                else escaped += text[k];
+                if (text.compare(k, kCrlfByteLen, "\r\n") == 0) {
+                    escaped += "\\r\\n";
+                    ++k;
+                } else if (text[k] == '\n') {
+                    escaped += "\\n";
+                } else {
+                    escaped += text[k];
+                }
             }
             prompt += std::to_string(i + 1) + ". [" + batch[i].first + "] " + escaped + "\n";
         }
         prompt += "</lines_to_translate>\n";
         std::size_t pos = 0;
-        for (int i = 0; i < 8 && pos < prompt.size(); ++i) {
+        for (int i = 0; i < kPromptPreviewLines && pos < prompt.size(); ++i) {
             const std::size_t nl = prompt.find('\n', pos);
             print_line("      " + prompt.substr(pos, nl == std::string::npos
                                                          ? std::string::npos
                                                          : nl - pos));
-            if (nl == std::string::npos) break;
+            if (nl == std::string::npos) {
+                break;
+            }
             pos = nl + 1;
         }
         print_line("      ...");
     }
 
-    // ── 4 (sanity): the speaker table still holds the core cast ──
+    // Check 4: the speaker table still holds the core cast.
     const auto& name_dict = name_translations();
-    if (!name_dict.count(u8"レン"))
-        return fail(report, 4, "the speaker table is missing the core character names");
-    print_line(u8"[4/5] the speaker table contains the core character names (レン etc.): OK");
+    if (name_dict.count("レン") == 0) {
+        return fail(report, kCheckCoreCastPresent,
+                    "the speaker table is missing the core character names");
+    }
+    print_line("[4/5] the speaker table contains the core character names (レン etc.): OK");
 
-    // ── 5: exhaustive bidirectional speaker coverage ──
+    // Check 5: exhaustive bidirectional speaker coverage.
     std::map<std::string, std::size_t> seen;
     for (const auto& d : dialogues_all) {
         const std::string raw = raw_jp_speaker(d);
-        if (!raw.empty()) ++seen[raw];
+        if (!raw.empty()) {
+            ++seen[raw];
+        }
     }
 
     report.speakers_in_data = seen.size();
     report.glossary_entries = name_dict.size();
 
-    std::vector<std::string> missing, unused;
-    for (const auto& [jp, n] : seen)
-        if (!name_dict.count(jp)) missing.push_back(jp);
-    for (const auto& [jp, en] : name_translations_ordered())
-        if (!seen.count(jp)) unused.push_back(jp);
+    std::vector<std::string> missing;
+    std::vector<std::string> unused;
+    for (const auto& [jp, n] : seen) {
+        (void)n;
+        if (name_dict.count(jp) == 0) {
+            missing.push_back(jp);
+        }
+    }
+    for (const auto& [jp, en] : name_translations_ordered()) {
+        (void)en;
+        if (seen.count(jp) == 0) {
+            unused.push_back(jp);
+        }
+    }
     std::sort(unused.begin(), unused.end());
 
     print_line("[5/5] exhaustive speaker coverage scan:");
@@ -238,23 +301,27 @@ SpeakerCheckReport run_speaker_checks(const bj::object& extracted) {
                       [&](const std::string& a, const std::string& b) {
                           return seen[a] != seen[b] ? seen[a] > seen[b] : a < b;
                       });
-            for (std::size_t i = 0; i < missing.size() && i < MAX_LISTED; ++i)
+            for (std::size_t i = 0; i < missing.size() && i < kMaxListedEntries; ++i) {
                 print_line("          '" + missing[i] + "': '???',  # appeared " +
                            std::to_string(seen[missing[i]]) + "x");
-            if (missing.size() > MAX_LISTED)
-                print_line("          ... and " + std::to_string(missing.size() - MAX_LISTED) +
-                           " more");
+            }
+            if (missing.size() > kMaxListedEntries) {
+                print_line("          ... and " +
+                           std::to_string(missing.size() - kMaxListedEntries) + " more");
+            }
         }
         if (!unused.empty()) {
             print_line("      FAIL: " + std::to_string(unused.size()) +
                        " speaker table entries never appear as speakers:");
-            for (std::size_t i = 0; i < unused.size() && i < MAX_LISTED; ++i)
+            for (std::size_t i = 0; i < unused.size() && i < kMaxListedEntries; ++i) {
                 print_line("          '" + unused[i] + "' -> '" + name_dict.at(unused[i]) + "'");
-            if (unused.size() > MAX_LISTED)
-                print_line("          ... and " + std::to_string(unused.size() - MAX_LISTED) +
-                           " more");
+            }
+            if (unused.size() > kMaxListedEntries) {
+                print_line("          ... and " +
+                           std::to_string(unused.size() - kMaxListedEntries) + " more");
+            }
         }
-        return fail(report, 5,
+        return fail(report, kCheckExhaustiveCoverage,
                     std::to_string(missing.size()) + " speakers missing from the table and " +
                         std::to_string(unused.size()) + " table entries never spoken");
     }

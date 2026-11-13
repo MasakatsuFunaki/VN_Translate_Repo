@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MasakatsuFunaki
 
-#include <algorithm>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#include "build_tsv/build_tsv.h"
 
 #include <gtest/gtest.h>
 
-#include "build_tsv/build_tsv.h"
+#include <algorithm>
+#include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <system_error>
+#include <unordered_map>
+#include <vector>
 
 namespace {
 
@@ -19,6 +20,7 @@ namespace fs = std::filesystem;
 using namespace oretsuba::build_tsv;
 
 constexpr std::size_t kCustomTestWrapCols = 24U;
+constexpr std::size_t kMinExpectedSpeakerEntries = 320U;
 
 struct TempDir {
     fs::path path;
@@ -109,7 +111,6 @@ TEST(BuildTsvTest, WrapsEnglishLinesAt56ColumnsWithBackslashWithoutSplittingWord
         start = bs + 1U;
     }
 
-    // Reconstruct words from wrapped string to verify zero mid-word splits
     std::string reconstructed = wrapped;
     std::replace(reconstructed.begin(), reconstructed.end(), '\\', ' ');
     EXPECT_EQ(reconstructed, long_line);
@@ -174,8 +175,8 @@ TEST(BuildTsvTest, BuildsTsvWithSpeakersCacheFillAndConflictResolution) {
     const TsvBuildSummary summary = builder.Build(
         tr_path.u8string(), cache_path.u8string(), tsv_path.u8string());
 
-    EXPECT_GT(summary.entry_count, 320U);
-    EXPECT_GE(summary.speaker_entry_count, 320U);
+    EXPECT_GT(summary.entry_count, kMinExpectedSpeakerEntries);
+    EXPECT_GE(summary.speaker_entry_count, kMinExpectedSpeakerEntries);
     EXPECT_EQ(summary.cache_fill_count, 1U);
     EXPECT_EQ(summary.conflict_count, 1U);
 
@@ -194,17 +195,13 @@ TEST(BuildTsvTest, BuildsTsvWithSpeakersCacheFillAndConflictResolution) {
     EXPECT_EQ(map.at("鷲介"), "Shuusuke");
     EXPECT_EQ(map.at("隼人"), "Hayato");
 
-    // Leading <10>\ stripped in normalized key, long English dialogue wrapped with '\'
     ASSERT_NE(map.find("「おはようございます、小鳩さん」"), map.end());
     EXPECT_NE(map.at("「おはようございます、小鳩さん」").find('\\'), std::string::npos);
 
-    // Cache-filled entry
     EXPECT_EQ(map.at("「よう、元気か？」"), "\"Yo, how's it going?\"");
 
-    // First-wins on conflict
     EXPECT_EQ(map.at("「うるせえ」"), "\"Shut up.\"");
 
-    // Choice entry is NOT wrapped with '\'
     EXPECT_EQ(map.at("アレキサンドリアへ行く"),
               "Head over to Cafe Alexandria for the evening shift right away");
 }

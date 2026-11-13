@@ -19,13 +19,15 @@
 
 namespace fav::apps {
 
+inline constexpr std::size_t kPipelineStepCount = 4;
+
 struct PipelineStep {
     const char* name;  // the executable, or "deploy" for the in-process copy
     const char* what;  // the banner line, and what the README's table says
 };
 
-inline const std::array<PipelineStep, 4>& pipeline_steps() {
-    static const std::array<PipelineStep, 4> steps = {{
+inline const std::array<PipelineStep, kPipelineStepCount>& pipeline_steps() {
+    static const std::array<PipelineStep, kPipelineStepCount> steps = {{
         {"01_extract", "Extract strings from Sakura.hcb"},
         {"02_translate", "Cast gate, translate via Gemini, build translation_table.tsv"},
         {"03_patch_ui", "Patch Options & System UI textures in graph.bin"},

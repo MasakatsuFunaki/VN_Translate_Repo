@@ -14,7 +14,7 @@ option(ENABLE_TESTS "Build the GoogleTest suite" ON)
 find_package(Boost REQUIRED COMPONENTS json regex program_options)
 find_package(OpenSSL REQUIRED)
 
-get_filename_component(ORETSUBA_PROJECT_DIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+get_filename_component(ORETSUBA_PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 
 add_library(oretsuba_core STATIC
     src/apps/paths.cpp
@@ -51,6 +51,7 @@ target_link_libraries(oretsuba_core PUBLIC
     openssl::openssl
     ws2_32
     crypt32
+    shell32
 )
 
 function(oretsuba_app target main)

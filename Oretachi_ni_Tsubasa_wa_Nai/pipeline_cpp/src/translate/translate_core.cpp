@@ -3,6 +3,13 @@
 
 #include "translate/translate_core.h"
 
+#include "build_tsv/build_tsv.h"
+#include "common/util.h"
+#include "translate/glossary.h"
+#include "translate/speaker_gate.h"
+
+#include <boost/json.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -11,20 +18,15 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <system_error>
 #include <thread>
 #include <unordered_set>
-
-#include <boost/json.hpp>
-
-#include "build_tsv/build_tsv.h"
-#include "common/util.h"
-#include "translate/glossary.h"
-#include "translate/speaker_gate.h"
 
 namespace oretsuba::translate {
 
 namespace {
 
+constexpr std::uint32_t kIdeographicSpace = 0x3000U;
 constexpr std::uint32_t kHiraganaStart = 0x3040U;
 constexpr std::uint32_t kKatakanaEnd = 0x30FFU;
 constexpr std::uint32_t kCjkUnifiedStart = 0x4E00U;
@@ -46,6 +48,7 @@ constexpr unsigned char kUtf8TwoByteLeadMask = 0x1FU;
 constexpr unsigned char kUtf8ThreeByteLeadMask = 0x0FU;
 constexpr unsigned char kUtf8FourByteLeadMask = 0x07U;
 
+constexpr int kJsonIndentSpaces = 2;
 constexpr int kMaxApiRetries = 5;
 constexpr int kInitialRetryBackoffSec = 3;
 constexpr int kBackoffMultiplier = 2;
@@ -108,7 +111,7 @@ bool IsJapaneseChar(std::uint32_t cp) {
 }
 
 bool IsNumericOrWhitespace(std::uint32_t cp) {
-    if (cp == ' ' || cp == '\t' || cp == '\r' || cp == '\n' || cp == 0x3000U) {
+    if (cp == ' ' || cp == '\t' || cp == '\r' || cp == '\n' || cp == kIdeographicSpace) {
         return true;
     }
     if (cp >= '0' && cp <= '9') {
@@ -135,11 +138,13 @@ void WriteFileAtomic(const std::filesystem::path& path, std::string_view content
         std::error_code ec;
         std::filesystem::create_directories(path.parent_path(), ec);
     }
-    const std::filesystem::path tmp_path = path.string() + ".tmp";
+    const std::filesystem::path tmp_path =
+        std::filesystem::u8path(path.u8string() + ".tmp");
     {
         std::ofstream out(tmp_path, std::ios::binary | std::ios::trunc);
         if (!out) {
-            throw std::runtime_error("Cannot open temporary file for writing: " + tmp_path.string());
+            throw std::runtime_error(
+                "Cannot open temporary file for writing: " + tmp_path.u8string());
         }
         out.write(content.data(), static_cast<std::streamsize>(content.size()));
     }
@@ -150,8 +155,9 @@ void WriteFileAtomic(const std::filesystem::path& path, std::string_view content
         ec.clear();
         std::filesystem::rename(tmp_path, path, ec);
         if (ec) {
-            throw std::runtime_error("Failed to rename temporary file to " + path.string() +
-                                     ": " + ec.message());
+            throw std::runtime_error(
+                "Failed to rename temporary file to " + path.u8string() +
+                ": " + ec.message());
         }
     }
 }
@@ -178,8 +184,9 @@ void WriteJsonObjectOrdered(
 }
 
 void PrettyWriteJson(std::ostream& out, const boost::json::value& val, int indent = 0) {
-    const std::string pad(static_cast<std::size_t>(indent * 2), ' ');
-    const std::string inner_pad(static_cast<std::size_t>((indent + 1) * 2), ' ');
+    const std::string pad(static_cast<std::size_t>(indent * kJsonIndentSpaces), ' ');
+    const std::string inner_pad(
+        static_cast<std::size_t>((indent + 1) * kJsonIndentSpaces), ' ');
 
     if (val.is_object()) {
         const auto& obj = val.as_object();
@@ -320,7 +327,7 @@ void WriteTranslatedTextFile(const std::string& translated_file,
     std::ostringstream ss;
     PrettyWriteJson(ss, out_val, 0);
     ss << "\n";
-    WriteFileAtomic(translated_file, ss.str());
+    WriteFileAtomic(std::filesystem::u8path(translated_file), ss.str());
 }
 
 void WriteLastBatchLog(const std::string& last_batch_log_file,
@@ -351,7 +358,7 @@ void WriteLastBatchLog(const std::string& last_batch_log_file,
     std::ostringstream ss;
     PrettyWriteJson(ss, root, 0);
     ss << "\n";
-    WriteFileAtomic(last_batch_log_file, ss.str());
+    WriteFileAtomic(std::filesystem::u8path(last_batch_log_file), ss.str());
 }
 
 }  // namespace
@@ -412,7 +419,7 @@ bool NeedsTranslation(std::string_view text) {
 
 TranslationCache LoadCache(const std::string& cache_file) {
     TranslationCache cache;
-    const std::string raw = ReadWholeFile(cache_file);
+    const std::string raw = ReadWholeFile(std::filesystem::u8path(cache_file));
     if (raw.empty()) {
         return cache;
     }
@@ -433,7 +440,7 @@ TranslationCache LoadCache(const std::string& cache_file) {
 void SaveCache(const std::string& cache_file, const TranslationCache& cache) {
     std::ostringstream ss;
     WriteJsonObjectOrdered(ss, cache.order, cache.values);
-    WriteFileAtomic(cache_file, ss.str());
+    WriteFileAtomic(std::filesystem::u8path(cache_file), ss.str());
 }
 
 std::size_t CacheEntryCount(const std::string& cache_file) {
@@ -523,11 +530,14 @@ struct TranslateCore::Impl {
         }
 
         Glossary glossary;
-        if (!options.tone_file.empty() && std::filesystem::exists(options.tone_file)) {
+        std::error_code tone_ec;
+        if (!options.tone_file.empty() &&
+            std::filesystem::exists(std::filesystem::u8path(options.tone_file), tone_ec)) {
             glossary.LoadFromToneFile(options.tone_file);
         }
 
-        const std::string extracted_raw = ReadWholeFile(options.extracted_file);
+        const std::string extracted_raw =
+            ReadWholeFile(std::filesystem::u8path(options.extracted_file));
         if (extracted_raw.empty()) {
             std::cerr << "Error: Failed to read extracted_text.json at "
                       << options.extracted_file << "\n";

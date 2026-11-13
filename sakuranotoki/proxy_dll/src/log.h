@@ -12,9 +12,10 @@
 // unchanged; lines that embed CP932 bytes get transcoded CP932 -> UTF-8
 // before write.
 #pragma once
+
 #include <cstdio>
 
-void log_init(const char* path);   // open log file (truncate).  Pass NULL to skip.
+void log_init(const wchar_t* path);
 void log_close();
 void log_msg(const char* fmt, ...);
 

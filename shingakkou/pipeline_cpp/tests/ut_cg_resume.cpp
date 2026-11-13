@@ -19,23 +19,52 @@
 // executed here.  Instead each count is checked against needs_scan /
 // needs_translation, which are the functions the loops themselves call to
 // decide a skip, rather than against a second copy of their bodies.
+#include "cg/cg_pipeline.h"
+
+#include <boost/json.hpp>
 #include <gtest/gtest.h>
 
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
-
-#include <boost/json.hpp>
-
-#include "cg/cg_pipeline.h"
 
 namespace bj = boost::json;
 namespace cg = shin::cg::detail;
 namespace fs = std::filesystem;
 
 namespace {
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name_utf8)
+        : path_(fs::temp_directory_path() / fs::u8path(name_utf8)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
+
+const ScopedTempDir& resume_scratch() {
+    static const ScopedTempDir kDir("shin_ut_cg_resume");
+    return kDir;
+}
 
 cg::ScanKey key(const std::string& arc, const std::string& entry) {
     return cg::ScanKey{arc, entry};
@@ -66,8 +95,7 @@ const std::vector<cg::ScanKey>& sample_targets() {
 // needs a file that is really there.
 const std::string& painted_file() {
     static const std::string path = [] {
-        const fs::path p =
-            fs::temp_directory_path() / "shin_ut_cg_resume_patched.bmp";
+        const fs::path p = resume_scratch().path() / fs::u8path("patched.bmp");
         std::ofstream(p, std::ios::binary) << "BM";
         return p.u8string();
     }();
@@ -76,9 +104,9 @@ const std::string& painted_file() {
 
 const std::string& absent_file() {
     static const std::string path = [] {
-        const fs::path p =
-            fs::temp_directory_path() / "shin_ut_cg_resume_absent.bmp";
-        fs::remove(p);
+        const fs::path p = resume_scratch().path() / fs::u8path("absent.bmp");
+        std::error_code ec;
+        fs::remove(p, ec);
         return p.u8string();
     }();
     return path;
@@ -88,9 +116,10 @@ const std::string& absent_file() {
 // cases put in it, so every other recorded path that is gone stays gone.
 const std::string& patched_dir() {
     static const std::string path = [] {
-        const fs::path p = fs::temp_directory_path() / "shin_ut_cg_resume_out";
-        fs::remove_all(p);
-        fs::create_directories(p);
+        const fs::path p = resume_scratch().path() / fs::u8path("out");
+        std::error_code ec;
+        fs::remove_all(p, ec);
+        fs::create_directories(p, ec);
         return p.u8string();
     }();
     return path;
@@ -100,10 +129,11 @@ const std::string& patched_dir() {
 // an absolute path under a root that is no longer on this machine.
 const std::string& path_under_a_moved_root() {
     static const std::string path = [] {
-        const fs::path root =
-            fs::temp_directory_path() / "shin_ut_cg_resume_old_root";
-        fs::remove_all(root);
-        return (root / "narrative_patched" / "moved.bmp").u8string();
+        const fs::path root = resume_scratch().path() / fs::u8path("old_root");
+        std::error_code ec;
+        fs::remove_all(root, ec);
+        return (root / fs::u8path("narrative_patched") / fs::u8path("moved.bmp"))
+            .u8string();
     }();
     return path;
 }
@@ -111,7 +141,7 @@ const std::string& path_under_a_moved_root() {
 // The same file name, where this run paints.
 const std::string& same_name_in_the_patched_dir() {
     static const std::string path = [] {
-        const fs::path p = fs::u8path(patched_dir()) / "moved.bmp";
+        const fs::path p = fs::u8path(patched_dir()) / fs::u8path("moved.bmp");
         std::ofstream(p, std::ios::binary) << "BM";
         return p.u8string();
     }();

@@ -7,49 +7,50 @@
 
 #include "translate_core.h"
 
-#include <algorithm>
-#include <chrono>
-#include <cstdio>
-#include <filesystem>
-#include <system_error>
-#include <stdexcept>
-#include <thread>
-#include <unordered_map>
-
-#include <boost/regex.hpp>
-
 #include "build_tsv/build_tsv.h"
 #include "common/util.h"
 #include "glossary.h"
 #include "speaker_gate.h"
+
+#include <boost/regex.hpp>
+
+#include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <exception>
+#include <filesystem>
+#include <stdexcept>
+#include <system_error>
+#include <thread>
+#include <unordered_map>
+#include <utility>
 
 namespace fav::translate {
 
 namespace bj = boost::json;
 namespace fs = std::filesystem;
 
-std::optional<std::string> validate_options(int batch_size, int test_n, int max_batches) {
-    if (batch_size < 1)
-        return "--batch must be at least 1 (got " + std::to_string(batch_size) + ")";
-    if (test_n < 0)
-        return "--test cannot be negative (got " + std::to_string(test_n) + ")";
-    // A negative cap produces budget < 0, which reads as "no limit" and starts
-    // an unbounded run -- the opposite of what the flag is for.
-    if (max_batches < 0)
-        return "--max-batches cannot be negative (got " + std::to_string(max_batches) +
-               "); use 0 for no limit";
-    return std::nullopt;
-}
-
-bool needs_translation(const std::string& text) {
-    const std::string t = trim(text);
-    if (t.empty() || t.front() == '_' || t.find('/') != std::string::npos) return false;
-    return is_jp(t);
-}
-
-std::string strip(const std::string& s) { return trim(s); }
-
 namespace {
+
+constexpr int kMinValidBatchSize = 1;
+constexpr int kMinNonNegativeOptionValue = 0;
+constexpr int kDefaultPrettyIndent = 2;
+constexpr unsigned char kNonAsciiByteMin = 0x80u;
+constexpr std::size_t kCrlfByteCount = 2;
+constexpr std::size_t kMaxContextLogLineChars = 120;
+constexpr std::size_t kPromptNumberOffset = 1;
+constexpr std::int64_t kRequestMaxOutputTokens = 16384;
+constexpr int kMinBatchNumberForNumberedLog = 1;
+constexpr int kBatchNumberDisplayOffset = 1;
+constexpr int kGateFailureExitCode = 2;
+constexpr int kRuntimeFailureExitCode = 1;
+constexpr std::size_t kContextRetentionMultiplier = 2;
+constexpr int kRateLimitSleepSeconds = 60;
+constexpr std::size_t kProgressBufferBytes = 96;
+constexpr std::size_t kSizeBufferBytes = 64;
+constexpr double kBytesPerKilobyte = 1024.0;
 
 std::string replace_all_str(std::string s, const std::string& from, const std::string& to) {
     if (from.empty()) return s;
@@ -70,17 +71,38 @@ std::string replace_all_str(std::string s, const std::string& from, const std::s
 
 }  // namespace
 
+std::optional<std::string> validate_options(int batch_size, int test_n, int max_batches) {
+    if (batch_size < kMinValidBatchSize)
+        return "--batch must be at least 1 (got " + std::to_string(batch_size) + ")";
+    if (test_n < kMinNonNegativeOptionValue)
+        return "--test cannot be negative (got " + std::to_string(test_n) + ")";
+    // A negative cap produces budget < 0, which reads as "no limit" and starts
+    // an unbounded run -- the opposite of what the flag is for.
+    if (max_batches < kMinNonNegativeOptionValue)
+        return "--max-batches cannot be negative (got " + std::to_string(max_batches) +
+               "); use 0 for no limit";
+    return std::nullopt;
+}
+
+bool needs_translation(const std::string& text) {
+    const std::string t = trim(text);
+    if (t.empty() || t.front() == '_' || t.find('/') != std::string::npos) return false;
+    return is_jp(t);
+}
+
+std::string strip(const std::string& s) { return trim(s); }
+
 std::string sanitize_ascii(const std::string& text) {
     std::string s = text;
-    s = replace_all_str(s, "\xE2\x80\x94", "--");   // U+2014 em dash
-    s = replace_all_str(s, "\xE2\x80\x93", "--");   // U+2013 en dash
-    s = replace_all_str(s, "\xE2\x80\x95", "--");   // U+2015 horizontal bar
-    s = replace_all_str(s, "\xE2\x80\xA6", "...");  // U+2026 horizontal ellipsis
-    s = replace_all_str(s, "\xE2\x80\x98", "'");    // U+2018 left single quote
-    s = replace_all_str(s, "\xE2\x80\x99", "'");    // U+2019 right single quote
-    s = replace_all_str(s, "\xE2\x80\x9C", "\"");   // U+201C left double quote
-    s = replace_all_str(s, "\xE2\x80\x9D", "\"");   // U+201D right double quote
-    s = replace_all_str(s, "\xE3\x80\x80", " ");    // U+3000 ideographic space
+    s = replace_all_str(s, "—", "--");
+    s = replace_all_str(s, "–", "--");
+    s = replace_all_str(s, "―", "--");
+    s = replace_all_str(s, "…", "...");
+    s = replace_all_str(s, "‘", "'");
+    s = replace_all_str(s, "’", "'");
+    s = replace_all_str(s, "“", "\"");
+    s = replace_all_str(s, "”", "\"");
+    s = replace_all_str(s, "　", " ");
     static const boost::regex ruby_re(R"(\[([^|\]]+)\|([^\]]+)\])");
     s = boost::regex_replace(s, ruby_re, "$2");
     return s;
@@ -128,7 +150,7 @@ void save_cache(const Cache& cache, const std::string& cache_file) {
     bj::object o;
     for (const auto& [jp, en] : cache.items())
         o[jp] = en;
-    write_file_text(cache_file, json_pretty(bj::value(std::move(o)), 2));
+    write_file_text(cache_file, json_pretty(bj::value(std::move(o)), kDefaultPrettyIndent));
 }
 
 bool is_failed_entry(const std::string& jp, const std::string& en) {
@@ -136,7 +158,7 @@ bool is_failed_entry(const std::string& jp, const std::string& en) {
     if (!t.empty() && (t.front() == '_' || t.find('/') != std::string::npos)) return true;
     if (jp != en) return false;
     for (char c : jp)
-        if (static_cast<unsigned char>(c) >= 0x80) return true;
+        if (static_cast<unsigned char>(c) >= kNonAsciiByteMin) return true;
     return false;
 }
 
@@ -144,8 +166,11 @@ std::size_t purge_failed_entries(Cache& cache) {
     std::size_t removed = 0;
     Cache kept;
     for (const auto& [jp, en] : cache.items()) {
-        if (is_failed_entry(jp, en)) ++removed;
-        else kept.set(jp, en);
+        if (is_failed_entry(jp, en)) {
+            ++removed;
+            continue;
+        }
+        kept.set(jp, en);
     }
     if (removed) cache = std::move(kept);
     return removed;
@@ -165,10 +190,6 @@ void apply_line_result(Cache& cache, std::vector<std::string>& previous_context,
     previous_context.push_back(en);
 }
 
-// --------------------------------------------------------------------------- //
-// API call
-// --------------------------------------------------------------------------- //
-
 namespace {
 
 void print_context_window(const std::vector<std::string>& previous_context) {
@@ -182,11 +203,18 @@ void print_context_window(const std::vector<std::string>& previous_context) {
             const std::string& txt = previous_context[i];
             std::string flat;
             for (std::size_t k = 0; k < txt.size(); ++k) {
-                if (txt.compare(k, 2, "\r\n") == 0) { flat += '|'; ++k; }
-                else if (txt[k] == '\n') flat += '|';
-                else flat += txt[k];
+                if (txt.compare(k, kCrlfByteCount, "\r\n") == 0) {
+                    flat += '|';
+                    ++k;
+                } else if (txt[k] == '\n') {
+                    flat += '|';
+                } else {
+                    flat += txt[k];
+                }
             }
-            if (flat.size() > 120) flat.resize(120);
+            if (flat.size() > kMaxContextLogLineChars) {
+                flat.resize(kMaxContextLogLineChars);
+            }
             log_info("  " + flat);
         }
     }
@@ -210,7 +238,7 @@ std::string build_user_prompt(const std::vector<std::string>& batch_lines,
     }
     user_prompt += "<lines_to_translate>\n";
     for (std::size_t i = 0; i < batch_lines.size(); ++i)
-        user_prompt += std::to_string(i + 1) + ". " + batch_lines[i] + "\n";
+        user_prompt += std::to_string(i + kPromptNumberOffset) + ". " + batch_lines[i] + "\n";
     user_prompt += "</lines_to_translate>\n\n";
     if (!context_after.empty()) {
         user_prompt += "<context_after>\n";
@@ -276,7 +304,7 @@ std::map<int, std::string> call_gemini(
     const std::vector<std::string>& context_after) {
     bj::object body;
     body["model"] = MODEL;
-    body["max_tokens"] = 16384;
+    body["max_tokens"] = kRequestMaxOutputTokens;
     bj::object sys_block;
     sys_block["type"] = "text";
     sys_block["text"] = SYSTEM_PROMPT;
@@ -325,10 +353,6 @@ std::map<int, std::string> call_gemini(
     return parse_numbered_response(response_text);
 }
 
-// --------------------------------------------------------------------------- //
-// Driver
-// --------------------------------------------------------------------------- //
-
 namespace {
 
 // Per-batch JSON log: entries accumulate per batch index and the whole batch
@@ -341,7 +365,7 @@ public:
 
     void append(bj::object entry) {
         entries_.push_back(std::move(entry));
-        write_file_text(path(), json_pretty(bj::value(entries_), 2));
+        write_file_text(path(), json_pretty(bj::value(entries_), kDefaultPrettyIndent));
     }
 
     void next_batch() {
@@ -350,8 +374,9 @@ public:
     }
 
     std::string path() const {
-        return num_batches_ > 1
-                   ? dir_ + "\\last_translation" + std::to_string(batch_num_ + 1) + ".json"
+        return num_batches_ > kMinBatchNumberForNumberedLog
+                   ? dir_ + "\\last_translation" +
+                         std::to_string(batch_num_ + kBatchNumberDisplayOffset) + ".json"
                    : dir_ + "\\last_translation.json";
     }
 
@@ -385,14 +410,14 @@ int translate_all(const TranslateOptions& opt) {
     } catch (const std::exception& e) {
         log_info(std::string("\n[ERROR] the gate cannot read ") + opt.hcb_file + ": " + e.what());
         log_info("        Nothing was translated and nothing was written.");
-        return 2;
+        return kGateFailureExitCode;
     }
     const SpeakerCheckReport gate = run_speaker_checks(hcb);
     if (!gate.passed) {
         log_info("\n[ERROR] cast check " + std::to_string(gate.failed_check) +
                  " failed: " + gate.reason);
         log_info("        Nothing was translated and nothing was written.");
-        return 2;
+        return kGateFailureExitCode;
     }
     const auto line_speakers = map_line_speakers(hcb);
 
@@ -404,12 +429,12 @@ int translate_all(const TranslateOptions& opt) {
     if (opt.fresh_run && gemini::load_api_key().empty()) {
         log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the "
                  "cache for a run that cannot translate.");
-        return 1;
+        return kRuntimeFailureExitCode;
     }
 
     if (opt.fresh_run)
         for (const std::string& p : {opt.cache_file, opt.output_file}) {
-            // Reported, not thrown, at both steps: the throwing overloads name
+            // Reported, not thrown, at both calls: the throwing overloads name
             // no file, and this run is about to translate from scratch.  A
             // delete fails when another process holds the file open without
             // FILE_SHARE_DELETE, which scanners, indexers and sync clients
@@ -422,7 +447,7 @@ int translate_all(const TranslateOptions& opt) {
             if (ec) {
                 log_info("[ERROR] cannot delete " + p + ": " + ec.message() +
                          " -- close whatever has it open, then retry.");
-                return 1;
+                return kRuntimeFailureExitCode;
             }
             // A file that vanished between the two calls was not removed here.
             log_info(removed ? "Fresh run: removed " + p
@@ -536,9 +561,10 @@ int translate_all(const TranslateOptions& opt) {
                 previous_context.push_back(*en);
                 ++i;
             }
-            if (previous_context.size() > CONTEXT_WINDOW * 2)
-                previous_context.erase(previous_context.begin(),
-                                       previous_context.end() - CONTEXT_WINDOW * 2);
+            if (previous_context.size() > CONTEXT_WINDOW * kContextRetentionMultiplier)
+                previous_context.erase(
+                    previous_context.begin(),
+                    previous_context.end() - CONTEXT_WINDOW * kContextRetentionMultiplier);
             if (i >= work.size()) break;
 
             const std::size_t batch_start = i;
@@ -621,7 +647,9 @@ int translate_all(const TranslateOptions& opt) {
                         entry["japanese"] = jp;
                         entry["translated"] = en;
                         batch_log.append(std::move(entry));
-                    } else if (const std::string* cached_en = lookup_cached(jp)) {
+                        continue;
+                    }
+                    if (const std::string* cached_en = lookup_cached(jp)) {
                         previous_context.push_back(*cached_en);
                     }
                 }
@@ -629,7 +657,7 @@ int translate_all(const TranslateOptions& opt) {
                 // Back off, then move on to the next batch -- this one is
                 // picked up again by the next resume run.
                 log_info("    Rate limited, waiting 60s...");
-                std::this_thread::sleep_for(std::chrono::seconds(60));
+                std::this_thread::sleep_for(std::chrono::seconds(kRateLimitSleepSeconds));
                 continue;
             } catch (const std::exception& e) {
                 // Nothing is written: the batch stays uncached, so the next
@@ -637,9 +665,10 @@ int translate_all(const TranslateOptions& opt) {
                 log_info(std::string("    Batch error: ") + e.what());
             }
 
-            if (previous_context.size() > CONTEXT_WINDOW * 2)
-                previous_context.erase(previous_context.begin(),
-                                       previous_context.end() - CONTEXT_WINDOW * 2);
+            if (previous_context.size() > CONTEXT_WINDOW * kContextRetentionMultiplier)
+                previous_context.erase(
+                    previous_context.begin(),
+                    previous_context.end() - CONTEXT_WINDOW * kContextRetentionMultiplier);
             save_cache(cache, opt.cache_file);
             done += translated_now;
             batch_log.next_batch();
@@ -656,7 +685,7 @@ int translate_all(const TranslateOptions& opt) {
             double elapsed =
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
             double rate = elapsed > 0 ? static_cast<double>(done) / elapsed : 0.0;
-            char buf[96];
+            char buf[kProgressBufferBytes];
             std::snprintf(buf, sizeof(buf), "  progress: %lld translated  (%.1f l/s)", done, rate);
             log_info(buf);
         }
@@ -675,10 +704,10 @@ int translate_all(const TranslateOptions& opt) {
     }
 
     write_file(opt.output_file, json_dump(all_scripts_v));
-    char sz[64];
+    char sz[kSizeBufferBytes];
     std::snprintf(sz, sizeof(sz), "%.1f MB",
-                  static_cast<double>(fs::file_size(fs::u8path(opt.output_file))) / 1024.0 /
-                      1024.0);
+                  static_cast<double>(fs::file_size(fs::u8path(opt.output_file))) /
+                      kBytesPerKilobyte / kBytesPerKilobyte);
     log_info("Saved " + opt.output_file + " (" + sz + ")");
 
     // The table the game loads is derived from the document that was just

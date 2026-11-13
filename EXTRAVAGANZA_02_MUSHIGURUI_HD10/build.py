@@ -1,4 +1,4 @@
-"""Mushigurui HD10 build driver — Conan 2 + CMake + MSVC.
+"""Mushigurui (HD10 & Complete Edition) build driver — Conan 2 + CMake + MSVC.
 
     python build.py                    # build everything, tests included
     python build.py --test             # build, then run all the tests
@@ -7,13 +7,15 @@
     python build.py --test --deploy --game-dir DIR    # ship only if tests pass
     python build.py --clean            # delete the build tree
 
-Release only.  mushigurui_HD10.exe is a 32-bit BLACKCyc (nnn/BCmkri) binary,
-so the two halves are built for different architectures and that is the trap
-this script exists to hide: `pipeline_cpp` is x64 (the SPT/GPK tools and the
-translation pipeline), `proxy_dll` is Win32 because winmm.dll is loaded into the
-game process — its CMakeLists hard-fails on a 64-bit configure.  One CMake
-project cannot hold both, so the root CMakeLists.txt drives each half as a
-separate sub-build with its own Conan profile and toolchain.
+Release only.  All Mushigurui executables (`mushigurui_HD10.exe`,
+`mushigurui_HD10_Win7.exe`, and Complete Edition's `mushigurui.exe`) are 32-bit
+BLACKCyc (nnn/BCmkri) binaries, so the two halves are built for different
+architectures and that is the trap this script exists to hide: `pipeline_cpp`
+is x64 (the SPT/GPK/menu tools and the translation pipeline), `proxy_dll` is
+Win32 because `winmm.dll` is loaded into the game process — its CMakeLists
+hard-fails on a 64-bit configure.  One CMake project cannot hold both, so the
+root CMakeLists.txt drives each half as a separate sub-build with its own Conan
+profile and toolchain.
 
 One build folder for the whole game:
 
@@ -22,21 +24,17 @@ One build folder for the whole game:
     build/install/    what --install stages: bin/ to run, game/ to copy
 
 A bare run builds every binary including the test executables; `--test` also
-runs them: the pipeline's `ut_*` suites and the DLL's UT/CT/SYSTEM tiers.
-When `--test` and `--deploy` are given together the tests gate the deploy, so
-a regression is never shipped.
+runs them: the pipeline's `ut_*` / `ct_*` / `st_*` suites and the DLL's
+UT/CT/SYSTEM tiers.  When `--test` and `--deploy` are given together the tests
+gate the deploy, so a regression is never shipped.
 
-Deploying copies `winmm.dll` into the game folder named by `--game-dir`, which
-has no default because the install path differs per machine.  That is the
-whole payload for this game: `translation_table.tsv` (and the translated XTX
-config files) are written straight into the game folder by the pipeline
-executables themselves, so there is nothing at the repo root to copy — the
-deploy only warns when the table is not there yet.  Set VN_DIST_BUILD to skip
-the copy, because a distribution build stages the artifacts itself and may run
-where no game is installed.
+Deploying copies `winmm.dll`, `translation_table.tsv`, and `menu_patch.bin`
+into the game folder named by `--game-dir` (works identically for both HD10 and
+EXTRAVAGANZA Complete Edition).  Set VN_DIST_BUILD to skip the copy, because a
+distribution build stages the artifacts itself and may run where no game is
+installed.
 
-This script builds; it never runs the pipeline executables.  Translating calls
-a paid API, so that stays an explicit, separate action.
+This script builds; it never runs the paid translation executables.
 """
 
 import os
@@ -141,7 +139,12 @@ def build_table():
     exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
     tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
     os.makedirs(os.path.dirname(tsv), exist_ok=True)
-    if os.path.isfile(tsv) and os.path.getsize(tsv) > 0 and os.path.getmtime(tsv) >= os.path.getmtime(doc):
+    if (
+        os.path.isfile(tsv)
+        and os.path.getsize(tsv) > 0
+        and os.path.getmtime(tsv) >= os.path.getmtime(doc)
+        and os.path.getmtime(tsv) >= os.path.getmtime(exe)
+    ):
         return
     run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
 
@@ -185,6 +188,12 @@ def install():
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
     build_table()
 
+    patch_bin = os.path.join(ROOT, "menu_patch.bin")
+    if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:
+        sys.exit(f"ERROR: missing or empty {patch_bin} — run 06_patch_menus.exe first.")
+    os.makedirs(os.path.join(INSTALL_DIR, "game"), exist_ok=True)
+    shutil.copy2(patch_bin, os.path.join(INSTALL_DIR, "game", "menu_patch.bin"))
+
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
         if os.path.isdir(path):
@@ -199,6 +208,10 @@ def deploy(game_dir):
 
     print(f"\nDeploying to {game_dir}...")
 
+    patch_bin = os.path.join(ROOT, "menu_patch.bin")
+    if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:
+        sys.exit(f"ERROR: missing or empty {patch_bin} — run 06_patch_menus.exe first.")
+
     # From the build tree, not the install tree: --deploy has to work whether
     # or not --install was asked for, and the build tree is always the fresher
     # of the two.
@@ -208,6 +221,12 @@ def deploy(game_dir):
         shutil.copyfile(dll, os.path.join(game_dir, "winmm.dll"))
     except OSError as exc:
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
+        sys.exit(1)
+
+    try:
+        shutil.copyfile(patch_bin, os.path.join(game_dir, "menu_patch.bin"))
+    except OSError as exc:
+        print(f"COPY menu_patch.bin FAILED ({exc})")
         sys.exit(1)
 
     tsv = os.path.join(INSTALL_DIR, "game", "translation_table.tsv")
@@ -226,13 +245,13 @@ def deploy(game_dir):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build the Mushigurui HD10 pipeline (x64) and proxy DLL (Win32).")
+        description="Build the Mushigurui (HD10 & CE) pipeline (x64) and proxy DLL (Win32).")
     parser.add_argument("--test", action="store_true",
                         help="run all the tests after building")
     parser.add_argument("--install", action="store_true",
                         help="stage the user-facing artifacts into build/install")
     parser.add_argument("--deploy", action="store_true",
-                        help="copy winmm.dll to the game folder")
+                        help="copy winmm.dll, translation_table.tsv, and menu_patch.bin to the game folder")
     parser.add_argument("--game-dir",
                         help="game folder to deploy into; required with --deploy")
     parser.add_argument("--clean", action="store_true",

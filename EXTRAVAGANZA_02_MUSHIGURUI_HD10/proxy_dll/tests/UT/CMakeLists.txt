@@ -1,7 +1,4 @@
-# UT — Unit Tests for mushigurui_HD10.
-#
-# One executable per class/module. Naming: <classname>_ut.cpp →
-# target name <classname>_ut.
+# Unit tests for Mushigurui proxy_dll.
 
 include(GoogleTest)
 
@@ -14,3 +11,4 @@ function(add_ut_target name)
 endfunction()
 
 add_ut_target(tsv_parser_ut)
+

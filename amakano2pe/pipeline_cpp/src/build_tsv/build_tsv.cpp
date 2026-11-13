@@ -5,17 +5,20 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "build_tsv.h"
+#include "build_tsv/build_tsv.h"
 
-#include <filesystem>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
+#include "common/util.h"
 
 #include <boost/json.hpp>
 
-#include "common/util.h"
+#include <cstddef>
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace ama::build_tsv {
 
@@ -23,6 +26,18 @@ namespace bj = boost::json;
 namespace fs = std::filesystem;
 
 namespace {
+
+constexpr int kExitOk = 0;
+constexpr std::size_t kEvenParityModulus = 2;
+constexpr std::size_t kOddParityRemainder = 1;
+
+bool has_odd_trailing_backslash(std::string_view s) noexcept {
+    std::size_t trailing = 0;
+    while (trailing < s.size() && s[s.size() - 1 - trailing] == '\\') {
+        ++trailing;
+    }
+    return (trailing % kEvenParityModulus) == kOddParityRemainder;
+}
 
 const std::unordered_set<std::string>& translatable_types() {
     static const std::unordered_set<std::string> t = {"MESSAGE", "NAME"};
@@ -37,7 +52,7 @@ const std::unordered_set<std::string>& translatable_types() {
 // Inject the resolved JP->EN mapping here so the runtime hook can match it.
 const std::vector<std::pair<std::string, std::string>>& default_runtime_names() {
     static const std::vector<std::pair<std::string, std::string>> v = {
-        {"\xE8\xB3\xA2\xE4\xB8\x80", "Kenichi"},  // 賢一
+        {"賢一", "Kenichi"},
     };
     return v;
 }
@@ -63,7 +78,7 @@ struct VarSub {
 
 const std::vector<VarSub>& runtime_var_subs() {
     static const std::vector<VarSub> v = {
-        {"$str20", "\xE8\xB3\xA2\xE4\xB8\x80", "Kenichi"},  // 賢一
+        {"$str20", "賢一", "Kenichi"},
     };
     return v;
 }
@@ -74,9 +89,14 @@ const std::vector<std::string>& unsubbed_vars() {
         std::vector<std::string> out;
         for (const char* candidate : {"$str10"}) {
             bool known = false;
-            for (const auto& s : runtime_var_subs())
-                if (s.var == candidate) known = true;
-            if (!known) out.emplace_back(candidate);
+            for (const auto& s : runtime_var_subs()) {
+                if (s.var == candidate) {
+                    known = true;
+                }
+            }
+            if (!known) {
+                out.emplace_back(candidate);
+            }
         }
         return out;
     }();
@@ -84,12 +104,14 @@ const std::vector<std::string>& unsubbed_vars() {
 }
 
 std::string replace_all(std::string s, const std::string& from, const std::string& to) {
-    if (from.empty()) return s;
+    if (from.empty()) {
+        return s;
+    }
     std::string out;
     out.reserve(s.size());
     std::size_t pos = 0;
     for (;;) {
-        std::size_t hit = s.find(from, pos);
+        const std::size_t hit = s.find(from, pos);
         if (hit == std::string::npos) {
             out.append(s, pos, std::string::npos);
             return out;
@@ -105,17 +127,21 @@ std::string replace_all(std::string s, const std::string& from, const std::strin
 class OrderedMap {
 public:
     const std::string* get(const std::string& k) const {
-        auto it = index_.find(k);
+        const auto it = index_.find(k);
         return it == index_.end() ? nullptr : &order_[it->second].second;
     }
+
     // Returns true when the key was new.
     bool insert(const std::string& k, const std::string& v) {
-        auto it = index_.find(k);
-        if (it != index_.end()) return false;
+        const auto it = index_.find(k);
+        if (it != index_.end()) {
+            return false;
+        }
         index_.emplace(k, order_.size());
         order_.emplace_back(k, v);
         return true;
     }
+
     std::size_t size() const { return order_.size(); }
     const std::vector<std::pair<std::string, std::string>>& items() const { return order_; }
 
@@ -139,32 +165,59 @@ std::string escape_for_tsv(const std::string& text) {
 
 int run_build(const std::string& translated_file, const std::string& out_tsv) {
     log_info("Loading " + translated_file + "...");
-    bj::value root = json_parse_file(translated_file);
+    const bj::value root = json_parse_file(translated_file);
 
     OrderedMap seen;
     long long conflicts = 0;
 
     for (const auto& fkv : root.get_object()) {
-        if (!fkv.value().is_object()) continue;
+        if (!fkv.value().is_object()) {
+            continue;
+        }
         const auto& fdata = fkv.value().get_object();
-        auto lines_it = fdata.find("lines");
-        if (lines_it == fdata.end() || !lines_it->value().is_array()) continue;
+        const auto lines_it = fdata.find("lines");
+        if (lines_it == fdata.end() || !lines_it->value().is_array()) {
+            continue;
+        }
         for (const auto& lv : lines_it->value().get_array()) {
             const auto& ln = lv.get_object();
             const std::string type(ln.at("type").get_string());
-            if (!translatable_types().count(type)) continue;
-            std::string jp, en;
-            if (auto* c = ln.if_contains("content"))
-                if (c->is_string()) jp = std::string(c->get_string());
-            if (auto* t = ln.if_contains("translated"))
-                if (t->is_string()) en = std::string(t->get_string());
-            if (jp.empty() || en.empty() || jp == en) continue;
-            const std::string en_clean = flatten(en);
+            if (!translatable_types().count(type)) {
+                continue;
+            }
+            std::string jp;
+            std::string en;
+            if (const auto* c = ln.if_contains("content")) {
+                if (c->is_string()) {
+                    jp = std::string(c->get_string());
+                }
+            }
+            if (const auto* t = ln.if_contains("translated")) {
+                if (t->is_string()) {
+                    en = std::string(t->get_string());
+                }
+            }
+            if (jp.empty() || en.empty() || jp == en) {
+                continue;
+            }
+            std::string en_clean = flatten(en);
             const std::string jp_clean = flatten(jp);
-            if (en_clean.empty() || jp_clean.empty()) continue;
+            while (!has_odd_trailing_backslash(jp_clean) &&
+                   has_odd_trailing_backslash(en_clean)) {
+                en_clean.pop_back();
+                en_clean = trim(en_clean);
+            }
+            if (en_clean.empty() || jp_clean.empty()) {
+                continue;
+            }
             const std::string* prev = seen.get(jp_clean);
-            if (!prev) seen.insert(jp_clean, en_clean);
-            else if (*prev != en_clean) ++conflicts;
+            if (!prev) {
+                seen.insert(jp_clean, en_clean);
+                continue;
+            }
+            if (*prev != en_clean) {
+                ++conflicts;
+            }
         }
     }
 
@@ -176,7 +229,9 @@ int run_build(const std::string& translated_file, const std::string& out_tsv) {
         if (!prev) {
             seen.insert(jp, en);
             ++injected;
-        } else if (*prev != en) {
+            continue;
+        }
+        if (*prev != en) {
             log_info("  WARN: runtime-name '" + jp + "' already present as '" + *prev +
                      "' (kept), not overwriting with '" + en + "'");
         }
@@ -193,21 +248,36 @@ int run_build(const std::string& translated_file, const std::string& out_tsv) {
         const auto snapshot = seen.items();
         for (const auto& [jp, en] : snapshot) {
             bool blocked = false;
-            for (const auto& v : unsubbed_vars())
-                if (jp.find(v) != std::string::npos) blocked = true;
-            if (blocked) continue;
+            for (const auto& v : unsubbed_vars()) {
+                if (jp.find(v) != std::string::npos) {
+                    blocked = true;
+                }
+            }
+            if (blocked) {
+                continue;
+            }
             bool has_var = false;
-            for (const auto& s : runtime_var_subs())
-                if (jp.find(s.var) != std::string::npos) has_var = true;
-            if (!has_var) continue;
+            for (const auto& s : runtime_var_subs()) {
+                if (jp.find(s.var) != std::string::npos) {
+                    has_var = true;
+                }
+            }
+            if (!has_var) {
+                continue;
+            }
 
-            std::string jp_sub = jp, en_sub = en;
+            std::string jp_sub = jp;
+            std::string en_sub = en;
             for (const auto& s : runtime_var_subs()) {
                 jp_sub = replace_all(jp_sub, s.var, s.jp_value);
                 en_sub = replace_all(en_sub, s.var, s.en_value);
             }
-            if (jp_sub == jp) continue;
-            if (seen.get(jp_sub)) continue;
+            if (jp_sub == jp) {
+                continue;
+            }
+            if (seen.get(jp_sub)) {
+                continue;
+            }
             seen.insert(jp_sub, en_sub);
             ++substituted;
         }
@@ -215,8 +285,9 @@ int run_build(const std::string& translated_file, const std::string& out_tsv) {
 
     fs::create_directories(fs::u8path(out_tsv).parent_path());
     std::string out;
-    for (const auto& [jp, en] : seen.items())
+    for (const auto& [jp, en] : seen.items()) {
         out += escape_for_tsv(jp) + "\t" + escape_for_tsv(en) + "\n";
+    }
     write_file(out_tsv, out);
 
     log_info("Generated " + out_tsv);
@@ -227,7 +298,7 @@ int run_build(const std::string& translated_file, const std::string& out_tsv) {
              "  (sibling rows with $strNN resolved)");
     log_info("  File size:   " +
              comma(static_cast<long long>(fs::file_size(fs::u8path(out_tsv)))) + " bytes");
-    return 0;
+    return kExitOk;
 }
 
 }  // namespace ama::build_tsv

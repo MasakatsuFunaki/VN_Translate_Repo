@@ -11,22 +11,52 @@
 // The archive tests build their fixtures in memory rather than leaning on the
 // installed game, so they run anywhere.  The end-to-end byte comparison over
 // the real 800 MB archives lives in the verification harness in analysys/.
-#include <gtest/gtest.h>
-
-#include <filesystem>
-#include <string>
-
-#include <boost/json.hpp>
-
 #include "cg/cg_pipeline.h"
 #include "common/util.h"
 #include "ddp/ddp_archive.h"
+
+#include <boost/json.hpp>
+#include <gtest/gtest.h>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <system_error>
 
 namespace bj = boost::json;
 namespace fs = std::filesystem;
 using namespace shin;
 
 namespace {
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name_utf8)
+        : path_(fs::temp_directory_path() / fs::u8path(name_utf8)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    std::string file_u8(std::string_view file_name_utf8) const {
+        return (path_ / fs::u8path(file_name_utf8)).u8string();
+    }
+
+private:
+    fs::path path_;
+};
 
 void put_u32le(Bytes& b, std::uint32_t v) {
     b.push_back(static_cast<std::uint8_t>(v & 0xFF));
@@ -109,10 +139,6 @@ Bytes make_ddp3(const std::string& name_a, const Bytes& a, const std::string& na
     return out;
 }
 
-std::string temp_path(const std::string& name) {
-    return (fs::temp_directory_path() / ("ut_cg_" + name)).u8string();
-}
-
 }  // namespace
 
 TEST(ShsWrap, is_a_literal_block_with_a_big_endian_length) {
@@ -131,60 +157,62 @@ TEST(ShsWrap, is_a_literal_block_with_a_big_endian_length) {
 }
 
 TEST(DdpArchive, ddp2_names_entries_by_index) {
-    const std::string p = temp_path("a.dat");
+    const ScopedTempDir scratch("shin_ut_cg_a");
+    const std::string p = scratch.file_u8("ut_cg_a.dat");
     write_file(p, make_ddp2(payload(0xAA, 10), payload(0xBB, 20)));
     const auto entries = ddp::list_archive(p);
     ASSERT_EQ(entries.size(), 2u);
     EXPECT_EQ(entries[0].name, "ut_cg_a#00000");
     EXPECT_EQ(entries[1].name, "ut_cg_a#00001");
     EXPECT_EQ(entries[1].packed, 20u);
-    fs::remove(fs::u8path(p));
 }
 
 TEST(DdpArchive, ddp3_reads_names_out_of_the_entry_blocks) {
-    const std::string p = temp_path("b.dat");
+    const ScopedTempDir scratch("shin_ut_cg_b");
+    const std::string p = scratch.file_u8("ut_cg_b.dat");
     write_file(p, make_ddp3("bg_one", payload(0xAA, 10), "bg_two", payload(0xBB, 20)));
     const auto entries = ddp::list_archive(p);
     ASSERT_EQ(entries.size(), 2u);
     EXPECT_EQ(entries[0].name, "bg_one");
     EXPECT_EQ(entries[1].name, "bg_two");
     EXPECT_EQ(entries[1].offset, 0x200u + 10u);
-    fs::remove(fs::u8path(p));
 }
 
 TEST(DdpArchive, rejects_a_foreign_magic) {
-    const std::string p = temp_path("c.dat");
+    const ScopedTempDir scratch("shin_ut_cg_c");
+    const std::string p = scratch.file_u8("ut_cg_c.dat");
     write_file(p, Bytes{'N', 'O', 'P', 'E', 0, 0, 0, 0});
     EXPECT_THROW(ddp::list_archive(p), std::runtime_error);
-    EXPECT_THROW(ddp::repack(p, temp_path("c.out"), {}), std::runtime_error);
-    fs::remove(fs::u8path(p));
+    EXPECT_THROW(ddp::repack(p, scratch.file_u8("ut_cg_c.out"), {}), std::runtime_error);
 }
 
 // No replacements -> the rebuild must reproduce the input exactly, or every
 // unpatched entry in an 800 MB archive is at risk.
 TEST(DdpArchive, ddp2_identity_repack_is_byte_exact) {
-    const std::string in = temp_path("d.dat"), out = temp_path("d.out");
+    const ScopedTempDir scratch("shin_ut_cg_d");
+    const std::string in = scratch.file_u8("ut_cg_d.dat");
+    const std::string out = scratch.file_u8("ut_cg_d.out");
     const Bytes original = make_ddp2(payload(0xAA, 10), payload(0xBB, 20));
     write_file(in, original);
     ddp::repack(in, out, {});
     EXPECT_EQ(read_file(out), original);
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
 }
 
 TEST(DdpArchive, ddp3_identity_repack_is_byte_exact) {
-    const std::string in = temp_path("e.dat"), out = temp_path("e.out");
+    const ScopedTempDir scratch("shin_ut_cg_e");
+    const std::string in = scratch.file_u8("ut_cg_e.dat");
+    const std::string out = scratch.file_u8("ut_cg_e.out");
     const Bytes original = make_ddp3("bg_one", payload(0xAA, 10), "bg_two", payload(0xBB, 20));
     write_file(in, original);
     ddp::repack(in, out, {});
     EXPECT_EQ(read_file(out), original);
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
 }
 
 // A replacement grows entry 0, so entry 1's data offset has to move with it.
 TEST(DdpArchive, ddp2_replacement_rewrites_the_following_offsets) {
-    const std::string in = temp_path("f.dat"), out = temp_path("f.out");
+    const ScopedTempDir scratch("shin_ut_cg_f");
+    const std::string in = scratch.file_u8("ut_cg_f.dat");
+    const std::string out = scratch.file_u8("ut_cg_f.out");
     write_file(in, make_ddp2(payload(0xAA, 10), payload(0xBB, 20)));
     const Bytes fresh(64, 0xCC);
     ddp::repack(in, out, {{"ut_cg_f#00000", fresh}});
@@ -197,12 +225,12 @@ TEST(DdpArchive, ddp2_replacement_rewrites_the_following_offsets) {
     EXPECT_EQ(get_u32le(got, 0x30), data_start + 69u) << "entry 1 moved by the delta";
     // Entry 1's bytes are still there, verbatim.
     EXPECT_EQ(Bytes(got.end() - 20, got.end()), payload(0xBB, 20));
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
 }
 
 TEST(DdpArchive, ddp3_replacement_keeps_the_section_layout) {
-    const std::string in = temp_path("g.dat"), out = temp_path("g.out");
+    const ScopedTempDir scratch("shin_ut_cg_g");
+    const std::string in = scratch.file_u8("ut_cg_g.dat");
+    const std::string out = scratch.file_u8("ut_cg_g.out");
     const Bytes original = make_ddp3("bg_one", payload(0xAA, 10), "bg_two", payload(0xBB, 20));
     write_file(in, original);
     const Bytes fresh(64, 0xCC);
@@ -222,13 +250,9 @@ TEST(DdpArchive, ddp3_replacement_keeps_the_section_layout) {
     EXPECT_EQ(entries[1].packed, 20u);
     // The data section still starts exactly at field8.
     EXPECT_EQ(got[0x200], 0x1F) << "the replacement's Shs control byte";
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
 }
 
-// ---------------------------------------------------------------------------
 // 04_find_narrative_cg helpers
-// ---------------------------------------------------------------------------
 
 TEST(CgHelpers, safe_name_replaces_only_the_invalid_characters) {
     EXPECT_EQ(cg::detail::safe_name("bg_op05_5"), "bg_op05_5");

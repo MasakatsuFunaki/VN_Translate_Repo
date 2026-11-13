@@ -7,14 +7,17 @@
 
 // Unit tests for src/common/util.{h,cpp}: file IO, Unicode trimming,
 // Japanese character counting, comma formatting, and JSON serialization.
-#include <gtest/gtest.h>
-
-#include <filesystem>
-#include <string>
+#include "common/util.h"
 
 #include <boost/json.hpp>
+#include <gtest/gtest.h>
 
-#include "common/util.h"
+#include <cstdio>
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
 
 namespace fs = std::filesystem;
 namespace bj = boost::json;
@@ -30,9 +33,28 @@ constexpr long long kSampleLargeNumber = 323299;
 constexpr long long kSampleNegativeNumber = -1234567;
 constexpr int kTwoSpaceIndent = 2;
 
-std::string temp_path(const char* name) {
-    return (fs::temp_directory_path() / name).u8string();
-}
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
 
 }  // namespace
 
@@ -61,7 +83,8 @@ TEST(Util, comma_formats_thousands_separators) {
 }
 
 TEST(Util, scoped_file_manages_file_lifetime_and_move) {
-    const std::string p = temp_path("agh_ut_scoped_file.bin");
+    const ScopedTempDir tmp("agh_ut_scoped_file");
+    const std::string p = (tmp.path() / "scoped_file.bin").u8string();
     {
         ScopedFile out(p, "wb");
         ASSERT_TRUE(static_cast<bool>(out));
@@ -75,19 +98,18 @@ TEST(Util, scoped_file_manages_file_lifetime_and_move) {
     }
     const Bytes raw = read_file(p);
     EXPECT_EQ(std::string(reinterpret_cast<const char*>(raw.data()), raw.size()), "ageha");
-    fs::remove(fs::u8path(p));
 
-    const ScopedFile missing(temp_path("agh_ut_nonexistent_dir/missing.bin"), "rb");
+    const ScopedFile missing((tmp.path() / "nonexistent_dir" / "missing.bin").u8string(), "rb");
     EXPECT_FALSE(static_cast<bool>(missing));
 }
 
 TEST(Util, write_and_read_file_round_trips_bytes_and_text) {
-    const std::string p = temp_path("agh_ut_util_io.txt");
+    const ScopedTempDir tmp("agh_ut_util_io");
+    const std::string p = (tmp.path() / "util_io.txt").u8string();
     write_file_atomic_text(p, "line1\nline2\r\nline3");
     const Bytes raw = read_file(p);
     const std::string text(reinterpret_cast<const char*>(raw.data()), raw.size());
     EXPECT_EQ(text, "line1\r\nline2\r\nline3");
-    fs::remove(fs::u8path(p));
 }
 
 TEST(Util, json_pretty_and_dump_preserve_raw_utf8) {

@@ -5,37 +5,58 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
+#include "checker/spot_checker.h"
+#include "common/util.h"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 
+#include <boost/program_options.hpp>
+
+#include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string>
-
-#include <boost/program_options.hpp>
-
-#include "checker/spot_checker.h"
-#include "common/util.h"
+#include <vector>
 
 namespace po = boost::program_options;
 namespace fs = std::filesystem;
 
 namespace {
 
+constexpr int kExitSuccess = 0;
+constexpr int kExitFailure = 1;
+constexpr std::size_t kModulePathGrowthFactor = 2;
+constexpr double kDefaultZThreshold = 0.0;
+constexpr double kDefaultMinConfidence = 0.85;
+constexpr int kDefaultRadarCalls = 20;
+constexpr int kDefaultOffset = 0;
+constexpr int kDefaultWindowSize = 40;
+constexpr int kMinWindowSize = 1;
+constexpr int kDefaultContextBefore = 40;
+constexpr int kDefaultContextAfter = 20;
+constexpr int kDefaultMaxWindows = 400;
+constexpr std::size_t kMaxLoggedHotspots = 5;
+constexpr std::size_t kHotspotLogBufferSize = 256;
+
 fs::path find_repo_root() {
     std::wstring buf(MAX_PATH, L'\0');
     for (;;) {
         const DWORD n =
             GetModuleFileNameW(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
-        if (n == 0) break;
+        if (n == 0) {
+            break;
+        }
         if (n < buf.size()) {
             buf.resize(n);
             break;
         }
-        buf.resize(buf.size() * 2);
+        buf.resize(buf.size() * kModulePathGrowthFactor);
     }
     std::error_code ec;
     for (fs::path d = fs::path(buf).parent_path(); !d.empty(); d = d.parent_path()) {
@@ -43,7 +64,9 @@ fs::path find_repo_root() {
             fs::is_directory(d / "CROSS_CHANNEL", ec)) {
             return d;
         }
-        if (d == d.root_path()) break;
+        if (d == d.root_path()) {
+            break;
+        }
     }
     return fs::current_path(ec);
 }
@@ -66,123 +89,125 @@ std::string resolve_game_dir(const std::string& game_dir_opt,
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main() {
     SetPriorityClass(GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
     spot_checker::setup_console_utf8();
 
-    std::string game_dir_arg;
-    std::string game_name_arg;
-    std::string mode_arg = "hotspot";
-    double z_threshold = 0.0;
-    double min_confidence = 0.85;
-    bool review_all_in_window = true;
-    bool lock_non_suspects = false;
-    bool include_h_scenes = false;
-    bool fix_punctuation = false;
-    bool dry_run = false;
-    int radar_calls = 20;
-    int offset = 0;
-    int window_size = 40;
-    int context_before = 40;
-    int context_after = 20;
-    int max_windows = 400;
-    bool apply_only = false;
-    std::string out_path;
-
-    po::options_description desc("01_spot_check options");
-    desc.add_options()
-        ("help,h", "show this help message and exit")
-        ("game-dir", po::value(&game_dir_arg), "path to game directory")
-        ("game", po::value(&game_name_arg), "game folder name relative to repository root")
-        ("mode", po::value(&mode_arg)->default_value("hotspot"),
-         "selection mode: 'hotspot' (full-novel statistical KDE+CUSUM+NMS) or 'linear'")
-        ("z-threshold", po::value(&z_threshold)->default_value(0.0),
-         "minimum statistical Z-score for hotspot windows (0.0 = rank all non-H windows with positive weakness energy)")
-        ("min-confidence", po::value(&min_confidence)->default_value(0.85),
-         "minimum LLM confidence (0.0-1.0) required to accept a proposed fix")
-        ("review-all-in-window", po::bool_switch(&review_all_in_window),
-         "unlock all non-H Japanese lines in each window (enabled by default)")
-        ("lock-non-suspects", po::bool_switch(&lock_non_suspects),
-         "lock lines without C++ regex flags as read-only context")
-        ("include-h-scenes", po::bool_switch(&include_h_scenes),
-         "include H-scene lines/windows (by default H-scenes are skipped)")
-        ("fix-punctuation", po::bool_switch(&fix_punctuation),
-         "enable punctuation, parenthesis/romaji-note, and bracket scoring/fixes (disabled by default)")
-        ("dry-run", po::bool_switch(&dry_run),
-         "write argon_spot_check.json only without editing translated_text.json or caches")
-        ("radar-calls", po::value(&radar_calls)->default_value(20),
-         "Stage 1 Packed LLM Radar calls (12 candidate passages per call) before Stage 2 repair")
-        ("offset", po::value(&offset)->default_value(0),
-         "starting translatable entry index (0-based, for linear mode)")
-        ("window", po::value(&window_size)->default_value(40),
-         "target lines per window")
-        ("context-before", po::value(&context_before)->default_value(40),
-         "preceding context lines included before target window")
-        ("context-after", po::value(&context_after)->default_value(20),
-         "following context lines included after target window")
-        ("max-windows", po::value(&max_windows)->default_value(400),
-         "maximum windows to check per run (400 windows = 16,000 target lines; 0 = all)")
-        ("apply", po::bool_switch(&apply_only),
-         "apply saved argon_spot_check.json to translated_text.json and cache without calling API")
-        ("out", po::value(&out_path),
-         "override output path for argon_spot_check.json");
-
-    po::variables_map vm;
     try {
-        auto parsed = po::command_line_parser(argc, argv).options(desc).run();
-        auto stray = po::collect_unrecognized(parsed.options, po::include_positional);
-        if (!stray.empty()) {
-            std::cerr << "[ERROR] unexpected argument '" << stray.front() << "'\n\n"
+        std::string game_dir_arg;
+        std::string game_name_arg;
+        std::string mode_arg = "hotspot";
+        double z_threshold = kDefaultZThreshold;
+        double min_confidence = kDefaultMinConfidence;
+        bool review_all_in_window = true;
+        bool lock_non_suspects = false;
+        bool include_h_scenes = false;
+        bool fix_punctuation = false;
+        bool dry_run = false;
+        int radar_calls = kDefaultRadarCalls;
+        int offset = kDefaultOffset;
+        int window_size = kDefaultWindowSize;
+        int context_before = kDefaultContextBefore;
+        int context_after = kDefaultContextAfter;
+        int max_windows = kDefaultMaxWindows;
+        bool apply_only = false;
+        std::string out_path;
+
+        po::options_description desc("01_spot_check options");
+        desc.add_options()
+            ("help,h", "show this help message and exit")
+            ("game-dir", po::value(&game_dir_arg), "path to game directory")
+            ("game", po::value(&game_name_arg), "game folder name relative to repository root")
+            ("mode", po::value(&mode_arg)->default_value("hotspot"),
+             "selection mode: 'hotspot' (full-novel statistical KDE+CUSUM+NMS) or 'linear'")
+            ("z-threshold", po::value(&z_threshold)->default_value(kDefaultZThreshold),
+             "minimum statistical Z-score for hotspot windows (0.0 = rank all non-H windows with positive weakness energy)")
+            ("min-confidence", po::value(&min_confidence)->default_value(kDefaultMinConfidence),
+             "minimum LLM confidence (0.0-1.0) required to accept a proposed fix")
+            ("review-all-in-window", po::bool_switch(&review_all_in_window),
+             "unlock all non-H Japanese lines in each window (enabled by default)")
+            ("lock-non-suspects", po::bool_switch(&lock_non_suspects),
+             "lock lines without C++ regex flags as read-only context")
+            ("include-h-scenes", po::bool_switch(&include_h_scenes),
+             "include H-scene lines/windows (by default H-scenes are skipped)")
+            ("fix-punctuation", po::bool_switch(&fix_punctuation),
+             "enable punctuation, parenthesis/romaji-note, and bracket scoring/fixes (disabled by default)")
+            ("dry-run", po::bool_switch(&dry_run),
+             "write argon_spot_check.json only without editing translated_text.json or caches")
+            ("radar-calls", po::value(&radar_calls)->default_value(kDefaultRadarCalls),
+             "Stage 1 Packed LLM Radar calls (12 candidate passages per call) before Stage 2 repair")
+            ("offset", po::value(&offset)->default_value(kDefaultOffset),
+             "starting translatable entry index (0-based, for linear mode)")
+            ("window", po::value(&window_size)->default_value(kDefaultWindowSize),
+             "target lines per window")
+            ("context-before", po::value(&context_before)->default_value(kDefaultContextBefore),
+             "preceding context lines included before target window")
+            ("context-after", po::value(&context_after)->default_value(kDefaultContextAfter),
+             "following context lines included after target window")
+            ("max-windows", po::value(&max_windows)->default_value(kDefaultMaxWindows),
+             "maximum windows to check per run (400 windows = 16,000 target lines; 0 = all)")
+            ("apply", po::bool_switch(&apply_only),
+             "apply saved argon_spot_check.json to translated_text.json and cache without calling API")
+            ("out", po::value(&out_path),
+             "override output path for argon_spot_check.json");
+
+        const std::vector<std::string> utf8_args = spot_checker::process_utf8_args();
+
+        po::variables_map vm;
+        try {
+            const auto parsed = po::command_line_parser(utf8_args).options(desc).run();
+            const auto stray =
+                po::collect_unrecognized(parsed.options, po::include_positional);
+            if (!stray.empty()) {
+                std::cerr << "[ERROR] unexpected argument '" << stray.front() << "'\n\n"
+                          << desc << std::endl;
+                return kExitFailure;
+            }
+            po::store(parsed, vm);
+            if (vm.count("help") > 0) {
+                std::cout << desc << std::endl;
+                return kExitSuccess;
+            }
+            po::notify(vm);
+        } catch (const po::error& e) {
+            std::cerr << "[ERROR] " << e.what() << "\n\n" << desc << std::endl;
+            return kExitFailure;
+        }
+
+        const std::string resolved_dir = resolve_game_dir(game_dir_arg, game_name_arg);
+        if (resolved_dir.empty()) {
+            std::cerr << "[ERROR] either --game-dir <path> or --game <name> is required\n\n"
                       << desc << std::endl;
-            return 1;
+            return kExitFailure;
         }
-        po::store(parsed, vm);
-        if (vm.count("help")) {
-            std::cout << desc << std::endl;
-            return 0;
+        if (offset < 0 || window_size < kMinWindowSize || context_before < 0 ||
+            context_after < 0 || max_windows < 0 || radar_calls < 0) {
+            std::cerr << "[ERROR] numeric window/offset/radar options must be non-negative "
+                         "(and --window >= 1)\n";
+            return kExitFailure;
         }
-        po::notify(vm);
-    } catch (const po::error& e) {
-        std::cerr << "[ERROR] " << e.what() << "\n\n" << desc << std::endl;
-        return 1;
-    }
 
-    const std::string resolved_dir = resolve_game_dir(game_dir_arg, game_name_arg);
-    if (resolved_dir.empty()) {
-        std::cerr << "[ERROR] either --game-dir <path> or --game <name> is required\n\n"
-                  << desc << std::endl;
-        return 1;
-    }
-    if (offset < 0 || window_size < 1 || context_before < 0 || context_after < 0 ||
-        max_windows < 0 || radar_calls < 0) {
-        std::cerr << "[ERROR] numeric window/offset/radar options must be non-negative "
-                     "(and --window >= 1)\n";
-        return 1;
-    }
-
-    spot_checker::SpotCheckConfig cfg;
-    cfg.game_dir = resolved_dir;
-    if (mode_arg == "linear" ||
-        (!vm["offset"].defaulted() && vm["mode"].defaulted())) {
-        cfg.mode = spot_checker::SpotCheckMode::Linear;
-    } else {
+        spot_checker::SpotCheckConfig cfg;
+        cfg.game_dir = resolved_dir;
         cfg.mode = spot_checker::SpotCheckMode::Hotspot;
-    }
-    cfg.z_threshold = z_threshold;
-    cfg.min_confidence = min_confidence;
-    cfg.review_all_in_window = !lock_non_suspects;
-    cfg.skip_h_scenes = !include_h_scenes;
-    cfg.fix_punctuation = fix_punctuation;
-    cfg.auto_apply = !dry_run;
-    cfg.radar_calls = static_cast<std::size_t>(radar_calls);
-    cfg.offset = static_cast<std::size_t>(offset);
-    cfg.window_size = static_cast<std::size_t>(window_size);
-    cfg.context_before = static_cast<std::size_t>(context_before);
-    cfg.context_after = static_cast<std::size_t>(context_after);
-    cfg.max_windows = static_cast<std::size_t>(max_windows);
-    cfg.out_path = out_path;
+        if (mode_arg == "linear" ||
+            (!vm["offset"].defaulted() && vm["mode"].defaulted())) {
+            cfg.mode = spot_checker::SpotCheckMode::Linear;
+        }
+        cfg.z_threshold = z_threshold;
+        cfg.min_confidence = min_confidence;
+        cfg.review_all_in_window = !lock_non_suspects;
+        cfg.skip_h_scenes = !include_h_scenes;
+        cfg.fix_punctuation = fix_punctuation;
+        cfg.auto_apply = !dry_run;
+        cfg.radar_calls = static_cast<std::size_t>(radar_calls);
+        cfg.offset = static_cast<std::size_t>(offset);
+        cfg.window_size = static_cast<std::size_t>(window_size);
+        cfg.context_before = static_cast<std::size_t>(context_before);
+        cfg.context_after = static_cast<std::size_t>(context_after);
+        cfg.max_windows = static_cast<std::size_t>(max_windows);
+        cfg.out_path = out_path;
 
-    try {
         const auto t0 = std::chrono::steady_clock::now();
         spot_checker::SpotChecker checker(cfg);
         spot_checker::log_info("Game directory:      " + cfg.game_dir);
@@ -198,7 +223,7 @@ int main(int argc, char** argv) {
                                    std::to_string(applied.script_entries_updated));
             spot_checker::log_info("Cache rows updated:  " +
                                    std::to_string(applied.cache_entries_updated));
-            return 0;
+            return kExitSuccess;
         }
 
         const spot_checker::SpotCheckReport report = checker.run();
@@ -208,10 +233,11 @@ int main(int argc, char** argv) {
         if (cfg.mode == spot_checker::SpotCheckMode::Hotspot) {
             spot_checker::log_info("Hotspots detected:   " +
                                    std::to_string(report.hotspots_detected));
-            for (std::size_t i = 0;
-                 i < std::min<std::size_t>(5, report.ranked_hotspots.size()); ++i) {
+            const std::size_t limit =
+                std::min<std::size_t>(kMaxLoggedHotspots, report.ranked_hotspots.size());
+            for (std::size_t i = 0; i < limit; ++i) {
                 const auto& hw = report.ranked_hotspots[i];
-                char buf[256];
+                char buf[kHotspotLogBufferSize];
                 std::snprintf(buf, sizeof(buf),
                               "  Hotspot #%zu: offset=%zu len=%zu Z=%.2f peak_line=%zu "
                               "(score=%.1f, %s)",
@@ -245,9 +271,9 @@ int main(int argc, char** argv) {
             spot_checker::print_line("    OLD: " + imp.old_en);
             spot_checker::print_line("    NEW: " + imp.improved_en);
         }
-        return 0;
+        return kExitSuccess;
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] " << e.what() << std::endl;
-        return 1;
+        return kExitFailure;
     }
 }

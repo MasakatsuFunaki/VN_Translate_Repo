@@ -7,24 +7,90 @@
 
 #include "translator_logic.h"
 
-#include <cstdio>
-#include <cstring>
-#include <fstream>
-#include <sstream>
-#include <string_view>
-
 #ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
 #  include <windows.h>
 #endif
 
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string_view>
+#include <utility>
+
 namespace translator_logic {
 
-// --- TSV parsing -----------------------------------------------------
+namespace {
+
+constexpr unsigned char kMinCp932Lead1 = 0x81;
+constexpr unsigned char kMaxCp932Lead1 = 0x9F;
+constexpr unsigned char kMinCp932Lead2 = 0xE0;
+constexpr unsigned char kMaxCp932Lead2 = 0xFC;
+constexpr unsigned char kFwSpaceLeadByte = 0x81;
+constexpr unsigned char kFwSpaceTrailByte = 0x40;
+constexpr std::size_t kCp932PairBytes = 2;
+
+constexpr unsigned char kMinControlPrefix = 0x02;
+constexpr unsigned char kMaxControlPrefix = 0x08;
+constexpr unsigned char kAsciiLf = 0x0A;
+constexpr unsigned char kAsciiCr = 0x0D;
+
+#ifdef _WIN32
+constexpr unsigned kCodePageCp932 = 932;
+constexpr std::size_t kCp932ScratchBufSize = 8;
+#endif
+
+constexpr unsigned char kUtf8AsciiLimit = 0x80;
+constexpr unsigned char kUtf8TwoByteMask = 0xE0;
+constexpr unsigned char kUtf8TwoByteLead = 0xC0;
+constexpr unsigned char kUtf8TwoBytePayload = 0x1F;
+constexpr unsigned char kUtf8ThreeByteMask = 0xF0;
+constexpr unsigned char kUtf8ThreeByteLead = 0xE0;
+constexpr unsigned char kUtf8ThreeBytePayload = 0x0F;
+constexpr unsigned char kUtf8FourByteMask = 0xF8;
+constexpr unsigned char kUtf8FourByteLead = 0xF0;
+constexpr unsigned char kUtf8FourBytePayload = 0x07;
+constexpr unsigned char kUtf8ContMask = 0xC0;
+constexpr unsigned char kUtf8ContTag = 0x80;
+constexpr unsigned char kUtf8ContPayload = 0x3F;
+constexpr unsigned kUtf8ContShiftBits = 6;
+constexpr std::size_t kOneExtraByte = 1;
+constexpr std::size_t kTwoExtraBytes = 2;
+constexpr std::size_t kThreeExtraBytes = 3;
+
+constexpr unsigned kBmpMax = 0xFFFFu;
+constexpr unsigned kUnicodeMax = 0x10FFFFu;
+constexpr unsigned kSupplementaryBase = 0x10000u;
+constexpr unsigned kHighSurrogateBase = 0xD800u;
+constexpr unsigned kLowSurrogateBase = 0xDC00u;
+constexpr unsigned kSurrogatePayloadMask = 0x3FFu;
+constexpr unsigned kSurrogateShiftBits = 10;
+
+constexpr unsigned kLatin1FoldFirst = 0x00C0u;
+constexpr unsigned kLatin1FoldLast = 0x00FFu;
+constexpr unsigned kFullwidthAsciiFirst = 0xFF01u;
+constexpr unsigned kFullwidthAsciiLast = 0xFF5Eu;
+constexpr unsigned kFullwidthAsciiOffset = 0xFEE0u;
+
+constexpr std::size_t kMinRubyCloserLen = 2;
+constexpr std::size_t kMinLinesForUnmeasuredSurface = 2;
+constexpr unsigned kByteShiftBits = 8;
+constexpr std::size_t kMinSegmentsForConcatMatch = 2;
+constexpr std::size_t kMinJoinRoomColumns = 2;
+
+}  // namespace
+
+// TSV parsing.
 
 void UnescapeInPlace(std::string& s) {
     std::string out;
     out.reserve(s.size());
-    for (size_t i = 0; i < s.size(); ++i) {
+    for (std::size_t i = 0; i < s.size(); ++i) {
         char c = s[i];
         if (c == '\\' && i + 1 < s.size()) {
             char n = s[i + 1];
@@ -40,21 +106,21 @@ void UnescapeInPlace(std::string& s) {
     s.swap(out);
 }
 
-int ParseTsvBuffer(const char* data, size_t len, TranslationMap& out,
+int ParseTsvBuffer(const char* data, std::size_t len, TranslationMap& out,
                    std::vector<UnmappableChar>* unmappable,
                    std::vector<std::string>* markup_rows) {
     int added = 0;
-    size_t i = 0;
+    std::size_t i = 0;
     while (i < len) {
         // Find end-of-line
-        size_t eol = i;
+        std::size_t eol = i;
         while (eol < len && data[eol] != '\n') ++eol;
-        size_t line_end = eol;
+        std::size_t line_end = eol;
         // Trim trailing \r
         if (line_end > i && data[line_end - 1] == '\r') --line_end;
 
         // Find tab separator
-        size_t tab = i;
+        std::size_t tab = i;
         while (tab < line_end && data[tab] != '\t') ++tab;
 
         if (tab < line_end) {
@@ -104,24 +170,35 @@ int ParseTsvBuffer(const char* data, size_t len, TranslationMap& out,
 bool LoadTsvFile(const std::string& path, TranslationMap& out,
                  std::vector<UnmappableChar>* unmappable,
                  std::vector<std::string>* markup_rows) {
-    std::ifstream f(path, std::ios::binary);
-    if (!f) return false;
-    std::stringstream ss;
-    ss << f.rdbuf();
-    std::string buf = ss.str();
-    int n = ParseTsvBuffer(buf.data(), buf.size(), out, unmappable, markup_rows);
-    return n > 0;
+    if (path.empty()) {
+        return false;
+    }
+    try {
+        std::ifstream f(std::filesystem::u8path(path), std::ios::binary);
+        if (!f) {
+            return false;
+        }
+        std::stringstream ss;
+        ss << f.rdbuf();
+        const std::string buf = ss.str();
+        const int n = ParseTsvBuffer(
+            buf.data(), buf.size(), out, unmappable, markup_rows);
+        return n > 0;
+    } catch (...) {
+        return false;
+    }
 }
 
-// --- CP932 helpers ---------------------------------------------------
+// CP932 helpers.
 
 bool IsCp932LeadByte(unsigned char b) {
-    return (b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC);
+    return (b >= kMinCp932Lead1 && b <= kMaxCp932Lead1) ||
+           (b >= kMinCp932Lead2 && b <= kMaxCp932Lead2);
 }
 
-bool HasJPLeadByte(const char* data, size_t len) {
-    for (size_t i = 0; i + 1 < len; ++i) {
-        unsigned char b = static_cast<unsigned char>(data[i]);
+bool HasJPLeadByte(const char* data, std::size_t len) {
+    for (std::size_t i = 0; i + 1 < len; ++i) {
+        const unsigned char b = static_cast<unsigned char>(data[i]);
         if (IsCp932LeadByte(b)) return true;
     }
     return false;
@@ -130,23 +207,20 @@ bool HasJPLeadByte(const char* data, size_t len) {
 std::string Utf8ToCp932(const std::string& utf8) {
 #ifdef _WIN32
     if (utf8.empty()) return {};
-    int wn = MultiByteToWideChar(CP_UTF8, 0, utf8.data(),
-                                  static_cast<int>(utf8.size()),
-                                  nullptr, 0);
+    const int wn = MultiByteToWideChar(
+        CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), nullptr, 0);
     if (wn <= 0) return utf8;
-    std::wstring w(wn, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, utf8.data(),
-                        static_cast<int>(utf8.size()),
-                        &w[0], wn);
-    int bn = WideCharToMultiByte(932, 0, w.data(), wn, nullptr, 0,
-                                  "?", nullptr);
+    std::wstring w(static_cast<std::size_t>(wn), L'\0');
+    MultiByteToWideChar(
+        CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), &w[0], wn);
+    const int bn = WideCharToMultiByte(
+        kCodePageCp932, 0, w.data(), wn, nullptr, 0, "?", nullptr);
     if (bn <= 0) return utf8;
-    std::string out(bn, '\0');
-    WideCharToMultiByte(932, 0, w.data(), wn, &out[0], bn,
-                        "?", nullptr);
+    std::string out(static_cast<std::size_t>(bn), '\0');
+    WideCharToMultiByte(
+        kCodePageCp932, 0, w.data(), wn, &out[0], bn, "?", nullptr);
     return out;
 #else
-    // gtest fixtures on Linux: identity. Tests must use raw CP932 input.
     return utf8;
 #endif
 }
@@ -154,40 +228,40 @@ std::string Utf8ToCp932(const std::string& utf8) {
 std::string Cp932ToUtf8(const std::string& cp932) {
 #ifdef _WIN32
     if (cp932.empty()) return {};
-    int wn = MultiByteToWideChar(932, 0, cp932.data(),
-                                  static_cast<int>(cp932.size()),
-                                  nullptr, 0);
+    const int wn = MultiByteToWideChar(
+        kCodePageCp932, 0, cp932.data(), static_cast<int>(cp932.size()),
+        nullptr, 0);
     if (wn <= 0) return cp932;
-    std::wstring w(wn, L'\0');
-    MultiByteToWideChar(932, 0, cp932.data(),
-                        static_cast<int>(cp932.size()),
-                        &w[0], wn);
-    int bn = WideCharToMultiByte(CP_UTF8, 0, w.data(), wn, nullptr, 0,
-                                  nullptr, nullptr);
+    std::wstring w(static_cast<std::size_t>(wn), L'\0');
+    MultiByteToWideChar(
+        kCodePageCp932, 0, cp932.data(), static_cast<int>(cp932.size()),
+        &w[0], wn);
+    const int bn = WideCharToMultiByte(
+        CP_UTF8, 0, w.data(), wn, nullptr, 0, nullptr, nullptr);
     if (bn <= 0) return cp932;
-    std::string out(bn, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w.data(), wn, &out[0], bn,
-                        nullptr, nullptr);
+    std::string out(static_cast<std::size_t>(bn), '\0');
+    WideCharToMultiByte(
+        CP_UTF8, 0, w.data(), wn, &out[0], bn, nullptr, nullptr);
     return out;
 #else
     return cp932;
 #endif
 }
 
-// --- Ruby markup ------------------------------------------------------
+// Ruby markup.
 
 namespace {
 
 // End of the tag at `open`, or npos.  '<' and '>' are never CP932 trail bytes.
-size_t EngineTagEnd(const std::string& text, size_t open) {
-    const size_t close = text.find('>', open + 1);
+std::size_t EngineTagEnd(const std::string& text, std::size_t open) {
+    const std::size_t close = text.find('>', open + 1);
     // "<>" carries no name; the engine draws both characters.
     if (close == open + 1) return std::string::npos;
     return close;
 }
 
 // Tag name between the brackets, lowercased.
-std::string TagName(const std::string& text, size_t open, size_t close) {
+std::string TagName(const std::string& text, std::size_t open, std::size_t close) {
     std::string name = text.substr(open + 1, close - open - 1);
     for (char& c : name)
         if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
@@ -198,13 +272,13 @@ std::string TagName(const std::string& text, size_t open, size_t close) {
 bool IsRubyTag(const std::string& name) {
     if (name.empty()) return false;
     if (name[0] == 'r') return true;
-    return name.size() >= 2 && name[0] == '/' && name[1] == 'r';
+    return name.size() >= kMinRubyCloserLen && name[0] == '/' && name[1] == 'r';
 }
 
 }  // namespace
 
 bool CarriesEngineMarkup(const std::string& text) {
-    for (size_t i = text.find('<'); i != std::string::npos;
+    for (std::size_t i = text.find('<'); i != std::string::npos;
          i = text.find('<', i + 1))
         if (EngineTagEnd(text, i) != std::string::npos) return true;
     return false;
@@ -213,10 +287,10 @@ bool CarriesEngineMarkup(const std::string& text) {
 std::string StripEngineMarkup(const std::string& text) {
     std::string out;
     out.reserve(text.size());
-    for (size_t i = 0; i < text.size(); ) {
+    for (std::size_t i = 0; i < text.size(); ) {
         if (text[i] != '<') { out += text[i]; ++i; continue; }
         // The engine consumes the tag regardless of name; keep the text around it.
-        const size_t close = EngineTagEnd(text, i);
+        const std::size_t close = EngineTagEnd(text, i);
         if (close != std::string::npos) { i = close + 1; continue; }
         // No '>' -- the engine draws the bracket as-is.
         out += text[i];
@@ -226,9 +300,9 @@ std::string StripEngineMarkup(const std::string& text) {
 }
 
 bool CarriesRuby(const std::string& cp932) {
-    for (size_t i = cp932.find('<'); i != std::string::npos;
+    for (std::size_t i = cp932.find('<'); i != std::string::npos;
          i = cp932.find('<', i + 1)) {
-        const size_t close = EngineTagEnd(cp932, i);
+        const std::size_t close = EngineTagEnd(cp932, i);
         if (close != std::string::npos && IsRubyTag(TagName(cp932, i, close)))
             return true;
     }
@@ -238,9 +312,9 @@ bool CarriesRuby(const std::string& cp932) {
 std::string StripRubyForDisplay(const std::string& cp932) {
     std::string out;
     out.reserve(cp932.size());
-    for (size_t i = 0; i < cp932.size(); ) {
+    for (std::size_t i = 0; i < cp932.size(); ) {
         if (cp932[i] != '<') { out += cp932[i]; ++i; continue; }
-        const size_t close = EngineTagEnd(cp932, i);
+        const std::size_t close = EngineTagEnd(cp932, i);
         if (close != std::string::npos && IsRubyTag(TagName(cp932, i, close))) {
             i = close + 1;   // the reading goes, the base text after it stays
             continue;
@@ -252,7 +326,7 @@ std::string StripRubyForDisplay(const std::string& cp932) {
     return out;
 }
 
-// --- English value preparation ---------------------------------------
+// English value preparation.
 
 namespace {
 
@@ -406,22 +480,43 @@ const Fold kGreekFolds[] = {
 
 // Decode one UTF-8 code point at `i`, advancing past it.  Malformed bytes
 // set `malformed` so the caller reports rather than folds them.
-unsigned NextCodepoint(const std::string& s, size_t& i, bool& malformed) {
-    unsigned char b = static_cast<unsigned char>(s[i]);
-    size_t   extra = 0;
-    unsigned cp    = 0;
+unsigned NextCodepoint(const std::string& s, std::size_t& i, bool& malformed) {
+    const unsigned char b = static_cast<unsigned char>(s[i]);
+    std::size_t extra = 0;
+    unsigned cp = 0;
     malformed = false;
-    if (b < 0x80)                { ++i; return b; }
-    else if ((b & 0xE0) == 0xC0) { extra = 1; cp = b & 0x1Fu; }
-    else if ((b & 0xF0) == 0xE0) { extra = 2; cp = b & 0x0Fu; }
-    else if ((b & 0xF8) == 0xF0) { extra = 3; cp = b & 0x07u; }
-    else                         { ++i; malformed = true; return b; }
+    if (b < kUtf8AsciiLimit) {
+        ++i;
+        return b;
+    }
+    if ((b & kUtf8TwoByteMask) == kUtf8TwoByteLead) {
+        extra = kOneExtraByte;
+        cp = b & kUtf8TwoBytePayload;
+    } else if ((b & kUtf8ThreeByteMask) == kUtf8ThreeByteLead) {
+        extra = kTwoExtraBytes;
+        cp = b & kUtf8ThreeBytePayload;
+    } else if ((b & kUtf8FourByteMask) == kUtf8FourByteLead) {
+        extra = kThreeExtraBytes;
+        cp = b & kUtf8FourBytePayload;
+    } else {
+        ++i;
+        malformed = true;
+        return b;
+    }
 
-    if (i + extra >= s.size()) { ++i; malformed = true; return b; }
-    for (size_t k = 1; k <= extra; ++k) {
-        unsigned char c = static_cast<unsigned char>(s[i + k]);
-        if ((c & 0xC0) != 0x80) { ++i; malformed = true; return b; }
-        cp = (cp << 6) | (c & 0x3Fu);
+    if (i + extra >= s.size()) {
+        ++i;
+        malformed = true;
+        return b;
+    }
+    for (std::size_t k = 1; k <= extra; ++k) {
+        const unsigned char c = static_cast<unsigned char>(s[i + k]);
+        if ((c & kUtf8ContMask) != kUtf8ContTag) {
+            ++i;
+            malformed = true;
+            return b;
+        }
+        cp = (cp << kUtf8ContShiftBits) | (c & kUtf8ContPayload);
     }
     i += extra + 1;
     return cp;
@@ -430,51 +525,52 @@ unsigned NextCodepoint(const std::string& s, size_t& i, bool& malformed) {
 // The CP932 bytes for one code point, or "" when it has none.
 std::string Cp932FromCodepoint(unsigned cp) {
 #ifdef _WIN32
-    wchar_t w[2];
+    wchar_t w[kCp932PairBytes];
     int wn = 0;
-    if (cp <= 0xFFFF) {
+    if (cp <= kBmpMax) {
         w[wn++] = static_cast<wchar_t>(cp);
-    } else if (cp <= 0x10FFFF) {
-        unsigned v = cp - 0x10000u;
-        w[wn++] = static_cast<wchar_t>(0xD800u + (v >> 10));
-        w[wn++] = static_cast<wchar_t>(0xDC00u + (v & 0x3FFu));
+    } else if (cp <= kUnicodeMax) {
+        const unsigned v = cp - kSupplementaryBase;
+        w[wn++] = static_cast<wchar_t>(
+            kHighSurrogateBase + (v >> kSurrogateShiftBits));
+        w[wn++] = static_cast<wchar_t>(
+            kLowSurrogateBase + (v & kSurrogatePayloadMask));
     } else {
         return {};
     }
-    char buf[8];
+    char buf[kCp932ScratchBufSize];
     BOOL used_default = FALSE;
-    int bn = WideCharToMultiByte(932, 0, w, wn, buf, sizeof(buf),
-                                 "?", &used_default);
+    const int bn = WideCharToMultiByte(
+        kCodePageCp932, 0, w, wn, buf, sizeof(buf), "?", &used_default);
     if (bn <= 0 || used_default) return {};
-    return std::string(buf, static_cast<size_t>(bn));
+    return std::string(buf, static_cast<std::size_t>(bn));
 #else
-    // The codec is a Windows API.  Elsewhere the input is assumed to be
-    // CP932 already, matching Utf8ToCp932's fallback, so nothing is lost.
     std::string out;
-    if (cp < 0x80) { out += static_cast<char>(cp); return out; }
-    if (cp < 0x800) {
-        out += static_cast<char>(0xC0u | (cp >> 6));
-        out += static_cast<char>(0x80u | (cp & 0x3Fu));
+    if (cp < kUtf8AsciiLimit) {
+        out += static_cast<char>(cp);
         return out;
     }
-    out += static_cast<char>(0xE0u | (cp >> 12));
-    out += static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
-    out += static_cast<char>(0x80u | (cp & 0x3Fu));
     return out;
 #endif
 }
 
 // The fold for `cp`, or nullptr when there is none.
 const char* FoldFor(unsigned cp) {
-    if (cp >= 0x00C0 && cp <= 0x00FF) return kLatin1Folds[cp - 0x00C0];
-    for (const Fold& f : kTypographyFolds)
+    if (cp >= kLatin1FoldFirst && cp <= kLatin1FoldLast) {
+        return kLatin1Folds[cp - kLatin1FoldFirst];
+    }
+    for (const Fold& f : kTypographyFolds) {
         if (f.cp == cp) return f.ascii;
-    for (const Fold& f : kZeroWidthFolds)
+    }
+    for (const Fold& f : kZeroWidthFolds) {
         if (f.cp == cp) return f.ascii;
-    for (const Fold& f : kLatinExtendedFolds)
+    }
+    for (const Fold& f : kLatinExtendedFolds) {
         if (f.cp == cp) return f.ascii;
-    for (const Fold& f : kGreekFolds)
+    }
+    for (const Fold& f : kGreekFolds) {
         if (f.cp == cp) return f.ascii;
+    }
     return nullptr;
 }
 
@@ -484,25 +580,31 @@ std::string EnglishToCp932(const std::string& utf8,
                            std::vector<unsigned>* unmappable) {
     std::string out;
     out.reserve(utf8.size());
-    size_t i = 0;
+    std::size_t i = 0;
     while (i < utf8.size()) {
         bool malformed = false;
-        unsigned cp = NextCodepoint(utf8, i, malformed);
+        const unsigned cp = NextCodepoint(utf8, i, malformed);
         if (malformed) {
             if (unmappable) unmappable->push_back(cp);
             out += '?';
             continue;
         }
-        if (cp < 0x80) { out += static_cast<char>(cp); continue; }
-
-        if (const char* fold = FoldFor(cp)) { out += fold; continue; }
-        // Fullwidth ASCII sits exactly one block above its halfwidth twin.
-        if (cp >= 0xFF01 && cp <= 0xFF5E) {
-            out += static_cast<char>(cp - 0xFEE0u);
+        if (cp < kUtf8AsciiLimit) {
+            out += static_cast<char>(cp);
             continue;
         }
 
-        std::string bytes = Cp932FromCodepoint(cp);
+        if (const char* fold = FoldFor(cp)) {
+            out += fold;
+            continue;
+        }
+        // Fullwidth ASCII sits exactly one block above its halfwidth twin.
+        if (cp >= kFullwidthAsciiFirst && cp <= kFullwidthAsciiLast) {
+            out += static_cast<char>(cp - kFullwidthAsciiOffset);
+            continue;
+        }
+
+        const std::string bytes = Cp932FromCodepoint(cp);
         if (bytes.empty()) {
             if (unmappable) unmappable->push_back(cp);
             out += '?';
@@ -511,34 +613,36 @@ std::string EnglishToCp932(const std::string& utf8,
         }
     }
     // Turn surviving '<...>' pairs into '(' so the engine does not consume them.
-    for (size_t at = out.find('<'); at != std::string::npos;
-         at = out.find('<', at + 1))
+    for (std::size_t at = out.find('<'); at != std::string::npos;
+         at = out.find('<', at + 1)) {
         if (EngineTagEnd(out, at) != std::string::npos) out[at] = '(';
+    }
     return out;
 }
 
 bool HasWideCharacter(const std::string& cp932) {
-    for (size_t i = 0; i < cp932.size(); ++i) {
+    for (std::size_t i = 0; i < cp932.size(); ++i) {
         if (IsCp932LeadByte(static_cast<unsigned char>(cp932[i])) &&
-            i + 1 < cp932.size())
+            i + 1 < cp932.size()) {
             return true;
+        }
     }
     return false;
 }
 
-// --- Word wrap -------------------------------------------------------
+// Word wrap.
 
 namespace {
 
 const char kTruncationMarker[] = "...";
-const size_t kMarkerLen = sizeof(kTruncationMarker) - 1;
+const std::size_t kMarkerLen = sizeof(kTruncationMarker) - 1;
 
 // First byte of the CP932 character covering `at`, scanning forward from `from`.
-size_t Cp932CharStart(const std::string& s, size_t from, size_t at) {
-    size_t i = from;
+std::size_t Cp932CharStart(const std::string& s, std::size_t from, std::size_t at) {
+    std::size_t i = from;
     while (i < at) {
         unsigned char b = static_cast<unsigned char>(s[i]);
-        size_t width = (IsCp932LeadByte(b) && i + 1 < s.size()) ? 2 : 1;
+        std::size_t width = (IsCp932LeadByte(b) && i + 1 < s.size()) ? 2 : 1;
         if (i + width > at) return i;  // `at` falls inside this character
         i += width;
     }
@@ -546,14 +650,14 @@ size_t Cp932CharStart(const std::string& s, size_t from, size_t at) {
 }
 
 // Cut the last line back to fit the "..." marker inside `width`.
-void MarkTruncated(std::string& text, size_t line_start, size_t width) {
+void MarkTruncated(std::string& text, std::size_t line_start, std::size_t width) {
     // A continued line can leave less room than the marker needs; the marker
     // then overflows by a character or two rather than the cut underflowing.
     if (width < kMarkerLen) width = kMarkerLen;
     if (text.size() - line_start + kMarkerLen > width) {
         text.resize(Cp932CharStart(text, line_start,
                                    line_start + width - kMarkerLen));
-        size_t space = text.find_last_of(' ');
+        std::size_t space = text.find_last_of(' ');
         if (space != std::string::npos && space >= line_start)
             text.resize(space);
     }
@@ -563,20 +667,20 @@ void MarkTruncated(std::string& text, size_t line_start, size_t width) {
 
 // Trim `text` to `max_bytes`, dropping whole lines first, then marking.
 // Returns true when anything was dropped.
-bool TrimToBytes(std::string& text, size_t max_bytes) {
+bool TrimToBytes(std::string& text, std::size_t max_bytes) {
     if (text.size() <= max_bytes) return false;
     for (;;) {
-        const size_t nl = text.find_last_of('\n');
-        const size_t line_start = (nl == std::string::npos) ? 0 : nl + 1;
+        const std::size_t nl = text.find_last_of('\n');
+        const std::size_t line_start = (nl == std::string::npos) ? 0 : nl + 1;
         // The continuation indent is not content and is not cut into.
-        size_t content = line_start;
+        std::size_t content = line_start;
         while (content < text.size() && content < line_start + WRAP_INDENT &&
                text[content] == ' ')
             ++content;
 
         if (max_bytes >= content + kMarkerLen) {
             text.resize(Cp932CharStart(text, content, max_bytes - kMarkerLen));
-            const size_t space = text.find_last_of(' ');
+            const std::size_t space = text.find_last_of(' ');
             if (space != std::string::npos && space >= content)
                 text.resize(space);
             while (text.size() > content && text.back() == ' ') text.pop_back();
@@ -595,8 +699,8 @@ bool TrimToBytes(std::string& text, size_t max_bytes) {
 }
 
 // Physical lines a wrapped buffer draws, counted after something has cut it.
-size_t LinesIn(const std::string& text) {
-    size_t lines = 1;
+std::size_t LinesIn(const std::string& text) {
+    std::size_t lines = 1;
     for (char c : text)
         if (c == '\n') ++lines;
     return lines;
@@ -604,17 +708,18 @@ size_t LinesIn(const std::string& text) {
 
 }  // namespace
 
-bool FitsUnmeasuredSurface(const std::string& cp932, size_t pitch) {
+bool FitsUnmeasuredSurface(const std::string& cp932, std::size_t pitch) {
     // Need a spare line in case the engine re-breaks.
-    if (LinesAtPitch(pitch) < 2) return false;
-    size_t begin = 0;
+    if (LinesAtPitch(pitch) < kMinLinesForUnmeasuredSurface) return false;
+    std::size_t begin = 0;
     if (!cp932.empty()) {
         const unsigned char b = static_cast<unsigned char>(cp932[0]);
-        if (b >= 0x02 && b <= 0x08) begin = 1;
+        if (b >= kMinControlPrefix && b <= kMaxControlPrefix) begin = 1;
     }
-    size_t end = cp932.size();
-    while (end > begin && (cp932[end - 1] == '\n' || cp932[end - 1] == '\r'))
+    std::size_t end = cp932.size();
+    while (end > begin && (cp932[end - 1] == '\n' || cp932[end - 1] == '\r')) {
         --end;
+    }
     if (end <= begin) return false;
     // A break of our own would draw a line the surface may not have.
     if (cp932.find_first_of("\r\n", begin) < end) return false;
@@ -622,35 +727,35 @@ bool FitsUnmeasuredSurface(const std::string& cp932, size_t pitch) {
     return end - begin <= ColumnsAtPitch(pitch);
 }
 
-void MarkLastLineTruncated(std::string& text, size_t reserved_columns,
-                           size_t start_columns) {
-    size_t nl = text.find_last_of('\n');
+void MarkLastLineTruncated(std::string& text, std::size_t reserved_columns,
+                           std::size_t start_columns) {
+    std::size_t nl = text.find_last_of('\n');
     if (nl == std::string::npos) {
-        const size_t used = reserved_columns + start_columns;
+        const std::size_t used = reserved_columns + start_columns;
         MarkTruncated(text, 0,
                       SINGLE_LINE_MAX > used ? SINGLE_LINE_MAX - used : 0);
         return;
     }
     // Skip past the continuation indent.
-    size_t line_start = nl + 1;
-    size_t limit = line_start + WRAP_INDENT;
+    std::size_t line_start = nl + 1;
+    std::size_t limit = line_start + WRAP_INDENT;
     while (line_start < text.size() && line_start < limit &&
            text[line_start] == ' ')
         ++line_start;
     MarkTruncated(text, line_start, WRAP_AT - reserved_columns);
 }
 
-WrappedText WrapForMessageBox(const std::string& value, size_t max_lines,
-                              size_t reserved_columns, size_t start_columns,
+WrappedText WrapForMessageBox(const std::string& value, std::size_t max_lines,
+                              std::size_t reserved_columns, std::size_t start_columns,
                               bool continue_line) {
     WrappedText out;
-    const size_t wrap_at = WRAP_AT > reserved_columns
+    const std::size_t wrap_at = WRAP_AT > reserved_columns
                            ? WRAP_AT - reserved_columns : 1;
-    const size_t single_line_max = SINGLE_LINE_MAX > reserved_columns
+    const std::size_t single_line_max = SINGLE_LINE_MAX > reserved_columns
                                    ? SINGLE_LINE_MAX - reserved_columns : 1;
 
     // Trailing breaks chain the box; they cost no line.
-    size_t core_end = value.size();
+    std::size_t core_end = value.size();
     while (core_end > 0 &&
            (value[core_end - 1] == '\n' || value[core_end - 1] == '\r'))
         --core_end;
@@ -673,7 +778,7 @@ WrappedText WrapForMessageBox(const std::string& value, size_t max_lines,
 
     // Room on the n-th line.  When continuing, line one is the line the box
     // left open; the engine's indent never reaches it, the pen does.
-    auto capacity = [&](size_t n) -> size_t {
+    auto capacity = [&](std::size_t n) -> std::size_t {
         if (n > 1) return wrap_at;
         if (!continue_line) return single_line_max;
         return SINGLE_LINE_MAX > start_columns ? SINGLE_LINE_MAX - start_columns
@@ -681,13 +786,13 @@ WrappedText WrapForMessageBox(const std::string& value, size_t max_lines,
     };
 
     out.lines = 0;
-    size_t line_start = 0;  // where the last line's content begins in out.text
-    size_t pos = 0;         // next byte of `core` still to be drawn
+    std::size_t line_start = 0;  // where the last line's content begins in out.text
+    std::size_t pos = 0;         // next byte of `core` still to be drawn
     bool   dropped = false;
 
     // Embedded 0x0A = break the translation asked for.
     while (!dropped) {
-        size_t para_end = core.find('\n', pos);
+        std::size_t para_end = core.find('\n', pos);
         if (para_end == std::string::npos) para_end = core.size();
 
         for (;;) {
@@ -698,9 +803,9 @@ WrappedText WrapForMessageBox(const std::string& value, size_t max_lines,
             }
             line_start = out.text.size();
             ++out.lines;
-            const size_t limit = capacity(out.lines);
+            const std::size_t limit = capacity(out.lines);
 
-            size_t remaining = para_end - pos;
+            std::size_t remaining = para_end - pos;
             if (remaining <= limit) {
                 out.text.append(core, pos, remaining);
                 pos = para_end;
@@ -708,7 +813,7 @@ WrappedText WrapForMessageBox(const std::string& value, size_t max_lines,
             }
             if (limit == 0) continue;  // the open line is already full
             // Walk back to the last space (0x20 is never a CP932 trail byte).
-            size_t brk = pos + limit;
+            std::size_t brk = pos + limit;
             while (brk > pos && core[brk] != ' ') --brk;
             if (brk == pos) {  // one word wider than the room this line has
                 // The open line has a fresh one behind it; a word that would
@@ -730,8 +835,8 @@ WrappedText WrapForMessageBox(const std::string& value, size_t max_lines,
         MarkTruncated(out.text, line_start,
                       out.lines > 1 ? wrap_at : capacity(1));
     }
-    const size_t nl = out.text.find_last_of('\n');
-    const size_t last_len =
+    const std::size_t nl = out.text.find_last_of('\n');
+    const std::size_t last_len =
         out.text.size() - (nl == std::string::npos ? 0 : nl + 1);
     out.end_columns = last_len +
         (nl != std::string::npos ? reserved_columns
@@ -740,17 +845,17 @@ WrappedText WrapForMessageBox(const std::string& value, size_t max_lines,
     return out;
 }
 
-// --- The box a chain of segments shares ------------------------------
+// Shared box state across chained segments.
 
 struct BoxLineBudget::Impl {
     struct Box {
-        uintptr_t   id = 0;
+        std::uintptr_t   id = 0;
         BoxState    state;
         BoxState    before_last;  // what the box held before its last segment
         std::string last_wire;    // that segment's full wire buffer
         bool        has_last = false;
         bool        open = false;
-        bool        positioned = false;   // opened by iMessage* ("\x81\x40")
+        bool        positioned = false;   // opened by iMessage* ("　", 0x81 0x40)
         bool        redraw_pass = false;  // msgwndctrl._bp redraw (no 0x05)
         int         last_raw_x = -1;
         int         last_raw_y = -1;
@@ -760,12 +865,12 @@ struct BoxLineBudget::Impl {
     };
 
     // Fixed-size ring buffer; the engine only uses a few boxes at a time.
-    static const size_t kSlots = 8;
+    static const std::size_t kSlots = 8;
     Box   slots[kSlots];
-    size_t next = 0;
+    std::size_t next = 0;
     bool  saw_save_load_preview = false;
 
-    Box& Find(uintptr_t id) {
+    Box& Find(std::uintptr_t id) {
         for (Box& b : slots)
             if (b.used && b.id == id) return b;
         Box& b = slots[next];
@@ -776,7 +881,7 @@ struct BoxLineBudget::Impl {
         return b;
     }
 
-    void OpenPositioned(uintptr_t id, const char* wire) {
+    void OpenPositioned(std::uintptr_t id, const char* wire) {
         Box& b = Find(id);
         b.state = BoxState();
         b.before_last = b.state;
@@ -792,10 +897,10 @@ struct BoxLineBudget::Impl {
     }
 };
 
-BoxLineBudget::BoxLineBudget() : impl_(new Impl) {}
+BoxLineBudget::BoxLineBudget() : impl_(std::make_unique<Impl>()) {}
 BoxLineBudget::~BoxLineBudget() = default;
 
-BoxState BoxLineBudget::Begin(uintptr_t box, bool continues,
+BoxState BoxLineBudget::Begin(std::uintptr_t box, bool continues,
                               const char* wire) {
     Impl::Box& b = impl_->Find(box);
     // A re-render of the segment just laid out: replay its starting state,
@@ -816,7 +921,7 @@ BoxState BoxLineBudget::Begin(uintptr_t box, bool continues,
     return b.state;
 }
 
-void BoxLineBudget::Commit(uintptr_t box, const BoxState& state,
+void BoxLineBudget::Commit(std::uintptr_t box, const BoxState& state,
                            bool stays_open) {
     Impl::Box& b = impl_->Find(box);
     b.state = state;
@@ -827,7 +932,7 @@ void BoxLineBudget::Commit(uintptr_t box, const BoxState& state,
     }
 }
 
-BoxState BoxLineBudget::BeginPositionedBox(uintptr_t box, const char* wire,
+BoxState BoxLineBudget::BeginPositionedBox(std::uintptr_t box, const char* wire,
                                            const int* cursor_xy,
                                            int left_x, int top_y) {
     Impl::Box& b = impl_->Find(box);
@@ -855,7 +960,7 @@ void BoxLineBudget::NoteSaveLoadPreview() {
     impl_->saw_save_load_preview = true;
 }
 
-BoxState BoxLineBudget::BeginSegment(uintptr_t box, bool has_prefix,
+BoxState BoxLineBudget::BeginSegment(std::uintptr_t box, bool has_prefix,
                                      const char* wire, const int* cursor_xy,
                                      int left_x, int top_y, bool flows,
                                      bool& out_is_positioned,
@@ -930,7 +1035,7 @@ BoxState BoxLineBudget::BeginSegment(uintptr_t box, bool has_prefix,
     return Begin(box, has_prefix, wire);
 }
 
-void BoxLineBudget::CommitSegment(uintptr_t box, const BoxState& state,
+void BoxLineBudget::CommitSegment(std::uintptr_t box, const BoxState& state,
                                   bool stays_open, bool keep_positioned) {
     if (keep_positioned) {
         Impl::Box& b = impl_->Find(box);
@@ -948,37 +1053,41 @@ void BoxLineBudget::Clear() {
     impl_->saw_save_load_preview = false;
 }
 
-// --- Substitution ----------------------------------------------------
+// Substitution.
 
 namespace {
 
 // Look up `effective` in `translations` with fallbacks for yuzu_2g / backlog:
 // 1. Exact match on (effective, len) or (effective, key_len).
-// 2. Strip leading CP932 fullwidth space "\x81\x40" (logwnd._bp concatenates
-//    the dummy "　" segment from iMessage* before the real text).
+// 2. Strip leading CP932 fullwidth space "　" (0x81 0x40) (logwnd._bp
+//    concatenates the dummy "　" segment from iMessage* before the real text).
 // 3. Greedy multi-segment prefix decomposition (logwnd._bp concatenates all
 //    segments of a multi-call yuzu_2g box into a single string).
-bool LookupTranslation(const char* effective, size_t len, size_t key_len,
+bool LookupTranslation(const char* effective, std::size_t len, std::size_t key_len,
                        const TranslationMap& translations,
                        std::string& out_value) {
     auto it = translations.find(std::string(effective, len));
-    if (it == translations.end() && key_len != len)
+    if (it == translations.end() && key_len != len) {
         it = translations.find(std::string(effective, key_len));
+    }
     if (it != translations.end()) {
         out_value = it->second;
         return true;
     }
 
-    auto starts_with_fw_space = [](const char* s, size_t n) {
-        return n > 2 &&
-               static_cast<unsigned char>(s[0]) == 0x81 &&
-               static_cast<unsigned char>(s[1]) == 0x40;
+    auto starts_with_fw_space = [](const char* s, std::size_t n) {
+        return n > kCp932PairBytes &&
+               static_cast<unsigned char>(s[0]) == kFwSpaceLeadByte &&
+               static_cast<unsigned char>(s[1]) == kFwSpaceTrailByte;
     };
 
     if (starts_with_fw_space(effective, key_len)) {
-        it = translations.find(std::string(effective + 2, len - 2));
-        if (it == translations.end() && key_len != len)
-            it = translations.find(std::string(effective + 2, key_len - 2));
+        it = translations.find(
+            std::string(effective + kCp932PairBytes, len - kCp932PairBytes));
+        if (it == translations.end() && key_len != len) {
+            it = translations.find(std::string(
+                effective + kCp932PairBytes, key_len - kCp932PairBytes));
+        }
         if (it != translations.end()) {
             out_value = it->second;
             return true;
@@ -987,25 +1096,26 @@ bool LookupTranslation(const char* effective, size_t len, size_t key_len,
 
     // Multi-segment backlog concatenation fallback.
     const char* cur = effective;
-    size_t rem = key_len;
+    std::size_t rem = key_len;
     if (starts_with_fw_space(cur, rem)) {
-        cur += 2;
-        rem -= 2;
+        cur += kCp932PairBytes;
+        rem -= kCp932PairBytes;
     }
     std::string joined;
-    size_t segments_matched = 0;
-    const size_t kMaxConcatSegments = 8;
+    std::size_t segments_matched = 0;
+    constexpr std::size_t kMaxConcatSegments = 8;
     while (rem > 0 && segments_matched < kMaxConcatSegments) {
         if (starts_with_fw_space(cur, rem)) {
-            cur += 2;
-            rem -= 2;
+            cur += kCp932PairBytes;
+            rem -= kCp932PairBytes;
             if (rem == 0) break;
         }
-        size_t best_len = 0;
+        std::size_t best_len = 0;
         const std::string* best_val = nullptr;
-        for (size_t pos = 0; pos < rem; ) {
-            unsigned char b = static_cast<unsigned char>(cur[pos]);
-            size_t w = (IsCp932LeadByte(b) && pos + 1 < rem) ? 2 : 1;
+        for (std::size_t pos = 0; pos < rem; ) {
+            const unsigned char b = static_cast<unsigned char>(cur[pos]);
+            const std::size_t w =
+                (IsCp932LeadByte(b) && pos + 1 < rem) ? kCp932PairBytes : 1;
             pos += w;
             auto seg_it = translations.find(std::string(cur, pos));
             if (seg_it != translations.end()) {
@@ -1018,28 +1128,31 @@ bool LookupTranslation(const char* effective, size_t len, size_t key_len,
             break;
         }
         std::string part = *best_val;
-        while (!part.empty() && (part.back() == '\n' || part.back() == '\r'))
+        while (!part.empty() && (part.back() == '\n' || part.back() == '\r')) {
             part.pop_back();
+        }
         if (!part.empty()) {
-            if (!joined.empty() && joined.back() != ' ' && part.front() != ' ')
+            if (!joined.empty() && joined.back() != ' ' && part.front() != ' ') {
                 joined += ' ';
+            }
             joined += part;
         }
         cur += best_len;
         rem -= best_len;
         ++segments_matched;
     }
-    if (segments_matched >= 2 && rem == 0 && !joined.empty()) {
+    if (segments_matched >= kMinSegmentsForConcatMatch && rem == 0 &&
+        !joined.empty()) {
         out_value = std::move(joined);
         return true;
     }
     return false;
 }
 
-// --- what the engine draws for a buffer it renders itself --------------
+// Engine line counting for untranslated buffers.
 
 // Kinsoku shori: characters forbidden at line start (from the engine's table).
-const uint16_t kNoLineStart[] = {
+const std::uint16_t kNoLineStart[] = {
     0x0022, 0x0027, 0x003A, 0x003B, 0x003F, 0x0021,  // " ' : ; ? !
     0x00DE, 0x00DF, 0x00A5,                          // halfwidth ﾞ ﾟ ･
     0x8143, 0x8144, 0x8141, 0x8142,                  // ， ． 、 。
@@ -1055,39 +1168,39 @@ const uint16_t kNoLineStart[] = {
 };
 
 // Characters forbidden at line end (openers that drag the next character along).
-const uint16_t kNoLineEnd[] = {
+const std::uint16_t kNoLineEnd[] = {
     0x005B, 0x007B, 0x0028,                          // [ { (
     0x8169, 0x816B, 0x816D, 0x816F, 0x8171,          // （ 〔 ［ ｛ 〈
     0x81E1, 0x8173, 0x8175, 0x8177, 0x8179, 0x8167,  // ≪ 《 「 『 【 “
 };
 
-// CP932 character at `i` as a uint16_t (lead<<8|trail for two-byte), plus width.
-uint16_t Cp932CharAt(const char* text, size_t len, size_t i, size_t& width) {
+// CP932 character at `i` as a std::uint16_t (lead<<8|trail for two-byte), plus width.
+std::uint16_t Cp932CharAt(const char* text, std::size_t len, std::size_t i, std::size_t& width) {
     const unsigned char b = static_cast<unsigned char>(text[i]);
     if (IsCp932LeadByte(b) && i + 1 < len) {
-        width = 2;
-        return static_cast<uint16_t>(
-            (static_cast<unsigned>(b) << 8) |
+        width = kCp932PairBytes;
+        return static_cast<std::uint16_t>(
+            (static_cast<unsigned>(b) << kByteShiftBits) |
             static_cast<unsigned char>(text[i + 1]));
     }
     width = 1;
     return b;
 }
 
-bool InTable(const uint16_t* table, size_t n, uint16_t c) {
-    for (size_t k = 0; k < n; ++k)
+bool InTable(const std::uint16_t* table, std::size_t n, std::uint16_t c) {
+    for (std::size_t k = 0; k < n; ++k)
         if (table[k] == c) return true;
     return false;
 }
 
 // Extra columns the kinsoku rules add: the no-line-start run after this
 // character, or the next character if this one is a no-line-end opener.
-size_t KinsokuLookahead(const char* text, size_t len, size_t at, size_t width) {
-    size_t next = at + width;
-    size_t held = 0;
+std::size_t KinsokuLookahead(const char* text, std::size_t len, std::size_t at, std::size_t width) {
+    std::size_t next = at + width;
+    std::size_t held = 0;
     while (next < len) {
-        size_t w = 0;
-        const uint16_t c = Cp932CharAt(text, len, next, w);
+        std::size_t w = 0;
+        const std::uint16_t c = Cp932CharAt(text, len, next, w);
         if (!InTable(kNoLineStart, sizeof(kNoLineStart) / sizeof(*kNoLineStart), c))
             break;
         held += (w == 2) ? 2 : 1;
@@ -1095,31 +1208,31 @@ size_t KinsokuLookahead(const char* text, size_t len, size_t at, size_t width) {
     }
     if (held > 0) return held;
 
-    size_t own = 0;
-    const uint16_t here = Cp932CharAt(text, len, at, own);
+    std::size_t own = 0;
+    const std::uint16_t here = Cp932CharAt(text, len, at, own);
     if (!InTable(kNoLineEnd, sizeof(kNoLineEnd) / sizeof(*kNoLineEnd), here))
         return 0;
     if (at + width >= len) return 0;
-    size_t after = 0;
+    std::size_t after = 0;
     Cp932CharAt(text, len, at + width, after);
     return (after == 2) ? 2 : 1;
 }
 
 // Lines the engine draws for a buffer, reproducing its per-character word
 // wrap with kinsoku lookahead.  Engine markup ("<...>") costs no column.
-size_t EngineDrawnLines(const char* text, size_t len, size_t reserved_columns) {
-    const size_t limit = BOX_COLUMNS > reserved_columns
+std::size_t EngineDrawnLines(const char* text, std::size_t len, std::size_t reserved_columns) {
+    const std::size_t limit = BOX_COLUMNS > reserved_columns
                          ? BOX_COLUMNS - reserved_columns : 1;
-    size_t lines = 1;
-    size_t col = 0;   // columns already drawn on the line being drawn
-    for (size_t i = 0; i < len; ) {
+    std::size_t lines = 1;
+    std::size_t col = 0;   // columns already drawn on the line being drawn
+    for (std::size_t i = 0; i < len; ) {
         const unsigned char b = static_cast<unsigned char>(text[i]);
         const bool wide = IsCp932LeadByte(b) && i + 1 < len;
-        const size_t w = wide ? 2 : 1;
+        const std::size_t w = wide ? 2 : 1;
 
         if (!wide && b == '<') {
             const std::string_view rest(text + i, len - i);
-            const size_t close = rest.find('>', 1);
+            const std::size_t close = rest.find('>', 1);
             // "<>" and a bracket with no '>' after it are drawn as characters.
             if (close != std::string_view::npos && close > 1) {
                 i += close + 1;
@@ -1127,7 +1240,7 @@ size_t EngineDrawnLines(const char* text, size_t len, size_t reserved_columns) {
             }
         }
 
-        const size_t at = i;
+        const std::size_t at = i;
         i += w;
 
         if (!wide && b == '\n') { ++lines; col = 0; continue; }
@@ -1145,27 +1258,29 @@ size_t EngineDrawnLines(const char* text, size_t len, size_t reserved_columns) {
 
 SubstitutionStatus Build(const char* wire_text,
                          const TranslationMap& translations,
-                         BoxLineBudget* budget, uintptr_t box,
+                         BoxLineBudget* budget, std::uintptr_t box,
                          const Surface& surface, Substitution& out,
                          int* cursor_xy = nullptr,
                          const int* box_rect = nullptr,
                          int line_pitch = DIALOGUE_LINE_PITCH_PX) {
-    const size_t surface_lines = surface.lines;
+    const std::size_t surface_lines = surface.lines;
     out = Substitution();
     if (!wire_text) return SubstitutionStatus::EmptyKey;
 
     const char* effective = wire_text;
-    unsigned char lead = static_cast<unsigned char>(*wire_text);
-    bool has_prefix = (lead >= 0x02 && lead <= 0x08);
+    const unsigned char lead = static_cast<unsigned char>(*wire_text);
+    const bool has_prefix =
+        (lead >= kMinControlPrefix && lead <= kMaxControlPrefix);
     if (has_prefix) ++effective;
 
-    size_t len = std::strlen(effective);
+    const std::size_t len = std::strlen(effective);
 
-    size_t key_len = len;
+    std::size_t key_len = len;
     while (key_len > 0) {
-        unsigned char b = static_cast<unsigned char>(effective[key_len - 1]);
-        if (b == 0x0A || b == 0x0D) --key_len;
-        else break;
+        const unsigned char b =
+            static_cast<unsigned char>(effective[key_len - 1]);
+        if (b != kAsciiLf && b != kAsciiCr) break;
+        --key_len;
     }
     out.tail = len - key_len;
     out.continues = has_prefix;
@@ -1184,15 +1299,16 @@ SubstitutionStatus Build(const char* wire_text,
     const int raw_y    = cursor_xy ? cursor_xy[1] : top_y;
 
     // yuzu_2g's iMessage* helpers open every positioned box with a dummy
-    // op140(0, 0, 0, speaker, "　") ("\x81\x40") at (48, 24) before calling
+    // op140(0, 0, 0, speaker, "　") (CP932 0x81 0x40) at (48, 24) before calling
     // SET_CURSOR (0x146) and op140(1, ...) for the actual segments.
-    // After a *NC ("No Clear") wait, the next iMessage* helper emits "\x81\x40"
+    // After a *NC ("No Clear") wait, the next iMessage* helper emits "　"
     // without clearing the box, so cursor_xy arrives below top_y (e.g. (48, 54)
     // or (48, 84)) and continues the already-open positioned box.
     const bool is_dummy_fw_space =
-        surface.flows && !has_prefix && out.tail == 0 && key_len == 2 &&
-        static_cast<unsigned char>(effective[0]) == 0x81 &&
-        static_cast<unsigned char>(effective[1]) == 0x40 &&
+        surface.flows && !has_prefix && out.tail == 0 &&
+        key_len == kCp932PairBytes &&
+        static_cast<unsigned char>(effective[0]) == kFwSpaceLeadByte &&
+        static_cast<unsigned char>(effective[1]) == kFwSpaceTrailByte &&
         translations.find(std::string(effective, key_len)) == translations.end();
     if (is_dummy_fw_space) {
         BoxState pos_st;
@@ -1230,19 +1346,19 @@ SubstitutionStatus Build(const char* wire_text,
         is_positioned = true;
     }
 
-    // Positioned segments strip the bogus 0x05 prefix induced by "\x81\x40",
+    // Positioned segments strip the bogus 0x05 prefix induced by "　",
     // reclaiming the full 71-column width and left margin.
-    const size_t reserved = (has_prefix && !is_positioned) ? CHAIN_INDENT : 0;
+    const std::size_t reserved = (has_prefix && !is_positioned) ? CHAIN_INDENT : 0;
 
-    const size_t used = st.lines;
+    const std::size_t used = st.lines;
     // A normal continuation keeps filling the line its box left open.
     const bool joins_line = flow && !is_positioned && has_prefix && st.line_open;
-    const size_t start_col = joins_line ? st.column : 0;
-    const size_t avail = used >= surface_lines ? 0 : surface_lines - used;
+    const std::size_t start_col = joins_line ? st.column : 0;
+    const std::size_t avail = used >= surface_lines ? 0 : surface_lines - used;
     out.box_lines_before = used;
 
     // Every path must commit (miss or hit): lines added and the pen after.
-    auto commit = [&](size_t added, size_t column, bool line_open) {
+    auto commit = [&](std::size_t added, std::size_t column, bool line_open) {
         out.lines = added;
         out.box_lines_after = used + added;
         if (budget) {
@@ -1330,9 +1446,9 @@ SubstitutionStatus Build(const char* wire_text,
         out.truncated = wrapped.truncated;
         out.bytes.append(wrapped.text);
 
-        size_t lines_drawn = wrapped.lines;
+        std::size_t lines_drawn = wrapped.lines;
         if (surface.max_bytes) {
-            const size_t room = surface.max_bytes > out.tail
+            const std::size_t room = surface.max_bytes > out.tail
                                 ? surface.max_bytes - out.tail : 0;
             if (TrimToBytes(out.bytes, room)) {
                 out.truncated = true;
@@ -1341,8 +1457,8 @@ SubstitutionStatus Build(const char* wire_text,
         }
         out.bytes.append(effective + key_len, out.tail);
 
-        const size_t added = lines_drawn - (join_open ? 1 : 0);
-        const size_t column = wrapped.end_columns;
+        const std::size_t added = lines_drawn - (join_open ? 1 : 0);
+        const std::size_t column = wrapped.end_columns;
         const bool line_open = !out.truncated && (column + 2 <= SINGLE_LINE_MAX);
         commit(added, column, line_open);
         return SubstitutionStatus::Substituted;
@@ -1359,7 +1475,7 @@ SubstitutionStatus Build(const char* wire_text,
         return SubstitutionStatus::Substituted;
     }
 
-    const size_t wrap_lines = avail + (joins_line ? 1 : 0);
+    const std::size_t wrap_lines = avail + (joins_line ? 1 : 0);
     WrappedText wrapped = WrapForMessageBox(value, wrap_lines, reserved,
                                             start_col, joins_line);
     out.truncated = wrapped.truncated;
@@ -1374,9 +1490,9 @@ SubstitutionStatus Build(const char* wire_text,
         out.bytes.append(wrapped.text);
 
         // Trim to the surface's byte budget (the tail must survive).
-        size_t lines = wrapped.lines;
+        std::size_t lines = wrapped.lines;
         if (surface.max_bytes) {
-            const size_t room = surface.max_bytes > out.tail
+            const std::size_t room = surface.max_bytes > out.tail
                                 ? surface.max_bytes - out.tail : 0;
             if (TrimToBytes(out.bytes, room)) {
                 out.truncated = true;
@@ -1394,20 +1510,20 @@ SubstitutionStatus Build(const char* wire_text,
     // segment so it keeps filling the line.
     out.bytes.append(wrapped.text);
 
-    size_t lines_drawn = wrapped.lines;
+    std::size_t lines_drawn = wrapped.lines;
     if (surface.max_bytes) {
         // One byte of the budget is kept for the joining space.
-        const size_t reserve = out.more_follows ? 1u : 0u;
-        const size_t room = surface.max_bytes > reserve
+        const std::size_t reserve = out.more_follows ? 1u : 0u;
+        const std::size_t room = surface.max_bytes > reserve
                             ? surface.max_bytes - reserve : 1;
         if (TrimToBytes(out.bytes, room)) {
             out.truncated = true;
             lines_drawn = LinesIn(out.bytes);
         }
     }
-    size_t added = lines_drawn - (joins_line ? 1 : 0);
+    std::size_t added = lines_drawn - (joins_line ? 1 : 0);
 
-    size_t column = 0;
+    std::size_t column = 0;
     bool   line_open = false;
     if (out.more_follows && !out.truncated) {
         if (wrapped.end_columns + 2 <= SINGLE_LINE_MAX) {
@@ -1441,21 +1557,21 @@ SubstitutionStatus BuildSubstitution(const char* wire_text,
 
 SubstitutionStatus BuildSubstitution(const char* wire_text,
                                      const TranslationMap& translations,
-                                     BoxLineBudget& budget, uintptr_t box,
+                                     BoxLineBudget& budget, std::uintptr_t box,
                                      Substitution& out) {
     return Build(wire_text, translations, &budget, box, DIALOGUE_PANEL, out);
 }
 
 SubstitutionStatus BuildSubstitution(const char* wire_text,
                                      const TranslationMap& translations,
-                                     BoxLineBudget& budget, uintptr_t box,
+                                     BoxLineBudget& budget, std::uintptr_t box,
                                      const Surface& surface, Substitution& out) {
     return Build(wire_text, translations, &budget, box, surface, out);
 }
 
 SubstitutionStatus BuildSubstitution(const char* wire_text,
                                      const TranslationMap& translations,
-                                     BoxLineBudget& budget, uintptr_t box,
+                                     BoxLineBudget& budget, std::uintptr_t box,
                                      const Surface& surface, Substitution& out,
                                      int* cursor_xy,
                                      const int* box_rect,

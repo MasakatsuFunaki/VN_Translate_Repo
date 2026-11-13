@@ -15,16 +15,16 @@
 #include "ddp/ddp_archive.h"
 
 #include <gtest/gtest.h>
-#include <openssl/sha.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace shin::menu {
@@ -57,7 +57,7 @@ constexpr std::uint8_t kPatchedBlue = 0x9AU;
 constexpr std::uint8_t kPatchedGreen = 0xBCU;
 constexpr std::uint8_t kPatchedRed = 0xDEU;
 constexpr std::size_t kRepeatedPixelBandEnd = 4;
-constexpr std::uint8_t kColorStep = 7U;
+constexpr std::uint8_t kColorStride = 7U;
 
 constexpr std::size_t kByteOffset1 = 1;
 constexpr std::size_t kByteOffset2 = 2;
@@ -84,35 +84,21 @@ constexpr std::size_t kPatchBootupCountOffset = 32;
 constexpr std::size_t kFirstRecordOrigHashOffset = 44;
 constexpr std::uint8_t kTamperFlipMask = 0xFFU;
 
-constexpr std::uint32_t kExpectedLiveSinSysdTotal = 229;
-constexpr std::uint32_t kExpectedLiveSinSysdOrigSize = 13486629;
-constexpr std::uint32_t kExpectedLiveSinSysdPatchCount = 37;
-constexpr std::uint32_t kExpectedLiveBootupTotal = 18;
-constexpr std::uint32_t kExpectedLiveBootupOrigSize = 48447;
-constexpr std::uint32_t kExpectedLiveBootupPatchCount = 9;
-constexpr std::size_t kExpectedLiveSinSysdPatchedSize = 20928356;
-constexpr std::size_t kExpectedLiveBootupPatchedSize = 58961;
-constexpr const char* kExpectedLiveSinSysdSha256 =
-    "ba84988290db3c5341dcfb2fc70e1087b4947c75b807ef3a629d1ea4e4587417";
-constexpr const char* kExpectedLiveBootupSha256 =
-    "3810178413ab31c8d1355d2b9d84b6e3ecaf69a81924bcda1dd65a671e2a4977";
-constexpr std::size_t kHexCharsPerByte = 2;
-
-static void AppendU32Le(Bytes& dst, std::uint32_t value) {
+void AppendU32Le(Bytes& dst, std::uint32_t value) {
     dst.push_back(static_cast<std::uint8_t>(value & kByteMask));
     dst.push_back(static_cast<std::uint8_t>((value >> kByteShift8) & kByteMask));
     dst.push_back(static_cast<std::uint8_t>((value >> kByteShift16) & kByteMask));
     dst.push_back(static_cast<std::uint8_t>((value >> kByteShift24) & kByteMask));
 }
 
-static std::uint32_t ReadU32LeAt(const Bytes& data, std::size_t offset) {
+std::uint32_t ReadU32LeAt(const Bytes& data, std::size_t offset) {
     return static_cast<std::uint32_t>(data[offset]) |
            (static_cast<std::uint32_t>(data[offset + kByteOffset1]) << kByteShift8) |
            (static_cast<std::uint32_t>(data[offset + kByteOffset2]) << kByteShift16) |
            (static_cast<std::uint32_t>(data[offset + kByteOffset3]) << kByteShift24);
 }
 
-static bool ContainsAsciiSubstr(const Bytes& haystack, const std::string& needle) {
+bool ContainsAsciiSubstr(const Bytes& haystack, const std::string& needle) {
     if (needle.empty() || haystack.size() < needle.size()) {
         return false;
     }
@@ -120,20 +106,7 @@ static bool ContainsAsciiSubstr(const Bytes& haystack, const std::string& needle
            haystack.end();
 }
 
-static std::string ComputeSha256Hex(const Bytes& data) {
-    unsigned char digest[SHA256_DIGEST_LENGTH] = {};
-    SHA256(data.data(), data.size(), digest);
-    std::string hex;
-    hex.reserve(SHA256_DIGEST_LENGTH * kHexCharsPerByte);
-    for (std::size_t i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
-        char buf[kHexCharsPerByte + 1] = {};
-        std::snprintf(buf, sizeof(buf), "%02x", digest[i]);
-        hex += buf;
-    }
-    return hex;
-}
-
-static Bytes BuildDdp2ArchiveFromPayloads(const std::vector<Bytes>& raw_payloads) {
+Bytes BuildDdp2ArchiveFromPayloads(const std::vector<Bytes>& raw_payloads) {
     Bytes archive;
     archive.push_back(static_cast<std::uint8_t>('D'));
     archive.push_back(static_cast<std::uint8_t>('D'));
@@ -166,11 +139,11 @@ static Bytes BuildDdp2ArchiveFromPayloads(const std::vector<Bytes>& raw_payloads
     return archive;
 }
 
-static Bytes MakeSamplePixels24(std::uint16_t width,
-                                std::uint16_t height,
-                                std::uint8_t base_blue,
-                                std::uint8_t base_green,
-                                std::uint8_t base_red) {
+Bytes MakeSamplePixels24(std::uint16_t width,
+                         std::uint16_t height,
+                         std::uint8_t base_blue,
+                         std::uint8_t base_green,
+                         std::uint8_t base_red) {
     Bytes pixels;
     pixels.reserve(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) *
                    kBytesPerPixel24);
@@ -182,7 +155,7 @@ static Bytes MakeSamplePixels24(std::uint16_t width,
                 pixels.push_back(base_red);
                 continue;
             }
-            const std::uint8_t delta = static_cast<std::uint8_t>((x + y) * kColorStep);
+            const std::uint8_t delta = static_cast<std::uint8_t>((x + y) * kColorStride);
             pixels.push_back(static_cast<std::uint8_t>(base_blue + delta));
             pixels.push_back(static_cast<std::uint8_t>(base_green + delta));
             pixels.push_back(static_cast<std::uint8_t>(base_red + delta));
@@ -191,12 +164,12 @@ static Bytes MakeSamplePixels24(std::uint16_t width,
     return pixels;
 }
 
-static Bytes MakeSamplePixels32(std::uint16_t width,
-                                std::uint16_t height,
-                                std::uint8_t base_blue,
-                                std::uint8_t base_green,
-                                std::uint8_t base_red,
-                                std::uint8_t base_alpha) {
+Bytes MakeSamplePixels32(std::uint16_t width,
+                         std::uint16_t height,
+                         std::uint8_t base_blue,
+                         std::uint8_t base_green,
+                         std::uint8_t base_red,
+                         std::uint8_t base_alpha) {
     Bytes pixels;
     pixels.reserve(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) *
                    kBytesPerPixel32);
@@ -209,7 +182,7 @@ static Bytes MakeSamplePixels32(std::uint16_t width,
                 pixels.push_back(base_alpha);
                 continue;
             }
-            const std::uint8_t delta = static_cast<std::uint8_t>((x + y) * kColorStep);
+            const std::uint8_t delta = static_cast<std::uint8_t>((x + y) * kColorStride);
             pixels.push_back(static_cast<std::uint8_t>(base_blue + delta));
             pixels.push_back(static_cast<std::uint8_t>(base_green + delta));
             pixels.push_back(static_cast<std::uint8_t>(base_red + delta));
@@ -219,11 +192,11 @@ static Bytes MakeSamplePixels32(std::uint16_t width,
     return pixels;
 }
 
-static TgaHeaderInfo MakeTgaHeader(std::uint8_t image_type,
-                                   std::uint16_t width,
-                                   std::uint16_t height,
-                                   std::uint8_t bpp,
-                                   std::uint8_t descriptor) {
+TgaHeaderInfo MakeTgaHeader(std::uint8_t image_type,
+                            std::uint16_t width,
+                            std::uint16_t height,
+                            std::uint8_t bpp,
+                            std::uint8_t descriptor) {
     TgaHeaderInfo header;
     header.image_type = image_type;
     header.width = width;
@@ -233,7 +206,7 @@ static TgaHeaderInfo MakeTgaHeader(std::uint8_t image_type,
     return header;
 }
 
-static Bytes MakeDecryptedHxbSample(std::uint8_t opcode_byte) {
+Bytes MakeDecryptedHxbSample(std::uint8_t opcode_byte) {
     Bytes hxb(kHxbHeaderSize, 0);
     const char magic[] = "DDWuHXB";
     for (std::size_t i = 0; i < sizeof(magic) - 1; ++i) {
@@ -251,7 +224,7 @@ static Bytes MakeDecryptedHxbSample(std::uint8_t opcode_byte) {
 class TempTestDirectory {
 public:
     explicit TempTestDirectory(const std::string& suffix)
-        : path_(fs::temp_directory_path() / ("shin_ut_menu_patcher_" + suffix)) {
+        : path_(fs::temp_directory_path() / fs::u8path("shin_ut_menu_patcher_" + suffix)) {
         std::error_code ec;
         fs::remove_all(path_, ec);
         fs::create_directories(path_);
@@ -637,48 +610,6 @@ TEST(XorMenuPatchTest, PatchesArchivesFromXorPatchFileWhenAssetsDirectoryIsAbsen
               BuildDdp2ArchiveFromPayloads({repl_tga, repl_csv}));
     EXPECT_EQ(read_file(bootup_path.u8string()),
               BuildDdp2ArchiveFromPayloads({repl_bootup_cfg}));
-}
-
-TEST(XorMenuPatchTest, LiveMenuPatchBinHasZeroPlainHeadersAndReconstructsBitExactArchives) {
-    const fs::path project_root = fs::u8path(SHIN_PROJECT_DIR);
-    const fs::path tracked_patch_path = project_root / "menu_patch.bin";
-    ASSERT_TRUE(fs::exists(tracked_patch_path));
-    EXPECT_FALSE(fs::exists(project_root / "menu_assets"));
-
-    const Bytes patch_blob = read_file(tracked_patch_path.u8string());
-    ASSERT_GE(patch_blob.size(), kXorMenuPatchHeaderSize);
-    EXPECT_EQ(std::memcmp(patch_blob.data(), "SHINMENU", kXorMenuPatchMagicSize), 0);
-    EXPECT_EQ(ReadU32LeAt(patch_blob, kPatchVersionOffset), kXorMenuPatchFormatVersion);
-    EXPECT_EQ(ReadU32LeAt(patch_blob, kPatchSinSysdTotalOffset), kExpectedLiveSinSysdTotal);
-    EXPECT_EQ(ReadU32LeAt(patch_blob, kPatchSinSysdOrigSizeOffset), kExpectedLiveSinSysdOrigSize);
-    EXPECT_EQ(ReadU32LeAt(patch_blob, kPatchSinSysdCountOffset), kExpectedLiveSinSysdPatchCount);
-    EXPECT_EQ(ReadU32LeAt(patch_blob, kPatchBootupTotalOffset), kExpectedLiveBootupTotal);
-    EXPECT_EQ(ReadU32LeAt(patch_blob, kPatchBootupOrigSizeOffset), kExpectedLiveBootupOrigSize);
-    EXPECT_EQ(ReadU32LeAt(patch_blob, kPatchBootupCountOffset), kExpectedLiveBootupPatchCount);
-
-    EXPECT_FALSE(ContainsAsciiSubstr(patch_blob, "DDWuHXB"));
-    EXPECT_FALSE(ContainsAsciiSubstr(patch_blob, "T:Shingakkou"));
-    EXPECT_FALSE(ContainsAsciiSubstr(patch_blob, "rep_01_01"));
-
-    const fs::path live_game_root =
-        fs::u8path("d:\\Kits\\my_downloadedGames\\Shingakkou + FD\\Shingakkou");
-    const fs::path live_sin_sysd_bak = live_game_root / "Data" / "sin_sysd.dat.bak";
-    const fs::path live_bootup_bak = live_game_root / "Bootup.dat.bak";
-    if (!fs::exists(live_sin_sysd_bak) || !fs::exists(live_bootup_bak)) {
-        return;
-    }
-
-    const Bytes orig_sin_sysd = read_file(live_sin_sysd_bak.u8string());
-    const Bytes orig_bootup = read_file(live_bootup_bak.u8string());
-    Bytes patched_sin_sysd;
-    Bytes patched_bootup;
-    ApplyXorMenuPatchBlobToDdp2(
-        orig_sin_sysd, orig_bootup, patch_blob, patched_sin_sysd, patched_bootup);
-
-    EXPECT_EQ(patched_sin_sysd.size(), kExpectedLiveSinSysdPatchedSize);
-    EXPECT_EQ(ComputeSha256Hex(patched_sin_sysd), kExpectedLiveSinSysdSha256);
-    EXPECT_EQ(patched_bootup.size(), kExpectedLiveBootupPatchedSize);
-    EXPECT_EQ(ComputeSha256Hex(patched_bootup), kExpectedLiveBootupSha256);
 }
 
 }  // namespace

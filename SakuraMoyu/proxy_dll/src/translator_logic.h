@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -18,7 +19,7 @@ namespace translator_logic {
 
 using TranslationMap = std::unordered_map<std::string, std::string>;
 
-inline constexpr size_t kDefaultFvpColumnGridWidth = 58;
+inline constexpr std::size_t kDefaultFvpColumnGridWidth = 58;
 
 // Undo the TSV escape sequences: \r \n \t \\. In-place.
 void UnescapeInPlace(std::string& s);
@@ -27,7 +28,7 @@ void UnescapeInPlace(std::string& s);
 // bytes, snapping to a UTF-8 character boundary. Returns the safe
 // byte length (always <= max_bytes, and never splits a multi-byte
 // UTF-8 codepoint).
-size_t Utf8SafeTruncate(const char* s, size_t max_bytes);
+std::size_t Utf8SafeTruncate(const char* s, std::size_t max_bytes);
 
 // If `s` begins with the 2-byte sequence `\n` (backslash + 'n'), replace it
 // with a single space and return true.
@@ -36,15 +37,15 @@ bool StripLeadingControlNewline(std::string& s);
 // Pre-wrap English text at word boundaries by inserting 2-byte `\n`
 // (backslash + 'n') line-break control codes before any word that
 // would push the current line past `line_chars` characters.
-size_t WordWrapForEngine(std::string& s, size_t line_chars,
-                         size_t start_col = 0);
+std::size_t WordWrapForEngine(std::string& s, std::size_t line_chars,
+                              std::size_t start_col = 0);
 
 // Parse a TSV buffer in memory into a translation map.
 // Format per line: "<jp>\t<en>\n" (or \r\n). Skips a leading UTF-8
 // BOM (EF BB BF) if present. Unescapes both sides. Drops empty
 // entries. Returns the number of entries inserted; `out` is
 // appended to, not cleared.
-int ParseTsvBuffer(const char* data, size_t len, TranslationMap& out);
+int ParseTsvBuffer(const char* data, std::size_t len, TranslationMap& out);
 
 // Open a file by path, read the entire contents, and call ParseTsvBuffer.
 // Returns true iff the file was opened and at least one entry was parsed.
@@ -59,12 +60,12 @@ const std::string* FindTranslation(const TranslationMap& map,
 // whitespace (0x81 0x40), unwrapping one outer pair of corner brackets
 // (「...」 0x81 0x75..0x81 0x76 or 『...』 0x81 0x77..0x81 0x78), and
 // re-stripping inner leading/trailing whitespace.
-std::string NormalizeCp932LookupKey(const char* src, size_t len);
+std::string NormalizeCp932LookupKey(const char* src, std::size_t len);
 
 // Pad each fixed-column row with ASCII spaces before any word that would cross
 // `max_cols` so FVP's fixed-column glyph layout wraps on word boundaries.
 std::string WrapAsciiToColumnGrid(
     const std::string& text,
-    size_t max_cols = kDefaultFvpColumnGridWidth);
+    std::size_t max_cols = kDefaultFvpColumnGridWidth);
 
 }  // namespace translator_logic

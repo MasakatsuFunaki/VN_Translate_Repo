@@ -11,3 +11,4 @@ add_test(
     COMMAND ct_tests
     WORKING_DIRECTORY $<TARGET_FILE_DIR:ct_tests>
 )
+set_tests_properties(CT_TranslationPipeline PROPERTIES LABELS "CT")

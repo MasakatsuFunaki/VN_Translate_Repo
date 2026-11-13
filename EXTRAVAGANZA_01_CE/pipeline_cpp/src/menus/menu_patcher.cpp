@@ -7,8 +7,14 @@
 
 #include "menus/menu_patcher.h"
 
+#include "charts/charts.h"
+
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <wincodec.h>
 #include <wrl/client.h>
@@ -17,14 +23,19 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <sstream>
+#include <memory>
+#include <optional>
 #include <stdexcept>
+#include <string>
+#include <system_error>
 #include <unordered_map>
-
-#include "charts/charts.h"
+#include <utility>
+#include <vector>
 
 namespace exc::menus {
 
@@ -677,10 +688,7 @@ Bytes patch_backlog_fxf(const Bytes& encrypted_fxf) {
     // "#青" (3-byte CP932 color command) + 8 fullwidth spaces + "Ｂａｃｋｌｏｇ"
     // (every character after "#青" is 2-byte fullwidth CP932).
     const std::string kBacklogHeaderLine =
-        "firstMessage1 #\xE9\x9D\x92"
-        "\xE3\x80\x80\xE3\x80\x80\xE3\x80\x80\xE3\x80\x80"
-        "\xE3\x80\x80\xE3\x80\x80\xE3\x80\x80\xE3\x80\x80"
-        "\xEF\xBC\xA2\xEF\xBD\x81\xEF\xBD\x83\xEF\xBD\x8B\xEF\xBD\x8C\xEF\xBD\x8F\xEF\xBD\x87";
+        "firstMessage1 #青　　　　　　　　Ｂａｃｋｌｏｇ";
 
     std::string out_utf8;
     out_utf8.reserve(utf8.size() + kFxfBodyReservePadding);

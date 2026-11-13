@@ -6,39 +6,69 @@
 #include "runtime_hooks.h"
 #include "translator_logic.h"
 
-#include <memory>
-
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
 namespace {
+
+constexpr DWORD kInitialModulePathChars = MAX_PATH;
+constexpr DWORD kMaxModulePathChars = 32768U;
 
 std::unique_ptr<oretsuba::proxy::TranslationCatalog> g_catalog;
 std::unique_ptr<oretsuba::proxy::RuntimeHookManager> g_hook_mgr;
 
-void InitializeOretsubaTranslation(HMODULE hModule) {
-    wchar_t dll_dir[MAX_PATH] = {};
-    GetModuleFileNameW(hModule, dll_dir, MAX_PATH);
-    wchar_t* last_slash = wcsrchr(dll_dir, L'\\');
-    if (last_slash) {
-        *(last_slash + 1) = L'\0';
+std::wstring ResolveModuleDirectoryW(HMODULE module) {
+    std::vector<wchar_t> buf(kInitialModulePathChars, L'\0');
+    DWORD len = 0;
+    for (;;) {
+        ::SetLastError(ERROR_SUCCESS);
+        len = ::GetModuleFileNameW(module, buf.data(), static_cast<DWORD>(buf.size()));
+        if (len == 0) {
+            return {};
+        }
+        if (len < buf.size() - 1U && ::GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            break;
+        }
+        if (buf.size() >= kMaxModulePathChars) {
+            return {};
+        }
+        const std::size_t next_size =
+            std::min<std::size_t>(buf.size() * 2U, kMaxModulePathChars);
+        buf.assign(next_size, L'\0');
     }
 
-    wchar_t log_path[MAX_PATH] = {};
-    wcscpy_s(log_path, dll_dir);
-    wcscat_s(log_path, L"vn_translate_log.txt");
-    oretsuba::proxy::LogInit(log_path);
+    std::wstring module_dir(buf.data(), len);
+    const std::size_t sep = module_dir.find_last_of(L"\\/");
+    if (sep == std::wstring::npos) {
+        return {};
+    }
+    module_dir.resize(sep + 1U);
+    return module_dir;
+}
+
+void InitializeOretsubaTranslation(HMODULE hModule) {
+    const std::wstring dll_dir = ResolveModuleDirectoryW(hModule);
+    const std::wstring log_path = dll_dir + L"vn_translate_log.txt";
+    oretsuba::proxy::LogInit(log_path.c_str());
 
     oretsuba::proxy::ProxyInit();
 
-    wchar_t tsv_path[MAX_PATH] = {};
-    wcscpy_s(tsv_path, dll_dir);
-    wcscat_s(tsv_path, L"translation_table.tsv");
+    const std::wstring tsv_path = dll_dir + L"translation_table.tsv";
 
     g_catalog = std::make_unique<oretsuba::proxy::TranslationCatalog>();
-    const std::size_t loaded_count = g_catalog->LoadFromFile(tsv_path);
+    const std::size_t loaded_count = g_catalog->LoadFromFile(tsv_path.c_str());
     oretsuba::proxy::Log(
         "Loaded %zu entries from translation_table.tsv", loaded_count);
 

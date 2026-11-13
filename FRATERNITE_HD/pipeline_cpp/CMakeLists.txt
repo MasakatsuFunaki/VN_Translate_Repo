@@ -20,6 +20,7 @@ find_package(ZLIB REQUIRED)
 # Tests need an absolute anchor for fixtures; apps must NOT get one
 # (a compiled-in path leaks this machine's layout into installed binaries).
 get_filename_component(FRAT_PROJECT_DIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+file(TO_CMAKE_PATH "${FRAT_PROJECT_DIR_ABS}" FRAT_PROJECT_DIR_FWD)
 
 # frat_core: shared by apps and tests.
 add_library(frat_core STATIC
@@ -62,7 +63,7 @@ target_link_libraries(frat_core PUBLIC
 # Pipeline executables.  Program_options scoped to apps, not frat_core.
 function(frat_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE frat_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE frat_core Boost::program_options shell32)
 endfunction()
 
 frat_app(00_run_all    src/apps/run_all_main.cpp)

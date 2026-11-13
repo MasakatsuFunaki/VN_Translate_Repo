@@ -7,30 +7,36 @@
 
 // 01_extract -- extract Japanese strings from Sakura.hcb (FAVORITE / FVP).
 // See src/fvp/fvp_hcb.cpp for the bytecode walker.
-#include <filesystem>
-
+#include "apps/paths.h"
 #include "common/util.h"
 #include "extract/extractor.h"
 
-#include "apps/paths.h"
+#include <exception>
+#include <filesystem>
+#include <string>
 
-int main(int argc, char** argv) {
+int main() {
     fav::setup_console_utf8();
     namespace po = fav::apps::po;
 
-    std::string project, game;
-    po::options_description desc("01_extract -- extract Japanese strings from Sakura.hcb");
-    desc.add(fav::apps::common_options(project, game));
-    po::variables_map vm;
-    if (auto rc = fav::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    const std::string out_dir = project + "\\script_output";
-    std::filesystem::create_directories(std::filesystem::u8path(out_dir));
     try {
+        std::string project;
+        std::string game;
+        po::options_description desc(
+            "01_extract -- extract Japanese strings from Sakura.hcb");
+        desc.add(fav::apps::common_options(project, game));
+
+        po::variables_map vm;
+        if (const auto rc = fav::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
+        const std::string out_dir = project + "\\script_output";
+        std::filesystem::create_directories(std::filesystem::u8path(out_dir));
         return fav::extract::run_extract(game + "\\Sakura.hcb",
                                          out_dir + "\\extracted_text.json");
     } catch (const std::exception& e) {
         fav::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        return fav::apps::kExitError;
     }
 }

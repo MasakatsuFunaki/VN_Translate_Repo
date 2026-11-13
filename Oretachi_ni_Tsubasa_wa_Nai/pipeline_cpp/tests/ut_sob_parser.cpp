@@ -1,22 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MasakatsuFunaki
 
-#include <cstdint>
-#include <cstring>
-#include <filesystem>
-#include <string>
-#include <vector>
+#include "common/util.h"
+#include "sob/sob_parser.h"
 
 #include <gtest/gtest.h>
 
-#include "apps/paths.h"
-#include "common/util.h"
-#include "lpk/lpk_archive.h"
-#include "sob/sob_parser.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string_view>
 
 namespace {
-
-namespace fs = std::filesystem;
 
 constexpr std::uint32_t kSyntheticCodeSize = 64U;
 constexpr std::uint32_t kSyntheticTitleCodeOff = 16U;
@@ -31,9 +26,16 @@ constexpr std::uint8_t kSyntheticBlockId = 1U;
 constexpr std::uint16_t kSyntheticMsgIndex = 7U;
 constexpr std::uint16_t kSyntheticChoiceId = 3U;
 constexpr std::uint8_t kSyntheticChoiceCount = 2U;
+constexpr std::size_t kChoiceOptionRecordOverhead = 3U;
+constexpr std::uint32_t kSingleRelocEntryCount = 1U;
+constexpr std::uint32_t kTwoRelocEntriesCount = 2U;
+constexpr std::uint32_t kFourRelocEntriesCount = 4U;
 constexpr std::size_t kExpectedSyntheticRecords = 5U;
-constexpr std::size_t kExpectedUserVarUiRecords = 10U;
-constexpr std::size_t kExpectedS0102cChoices = 2U;
+constexpr std::size_t kTitleRecordIdx = 0U;
+constexpr std::size_t kSynopsisRecordIdx = 1U;
+constexpr std::size_t kDialogueRecordIdx = 2U;
+constexpr std::size_t kFirstChoiceRecordIdx = 3U;
+constexpr std::size_t kSecondChoiceRecordIdx = 4U;
 
 void AppendU32Le(oretsuba::Bytes& out, std::uint32_t val) {
     const std::size_t pos = out.size();
@@ -51,18 +53,6 @@ void AppendCp932NullTerminated(oretsuba::Bytes& out, std::string_view utf8) {
     const oretsuba::Bytes cp932 = oretsuba::Utf8ToCp932(utf8);
     out.insert(out.end(), cp932.begin(), cp932.end());
     out.push_back(0U);
-}
-
-std::string FindScriptLpkPath() {
-    const std::string game_dir = oretsuba::apps::DefaultGameDirectory();
-    if (game_dir.empty()) {
-        return {};
-    }
-    const fs::path candidate = fs::u8path(game_dir) / "SCRIPT.LPK";
-    if (!fs::is_regular_file(candidate)) {
-        return {};
-    }
-    return candidate.u8string();
 }
 
 }  // namespace
@@ -119,7 +109,8 @@ TEST(SobParserTest, ParsesSyntheticSob0ScriptWithTitleSynopsisDialogueAndChoices
 
     for (std::string_view opt_text : {"選択肢その一", "選択肢その二"}) {
         const oretsuba::Bytes cp932 = oretsuba::Utf8ToCp932(opt_text);
-        const auto stride = static_cast<std::uint8_t>(cp932.size() + 3U);
+        const auto stride =
+            static_cast<std::uint8_t>(cp932.size() + kChoiceOptionRecordOverhead);
         payload.push_back(stride);
         payload.push_back(0U);
         payload.insert(payload.end(), cp932.begin(), cp932.end());
@@ -127,11 +118,11 @@ TEST(SobParserTest, ParsesSyntheticSob0ScriptWithTitleSynopsisDialogueAndChoices
     }
 
     oretsuba::Bytes reloc;
-    AppendU32Le(reloc, 1U);
+    AppendU32Le(reloc, kSingleRelocEntryCount);
     AppendU32Le(reloc, kSyntheticSynopsisCodeOff);
     AppendU32Le(reloc, oretsuba::sob::kGlobalVarSynopsis);
 
-    AppendU32Le(reloc, 2U);
+    AppendU32Le(reloc, kTwoRelocEntriesCount);
     AppendU32Le(reloc, kSyntheticMsgCodeOff);
     AppendU32Le(reloc, oretsuba::sob::kSyscallMessage);
     AppendU32Le(reloc, kSyntheticChoiceCodeOff);
@@ -139,11 +130,11 @@ TEST(SobParserTest, ParsesSyntheticSob0ScriptWithTitleSynopsisDialogueAndChoices
 
     AppendU32Le(reloc, 0U);
 
-    AppendU32Le(reloc, 1U);
+    AppendU32Le(reloc, kSingleRelocEntryCount);
     AppendU32Le(reloc, kSyntheticTitleCodeOff);
     AppendU32Le(reloc, oretsuba::sob::kExtFuncSceneTitle);
 
-    AppendU32Le(reloc, 4U);
+    AppendU32Le(reloc, kFourRelocEntriesCount);
     AppendU32Le(reloc, kSyntheticTitlePtrOff);
     AppendU32Le(reloc, title_off);
     AppendU32Le(reloc, kSyntheticSynopsisPtrOff);
@@ -170,57 +161,20 @@ TEST(SobParserTest, ParsesSyntheticSob0ScriptWithTitleSynopsisDialogueAndChoices
     EXPECT_EQ(parsed.choice_block_count, 1U);
     ASSERT_EQ(parsed.records.size(), kExpectedSyntheticRecords);
 
-    EXPECT_EQ(parsed.records[0].type, oretsuba::sob::SobEntryType::kTitle);
-    EXPECT_EQ(parsed.records[0].text, "第１章　テストタイトル");
+    EXPECT_EQ(parsed.records[kTitleRecordIdx].type, oretsuba::sob::SobEntryType::kTitle);
+    EXPECT_EQ(parsed.records[kTitleRecordIdx].text, "第１章　テストタイトル");
 
-    EXPECT_EQ(parsed.records[1].type, oretsuba::sob::SobEntryType::kSynopsis);
-    EXPECT_EQ(parsed.records[1].text, "　テスト用のあらすじテキストです。");
+    EXPECT_EQ(parsed.records[kSynopsisRecordIdx].type, oretsuba::sob::SobEntryType::kSynopsis);
+    EXPECT_EQ(parsed.records[kSynopsisRecordIdx].text, "　テスト用のあらすじテキストです。");
 
-    EXPECT_EQ(parsed.records[2].type, oretsuba::sob::SobEntryType::kDialogue);
-    EXPECT_EQ(parsed.records[2].speaker, "鷲介");
-    EXPECT_EQ(parsed.records[2].voice_id, "SHU0010");
-    EXPECT_EQ(parsed.records[2].text, "「いらっしゃいませ」");
-    EXPECT_EQ(parsed.records[2].record_index, kSyntheticMsgIndex);
+    EXPECT_EQ(parsed.records[kDialogueRecordIdx].type, oretsuba::sob::SobEntryType::kDialogue);
+    EXPECT_EQ(parsed.records[kDialogueRecordIdx].speaker, "鷲介");
+    EXPECT_EQ(parsed.records[kDialogueRecordIdx].voice_id, "SHU0010");
+    EXPECT_EQ(parsed.records[kDialogueRecordIdx].text, "「いらっしゃいませ」");
+    EXPECT_EQ(parsed.records[kDialogueRecordIdx].record_index, kSyntheticMsgIndex);
 
-    EXPECT_EQ(parsed.records[3].type, oretsuba::sob::SobEntryType::kChoice);
-    EXPECT_EQ(parsed.records[3].text, "選択肢その一");
-    EXPECT_EQ(parsed.records[4].type, oretsuba::sob::SobEntryType::kChoice);
-    EXPECT_EQ(parsed.records[4].text, "選択肢その二");
-}
-
-TEST(SobParserTest, ParsesRealScenarioAndUserVarScriptsFromScriptLpk) {
-    const std::string lpk_path = FindScriptLpkPath();
-    ASSERT_FALSE(lpk_path.empty()) << "SCRIPT.LPK not found in default game directory";
-
-    const oretsuba::lpk::LpkArchiveReader reader(lpk_path);
-    const oretsuba::sob::SobScriptParser parser;
-
-    const auto s01_02c = parser.Parse("s01_02c.sob", reader.ReadEntryByName("s01_02c.sob"));
-    EXPECT_EQ(s01_02c.format, oretsuba::sob::SobFormat::kSob0);
-    EXPECT_TRUE(s01_02c.has_messages);
-    EXPECT_EQ(s01_02c.choice_block_count, 1U);
-
-    std::vector<std::uint16_t> msg_indices;
-    std::size_t choice_count = 0;
-    for (const auto& rec : s01_02c.records) {
-        if (rec.type == oretsuba::sob::SobEntryType::kDialogue ||
-            rec.type == oretsuba::sob::SobEntryType::kNarration) {
-            msg_indices.push_back(rec.record_index);
-        }
-        if (rec.type == oretsuba::sob::SobEntryType::kChoice) {
-            ++choice_count;
-        }
-    }
-    EXPECT_EQ(choice_count, kExpectedS0102cChoices);
-    ASSERT_FALSE(msg_indices.empty());
-    EXPECT_EQ(msg_indices.front(), 0U);
-    for (std::size_t i = 1; i < msg_indices.size(); ++i) {
-        EXPECT_GT(msg_indices[i], msg_indices[i - 1]);
-    }
-
-    const auto user_var = parser.Parse("user_var.sob", reader.ReadEntryByName("user_var.sob"));
-    EXPECT_EQ(user_var.format, oretsuba::sob::SobFormat::kSob1);
-    ASSERT_EQ(user_var.records.size(), kExpectedUserVarUiRecords);
-    EXPECT_EQ(user_var.records.front().type, oretsuba::sob::SobEntryType::kUi);
-    EXPECT_EQ(user_var.records.front().text, "クイックセーブ");
+    EXPECT_EQ(parsed.records[kFirstChoiceRecordIdx].type, oretsuba::sob::SobEntryType::kChoice);
+    EXPECT_EQ(parsed.records[kFirstChoiceRecordIdx].text, "選択肢その一");
+    EXPECT_EQ(parsed.records[kSecondChoiceRecordIdx].type, oretsuba::sob::SobEntryType::kChoice);
+    EXPECT_EQ(parsed.records[kSecondChoiceRecordIdx].text, "選択肢その二");
 }

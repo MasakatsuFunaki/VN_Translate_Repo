@@ -7,17 +7,22 @@
 
 // Unit tests for src/extract/extractor.{h,cpp}: directory resolution and
 // end-to-end extraction of synthetic encrypted .spt files into JSON.
+#include "extract/extractor.h"
+
+#include "common/util.h"
+#include "spt/spt_script.h"
+
+#include <boost/json.hpp>
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <string>
-
-#include <boost/json.hpp>
-
-#include "common/util.h"
-#include "extract/extractor.h"
-#include "spt/spt_script.h"
+#include <string_view>
+#include <system_error>
+#include <vector>
 
 namespace fs = std::filesystem;
 namespace bj = boost::json;
@@ -34,6 +39,27 @@ constexpr std::size_t kAlignment = 4;
 constexpr std::int64_t kExpectedStringsFound = 3;
 constexpr std::int64_t kExpectedJpStrings = 2;
 
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const fs::path& path() const { return path_; }
+
+private:
+    fs::path path_;
+};
+
 Bytes make_encrypted_spt(const std::vector<std::string>& utf8_strings) {
     Bytes dec(kHeaderSize, kSpaceByte);
     std::memcpy(dec.data() + kMagicOffset, kMagicText, kMagicLen);
@@ -49,19 +75,18 @@ Bytes make_encrypted_spt(const std::vector<std::string>& utf8_strings) {
 }  // namespace
 
 TEST(Extractor, resolve_spt_dir_prefers_backup_when_present) {
-    const fs::path base = fs::temp_directory_path() / "agh_ut_spt_resolve";
-    fs::remove_all(base);
+    const ScopedTempDir tmp("agh_ut_spt_resolve");
+    const fs::path& base = tmp.path();
     fs::create_directories(base / "spt");
     EXPECT_EQ(extract::resolve_spt_dir(base.u8string()), (base / "spt").u8string());
 
     fs::create_directories(base / "spt_backup");
     EXPECT_EQ(extract::resolve_spt_dir(base.u8string()), (base / "spt_backup").u8string());
-    fs::remove_all(base);
 }
 
 TEST(Extractor, run_extract_writes_classified_json_and_skips_invalid_spt) {
-    const fs::path base = fs::temp_directory_path() / "agh_ut_extract_run";
-    fs::remove_all(base);
+    const ScopedTempDir tmp("agh_ut_extract_run");
+    const fs::path& base = tmp.path();
     const fs::path spt_dir = base / "spt";
     fs::create_directories(spt_dir);
 
@@ -91,6 +116,4 @@ TEST(Extractor, run_extract_writes_classified_json_and_skips_invalid_spt) {
     EXPECT_EQ(strings[0].as_object().at("type").as_string(), "dialogue");
     EXPECT_EQ(strings[1].as_object().at("type").as_string(), "narrative");
     EXPECT_EQ(strings[2].as_object().at("type").as_string(), "label");
-
-    fs::remove_all(base);
 }

@@ -7,29 +7,34 @@
 
 // 01_extract -- extract Japanese text from BGI BurikoCompiledScript files
 // (see src/extract/extractor.cpp for the walker).
-#include <filesystem>
-
+#include "apps/paths.h"
 #include "common/util.h"
 #include "extract/extractor.h"
 
-#include "apps/paths.h"
+#include <exception>
+#include <filesystem>
+#include <string>
 
-int main(int argc, char** argv) {
-    snu::setup_console_utf8();
-    namespace po = snu::apps::po;
-
-    std::string project, game;
-    po::options_description desc("01_extract -- extract Japanese text from BGI archives");
-    desc.add(snu::apps::common_options(project, game));
-    po::variables_map vm;
-    if (auto rc = snu::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    std::string out_dir = project + "\\script_output";
-    std::filesystem::create_directories(std::filesystem::u8path(out_dir));
+int main() {
     try {
+        snu::setup_console_utf8();
+        namespace po = snu::apps::po;
+
+        std::string project;
+        std::string game;
+        po::options_description desc(
+            "01_extract -- extract Japanese text from BGI archives");
+        desc.add(snu::apps::common_options(project, game));
+        po::variables_map vm;
+        if (const auto rc = snu::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
+        const std::string out_dir = project + "\\script_output";
+        std::filesystem::create_directories(std::filesystem::u8path(out_dir));
         return snu::extract::run_extract(game, out_dir + "\\extracted_text.json");
     } catch (const std::exception& e) {
         snu::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        return snu::apps::kExitFailure;
     }
 }

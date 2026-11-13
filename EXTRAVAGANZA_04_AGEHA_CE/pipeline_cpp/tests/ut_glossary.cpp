@@ -7,12 +7,13 @@
 
 // Unit tests for src/cache/glossary.{h,cpp}: AGEHA_CE speaker mappings,
 // story order, and system prompt invariants.
+#include "cache/glossary.h"
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <string>
 #include <vector>
-
-#include "cache/glossary.h"
 
 namespace tr = exm::translate;
 

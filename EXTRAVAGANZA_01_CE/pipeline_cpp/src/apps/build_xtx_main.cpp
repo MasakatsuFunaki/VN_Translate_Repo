@@ -6,27 +6,29 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 // 04_build_xtx -- translate the .xtx config files (character name plate).
-#include <string>
-
+#include "apps/paths.h"
 #include "common/util.h"
 #include "xtx/xtx.h"
 
-#include "apps/paths.h"
+#include <exception>
+#include <string>
 
-int main(int argc, char** argv) {
+int main() {
     exc::setup_console_utf8();
     namespace po = exc::apps::po;
 
-    std::string project, game;
-    po::options_description desc("04_build_xtx -- translate .xtx config files");
-    desc.add(exc::apps::common_options(project, game));
-    po::variables_map vm;
-    if (auto rc = exc::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
     try {
+        std::string game;
+        po::options_description desc("04_build_xtx -- translate .xtx config files");
+        desc.add(exc::apps::game_only_options(game));
+        po::variables_map vm;
+        if (const auto rc = exc::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
         return exc::xtx::run_translate_xtx(game);
     } catch (const std::exception& e) {
         exc::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        return exc::apps::kExitError;
     }
 }

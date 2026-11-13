@@ -9,14 +9,13 @@
 
 include(GoogleTest)
 
-# --- Fake host EXE ---------------------------------------------------
 add_executable(shingakkou_driver driver_exe.cpp)
+target_link_libraries(shingakkou_driver PRIVATE shell32)
 target_compile_definitions(shingakkou_driver PRIVATE
     _CRT_SECURE_NO_WARNINGS
 )
 add_dependencies(shingakkou_driver proxy)
 
-# --- gtest binary ----------------------------------------------------
 add_executable(shingakkou_dll shingakkou_dll.cpp)
 target_link_libraries(shingakkou_dll PRIVATE GTest::gtest GTest::gtest_main)
 target_compile_definitions(shingakkou_dll PRIVATE

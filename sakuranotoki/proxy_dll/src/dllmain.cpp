@@ -31,67 +31,117 @@
 // when the dump file already exists in the game folder, which it
 // usually doesn't after the move out — handled by the scout).
 
-#include "log.h"
-#include "translator.h"
 #include "engine_scout.h"
-#include "memory_scanner.h"
-#include "iat_translator.h"
-#include "text_finder.h"
 #include "function_hook.h"
+#include "iat_translator.h"
+#include "log.h"
+#include "memory_scanner.h"
 #include "page_guard.h"
+#include "proxy.h"
+#include "text_finder.h"
+#include "translator.h"
 
 #include <windows.h>
-#include <cstring>
 
-
-extern "C" void ProxyInit();
-extern "C" void ProxyShutdown();
-
+#include <algorithm>
+#include <cstddef>
+#include <string>
+#include <vector>
 
 namespace {
+
+constexpr DWORD kUnpackWaitMs = 1500U;
+constexpr std::size_t kInitialModulePathChars = MAX_PATH;
+constexpr std::size_t kMaxModulePathChars = 32768;
+constexpr std::size_t kPathGrowthFactor = 2;
+
+class ScopedHandle {
+public:
+    explicit ScopedHandle(HANDLE handle) noexcept : handle_(handle) {}
+
+    ScopedHandle(const ScopedHandle&) = delete;
+    ScopedHandle& operator=(const ScopedHandle&) = delete;
+
+    ~ScopedHandle() {
+        if (handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE) {
+            CloseHandle(handle_);
+        }
+    }
+
+private:
+    HANDLE handle_ = nullptr;
+};
+
+std::wstring query_module_path(HMODULE mod) {
+    std::size_t cap = kInitialModulePathChars;
+    while (cap <= kMaxModulePathChars) {
+        std::vector<wchar_t> buf(cap, L'\0');
+        const DWORD len = GetModuleFileNameW(
+            mod, buf.data(), static_cast<DWORD>(cap));
+        if (len == 0) {
+            return {};
+        }
+        if (len < cap) {
+            return std::wstring(buf.data(), len);
+        }
+        if (cap == kMaxModulePathChars) {
+            return {};
+        }
+        cap = std::min(cap * kPathGrowthFactor, kMaxModulePathChars);
+    }
+    return {};
+}
+
+std::wstring build_sibling_log_path(HMODULE mod) {
+    const std::wstring mod_path = query_module_path(mod);
+    if (mod_path.empty()) {
+        return L"sakuranotoki_proxy.log";
+    }
+    const std::size_t sep = mod_path.find_last_of(L"\\/");
+    if (sep == std::wstring::npos) {
+        return L"sakuranotoki_proxy.log";
+    }
+    return mod_path.substr(0, sep + 1) + L"sakuranotoki_proxy.log";
+}
 
 DWORD WINAPI worker_thread(LPVOID) {
     // Pin: load ourselves a second time. Bumps refcount so any
     // FreeLibrary("version.dll") CrackProof's unpacker performs
     // CANNOT unload us. Done from a worker thread (not DllMain)
     // because LoadLibrary inside DllMain hits the loader lock.
-    HMODULE pin = LoadLibraryW(L"version.dll");
-    LOG("worker: pinned via LoadLibraryW -> %p (gle=%lu)",
-        pin, pin ? 0 : GetLastError());
+    const HMODULE pin = LoadLibraryW(L"version.dll");
+    const DWORD pin_err = pin != nullptr ? 0U : GetLastError();
+    LOG("worker: pinned via LoadLibraryW -> %p (gle=%lu)", pin, pin_err);
 
     // Start the scanner FIRST so it can race the engine's first render.
     // Earlier ordering (Sleep(1500) + ScoutEngine + scanner) put the
-    // scanner's first pass ~1.6s after attach — by then the engine had
+    // scanner's first scan ~1.6s after attach — by then the engine had
     // already rendered the first dialogue line ("「いらっしゃい」")
     // from JP bytes, leaving the user's first screen untranslated.
     // Spawning here means the scanner loops over memory while CrackProof
     // is still unpacking; once the script blob is decrypted into RW
     // memory, the next 100 ms tick patches it before the engine gets
-    // there. Empty early passes are cheap (region_is_scannable rejects
+    // there. Empty early scans are cheap (region_is_scannable rejects
     // PAGE_NOACCESS / PAGE_GUARD pages).
     start_memory_scanner();
 
     // Wait for CrackProof to finish unpacking before scouting (the
     // scout dumps the runtime image; doing it before unpacking would
     // capture encrypted bytes).
-    Sleep(1500);
+    Sleep(kUnpackWaitMs);
     ScoutEngine();
     return 0;
 }
 
 }  // namespace
 
-
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID) {
     switch (reason) {
         case DLL_PROCESS_ATTACH: {
             DisableThreadLibraryCalls(inst);
 
-            char log_path[MAX_PATH] = {};
-            GetModuleFileNameA(inst, log_path, MAX_PATH);
-            char* last = std::strrchr(log_path, '\\');
-            if (last) std::strcpy(last + 1, "sakuranotoki_proxy.log");
-            log_init(log_path);
+            const std::wstring log_path = build_sibling_log_path(inst);
+            log_init(log_path.c_str());
             LOG("PROCESS_ATTACH inst=%p", inst);
 
             ProxyInit();
@@ -113,7 +163,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID) {
             // The new candidates are ranked by xref count: heavy use
             // = likely on the dialogue rendering path.
             start_function_hook();
-            CreateThread(nullptr, 0, worker_thread, nullptr, 0, nullptr);
+            const ScopedHandle worker(
+                CreateThread(nullptr, 0, worker_thread, nullptr, 0, nullptr));
             break;
         }
         case DLL_PROCESS_DETACH:

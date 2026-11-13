@@ -9,49 +9,59 @@
 // orchestrator.
 //
 //   00_run_all                  # the whole pipeline
-//   00_run_all --test           # 1 batch smoke test
-//   00_run_all --test N         # N batches then stop
 //   00_run_all --max-batches N  # cap the run at N API requests
 //   00_run_all --batch N        # lines per API request
 //   00_run_all --clean          # delete cache then run the whole pipeline
 //
-// Steps: 01_extract -> 02_translate -> deploy.  The translation step carries
-// the speaker gate and the runtime table with it, which is why there are three
-// steps and not five: everything that must happen for the game to show English
-// happens inside the command that pays for it.
+// Sequence: 01_extract -> 02_translate -> deploy.  Translation carries the
+// speaker gate and the runtime table with it: everything required for the game
+// to display English runs inside the command that pays for it.
+#include "apps/paths.h"
+#include "apps/pipeline_steps.h"
+#include "common/util.h"
+#include "translate/gemini_client.h"
+#include "translate/translate_core.h"
+
+#include <cstddef>
 #include <cstdlib>
+#include <cwchar>
 #include <exception>
 #include <filesystem>
 #include <string>
 #include <system_error>
 #include <vector>
 
-#include "common/util.h"
-#include "translate/gemini_client.h"
-#include "translate/translate_core.h"
-
-#include "apps/paths.h"
-#include "apps/pipeline_steps.h"
+namespace {
 
 namespace fs = std::filesystem;
 using namespace snt;
 
-namespace {
+constexpr int kDefaultBatchSize = 150;
+constexpr int kUnlimitedBatches = 0;
+constexpr int kUnusedTestBatches = 0;
+constexpr std::size_t kBannerWidth = 60;
+constexpr std::size_t kExtractStageIndex = 0;
+constexpr std::size_t kTranslateStageIndex = 1;
+constexpr std::size_t kDeployStageIndex = 2;
+constexpr std::size_t kDisplayIndexOffset = 1;
 
-int run_command(const std::string& cmdline) {
-    print_line("Running: " + cmdline);
-    // std::system returns the child's exit code on Windows.
-    return std::system(("\"" + cmdline + "\"").c_str());
-}
+bool run_child(const std::string& exe_stem,
+               const std::vector<std::string>& passthrough_args,
+               const std::vector<std::string>& extra_args) {
+    const fs::path exe_path =
+        fs::u8path(apps::exe_dir()) / (exe_stem + ".exe");
+    std::vector<std::string> full_args = passthrough_args;
+    full_args.insert(full_args.end(), extra_args.begin(), extra_args.end());
 
-void run_step(const std::string& exe, const std::vector<std::string>& args,
-              const std::string& passthrough) {
-    std::string cmd = "\"" + apps::exe_dir() + "\\" + exe + ".exe\"" + passthrough;
-    for (const auto& a : args) cmd += " " + a;
-    if (run_command(cmd) != 0) {
-        log_info("\n[ERROR] " + exe + " failed");
-        std::exit(1);
+    print_line(
+        "Running: " +
+        apps::format_windows_command_line(exe_path.u8string(), full_args));
+    const int rc = apps::run_process(exe_path, full_args);
+    if (rc != apps::kExitOk) {
+        log_info("\n[ERROR] " + exe_stem + " failed");
+        return false;
     }
+    return true;
 }
 
 // Ship the two artifacts the game reads.  Nothing is rebuilt here: a rebuild
@@ -60,19 +70,14 @@ void run_step(const std::string& exe, const std::vector<std::string>& args,
 //
 // The DLL is a hard failure -- without it the game shows Japanese and nothing
 // says why.  The table is a soft one: it is generated, so a missing one means
-// the translation step has not produced it yet.
+// translation has not produced it yet.
 bool deploy(const std::string& project, const std::string& game) {
-    if (const char* dist = std::getenv("VN_DIST_BUILD"); dist && *dist) {
+    const wchar_t* const dist = _wgetenv(L"VN_DIST_BUILD");
+    if (dist != nullptr && *dist != L'\0') {
         log_info("[DIST] VN_DIST_BUILD set -- skipping the copy to the game folder.");
         return true;
     }
 
-    // The whole game builds into one tree, so the DLL is in build/proxy;
-    // when this executable is the staged copy under build/install/bin, the
-    // DLL is in the sibling game/ folder instead.
-    // Asked for, not thrown, like the copies below: a status query that
-    // fails says nothing about whether the file is there, and the throwing
-    // overload would end the run from here with no diagnosis at all.
     std::error_code ec;
     fs::path dll;
     for (const auto& candidate : {project + "\\build\\proxy\\Release\\version.dll",
@@ -81,8 +86,9 @@ bool deploy(const std::string& project, const std::string& game) {
             dll = fs::u8path(candidate);
             break;
         }
-        if (ec)
+        if (ec) {
             log_info("  WARN: cannot check " + candidate + ": " + ec.message());
+        }
     }
     if (dll.empty()) {
         log_info("[ERROR] version.dll not found -- build the proxy half first "
@@ -106,8 +112,9 @@ bool deploy(const std::string& project, const std::string& game) {
             tsv = fs::u8path(candidate);
             break;
         }
-        if (ec)
+        if (ec) {
             log_info("  WARN: cannot check " + candidate + ": " + ec.message());
+        }
     }
     if (tsv.empty()) {
         log_info("  WARN: translations.tsv not found -- 02_translate produces it.");
@@ -125,138 +132,131 @@ bool deploy(const std::string& project, const std::string& game) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
-    setup_console_utf8();
-    namespace po = apps::po;
+int main() {
+    snt::setup_console_utf8();
+    try {
+        namespace po = apps::po;
 
-    std::string project, game;
-    int batch = 0, test_n = 0, max_batches = 0;
-    bool clean = false, discard_cache = false;
-    po::options_description desc("00_run_all -- Sakura no Toki translation pipeline");
-    desc.add(apps::common_options(project, game));
-    desc.add_options()
-        ("batch", po::value(&batch)->default_value(150),
-         "strings per API request, passed to the translation step")
-        ("test", po::value(&test_n)->implicit_value(1)->default_value(0),
-         "smoke run: N batches then stop (bare --test = 1)")
-        ("max-batches", po::value(&max_batches)->default_value(0),
-         "stop after N API requests, keeping the cache and outputs (0 = no limit)")
-        ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
-        ("discard-cache", po::bool_switch(&discard_cache),
-         "allow --test or --clean to delete a cache that already holds paid "
-         "work");
-    po::variables_map vm;
-    if (auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
-    // The caps are validated here as well as in the translation step, because
-    // this is the command that starts an unattended full run: a mistyped cap
-    // must fail before a key is read and before an archive is touched.
-    if (auto why = translate::validate_options(batch, test_n, max_batches)) {
-        log_info("[ERROR] " + *why);
-        return 2;
-    }
-
-    // Both discard the cache; guard runs early so a refusal costs nothing.
-    const std::string out_dir = project + "\\script_output";
-    const std::string cache_file = out_dir + "\\translation_cache_gemini.json";
-    if (clean || test_n > 0) {
-        // Counting the cache parses it, and a cache that cannot be parsed
-        // throws.  Handled here because this guard runs before the banner: an
-        // escaping throw would end the run with no output at all.  A cache
-        // nobody could read is a refusal like any other, so nothing is
-        // deleted and the file is left as it is.
-        try {
-            if (auto why = translate::refuse_cache_discard(
-                    translate::cache_entry_count(cache_file),
-                    clean ? "--clean" : "--test", discard_cache)) {
-                log_info("[ERROR] " + *why);
-                return 2;
-            }
-        } catch (const std::exception& e) {
-            log_info(std::string("[ERROR] ") + e.what());
-            return 2;
+        std::string project;
+        std::string game;
+        int batch = kDefaultBatchSize;
+        int max_batches = kUnlimitedBatches;
+        bool clean = false;
+        bool discard_cache = false;
+        po::options_description desc("00_run_all -- Sakura no Toki translation pipeline");
+        desc.add(apps::common_options(project, game));
+        desc.add_options()
+            ("batch", po::value(&batch)->default_value(kDefaultBatchSize),
+             "strings per API request, passed to 02_translate")
+            ("max-batches", po::value(&max_batches)->default_value(kUnlimitedBatches),
+             "stop after N API requests, keeping the cache and outputs (0 = no limit)")
+            ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
+            ("discard-cache", po::bool_switch(&discard_cache),
+             "allow --clean to delete a cache that already holds paid work");
+        po::variables_map vm;
+        if (const auto rc = apps::parse_process_command_line(desc, vm)) {
+            return *rc;
         }
-    }
 
-    // Children inherit explicit paths so a --dir override propagates.
-    const std::string passthrough =
-        " --dir \"" + project + "\" --game-dir \"" + game + "\"";
-
-    const std::string bar(60, '=');
-    log_info(bar);
-    log_info("Sakura no Toki (サクラノ刻)");
-    log_info("English Translation Pipeline (Gemini)");
-    log_info(bar);
-
-    gemini::load_api_key();
-
-    // --clean and --test discard the cache, and a run that discards it is
-    // certain to need the API.  Checked before the deletion: without this the
-    // cache would go and the translation step would then fail for the missing
-    // key, losing work that cannot be rebuilt.
-    if ((clean || test_n > 0) && gemini::load_api_key().empty()) {
-        log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the "
-                 "cache for a run that cannot translate.");
-        return 2;
-    }
-
-    if (clean) {
-        for (const char* f :
-             {"extracted_text.json", "translated_text.json",
-              "translation_cache_gemini.json", "narrative_candidates.json",
-              "narrative_scanned.json"}) {
-            // Reported, not thrown, at both steps: the throwing overloads
-            // would end the run with no diagnosis.  A delete fails when
-            // another process holds the file open without FILE_SHARE_DELETE,
-            // which scanners, indexers and sync clients routinely do.
-            fs::path p = fs::u8path(out_dir + "\\" + f);
-            std::error_code ec;
-            const bool present = fs::exists(p, ec);
-            if (!ec && !present) continue;  // never written: nothing to clean
-            const bool removed = !ec && fs::remove(p, ec);
-            if (ec) {
-                log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
-                         ec.message() +
-                         " -- close whatever has it open, then retry.");
-                return 1;
-            }
-            // A file that vanished between the two calls was
-            // not deleted here.
-            log_info(std::string("[clean] ") + f +
-                     (removed ? "" : " was already gone"));
+        if (const auto why =
+                translate::validate_options(batch, kUnusedTestBatches, max_batches)) {
+            log_info("[ERROR] " + *why);
+            return apps::kRefusedExitCode;
         }
-    }
 
-    const auto& steps = apps::pipeline_steps();
-    auto banner = [&](std::size_t i) {
-        log_info("\n" + bar);
-        log_info("STEP " + std::to_string(i + 1) + ": " + steps[i].what);
+        const std::string out_dir = project + "\\script_output";
+        const std::string cache_file = out_dir + "\\translation_cache_gemini.json";
+        if (clean) {
+            try {
+                if (const auto why = translate::refuse_cache_discard(
+                        translate::cache_entry_count(cache_file),
+                        "--clean", discard_cache)) {
+                    log_info("[ERROR] " + *why);
+                    return apps::kRefusedExitCode;
+                }
+            } catch (const std::exception& e) {
+                log_info(std::string("[ERROR] ") + e.what());
+                return apps::kRefusedExitCode;
+            }
+        }
+
+        const std::vector<std::string> project_passthrough = {"--dir", project};
+        const std::vector<std::string> full_passthrough = {
+            "--dir", project, "--game-dir", game};
+
+        const std::string bar(kBannerWidth, '=');
         log_info(bar);
-    };
+        log_info("Sakura no Toki (サクラノ刻)");
+        log_info("English Translation Pipeline (Gemini)");
+        log_info(bar);
 
-    banner(0);
-    run_step(steps[0].name, {}, passthrough);
+        gemini::load_api_key();
 
-    banner(1);
-    {
-        std::vector<std::string> args = {"--batch", std::to_string(batch)};
-        if (test_n > 0) {
-            args.emplace_back("--test");
-            args.emplace_back(std::to_string(test_n));
-            // Propagate so the child's own guard does not re-block.
-            if (discard_cache) args.emplace_back("--discard-cache");
-        } else if (max_batches > 0) {
-            args.emplace_back("--max-batches");
-            args.emplace_back(std::to_string(max_batches));
+        if (clean && gemini::load_api_key().empty()) {
+            log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the "
+                     "cache for a run that cannot translate.");
+            return apps::kRefusedExitCode;
         }
-        run_step(steps[1].name, args, passthrough);
+
+        if (clean) {
+            for (const char* f :
+                 {"extracted_text.json", "translated_text.json",
+                  "translation_cache_gemini.json", "narrative_candidates.json",
+                  "narrative_scanned.json"}) {
+                const fs::path p = fs::u8path(out_dir + "\\" + f);
+                std::error_code ec;
+                const bool present = fs::exists(p, ec);
+                if (!ec && !present) {
+                    continue;
+                }
+                const bool removed = !ec && fs::remove(p, ec);
+                if (ec) {
+                    log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
+                             ec.message() +
+                             " -- close whatever has it open, then retry.");
+                    return apps::kExitFailure;
+                }
+                log_info(std::string("[clean] ") + f +
+                         (removed ? "" : " was already gone"));
+            }
+        }
+
+        const auto& stages = apps::pipeline_steps();
+        auto banner = [&](std::size_t i) {
+            log_info("\n" + bar);
+            log_info("[" + std::to_string(i + kDisplayIndexOffset) + "/" +
+                     std::to_string(stages.size()) + "] " + stages[i].what);
+            log_info(bar);
+        };
+
+        banner(kExtractStageIndex);
+        if (!run_child(stages[kExtractStageIndex].name, full_passthrough, {})) {
+            return apps::kExitFailure;
+        }
+
+        banner(kTranslateStageIndex);
+        {
+            std::vector<std::string> args = {"--batch", std::to_string(batch)};
+            if (max_batches > 0) {
+                args.emplace_back("--max-batches");
+                args.emplace_back(std::to_string(max_batches));
+            }
+            if (!run_child(stages[kTranslateStageIndex].name, project_passthrough, args)) {
+                return apps::kExitFailure;
+            }
+        }
+
+        banner(kDeployStageIndex);
+        if (!deploy(project, game)) {
+            return apps::kExitFailure;
+        }
+
+        log_info("\n" + bar);
+        log_info("PIPELINE COMPLETE");
+        log_info(bar);
+        return apps::kExitOk;
+    } catch (const std::exception& e) {
+        snt::log_info(std::string("[ERROR] ") + e.what());
+        return snt::apps::kExitFailure;
     }
-
-    banner(2);
-    if (!deploy(project, game)) return 1;
-
-    log_info("\n" + bar);
-    log_info("PIPELINE COMPLETE");
-    log_info(bar);
-    return 0;
 }

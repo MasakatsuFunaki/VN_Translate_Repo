@@ -78,7 +78,7 @@ target_link_libraries(fav_core PUBLIC
 # Program_options is scoped here rather than pushed through fav_core.
 function(fav_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE fav_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE fav_core Boost::program_options shell32)
 endfunction()
 
 fav_app(00_run_all  src/apps/run_all_main.cpp)

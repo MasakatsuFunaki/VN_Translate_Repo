@@ -5,28 +5,62 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Step-3 tests: speaker merge, newline sanitising, word wrap, escaping, and
-// the CP932 output contract the engine depends on.
+// Runtime translation-table builder tests: speaker merge, newline sanitising,
+// word wrap, TSV escaping, and the CP932 output contract.
+#include "build_tsv/build_tsv.h"
+
+#include "common/util.h"
+#include "scoped_temp_dir.h"
+
+#include <boost/json.hpp>
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <filesystem>
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <utility>
 
-#include <boost/json.hpp>
-
-#include "build_tsv/build_tsv.h"
-#include "common/util.h"
-
-namespace fs = std::filesystem;
 namespace bt = mgi::build_tsv;
 namespace bj = boost::json;
 using namespace mgi;
 
+namespace {
+
+constexpr std::size_t kProseFirstSegmentLen = 30u;
+constexpr int kNarrowWrapCols = 7;
+constexpr int kWideWrapCols = 20;
+constexpr int kTinyWrapCols = 4;
+constexpr int kOverflowExtraLines = 4;
+constexpr std::size_t kCrlfLength = 2u;
+constexpr std::size_t kMiyakaCp932Bytes = 6u;
+constexpr std::uint8_t kMiyakaFirstCp932LeadByte = 0x94u;
+constexpr std::ptrdiff_t kExpectedTabsPerRow = 1;
+
+std::string write_translated(const std::string& path, bj::array strings) {
+    bj::object fd;
+    fd["strings"] = std::move(strings);
+    bj::object root;
+    root["s100.spt"] = std::move(fd);
+    write_file(path, bj::serialize(bj::value(std::move(root))));
+    return path;
+}
+
+bj::object mk(const char* jp, const char* en) {
+    bj::object o;
+    o["text"] = jp;
+    if (en) {
+        o["translated"] = en;
+    }
+    return o;
+}
+
+}  // namespace
+
 TEST(BuildTsv, merge_speaker_line_folds_short_plate) {
     EXPECT_EQ(bt::merge_speaker_line("Miyaka\r\n\"Ah\""), "Miyaka: \"Ah\"");
     // A long first segment is prose, not a plate.
-    const std::string longish(30, 'x');
+    const std::string longish(kProseFirstSegmentLen, 'x');
     EXPECT_EQ(bt::merge_speaker_line(longish + "\r\nrest"), longish + "\r\nrest");
     // A quoted first segment is dialogue, not a plate.
     EXPECT_EQ(bt::merge_speaker_line("\"Ah\"\r\nrest"), "\"Ah\"\r\nrest");
@@ -54,23 +88,28 @@ TEST(BuildTsv, reflow_lines_joins_internal_breaks_and_preserves_trailing_crlf) {
 }
 
 TEST(BuildTsv, word_wrap_breaks_on_spaces_and_keeps_segments) {
-    const std::string wrapped = bt::word_wrap("aaa bbb ccc ddd", 7);
+    const std::string wrapped = bt::word_wrap("aaa bbb ccc ddd", kNarrowWrapCols);
     EXPECT_EQ(wrapped, "aaa bbb\r\nccc ddd");
     // Existing segment breaks survive.
-    EXPECT_EQ(bt::word_wrap("short\r\nalso short", 20), "short\r\nalso short");
+    EXPECT_EQ(bt::word_wrap("short\r\nalso short", kWideWrapCols), "short\r\nalso short");
     // A single over-long word is emitted as-is rather than split.
-    EXPECT_EQ(bt::word_wrap("abcdefghij", 4), "abcdefghij");
+    EXPECT_EQ(bt::word_wrap("abcdefghij", kTinyWrapCols), "abcdefghij");
 }
 
 // The engine caps a text block at MAX_LINES and would drop the overflow
 // silently; we truncate here instead so the loss is at least deterministic.
 TEST(BuildTsv, word_wrap_truncates_to_max_lines) {
     std::string many;
-    for (int i = 0; i < bt::MAX_LINES + 4; ++i) many += "line" + std::to_string(i) + "\r\n";
+    for (int i = 0; i < bt::MAX_LINES + kOverflowExtraLines; ++i) {
+        many += "line" + std::to_string(i) + "\r\n";
+    }
     const std::string wrapped = bt::word_wrap(many, bt::MAX_LINE_CHARS);
     std::size_t lines = 1;
-    for (std::size_t i = 0; i + 1 < wrapped.size(); ++i)
-        if (wrapped.compare(i, 2, "\r\n") == 0) ++lines;
+    for (std::size_t i = 0; i + 1 < wrapped.size(); ++i) {
+        if (wrapped.compare(i, kCrlfLength, "\r\n") == 0) {
+            ++lines;
+        }
+    }
     EXPECT_LE(lines, static_cast<std::size_t>(bt::MAX_LINES));
 }
 
@@ -81,58 +120,37 @@ TEST(BuildTsv, escape_covers_backslash_cr_lf_tab) {
     EXPECT_EQ(bt::escape_for_tsv("plain"), "plain");
 }
 
-namespace {
-
-std::string write_translated(const std::string& path, bj::array strings) {
-    bj::object fd;
-    fd["strings"] = std::move(strings);
-    bj::object root;
-    root["s100.spt"] = std::move(fd);
-    write_file(path, bj::serialize(bj::value(std::move(root))));
-    return path;
-}
-
-bj::object mk(const char* jp, const char* en) {
-    bj::object o;
-    o["text"] = jp;
-    if (en) o["translated"] = en;
-    return o;
-}
-
-}  // namespace
-
 // The table is CP932, not UTF-8: the engine reads it directly.
 TEST(BuildTsv, output_is_cp932_encoded) {
-    const std::string in = (fs::temp_directory_path() / "mgi_ut_tr.json").u8string();
-    const std::string out = (fs::temp_directory_path() / "mgi_ut.tsv").u8string();
+    const test_util::ScopedTempDir temp_dir("mgi_ut_build_tsv_cp932");
+    const std::string in = temp_dir.join_u8("tr.json");
+    const std::string out = temp_dir.join_u8("out.tsv");
 
     write_translated(in, bj::array{
-        mk("\xE7\xBE\x8E\xE5\xBC\xA5\xE9\xA6\x99", "Miyaka"),  // 美弥香
-        mk("\xE3\x81\x82", "\xE3\x81\x82"),                    // EN == JP -> skipped
-        mk("\xE3\x81\x84", nullptr),                           // no EN -> skipped
+        mk("美弥香", "Miyaka"),
+        mk("あ", "あ"),        // EN == JP -> skipped
+        mk("い", nullptr),     // no EN -> skipped
     });
 
     ASSERT_EQ(bt::run_build(in, out), 0);
     const Bytes raw = read_file(out);
     // 美弥香 in CP932 is 94 FC 8D 76 8D 81 -- byte 0x94 would be part of a
     // 3-byte sequence if this had been written as UTF-8.
-    ASSERT_GE(raw.size(), 6u);
-    EXPECT_EQ(raw[0], 0x94);
+    ASSERT_GE(raw.size(), kMiyakaCp932Bytes);
+    EXPECT_EQ(raw[0], kMiyakaFirstCp932LeadByte);
     auto decoded = cp932_to_utf8_strict(raw);
     ASSERT_TRUE(decoded.has_value()) << "output is not valid CP932";
-    EXPECT_EQ(*decoded, "\xE7\xBE\x8E\xE5\xBC\xA5\xE9\xA6\x99\tMiyaka\n");
-
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
+    EXPECT_EQ(*decoded, "美弥香\tMiyaka\n");
 }
 
 TEST(BuildTsv, every_row_has_exactly_one_tab) {
-    const std::string in = (fs::temp_directory_path() / "mgi_ut_tr2.json").u8string();
-    const std::string out = (fs::temp_directory_path() / "mgi_ut2.tsv").u8string();
+    const test_util::ScopedTempDir temp_dir("mgi_ut_build_tsv_tabs");
+    const std::string in = temp_dir.join_u8("tr2.json");
+    const std::string out = temp_dir.join_u8("out2.tsv");
 
     write_translated(in, bj::array{
-        mk("\xE3\x81\x82\ttabbed", "with\ttab"),
-        mk("\xE3\x81\x84", "line\r\nbreak"),
+        mk("あ\ttabbed", "with\ttab"),
+        mk("い", "line\r\nbreak"),
     });
 
     ASSERT_EQ(bt::run_build(in, out), 0);
@@ -140,13 +158,10 @@ TEST(BuildTsv, every_row_has_exactly_one_tab) {
     std::string line;
     for (std::uint8_t b : raw) {
         if (b == '\n') {
-            EXPECT_EQ(std::count(line.begin(), line.end(), '\t'), 1) << line;
+            EXPECT_EQ(std::count(line.begin(), line.end(), '\t'), kExpectedTabsPerRow) << line;
             line.clear();
-        } else {
-            line += static_cast<char>(b);
+            continue;
         }
+        line += static_cast<char>(b);
     }
-
-    fs::remove(fs::u8path(in));
-    fs::remove(fs::u8path(out));
 }

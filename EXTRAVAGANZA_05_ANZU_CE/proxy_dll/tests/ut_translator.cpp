@@ -5,18 +5,26 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Functional-contract and component tests for TSV parsing/unescaping, x86
-// relative branch encoding, and ANZMENU1 first-launch delta auto-patching.
+// Unit tests for TSV parsing/unescaping, x86 relative branch encoding, and
+// ANZMENU1 first-launch delta auto-patching.
 #include "menu_autopatch.h"
 #include "patcher_logic.h"
 #include "translator_logic.h"
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace pl = patcher_logic;
@@ -24,7 +32,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr std::uintptr_t kSampleBranchOrigin = 0x004F6DE0;
+constexpr UINT kCp932CodePage = 932;
 constexpr std::uintptr_t kSampleBranchTarget = 0x00500000;
 constexpr std::size_t kMagicBytesLen = 8;
 constexpr std::uint32_t kFormatVersionV1 = 1u;
@@ -35,6 +43,54 @@ constexpr std::uint32_t kByteShift1 = 8u;
 constexpr std::uint32_t kByteShift2 = 16u;
 constexpr std::uint32_t kByteShift3 = 24u;
 constexpr std::uint32_t kByteMask = 0xFFu;
+constexpr int kChoiceOrigFontSize = 24;
+constexpr int kChoiceOrigSpace = 1;
+constexpr int kChoiceAnimMaxChars = 12;
+constexpr std::uint8_t kFxfXorMask = 0xFFu;
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
+
+std::string ToCp932(std::wstring_view wide) {
+    if (wide.empty()) {
+        return {};
+    }
+    BOOL used_default = FALSE;
+    const int needed = WideCharToMultiByte(
+        kCp932CodePage, WC_NO_BEST_FIT_CHARS, wide.data(),
+        static_cast<int>(wide.size()), nullptr, 0, nullptr, &used_default);
+    if (needed <= 0 || used_default) {
+        throw std::runtime_error("Wide string cannot be represented in CP932");
+    }
+    std::string out(static_cast<std::size_t>(needed), '\0');
+    const int written = WideCharToMultiByte(
+        kCp932CodePage, WC_NO_BEST_FIT_CHARS, wide.data(),
+        static_cast<int>(wide.size()), out.data(), needed, nullptr, &used_default);
+    if (written != needed || used_default) {
+        throw std::runtime_error("CP932 conversion failed");
+    }
+    return out;
+}
 
 void AppendU16Le(std::vector<std::uint8_t>& buf, std::uint16_t val) {
     buf.push_back(static_cast<std::uint8_t>(val & kByteMask));
@@ -88,12 +144,13 @@ std::vector<std::uint8_t> BuildGtb(const std::vector<std::uint32_t>& offsets) {
 
 TEST(TranslatorContract, ParseTsvBufferUnescapesAndLoadsLookupEntries) {
     translator_logic::TranslationMap map;
-    const char tsv[] =
-        "\x96\xB2\x94\xFC\\r\\n\x81\x75\x82\xA0\x81\x76\tYumemi: \"Ah\"\\r\\n\n"
+    const std::string tsv =
+        ToCp932(L"夢美") + "\\r\\n" + ToCp932(L"「あ」") + "\tYumemi: \"Ah\"\\r\\n\n"
         "second\tSecond\r\n";
-    const int count = translator_logic::ParseTsvBuffer(tsv, sizeof(tsv) - 1, map);
+    const int count = translator_logic::ParseTsvBuffer(tsv.data(), tsv.size(), map);
     EXPECT_EQ(count, 2);
-    EXPECT_EQ(map["\x96\xB2\x94\xFC\r\n\x81\x75\x82\xA0\x81\x76"], "Yumemi: \"Ah\"\r\n");
+    const std::string expectedKey = ToCp932(L"夢美\r\n「あ」");
+    EXPECT_EQ(map[expectedKey], "Yumemi: \"Ah\"\r\n");
     EXPECT_EQ(map["second"], "Second");
 }
 
@@ -121,14 +178,15 @@ TEST(TranslatorContract, EmitRelBranchInstructionsAndVerifySentinelLayout) {
 
 TEST(TranslatorContract, LookupTranslationAndUiFontAdjustmentAndFxfTitle) {
     translator_logic::TranslationMap map;
-    map["%#\x89\xA9\x83\x47\x83\x5E"] = "%Use Eternal Mode?";
+    map[ToCp932(L"%#黄エタ")] = "%Use Eternal Mode?";
     std::string out;
+    const std::string runtimePrompt = ToCp932(L"#黄エタ");
     EXPECT_TRUE(translator_logic::LookupTranslation(
-        map, "#\x89\xA9\x83\x47\x83\x5E", true, out));
-    EXPECT_EQ(out, "#\x89\xA9Use Eternal Mode?");
+        map, runtimePrompt.c_str(), true, out));
+    EXPECT_EQ(out, ToCp932(L"#黄Use Eternal Mode?"));
 
     const auto adj = translator_logic::ComputeUiFontAdjustment(
-        out.c_str(), true, 24, 1, 12);
+        out.c_str(), true, kChoiceOrigFontSize, kChoiceOrigSpace, kChoiceAnimMaxChars);
     EXPECT_TRUE(adj.shouldAdjust);
     EXPECT_EQ(adj.newFontSize, translator_logic::kStandardChoiceFontSize);
     EXPECT_TRUE(adj.expandMaxChars);
@@ -136,18 +194,15 @@ TEST(TranslatorContract, LookupTranslationAndUiFontAdjustmentAndFxfTitle) {
     const std::string plain = "\r\nwindowTitle Welcome to AnzU! CE\r\n";
     std::vector<std::uint8_t> enc(plain.size());
     for (std::size_t i = 0; i < plain.size(); ++i) {
-        enc[i] = static_cast<std::uint8_t>(static_cast<std::uint8_t>(plain[i]) ^ 0xFFu);
+        enc[i] = static_cast<std::uint8_t>(static_cast<std::uint8_t>(plain[i]) ^ kFxfXorMask);
     }
     EXPECT_EQ(translator_logic::ExtractFxfWindowTitle(enc.data(), enc.size()),
               "Welcome to AnzU! CE");
 }
 
 TEST(TranslatorComponent, EnsureGameFilesPatchedInDirAppliesAnzMenu1AndIsIdempotent) {
-    const fs::path temp_dir =
-        fs::temp_directory_path() / "anzu_ce_ut_menu_autopatch";
-    std::error_code ec;
-    fs::remove_all(temp_dir, ec);
-    fs::create_directories(temp_dir);
+    const ScopedTempDir tmp("anzu_ce_ut_menu_autopatch");
+    const fs::path& temp_dir = tmp.path();
 
     const std::vector<std::uint8_t> orig_fxf = {0x91, 0x8E, 0x93, 0x9A};
     const std::vector<std::uint8_t> patched_fxf = {0xB1, 0xAE, 0xB3, 0xBA, 0xBC};
@@ -230,6 +285,4 @@ TEST(TranslatorComponent, EnsureGameFilesPatchedInDirAppliesAnzMenu1AndIsIdempot
 
     EXPECT_TRUE(menu_autopatch::EnsureGameFilesPatchedInDir(temp_dir));
     EXPECT_EQ(ReadBytes(temp_dir / "init2" / "mainControl.fxf.bak"), orig_fxf);
-
-    fs::remove_all(temp_dir, ec);
 }

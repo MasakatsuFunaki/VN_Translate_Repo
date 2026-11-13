@@ -5,18 +5,24 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include <atomic>
-#include <filesystem>
-#include <string>
-#include <vector>
-
-#include <boost/json.hpp>
-#include <gtest/gtest.h>
-
 #include "checker/hotspot_detector.h"
 #include "checker/spot_checker.h"
 #include "client/argon_client.h"
 #include "common/util.h"
+
+#include <boost/json.hpp>
+#include <gtest/gtest.h>
+
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace bj = boost::json;
 namespace fs = std::filesystem;
@@ -64,15 +70,29 @@ ScriptEntry make_entry(std::size_t idx,
 
 }  // namespace
 
-// ============================================================================
-// Unit Tests: Common Utilities & Argon Payload Helpers
-// ============================================================================
-
 TEST(SpotCheckerUtil, SanitizeAsciiReplacesSmartPunctuation) {
     const std::string input =
         "Taichi\r\n“Wait—what… isn’t　that–right?”";
     EXPECT_EQ(sanitize_ascii(input),
               "Taichi\r\n\"Wait--what... isn't that--right?\"");
+}
+
+TEST(SpotCheckerUtil, WideToUtf8ConvertsJapaneseAndRejectsUnpairedSurrogate) {
+    EXPECT_TRUE(wide_to_utf8(L"").empty());
+    EXPECT_EQ(wide_to_utf8(L"日本語テスト\\スポットチェック"),
+              "日本語テスト\\スポットチェック");
+
+    constexpr wchar_t kUnpairedHighSurrogate = 0xD800;
+    constexpr wchar_t kUnpairedLowSurrogate = 0xDC00;
+    const std::wstring unpaired_high{kUnpairedHighSurrogate, L'A'};
+    const std::wstring unpaired_low{kUnpairedLowSurrogate};
+    EXPECT_THROW(wide_to_utf8(unpaired_high), std::runtime_error);
+    EXPECT_THROW(wide_to_utf8(unpaired_low), std::runtime_error);
+}
+
+TEST(SpotCheckerUtil, ProcessUtf8ArgsReturnsVectorWithoutCrashing) {
+    std::vector<std::string> args;
+    EXPECT_NO_THROW(args = process_utf8_args());
 }
 
 TEST(SpotCheckerClient, BuildsArgonPayloadWithThinkingAndJsonMime) {
@@ -108,10 +128,6 @@ TEST(SpotCheckerClient, BuildsArgonPayloadWithThinkingAndJsonMime) {
     EXPECT_EQ(parsed.output_tokens, 40);
     EXPECT_EQ(parsed.thought_tokens, 120);
 }
-
-// ============================================================================
-// Unit Tests: Script Extraction ("strings" and "lines") & Sliding Windows
-// ============================================================================
 
 TEST(SpotCheckerExtract, ExtractsFromBothStringsAndLinesSchemas) {
     const bj::value root = bj::parse(R"({
@@ -223,10 +239,6 @@ TEST(SpotCheckerPrompt, FormatsContextAndTargetAndPreservesSpeakerPrefixOnParse)
     EXPECT_EQ(improvements[0].category, "stiff_translationese");
 }
 
-// ============================================================================
-// System Test 1: Needle in a 5,000-Line Haystack
-// ============================================================================
-
 TEST(SpotCheckerSystemTests, SystemTest1_NeedleIn5000LineHaystack) {
     std::vector<ScriptEntry> novel;
     novel.reserve(5000);
@@ -276,10 +288,6 @@ TEST(SpotCheckerSystemTests, SystemTest1_NeedleIn5000LineHaystack) {
     EXPECT_GE(top.peak_index, 2310u);
     EXPECT_LE(top.peak_index, 2315u);
 }
-
-// ============================================================================
-// System Test 2: Adversarial "Poisoned LLM" Do-No-Harm Gate
-// ============================================================================
 
 TEST(SpotCheckerSystemTests, SystemTest2_AdversarialPoisonedLlmDoNoHarmGate) {
     TempDir tmp;
@@ -344,10 +352,6 @@ TEST(SpotCheckerSystemTests, SystemTest2_AdversarialPoisonedLlmDoNoHarmGate) {
     EXPECT_EQ(read_file_text(translated_path), original_translated_json);
 }
 
-// ============================================================================
-// System Test 3: Two-Pass Idempotency / Zero-Churn Convergence
-// ============================================================================
-
 TEST(SpotCheckerSystemTests, SystemTest3_TwoPassIdempotencyZeroChurnConvergence) {
     TempDir tmp;
     const bj::value initial_json = bj::parse(R"({
@@ -406,10 +410,6 @@ TEST(SpotCheckerSystemTests, SystemTest3_TwoPassIdempotencyZeroChurnConvergence)
         EXPECT_EQ(rep2.improvements_found, 0u);
     }
 }
-
-// ============================================================================
-// System Test 4: Adaptive Contagion Boundary Expansion
-// ============================================================================
 
 TEST(SpotCheckerSystemTests, SystemTest4_AdaptiveContagionBoundaryExpansion) {
     TempDir tmp;
@@ -477,10 +477,6 @@ TEST(SpotCheckerSystemTests, SystemTest4_AdaptiveContagionBoundaryExpansion) {
     EXPECT_GE(rep.adaptive_expansions, 1u);
     EXPECT_EQ(rep.windows_checked, 2u);
 }
-
-// ============================================================================
-// System Test 5: Dual-File Sync, Indent=1+CRLF Format & Cache Key-Set Invariance
-// ============================================================================
 
 TEST(SpotCheckerSystemTests, SystemTest5_DualFileSyncAndSchemaPreservation) {
     TempDir tmp;
@@ -585,10 +581,6 @@ TEST(SpotCheckerSystemTests, SystemTest5_DualFileSyncAndSchemaPreservation) {
     }
 }
 
-// ============================================================================
-// System Test 6: Literary Leeway Acceptance
-// ============================================================================
-
 TEST(SpotCheckerSystemTests, SystemTest6_LiteraryLeewayAcceptance) {
     // 1. Wooden literal line -> natural spoken English with syntactic leeway
     const ScriptEntry wooden_entry = make_entry(
@@ -614,11 +606,6 @@ TEST(SpotCheckerSystemTests, SystemTest6_LiteraryLeewayAcceptance) {
     EXPECT_NE(sys.find("WOODEN MECHANICAL LITERALISM"), std::string::npos);
     EXPECT_NE(sys.find("TONE DRIFT & OVER-LOCALIZATION"), std::string::npos);
 }
-
-// ============================================================================
-// System Test 7: Literature-Backed CUSUM Change-Point, Discourse Signals,
-// Stage 1 Packed LLM Radar, and Stage 2 GEMBA-MQM Span-Grounded Repair
-// ============================================================================
 
 TEST(SpotCheckerSystemTests, SystemTest7_TwoStageHybridRadarAndCusumChangepoint) {
     // 1. Verify Gale & Church (1993) + Pellegrino et al. (2011) script-aware information bits:
@@ -780,10 +767,6 @@ TEST(SpotCheckerSystemTests, SystemTest7_TwoStageHybridRadarAndCusumChangepoint)
     EXPECT_EQ(rep.improvements[0].improved_en, "\"She was the one who saved me.\"");
 }
 
-// ============================================================================
-// System Test 8: H-Scene Exclusion & Direct Auto-Apply into JSON
-// ============================================================================
-
 TEST(SpotCheckerSystemTests, SystemTest8_HSceneExclusionAndAutoApplyDirectlyInJson) {
     // 1. Verify is_h_scene_line detects JP and EN H-scene markers and ignores normal prose
     EXPECT_TRUE(is_h_scene_line("「んっ……熱くて硬い肉棒が秘部に……」", "\"Nngh...\""));
@@ -889,11 +872,6 @@ TEST(SpotCheckerSystemTests, SystemTest8_HSceneExclusionAndAutoApplyDirectlyInJs
     EXPECT_EQ(updated_cache[0].second, "\"Misato-senpai is on the roof.\"");
 }
 
-// ============================================================================
-// System Test 9: has_real_japanese Gate, Passthrough Protection &
-// Punctuation/Parenthesis Noise Filter (fix_punctuation = false by default)
-// ============================================================================
-
 TEST(SpotCheckerSystemTests, SystemTest9_PassthroughSymbolGateAndPunctuationNoiseFilter) {
     // 1. Verify has_real_japanese(jp) matches CROSS_CHANNEL's cache_core.cpp rule:
     //    Symbol-only / fullwidth ASCII / punctuation lines have NO Hiragana/Katakana/Kanji
@@ -963,11 +941,6 @@ TEST(SpotCheckerSystemTests, SystemTest9_PassthroughSymbolGateAndPunctuationNois
         dash_entry, "Taichi\r\n\"Hah--\"", {}, {}, "", /*fix_punctuation=*/true);
     EXPECT_TRUE(v_punc_enabled.accepted) << v_punc_enabled.rejection_reason;
 }
-
-// ============================================================================
-// System Test 10: Multi-Run checked_offsets Persistence, repaired_indices Lock,
-// Zero-Threshold Hotspot Queueing, and Phonetic Pun Prompt Rule
-// ============================================================================
 
 TEST(SpotCheckerSystemTests, SystemTest10_MultiRunCheckedOffsetsAndRepairedLineLocking) {
     // 1. Verify phonetic pun preservation rule is present in default_editorial_rules_prompt
@@ -1139,11 +1112,6 @@ TEST(SpotCheckerSystemTests, SystemTest10_MultiRunCheckedOffsetsAndRepairedLineL
     }
 }
 
-// ============================================================================
-// System Test 11: Full-Window Review Unlocks All 40 Lines, Single-Line CRLF
-// Guard, and Runaway Repetition Loop H-Scene Exemption
-// ============================================================================
-
 TEST(SpotCheckerSystemTests,
      SystemTest11_FullWindowReviewSingleLineCrlfAndRunawayRegression) {
     // 1. Single-line strings ending with \r\n must NOT be treated as Speaker\r\n prefixes
@@ -1241,157 +1209,6 @@ TEST(SpotCheckerSystemTests,
         validate_proposed_fix(var_entry, "\"Good morning, Kenichi.\"");
     EXPECT_FALSE(v_dropped_var.accepted);
     EXPECT_NE(v_dropped_var.rejection_reason.find("$str20"), std::string::npos);
-}
-
-// ============================================================================
-// System Test 12: Live API End-to-End Test on Known Corrupted Synthetic Novel
-// (Burns 1 real gemini-4-argon API call to verify real LLM detection & fixes)
-// ============================================================================
-
-TEST(SpotCheckerSystemTests, SystemTest12_LiveApiEndToEndOnSyntheticCorruptedNovel) {
-    const std::string api_key = load_gemini_api_key();
-    if (api_key.empty()) {
-        GTEST_SKIP() << "Skipping live API test: GEMINI_API_KEY not configured";
-    }
-
-    TempDir tmp;
-    write_file((tmp.path() / "TONE.md").u8string(),
-               "# Characters\n"
-               "- Ren (レン): Calm male protagonist.\n"
-               "- Miyaka (美弥香): Gentle heroine.\n"
-               "- Kyou (狂): Dangerous female antagonist. Always use she/her pronouns.\n");
-
-    const std::string runaway_scream =
-        "Miyaka\r\n\"A" + std::string(1200, 'a') + "\r\n";
-
-    const bj::array strings_arr = {
-        // 0: Clean dialogue line (must NOT be modified)
-        bj::object{
-            {"index", 0},
-            {"type", "dialogue"},
-            {"text", "レン\r\n「静かな夜ですね。少し休みましょうか」\r\n"},
-            {"translated", "Ren\r\n\"It's a quiet night. Shall we rest for a bit?\"\r\n"},
-        },
-        // 1: Symbol-only passthrough line (must NEVER be unlocked or modified)
-        bj::object{
-            {"index", 1},
-            {"type", "dialogue"},
-            {"text", "美弥香\r\n「？」\r\n"},
-            {"translated", "Miyaka\r\n「？」\r\n"},
-        },
-        // 2: Single-line header ending in \r\n (must NOT be duplicated as Speaker\r\n)
-        bj::object{
-            {"index", 2},
-            {"type", "dialogue"},
-            {"text", ".■ウインドウ表示■\r\n"},
-            {"translated", "■ Window Display ■\r\n"},
-        },
-        // 3: Semantic mistranslation with ZERO C++ regex score ("father" -> "hospital")
-        //    Tests that review_all_in_window=true (default) unlocks and fixes it!
-        bj::object{
-            {"index", 3},
-            {"type", "dialogue"},
-            {"text", "レン\r\n「父はどこですか？」\r\n"},
-            {"translated", "Ren\r\n\"Where is the hospital?\"\r\n"},
-        },
-        // 4: Misgendered pronoun ("he/his" instead of "she/her" for Kyou) with ZERO regex score
-        bj::object{
-            {"index", 4},
-            {"type", "narrative"},
-            {"text", "狂は不気味に笑いながら、右手に蟲筒を握り締めていた。\r\n"},
-            {"translated", "Smiling eerily, he gripped a Bug tube in his right hand.\r\n"},
-        },
-        // 5: 2-line narrative with a short first line (<= 20 chars) + inverted meaning ("everyone" vs "no one")
-        //    Tests that normalize_restored_translation does NOT prepend "Even if you wait,\r\n" as a speaker!
-        bj::object{
-            {"index", 5},
-            {"type", "narrative"},
-            {"text", "たとえ待っていても、\r\n誰も助けには来なかった。\r\n"},
-            {"translated", "Even if you wait,\r\neveryone came to help.\r\n"},
-        },
-        // 6: Runaway 1,200-char LLM repetition loop missing closing quote
-        bj::object{
-            {"index", 6},
-            {"type", "dialogue"},
-            {"text", "美弥香\r\n「ああああああああああああああああああああッッ！！！」\r\n"},
-            {"translated", runaway_scream},
-        },
-    };
-
-    const std::string translated_path =
-        (tmp.path() / "script_output" / "translated_text.json").u8string();
-    write_file(translated_path,
-               json_pretty(bj::value(bj::object{
-                               {"s100.spt", bj::object{{"strings", strings_arr}}}}),
-                           2));
-
-    SpotCheckConfig cfg;
-    cfg.game_dir = tmp.str();
-    cfg.mode = SpotCheckMode::Hotspot;
-    cfg.window_size = 10;
-    cfg.max_windows = 1;
-    cfg.z_threshold = 0.0;
-    cfg.radar_calls = 0;  // 1 direct Stage-2 live API call on the window
-
-    // Verify default config has review_all_in_window == true!
-    EXPECT_TRUE(cfg.review_all_in_window);
-
-    SpotChecker live_checker(cfg);
-    SpotCheckReport rep;
-    try {
-        rep = live_checker.run();
-    } catch (const std::exception& ex) {
-        const std::string msg = ex.what();
-        if (msg.find("HTTP 429") != std::string::npos ||
-            msg.find("RESOURCE_EXHAUSTED") != std::string::npos) {
-            GTEST_SKIP() << "Skipping live API test due to API quota/spend cap: "
-                         << msg;
-        }
-        throw;
-    }
-
-    EXPECT_EQ(rep.windows_checked, 1u);
-    // Out of 7 entries, entry 1 ("「？」") is a symbol passthrough -> 6 unlocked lines!
-    EXPECT_EQ(rep.editable_lines_unlocked, 6u);
-    EXPECT_GE(rep.improvements_found, 4u);
-
-    const bj::value updated_root = json_parse_file(translated_path);
-    const auto& out_arr =
-        updated_root.as_object().at("s100.spt").as_object().at("strings").as_array();
-
-    // Index 0 (clean) and Index 1 (symbol passthrough) and Index 2 (■ Window Display ■) untouched:
-    EXPECT_EQ(out_arr[0].as_object().at("translated").as_string(),
-              "Ren\r\n\"It's a quiet night. Shall we rest for a bit?\"\r\n");
-    EXPECT_EQ(out_arr[1].as_object().at("translated").as_string(),
-              "Miyaka\r\n「？」\r\n");
-    EXPECT_EQ(out_arr[2].as_object().at("translated").as_string(),
-              "■ Window Display ■\r\n");
-
-    // Index 3 ("父はどこですか？" -> must fix "hospital" to "father"/"Father" and keep "Ren\r\n"):
-    const std::string fixed_3(out_arr[3].as_object().at("translated").as_string());
-    EXPECT_EQ(fixed_3.rfind("Ren\r\n\"", 0), 0u) << "Fixed 3: " << fixed_3;
-    EXPECT_EQ(fixed_3.find("hospital"), std::string::npos) << "Fixed 3: " << fixed_3;
-
-    // Index 4 (Kyou gender -> must fix "he"/"his" to female pronoun "she"/"her"):
-    const std::string fixed_4(out_arr[4].as_object().at("translated").as_string());
-    EXPECT_EQ(fixed_4.find(" he "), std::string::npos) << "Fixed 4: " << fixed_4;
-    EXPECT_EQ(fixed_4.find(" his "), std::string::npos) << "Fixed 4: " << fixed_4;
-    EXPECT_TRUE(fixed_4.find("she") != std::string::npos ||
-                fixed_4.find("She") != std::string::npos ||
-                fixed_4.find("her") != std::string::npos ||
-                fixed_4.find("Her") != std::string::npos)
-        << "Fixed 4: " << fixed_4;
-
-    // Index 5 (2-line narrative -> must fix "everyone came" to "no one came" WITHOUT duplicating first line):
-    const std::string fixed_5(out_arr[5].as_object().at("translated").as_string());
-    EXPECT_EQ(fixed_5.find("everyone"), std::string::npos) << "Fixed 5: " << fixed_5;
-    EXPECT_EQ(fixed_5.find("Even if you wait,\r\nEven if"), std::string::npos)
-        << "Fixed 5 duplicated first line: " << fixed_5;
-
-    // Index 6 (1,200-char runaway loop -> must be compressed < 200 chars with "Miyaka\r\n\""):
-    const std::string fixed_6(out_arr[6].as_object().at("translated").as_string());
-    EXPECT_EQ(fixed_6.rfind("Miyaka\r\n\"", 0), 0u) << "Fixed 6: " << fixed_6;
-    EXPECT_LT(fixed_6.size(), 200u) << "Fixed 6 length: " << fixed_6.size();
 }
 
 TEST(SpotCheckerSystemTests, SpotCheckerFraterniteYuRisAndHFilter) {

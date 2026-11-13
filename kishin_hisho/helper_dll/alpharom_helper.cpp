@@ -14,9 +14,15 @@
 // Phase 2 will add active fixups for the specific AVs we identify.
 
 #include <windows.h>
-#include <cstdio>
+
+#include <algorithm>
 #include <cstdarg>
 #include <cstddef>
+#include <cstdio>
+#include <cwchar>
+#include <memory>
+#include <string>
+#include <vector>
 
 typedef struct _UNICODE_STRING_LOCAL {
     USHORT Length;
@@ -42,6 +48,7 @@ typedef struct _LDR_ENTRY32 {
     UNICODE_STRING_LOCAL BaseDllName;
 } LDR_ENTRY32;
 
+static std::unique_ptr<FILE, decltype(&std::fclose)> g_log_owner(nullptr, &std::fclose);
 static FILE* g_log = nullptr;
 static volatile LONG g_exception_count = 0;
 static HMODULE g_self = NULL;
@@ -57,6 +64,80 @@ static void Log(const char* fmt, ...) {
     va_end(ap);
     fputc('\n', g_log);
     fflush(g_log);
+}
+
+static std::wstring GetExecutableSiblingPathW(const wchar_t* sibling_name) {
+    constexpr DWORD kInitialModulePathChars = MAX_PATH;
+    constexpr DWORD kMaxModulePathChars = 32768U;
+    std::vector<wchar_t> buf(kInitialModulePathChars, L'\0');
+    DWORD len = 0;
+    for (;;) {
+        ::SetLastError(ERROR_SUCCESS);
+        len = ::GetModuleFileNameW(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+        if (len == 0) {
+            return std::wstring(sibling_name);
+        }
+        if (len < buf.size() - 1U && ::GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            break;
+        }
+        if (buf.size() >= kMaxModulePathChars) {
+            return std::wstring(sibling_name);
+        }
+        const std::size_t next_size =
+            std::min<std::size_t>(buf.size() * 2U, kMaxModulePathChars);
+        buf.assign(next_size, L'\0');
+    }
+
+    std::wstring path(buf.data(), len);
+    const std::size_t sep = path.find_last_of(L"\\/");
+    if (sep != std::wstring::npos) {
+        path.resize(sep + 1U);
+        path += sibling_name;
+        return path;
+    }
+    return std::wstring(sibling_name);
+}
+
+static std::string WideToUtf8(const std::wstring& wide) {
+    if (wide.empty()) {
+        return {};
+    }
+    const int needed = ::WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), static_cast<int>(wide.size()),
+        nullptr, 0, nullptr, nullptr);
+    if (needed <= 0) {
+        return {};
+    }
+    std::string out(static_cast<std::size_t>(needed), '\0');
+    const int written = ::WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), static_cast<int>(wide.size()),
+        out.data(), needed, nullptr, nullptr);
+    if (written != needed) {
+        return {};
+    }
+    return out;
+}
+
+static void SafeWriteDumpBytes(const void* src, DWORD bytes, FILE* fp) {
+    __try {
+        std::fwrite(src, 1U, bytes, fp);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+}
+
+static void DumpMappedPeImage(DWORD probe, DWORD size_of_image) {
+    wchar_t dump_name[64] = {};
+    _snwprintf_s(dump_name, _TRUNCATE, L"mapped_pe_at_%08X.bin", probe);
+    const std::wstring dump_path_w = GetExecutableSiblingPathW(dump_name);
+    FILE* raw_df = ::_wfopen(dump_path_w.c_str(), L"wb");
+    if (raw_df == nullptr) {
+        return;
+    }
+    const std::unique_ptr<FILE, decltype(&std::fclose)> df_guard(raw_df, &std::fclose);
+    const DWORD dump_size = (size_of_image > 0x40000U) ? 0x40000U : size_of_image;
+    SafeWriteDumpBytes(reinterpret_cast<const void*>(probe), dump_size, df_guard.get());
+    const std::string dump_path_utf8 = WideToUtf8(dump_path_w);
+    Log("      Dumped %u bytes to %s", dump_size, dump_path_utf8.c_str());
 }
 
 static void LogHex(const char* label, const void* p, size_t n) {
@@ -289,21 +370,7 @@ static LONG NTAPI MyVEH(EXCEPTION_POINTERS* ep) {
 
                         // Dump the mapped image to disk for offline analysis,
                         // next to the game EXE (same folder as the log).
-                        char dumppath[MAX_PATH];
-                        GetModuleFileNameA(NULL, dumppath, MAX_PATH);
-                        char* sl = strrchr(dumppath, '\\');
-                        if (sl) _snprintf_s(sl + 1, MAX_PATH - (sl + 1 - dumppath), _TRUNCATE,
-                                            "mapped_pe_at_%08X.bin", probe);
-                        FILE* df = fopen(dumppath, "wb");
-                        if (df) {
-                            // Cap dump at 256 KB to be safe
-                            DWORD dump_size = size_of_image > 0x40000 ? 0x40000 : size_of_image;
-                            __try {
-                                fwrite((void*)probe, 1, dump_size, df);
-                            } __except (EXCEPTION_EXECUTE_HANDLER) { /* truncate */ }
-                            fclose(df);
-                            Log("      Dumped %u bytes to %s", dump_size, dumppath);
-                        }
+                        DumpMappedPeImage(probe, size_of_image);
                         break;
                     }
                 }
@@ -444,20 +511,15 @@ BOOL APIENTRY DllMain(HMODULE h, DWORD reason, LPVOID) {
             g_self_size = addr - g_self_base;
         }
         // Open log file in the game's install directory (next to KishinHisho.exe).
-        // GetModuleFileNameA(NULL, ...) returns the running EXE's path. After
+        // GetModuleFileNameW(nullptr, ...) returns the running EXE's path. After
         // deployment via 01_patch, the game folder is writable to whoever
         // ran 01_patch (admin); subsequent runs write the log there.
-        char path[MAX_PATH];
-        GetModuleFileNameA(NULL, path, MAX_PATH);
-        char* slash = strrchr(path, '\\');
-        if (slash) {
-            strcpy_s(slash + 1, MAX_PATH - (slash + 1 - path), "alpharom_helper.log");
-        } else {
-            strcpy_s(path, "alpharom_helper.log");
-        }
-        g_log = fopen(path, "w");
+        const std::wstring log_path_w = GetExecutableSiblingPathW(L"alpharom_helper.log");
+        g_log_owner.reset(::_wfopen(log_path_w.c_str(), L"w"));
+        g_log = g_log_owner.get();
+        const std::string log_path_utf8 = WideToUtf8(log_path_w);
         Log("=== alpharom_helper.dll loaded into PID %lu ===", GetCurrentProcessId());
-        Log("Log file: %s", path);
+        Log("Log file: %s", log_path_utf8.c_str());
 
         // Install VEH FIRST — so we catch the first AV before any SEH the stub installs.
         if (AddVectoredExceptionHandler(1 /* first */, MyVEH)) {
@@ -493,7 +555,8 @@ BOOL APIENTRY DllMain(HMODULE h, DWORD reason, LPVOID) {
     else if (reason == DLL_PROCESS_DETACH) {
         Log("=== alpharom_helper.dll unloading (exception count: %ld) ===",
             g_exception_count);
-        if (g_log) { fclose(g_log); g_log = nullptr; }
+        g_log = nullptr;
+        g_log_owner.reset();
     }
     return TRUE;
 }

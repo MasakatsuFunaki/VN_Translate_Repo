@@ -5,15 +5,12 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Build-and-deploy steps for the AlphaROM helper: run a child process, probe a
-// directory for write access, build helper_dll/ via CMake, copy the artifacts.
-//
-// Split out of the app so the path/permission logic can be unit-tested without
-// spawning cmake.
+// Deployment helpers for the AlphaROM helper and rebuilt script archives:
+// path manipulation, write-access probing, staged artifact discovery across
+// release/install/checkout layouts, and 0script.pak + loose .nps deployment.
 #pragma once
 
 #include <string>
-#include <vector>
 
 namespace ksh::patch {
 
@@ -33,13 +30,25 @@ bool can_write(const std::string& dir);
 // Whether the current process is elevated; false if the query fails.
 bool is_admin();
 
-// The command as 01_patch echoes it: arguments containing a space quoted.
-std::string command_display(const std::vector<std::string>& cmd);
+// Probes in priority order for the directory holding both pre-built Win32
+// helper artifacts (`alpharom_helper.dll` and `launch.exe`):
+//   1. <project_dir>/game
+//   2. <exe_dir>/../game
+//   3. <project_dir>/build/install/game
+//   4. <project_dir>/build/helper/Release
+//   5. <exe_dir>/helper_dll
+// Returns empty when none of the candidate directories contains both files.
+std::string find_helper_artifact_dir(const std::string& project_dir,
+                                     const std::string& exe_dir);
 
-// Runs `cmd` inheriting stdio, optionally from `cwd`.  Does not echo -- the two
-// callers print different forms.  Returns the child's exit code, or -1 if it
-// could not be started.
-int run(const std::vector<std::string>& cmd, const std::string& cwd = {});
+// Probes in priority order for the staged `game` directory containing
+// pre-built `0script.pak` (or loose `script/` files):
+//   1. <project_dir>/game
+//   2. <exe_dir>/../game
+//   3. <project_dir>/build/install/game
+// Returns empty when no staged script directory is present.
+std::string find_staged_game_dir(const std::string& project_dir,
+                                 const std::string& exe_dir);
 
 // Rebuilds or copies 0script.pak and loose script\*.nps into `game_dir` when
 // translation script inputs or staged distribution script files are present.

@@ -10,12 +10,15 @@
 // The control-byte cases below matter disproportionately: three of them
 // (0x1F, 0x60+0xFE, 0x60+0xFF) have ZERO coverage in the shipped archive, so
 // nothing else in the pipeline would catch a transcription error in them.
+#include "ddp/ddp_archive.h"
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
 #include <string>
 #include <vector>
-
-#include "ddp/ddp_archive.h"
 
 using namespace shin;
 namespace ddp = shin::ddp;

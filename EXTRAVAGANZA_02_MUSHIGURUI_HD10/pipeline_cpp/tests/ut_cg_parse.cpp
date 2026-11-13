@@ -5,20 +5,34 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Parsing / classification helpers of the narrative-CG step.
-#include <gtest/gtest.h>
-
-#include <string>
+// Parsing and classification helpers of the narrative-CG pipeline.
+#include "cg/cg_pipeline.h"
 
 #include <boost/json.hpp>
+#include <gtest/gtest.h>
 
-#include "cg/cg_pipeline.h"
+#include <cstddef>
+#include <exception>
+#include <string>
 
 namespace bj = boost::json;
 using namespace mgi::cg::detail;
 
-// The exact regression _parse_json_array's docstring describes: the old greedy
-// regex matched from the first '[' to the LAST ']' in the reply.
+namespace {
+
+constexpr std::size_t kExpectedBboxElements = 4u;
+constexpr char kSohControl = 0x01;
+constexpr char kUsControl = 0x1F;
+constexpr int kSampleCoordInt = 130;
+constexpr double kSamplePositiveFloat = 130.9;
+constexpr double kSampleNegativeFloat = -130.9;
+constexpr int kSampleNegativeInt = -130;
+constexpr int kSampleWhitespaceInt = 12;
+
+}  // namespace
+
+// Balanced bracket extraction stops at the matching closing bracket rather than
+// scanning greedily to the last ']' in surrounding prose.
 TEST(CgParse, parse_json_array_stops_at_balance) {
     const std::string s =
         R"([{"a":1}] and then some prose with a stray ] bracket)";
@@ -38,7 +52,7 @@ TEST(CgParse, parse_json_array_ignores_brackets_in_strings) {
     EXPECT_EQ(*t, expected);
     const bj::array a = bj::parse(*t).get_array();
     ASSERT_EQ(a.size(), 1u);
-    EXPECT_EQ(a[0].get_object().at("bbox").get_array().size(), 4u);
+    EXPECT_EQ(a[0].get_object().at("bbox").get_array().size(), kExpectedBboxElements);
 }
 
 TEST(CgParse, parse_json_array_returns_none_when_unbalanced) {
@@ -46,7 +60,7 @@ TEST(CgParse, parse_json_array_returns_none_when_unbalanced) {
     EXPECT_FALSE(balanced_json_array_text("[1, 2, 3").has_value());
 }
 
-// re.search(r'\{.*?\}', DOTALL): first '{' to the FIRST '}' after it.
+// First '{' to the first '}' after it, newlines included.
 TEST(CgParse, first_json_object_is_non_greedy) {
     const std::string s =
         R"(prose {"has_narrative_text": true, "confidence": 0.9} more {junk})";
@@ -77,12 +91,12 @@ TEST(CgParse, detect_gate_at_exactly_0_7) {
 TEST(CgParse, safe_name_replaces_exactly_the_invalid_set) {
     EXPECT_EQ(safe_name("ev01a"), "ev01a");
     EXPECT_EQ(safe_name("a\"b<c>d|e:f*g?h\\i/j"), "a_b_c_d_e_f_g_h_i_j");
-    EXPECT_EQ(safe_name(std::string("x\x01y\x1f", 4)), "x_y_");
+    EXPECT_EQ(safe_name(std::string{'x', kSohControl, 'y', kUsControl}), "x_y_");
     // Untouched: separators and punctuation the set does not list.
     EXPECT_EQ(safe_name("a.b-c_d+e f"), "a.b-c_d+e f");
     // Japanese passes through: every invalid codepoint is < 0x80, and UTF-8
     // continuation bytes are >= 0x80.
-    EXPECT_EQ(safe_name("\xE6\x97\xA5\xE6\x9C\xAC"), "\xE6\x97\xA5\xE6\x9C\xAC");
+    EXPECT_EQ(safe_name("日本"), "日本");
 }
 
 TEST(CgParse, ext_from_type_tag) {
@@ -98,11 +112,11 @@ TEST(CgParse, ext_from_type_tag) {
 }
 
 TEST(CgParse, to_int_truncates_toward_zero) {
-    EXPECT_EQ(to_int(bj::value(130)), 130);
-    EXPECT_EQ(to_int(bj::value(130.9)), 130);
-    EXPECT_EQ(to_int(bj::value(-130.9)), -130);
+    EXPECT_EQ(to_int(bj::value(kSampleCoordInt)), kSampleCoordInt);
+    EXPECT_EQ(to_int(bj::value(kSamplePositiveFloat)), kSampleCoordInt);
+    EXPECT_EQ(to_int(bj::value(kSampleNegativeFloat)), kSampleNegativeInt);
     EXPECT_EQ(to_int(bj::value(true)), 1);
     EXPECT_THROW(to_int(bj::value("abc")), std::exception);
-    EXPECT_EQ(to_int(bj::value(" 12 ")), 12);
+    EXPECT_EQ(to_int(bj::value(" 12 ")), kSampleWhitespaceInt);
     EXPECT_THROW(to_int(bj::value(nullptr)), std::exception);
 }

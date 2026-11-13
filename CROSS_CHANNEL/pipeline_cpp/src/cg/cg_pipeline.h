@@ -32,8 +32,8 @@
 namespace crc::cg {
 
 struct CgOptions {
-    std::string game_dir;     // C:\Games\CROSS_CHANNEL  (the archives live in .\data)
-    std::string project_dir;  // CROSS_CHANNEL\  (for script_output)
+    std::string game_dir;     // <game_dir> (the archives live in .\data)
+    std::string project_dir;  // CROSS_CHANNEL\ (for script_output)
     bool scan_only = false;
     bool no_resume = false;
     // Skip the interactive API prompt (for non-tty runs).
@@ -41,8 +41,6 @@ struct CgOptions {
 };
 
 int run_find_narrative_cg(const CgOptions& opt);
-
-// ---- resume-set coverage --------------------------------------------------
 
 // (archive, entry) -- the pair narrative_scanned.json records, and the key the
 // scan skips on.
@@ -59,8 +57,6 @@ bool needs_scan(const ScanKeySet& done, const ScanKey& key);
 // still drop a target.
 std::size_t count_left_to_scan(const std::vector<ScanKey>& targets,
                                const ScanKeySet& done);
-
-// ---- translate-pass coverage ----------------------------------------------
 
 // The painted BMP a candidate records, as a path that is really there, or an
 // empty string when neither location holds it.  `patched_dir` is the folder
@@ -88,15 +84,12 @@ bool needs_translation(const boost::json::object& candidate,
 std::size_t count_left_to_translate(const boost::json::array& candidates,
                                     const std::string& patched_dir);
 
-// ---- helpers exposed for the unit tests -----------------------------------
-
 // extract_cpk entry names become filenames: every byte 0x00-0x1F plus
 // " < > | : * ? \ / maps to '_'.
 std::string safe_filename(const std::string& name);
 
 // First balanced JSON array in `resp` (bracket-depth walk, string-literal and
-// backslash aware), or nullopt.  Replaced a greedy \[.*\] regex that broke
-// when the LLM appended prose containing brackets.
+// backslash aware), or empty when `*found` is false.
 std::string first_json_array(const std::string& resp, bool* found);
 
 }  // namespace crc::cg

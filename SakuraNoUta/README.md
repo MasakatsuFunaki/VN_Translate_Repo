@@ -61,7 +61,7 @@ To run the steps one at a time:
 ```bat
 cd build\install\bin
 01_extract.exe   --game-dir C:\SakuraNoUta
-02_build_tsv.exe --game-dir C:\SakuraNoUta
+02_build_tsv.exe
 cd ..\..\..
 python build.py --deploy --game-dir C:\SakuraNoUta
 ```
@@ -69,20 +69,7 @@ python build.py --deploy --game-dir C:\SakuraNoUta
 ### Options
 
 ```bat
-00_run_all.exe --batch N             :: lines per batch (default 150)
-00_run_all.exe --max-batches N       :: stop after N batches, keep the cache
-00_run_all.exe --test N              :: N batches, then stop -- DELETES THE CACHE
-00_run_all.exe --clean               :: delete all output, then a full run
-
-02_build_tsv.exe --script NAME       :: process one script only
 02_build_tsv.exe --rebuild-table     :: rebuild translations.tsv from translated_text.json
-02_build_tsv.exe --retranslate       :: ignore the cache, redo all -- DELETES THE CACHE
+02_build_tsv.exe --out <path>        :: write translations.tsv to a custom path
+03_find_narrative_cg.exe --game-dir C:\SakuraNoUta --repack :: repack narrative CGs
 ```
-
-> **WARNING:** Back up `script_output/translation_cache_anthropic.json` and
-> `script_output/translated_text.json` before you use `--test`, `--clean` or
-> `--retranslate`. These flags delete the paid translations, and nothing can
-> rebuild them. To stop a run early and keep them, use `--max-batches N`.
-
-When the cache holds finished work, these three flags refuse to run unless you also give
-`--discard-cache`.

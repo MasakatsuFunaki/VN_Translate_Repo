@@ -6,16 +6,33 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "translator.h"
-#include "translator_logic.h"
+
 #include "log.h"
+#include "translator_logic.h"
 
 #include <windows.h>
-#include <unordered_map>
-#include <string>
-#include <mutex>
+
+#include <algorithm>
 #include <atomic>
+#include <cstddef>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
 
 namespace {
+
+constexpr UINT kCp932 = 932;
+constexpr DWORD kInitialModulePathChars = MAX_PATH;
+constexpr DWORD kMaxModulePathChars = 32768;
+constexpr DWORD kPathBufferGrowthFactor = 2;
+constexpr int kMaxSampledEntries = 5;
+constexpr int kInitialMissLogCap = 100;
+constexpr int kPeriodicMissLogStride = 50;
+constexpr std::string_view kIdeographicSpace = "　";
+constexpr std::string_view kLeftCornerBracket = "「";
+constexpr std::string_view kRightCornerBracket = "」";
 
 std::unordered_map<std::string, std::string> g_table;
 std::once_flag g_init_flag;
@@ -27,74 +44,107 @@ std::atomic<int> g_lookup_miss{0};
 
 std::string get_dll_dir() {
     HMODULE me = nullptr;
-    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
-                       | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                       reinterpret_cast<LPCSTR>(&get_dll_dir), &me);
-    char path[MAX_PATH] = {};
-    GetModuleFileNameA(me, path, MAX_PATH);
-    std::string s(path);
-    auto pos = s.find_last_of("\\/");
+    if (!GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&get_dll_dir), &me)) {
+        return ".";
+    }
+    DWORD cap = kInitialModulePathChars;
+    std::vector<wchar_t> wbuf(cap, L'\0');
+    DWORD len = 0;
+    while (cap <= kMaxModulePathChars) {
+        len = GetModuleFileNameW(me, wbuf.data(), cap);
+        if (len == 0) {
+            return ".";
+        }
+        if (len < cap) {
+            break;
+        }
+        if (cap == kMaxModulePathChars) {
+            cap = kMaxModulePathChars + 1;
+            break;
+        }
+        cap = std::min(cap * kPathBufferGrowthFactor, kMaxModulePathChars);
+        wbuf.assign(cap, L'\0');
+    }
+    if (cap > kMaxModulePathChars) {
+        return ".";
+    }
+    const int u8len = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wbuf.data(), static_cast<int>(len),
+        nullptr, 0, nullptr, nullptr);
+    if (u8len <= 0) {
+        return ".";
+    }
+    std::string s(static_cast<std::size_t>(u8len), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wbuf.data(), static_cast<int>(len),
+        s.data(), u8len, nullptr, nullptr);
+    if (written != u8len) {
+        return ".";
+    }
+    const auto pos = s.find_last_of("\\/");
     return (pos == std::string::npos) ? "." : s.substr(0, pos);
 }
 
 std::string utf8_from_cp932(const char* in) {
-    if (!in || !*in) return {};
-    int wlen = MultiByteToWideChar(932, 0, in, -1, nullptr, 0);
-    if (wlen <= 0) return {};
-    std::wstring w(static_cast<size_t>(wlen) - 1, L'\0');
-    MultiByteToWideChar(932, 0, in, -1, w.data(), wlen);
-    int u8len = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1,
-                                    nullptr, 0, nullptr, nullptr);
-    if (u8len <= 0) return {};
-    std::string out(static_cast<size_t>(u8len) - 1, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1, out.data(), u8len,
-                        nullptr, nullptr);
+    if (!in || !*in) {
+        return {};
+    }
+    const int wlen = MultiByteToWideChar(kCp932, 0, in, -1, nullptr, 0);
+    if (wlen <= 0) {
+        return {};
+    }
+    std::wstring w(static_cast<std::size_t>(wlen) - 1, L'\0');
+    MultiByteToWideChar(kCp932, 0, in, -1, w.data(), wlen);
+    const int u8len = WideCharToMultiByte(
+        CP_UTF8, 0, w.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (u8len <= 0) {
+        return {};
+    }
+    std::string out(static_cast<std::size_t>(u8len) - 1, '\0');
+    WideCharToMultiByte(
+        CP_UTF8, 0, w.c_str(), -1, out.data(), u8len, nullptr, nullptr);
     return out;
 }
 
 // Engine wrappers the bytecode-extracted strings sometimes lack and
 // sometimes embed. Stripping leading 　 (U+3000) and surrounding 「...」
 // before retrying the lookup lets the same TSV match buffers handed to
-// the renderer in either form. UTF-8 byte sequences:
-//   　   E3 80 80
-//   「   E3 80 8C
-//   」   E3 80 8D
+// the renderer in either form.
 std::string normalize_utf8_key(const std::string& s) {
-    auto starts = [&](size_t i, unsigned a, unsigned b, unsigned c) {
-        return s.size() >= i + 3
-            && (unsigned char)s[i]   == a
-            && (unsigned char)s[i+1] == b
-            && (unsigned char)s[i+2] == c;
-    };
-    size_t lo = 0, hi = s.size();
-    while (starts(lo, 0xE3, 0x80, 0x80)) lo += 3;
-    if (starts(lo, 0xE3, 0x80, 0x8C) && hi >= 3
-        && (unsigned char)s[hi-3] == 0xE3
-        && (unsigned char)s[hi-2] == 0x80
-        && (unsigned char)s[hi-1] == 0x8D) {
-        lo += 3;
-        hi -= 3;
-        while (lo < hi && starts(lo, 0xE3, 0x80, 0x80)) lo += 3;
+    std::string_view view(s);
+    while (view.substr(0, kIdeographicSpace.size()) == kIdeographicSpace) {
+        view.remove_prefix(kIdeographicSpace.size());
     }
-    if (lo >= hi) return {};
-    return s.substr(lo, hi - lo);
+    if (view.size() >= kLeftCornerBracket.size() + kRightCornerBracket.size() &&
+        view.substr(0, kLeftCornerBracket.size()) == kLeftCornerBracket &&
+        view.substr(view.size() - kRightCornerBracket.size()) == kRightCornerBracket) {
+        view.remove_prefix(kLeftCornerBracket.size());
+        view.remove_suffix(kRightCornerBracket.size());
+        while (view.substr(0, kIdeographicSpace.size()) == kIdeographicSpace) {
+            view.remove_prefix(kIdeographicSpace.size());
+        }
+    }
+    return std::string(view);
 }
 
 void load_table_once() {
     std::call_once(g_init_flag, []() {
-        std::string path = get_dll_dir() + "\\translations.tsv";
-        size_t n = tr::load_tsv_file(path, g_table);
+        const std::string path = get_dll_dir() + "\\translations.tsv";
+        const std::size_t n = tr::load_tsv_file(path, g_table);
         if (n == SIZE_MAX) {
             LOG("translator: FAILED to open %s", path.c_str());
-        } else {
-            LOG("translator: loaded %zu entries from %s", n, path.c_str());
-            // Sample 5 entries so the log makes it obvious the table is
-            // populated and the keys are readable JP.
-            int sampled = 0;
-            for (const auto& kv : g_table) {
-                LOG("translator: sample [%s] -> [%s]",
-                    kv.first.c_str(), kv.second.c_str());
-                if (++sampled >= 5) break;
+            return;
+        }
+        LOG("translator: loaded %zu entries from %s", n, path.c_str());
+        int sampled = 0;
+        for (const auto& kv : g_table) {
+            LOG("translator: sample [%s] -> [%s]",
+                kv.first.c_str(), kv.second.c_str());
+            if (++sampled >= kMaxSampledEntries) {
+                break;
             }
         }
     });
@@ -106,7 +156,7 @@ const std::string* find_with_normalize(const std::string& utf8_key) {
         g_lookup_hit_exact++;
         return &it->second;
     }
-    std::string norm = normalize_utf8_key(utf8_key);
+    const std::string norm = normalize_utf8_key(utf8_key);
     if (!norm.empty() && norm.size() != utf8_key.size()) {
         it = g_table.find(norm);
         if (it != g_table.end()) {
@@ -115,8 +165,8 @@ const std::string* find_with_normalize(const std::string& utf8_key) {
         }
     }
     g_lookup_miss++;
-    int miss = g_lookup_miss.load();
-    if (miss <= 100 || (miss % 50) == 0) {
+    const int miss = g_lookup_miss.load();
+    if (miss <= kInitialMissLogCap || (miss % kPeriodicMissLogStride) == 0) {
         if (norm.empty() || norm.size() == utf8_key.size()) {
             LOG("translator: MISS #%d [%s]", miss, utf8_key.c_str());
         } else {

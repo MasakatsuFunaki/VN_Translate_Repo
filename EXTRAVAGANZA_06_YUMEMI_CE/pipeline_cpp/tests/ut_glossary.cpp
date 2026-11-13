@@ -5,25 +5,27 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Component tests for src/cache/glossary.{h,cpp} and src/cache/speaker_gate.{h,cpp}:
-// YUMEMIRYOJOKU_CE speaker mappings, story order, system prompt, and 5-check
-// speaker gate verification.
-#include <gtest/gtest.h>
-
-#include <filesystem>
-#include <string>
-#include <vector>
-
+// Unit tests for src/cache/glossary.{h,cpp} and src/cache/speaker_gate.{h,cpp}:
+// YUMEMIRYOJOKU_CE speaker mappings, story order, system prompt, and synthetic
+// 5-check speaker gate verification.
 #include "cache/glossary.h"
 #include "cache/speaker_gate.h"
-#include "common/util.h"
+
+#include <boost/json.hpp>
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace exm::translate {
 namespace {
 
 constexpr std::size_t kExpectedStoryOrderCount = 3;
+constexpr int kSyntheticDialogueLineCount = 12;
 
-TEST(GlossaryContract, SpeakerTableAndStoryOrderAndSpeakerGatePass) {
+TEST(GlossaryContract, SpeakerTableAndStoryOrderAndSyntheticSpeakerGatePass) {
     const auto& ordered = name_translations_ordered();
     const auto& map = name_translations();
     EXPECT_EQ(ordered.size(), map.size());
@@ -67,40 +69,19 @@ TEST(GlossaryContract, SpeakerTableAndStoryOrderAndSpeakerGatePass) {
     EXPECT_FALSE(prompt.empty());
     EXPECT_NE(prompt.find("Yumemi Sakurai"), std::string::npos);
 
-    std::filesystem::path extracted_path;
-    std::filesystem::path cur = std::filesystem::current_path();
-    for (int i = 0; i < 6; ++i) {
-        if (std::filesystem::exists(cur / "script_output" / "extracted_text.json")) {
-            extracted_path = cur / "script_output" / "extracted_text.json";
-            break;
-        }
-        if (std::filesystem::exists(cur / "EXTRAVAGANZA_06_YUMEMI_CE" / "script_output" / "extracted_text.json")) {
-            extracted_path = cur / "EXTRAVAGANZA_06_YUMEMI_CE" / "script_output" / "extracted_text.json";
-            break;
-        }
-        if (!cur.has_parent_path() || cur.parent_path() == cur) break;
-        cur = cur.parent_path();
+    boost::json::array strings;
+    for (int i = 0; i < kSyntheticDialogueLineCount; ++i) {
+        boost::json::object s;
+        s["type"] = "dialogue";
+        s["text"] = "夢美\r\n「やめてください……」";
+        strings.push_back(std::move(s));
     }
-    if (!extracted_path.empty() && std::filesystem::exists(extracted_path)) {
-        const auto root = json_parse_file(extracted_path.u8string());
-        ASSERT_TRUE(root.is_object());
-        const auto report = run_speaker_checks(root.get_object());
-        EXPECT_TRUE(report.passed) << report.reason;
-    } else {
-        boost::json::array strings;
-        for (int i = 0; i < 12; ++i) {
-            boost::json::object s;
-            s["type"] = "dialogue";
-            s["text"] = "夢美\r\n「やめてください……」";
-            strings.push_back(std::move(s));
-        }
-        boost::json::object file_obj;
-        file_obj["strings"] = std::move(strings);
-        boost::json::object synthetic_root;
-        synthetic_root["m_tokuten.spt"] = std::move(file_obj);
-        const auto report = run_speaker_checks(synthetic_root);
-        EXPECT_TRUE(report.passed) << report.reason;
-    }
+    boost::json::object file_obj;
+    file_obj["strings"] = std::move(strings);
+    boost::json::object synthetic_root;
+    synthetic_root["m_tokuten.spt"] = std::move(file_obj);
+    const auto report = run_speaker_checks(synthetic_root);
+    EXPECT_TRUE(report.passed) << report.reason;
 }
 
 }  // namespace

@@ -6,6 +6,13 @@
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
 // 00_run_all -- EXTRA VA MIZUNA ~EXTRAVAGANZA~ CE English translation pipeline orchestrator.
+#include "apps/paths.h"
+#include "apps/pipeline_steps.h"
+#include "cache/cache_core.h"
+#include "cache/gemini_client.h"
+#include "common/util.h"
+
+#include <cstddef>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
@@ -13,36 +20,35 @@
 #include <system_error>
 #include <vector>
 
-#include "cache/cache_core.h"
-#include "cache/gemini_client.h"
-#include "common/util.h"
-
-#include "apps/paths.h"
-#include "apps/pipeline_steps.h"
-
 namespace fs = std::filesystem;
 using namespace exm;
 
 namespace {
 
 constexpr int kDefaultBatchArg = 150;
-constexpr int kImplicitTestBatches = 1;
+constexpr int kNoBatchLimit = 0;
+constexpr int kNoTestBatches = 0;
 constexpr int kRefusedExitCode = 2;
 constexpr std::size_t kBannerWidth = 60;
+constexpr std::size_t kStageExtract = 0;
+constexpr std::size_t kStageBuildTsv = 1;
+constexpr std::size_t kStageDeploy = 2;
 
-int run_command(const std::string& cmdline) {
-    print_line("Running: " + cmdline);
-    return std::system(("\"" + cmdline + "\"").c_str());
-}
+bool run_child_executable(const std::string& exe,
+                          const std::string& project,
+                          const std::string& game,
+                          const std::vector<std::string>& extra_args) {
+    const std::string exe_path =
+        (fs::u8path(apps::exe_dir()) / (exe + ".exe")).u8string();
+    std::vector<std::string> child_args = {"--dir", project, "--game-dir", game};
+    child_args.insert(child_args.end(), extra_args.begin(), extra_args.end());
 
-void run_step(const std::string& exe, const std::vector<std::string>& args,
-              const std::string& passthrough) {
-    std::string cmd = "\"" + apps::exe_dir() + "\\" + exe + ".exe\"" + passthrough;
-    for (const auto& a : args) cmd += " " + a;
-    if (run_command(cmd) != 0) {
+    print_line("Running: " + exe_path);
+    if (apps::run_process(exe_path, child_args) != apps::kExitOk) {
         log_info("\n[ERROR] " + exe + " failed");
-        std::exit(1);
+        return false;
     }
+    return true;
 }
 
 bool deploy(const std::string& project, const std::string& game) {
@@ -83,7 +89,9 @@ bool deploy(const std::string& project, const std::string& game) {
     if (ec) {
         log_info("  WARN: cannot check the game folder for "
                  "translation_table.tsv: " + ec.message());
-    } else if (!have_table) {
+        return true;
+    }
+    if (!have_table) {
         log_info("  WARN: translation_table.tsv not in the game folder -- "
                  "02_build_tsv writes it there.");
     }
@@ -92,120 +100,125 @@ bool deploy(const std::string& project, const std::string& game) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main() {
     setup_console_utf8();
     namespace po = apps::po;
 
-    std::string project;
-    std::string game;
-    int batch = 0;
-    int test_n = 0;
-    int max_batches = 0;
-    bool clean = false;
-    bool discard_cache = false;
-    po::options_description desc("00_run_all -- EXTRA VA MIZUNA CE translation pipeline");
-    desc.add(apps::common_options(project, game));
-    desc.add_options()
-        ("batch", po::value(&batch)->default_value(kDefaultBatchArg),
-         "lines per API request, passed to the translation step")
-        ("test", po::value(&test_n)->implicit_value(kImplicitTestBatches)->default_value(0),
-         "smoke run: N batches then stop (bare --test = 1)")
-        ("max-batches", po::value(&max_batches)->default_value(0),
-         "stop after N API requests, keeping the cache and outputs (0 = no limit)")
-        ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
-        ("discard-cache", po::bool_switch(&discard_cache),
-         "allow --clean to delete a cache that already holds paid work");
-    po::variables_map vm;
-    if (const auto rc = apps::parse_command_line(argc, argv, desc, vm)) return *rc;
+    try {
+        std::string project;
+        std::string game;
+        int batch = 0;
+        int max_batches = 0;
+        bool clean = false;
+        bool discard_cache = false;
+        po::options_description desc("00_run_all -- EXTRA VA MIZUNA CE translation pipeline");
+        desc.add(apps::common_options(project, game));
+        desc.add_options()
+            ("batch", po::value(&batch)->default_value(kDefaultBatchArg),
+             "lines per API request, passed to 02_build_tsv")
+            ("max-batches", po::value(&max_batches)->default_value(kNoBatchLimit),
+             "stop after N API requests, keeping the cache and outputs (0 = no limit)")
+            ("clean", po::bool_switch(&clean), "delete cached JSON files before running")
+            ("discard-cache", po::bool_switch(&discard_cache),
+             "allow --clean to delete a cache that already holds paid work");
+        po::variables_map vm;
+        if (const auto rc = apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
 
-    if (const auto why = translate::validate_options(batch, test_n, max_batches)) {
-        log_info("[ERROR] " + *why);
-        return kRefusedExitCode;
-    }
-
-    const std::string out_dir = project + "\\script_output";
-    const std::string cache_file = out_dir + "\\translation_cache_gemini.json";
-    if (clean) {
-        try {
-            if (const auto why = translate::refuse_cache_discard(
-                    translate::cache_entry_count(cache_file),
-                    "--clean", discard_cache)) {
-                log_info("[ERROR] " + *why);
-                return kRefusedExitCode;
-            }
-        } catch (const std::exception& e) {
-            log_info(std::string("[ERROR] ") + e.what());
+        if (const auto why = translate::validate_options(batch, kNoTestBatches, max_batches)) {
+            log_info("[ERROR] " + *why);
             return kRefusedExitCode;
         }
-    }
 
-    const std::string passthrough =
-        " --dir \"" + project + "\" --game-dir \"" + game + "\"";
-
-    const std::string bar(kBannerWidth, '=');
-    log_info(bar);
-    log_info("EXTRA VA MIZUNA ~EXTRAVAGANZA~ CE");
-    log_info("English Translation Pipeline (Gemini)");
-    log_info(bar);
-
-    gemini::load_api_key(project);
-
-    const char* api_key_env = std::getenv("GEMINI_API_KEY");
-    const bool has_api_key = api_key_env != nullptr && *api_key_env != '\0';
-    if ((clean || test_n > 0) && !has_api_key) {
-        log_info(std::string("[ERROR] GEMINI_API_KEY not set -- ") +
-                 (clean ? "refusing to discard the cache for a run that cannot translate."
-                        : "--test translates a capped number of batches and cannot run without the API."));
-        return kRefusedExitCode;
-    }
-
-    if (clean) {
-        for (const char* f : {"extracted_text.json", "translated_text.json",
-                              "translation_cache_gemini.json"}) {
-            const fs::path p = fs::u8path(out_dir + "\\" + f);
-            std::error_code ec;
-            const bool present = fs::exists(p, ec);
-            if (!ec && !present) continue;
-            const bool removed = !ec && fs::remove(p, ec);
-            if (ec) {
-                log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
-                         ec.message() +
-                         " -- close whatever has it open, then retry.");
-                return 1;
+        const std::string out_dir = project + "\\script_output";
+        const std::string cache_file = out_dir + "\\translation_cache_gemini.json";
+        if (clean) {
+            try {
+                if (const auto why = translate::refuse_cache_discard(
+                        translate::cache_entry_count(cache_file),
+                        "--clean", discard_cache)) {
+                    log_info("[ERROR] " + *why);
+                    return kRefusedExitCode;
+                }
+            } catch (const std::exception& e) {
+                log_info(std::string("[ERROR] ") + e.what());
+                return kRefusedExitCode;
             }
-            log_info(std::string("[clean] ") + f +
-                     (removed ? "" : " was already gone"));
         }
-    }
 
-    const auto& steps = apps::pipeline_steps();
-    auto banner = [&](std::size_t i) {
-        log_info("\n" + bar);
-        log_info(std::string(steps[i].name) + ": " + steps[i].what);
+        const std::string bar(kBannerWidth, '=');
         log_info(bar);
-    };
+        log_info("EXTRA VA MIZUNA ~EXTRAVAGANZA~ CE");
+        log_info("English Translation Pipeline (Gemini)");
+        log_info(bar);
 
-    banner(0);
-    run_step(steps[0].name, {}, passthrough);
+        gemini::load_api_key(project);
 
-    banner(1);
-    {
-        std::vector<std::string> args = {"--batch", std::to_string(batch)};
-        if (test_n > 0) {
-            args.emplace_back("--test");
-            args.emplace_back(std::to_string(test_n));
-        } else if (max_batches > 0) {
-            args.emplace_back("--max-batches");
-            args.emplace_back(std::to_string(max_batches));
+        const char* api_key_env = std::getenv("GEMINI_API_KEY");
+        const bool has_api_key = api_key_env != nullptr && *api_key_env != '\0';
+        if (clean && !has_api_key) {
+            log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the cache "
+                     "for a run that cannot translate.");
+            return kRefusedExitCode;
         }
-        run_step(steps[1].name, args, passthrough);
+
+        if (clean) {
+            for (const char* f : {"extracted_text.json", "translated_text.json",
+                                  "translation_cache_gemini.json"}) {
+                const fs::path p = fs::u8path(out_dir + "\\" + f);
+                std::error_code ec;
+                const bool present = fs::exists(p, ec);
+                if (!ec && !present) {
+                    continue;
+                }
+                const bool removed = !ec && fs::remove(p, ec);
+                if (ec) {
+                    log_info("[ERROR] cannot delete " + out_dir + "\\" + f + ": " +
+                             ec.message() +
+                             " -- close whatever has it open, then retry.");
+                    return apps::kExitError;
+                }
+                log_info(std::string("[clean] ") + f +
+                         (removed ? "" : " was already gone"));
+            }
+        }
+
+        const auto& stages = apps::pipeline_steps();
+        auto banner = [&](std::size_t i) {
+            log_info("\n" + bar);
+            log_info(std::string(stages[i].name) + ": " + stages[i].what);
+            log_info(bar);
+        };
+
+        banner(kStageExtract);
+        if (!run_child_executable(stages[kStageExtract].name, project, game, {})) {
+            return apps::kExitError;
+        }
+
+        banner(kStageBuildTsv);
+        {
+            std::vector<std::string> args = {"--batch", std::to_string(batch)};
+            if (max_batches > 0) {
+                args.emplace_back("--max-batches");
+                args.emplace_back(std::to_string(max_batches));
+            }
+            if (!run_child_executable(stages[kStageBuildTsv].name, project, game, args)) {
+                return apps::kExitError;
+            }
+        }
+
+        banner(kStageDeploy);
+        if (!deploy(project, game)) {
+            return apps::kExitError;
+        }
+
+        log_info("\n" + bar);
+        log_info("TRANSLATION COMPLETE!");
+        log_info(bar);
+        return apps::kExitOk;
+    } catch (const std::exception& e) {
+        log_info(std::string("[ERROR] ") + e.what());
+        return apps::kExitError;
     }
-
-    banner(2);
-    if (!deploy(project, game)) return 1;
-
-    log_info("\n" + bar);
-    log_info("TRANSLATION COMPLETE!");
-    log_info(bar);
-    return 0;
 }

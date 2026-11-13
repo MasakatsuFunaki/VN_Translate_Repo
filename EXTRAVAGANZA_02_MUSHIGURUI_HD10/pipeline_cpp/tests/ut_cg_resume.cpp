@@ -19,23 +19,27 @@
 // executed here.  Instead each count is checked against needs_scan /
 // needs_translation, which are the functions the loops themselves call to
 // decide a skip, rather than against a second copy of their bodies.
+#include "cg/cg_pipeline.h"
+
+#include "scoped_temp_dir.h"
+
+#include <boost/json.hpp>
 #include <gtest/gtest.h>
 
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
-
-#include <boost/json.hpp>
-
-#include "cg/cg_pipeline.h"
 
 namespace bj = boost::json;
 namespace cg = mgi::cg::detail;
 namespace fs = std::filesystem;
 
 namespace {
+
+constexpr unsigned kCombinatorialCandidateCount = 5u;
 
 cg::ScanKey key(const std::string& arc, const std::string& entry) {
     return cg::ScanKey{arc, entry};
@@ -46,8 +50,11 @@ cg::ScanKey key(const std::string& arc, const std::string& entry) {
 std::size_t left_by_the_skip(const std::vector<cg::ScanKey>& targets,
                              const cg::ScanKeySet& done) {
     std::size_t left = 0;
-    for (const auto& k : targets)
-        if (cg::needs_scan(done, k)) ++left;
+    for (const auto& k : targets) {
+        if (cg::needs_scan(done, k)) {
+            ++left;
+        }
+    }
     return left;
 }
 
@@ -62,70 +69,54 @@ const std::vector<cg::ScanKey>& sample_targets() {
     return v;
 }
 
-// The skip test asks the filesystem, not the JSON, so a painted candidate
-// needs a file that is really there.
-const std::string& painted_file() {
-    static const std::string path = [] {
-        const fs::path p =
-            fs::temp_directory_path() / "mgi_ut_cg_resume_patched.png";
-        std::ofstream(p, std::ios::binary) << "PNG";
-        return p.u8string();
-    }();
-    return path;
-}
+class PatchedImageWorkspace {
+public:
+    explicit PatchedImageWorkspace(std::string_view prefix)
+        : temp_dir_(prefix),
+          painted_file_(temp_dir_.join("standalone/patched.png")),
+          absent_file_(temp_dir_.join("standalone/absent.png")),
+          patched_dir_(temp_dir_.join("patched_out")),
+          moved_in_patched_dir_(patched_dir_ / fs::u8path("moved.png")),
+          path_under_moved_root_(temp_dir_.join("old_root/narrative_patched/moved.png")) {
+        fs::create_directories(painted_file_.parent_path());
+        fs::create_directories(patched_dir_);
+        write_placeholder_png(painted_file_);
+        write_placeholder_png(moved_in_patched_dir_);
+    }
 
-const std::string& absent_file() {
-    static const std::string path = [] {
-        const fs::path p =
-            fs::temp_directory_path() / "mgi_ut_cg_resume_absent.png";
-        fs::remove(p);
-        return p.u8string();
-    }();
-    return path;
-}
+    PatchedImageWorkspace(const PatchedImageWorkspace&) = delete;
+    PatchedImageWorkspace& operator=(const PatchedImageWorkspace&) = delete;
 
-// The folder a run paints into.  Empty except for the one file the moved-root
-// cases put in it, so every other recorded path that is gone stays gone.
-const std::string& patched_dir() {
-    static const std::string path = [] {
-        const fs::path p = fs::temp_directory_path() / "mgi_ut_cg_resume_out";
-        fs::remove_all(p);
-        fs::create_directories(p);
-        return p.u8string();
-    }();
-    return path;
-}
+    std::string painted_file() const { return painted_file_.u8string(); }
+    std::string absent_file() const { return absent_file_.u8string(); }
+    std::string patched_dir() const { return patched_dir_.u8string(); }
+    std::string same_name_in_patched_dir() const { return moved_in_patched_dir_.u8string(); }
+    std::string path_under_moved_root() const { return path_under_moved_root_.u8string(); }
 
-// What a candidates file written before the project folder moved still holds:
-// an absolute path under a root that is no longer on this machine.
-const std::string& path_under_a_moved_root() {
-    static const std::string path = [] {
-        const fs::path root =
-            fs::temp_directory_path() / "mgi_ut_cg_resume_old_root";
-        fs::remove_all(root);
-        return (root / "narrative_patched" / "moved.png").u8string();
-    }();
-    return path;
-}
+private:
+    static void write_placeholder_png(const fs::path& file_path) {
+        std::ofstream out(file_path, std::ios::binary);
+        out << "PNG";
+    }
 
-// The same file name, where this run paints.
-const std::string& same_name_in_the_patched_dir() {
-    static const std::string path = [] {
-        const fs::path p = fs::u8path(patched_dir()) / "moved.png";
-        std::ofstream(p, std::ios::binary) << "PNG";
-        return p.u8string();
-    }();
-    return path;
-}
+    mgi::test_util::ScopedTempDir temp_dir_;
+    fs::path painted_file_;
+    fs::path absent_file_;
+    fs::path patched_dir_;
+    fs::path moved_in_patched_dir_;
+    fs::path path_under_moved_root_;
+};
 
-bj::object candidate(const std::string& entry, bool has_regions,
+bj::object candidate(const std::string& entry,
+                     bool has_regions,
                      const std::string& patched) {
     bj::object c;
     c["arc"] = "ev0.gpk";
     c["entry"] = entry;
-    if (has_regions) c["regions"] = bj::array{};
-    else c["regions"] = nullptr;
-    if (!patched.empty()) c["patched_img"] = patched;
+    c["regions"] = has_regions ? bj::value(bj::array{}) : bj::value(nullptr);
+    if (!patched.empty()) {
+        c["patched_img"] = patched;
+    }
     return c;
 }
 
@@ -172,8 +163,11 @@ TEST(ResumeCoverage, TheScanCountAndTheScanSkipAgreeOnEveryMix) {
     const unsigned n = static_cast<unsigned>(targets.size());
     for (unsigned mask = 0; mask < (1u << n); ++mask) {
         cg::ScanKeySet done;
-        for (unsigned i = 0; i < n; ++i)
-            if (mask & (1u << i)) done.insert(targets[i]);
+        for (unsigned i = 0; i < n; ++i) {
+            if (mask & (1u << i)) {
+                done.insert(targets[i]);
+            }
+        }
         EXPECT_EQ(cg::count_left_to_scan(targets, done), left_by_the_skip(targets, done))
             << "coverage mask " << mask;
     }
@@ -182,55 +176,63 @@ TEST(ResumeCoverage, TheScanCountAndTheScanSkipAgreeOnEveryMix) {
 // A candidate counts as done only with both halves: a region list and a
 // patched image still on disk.
 TEST(TranslateCoverage, APaintedCandidateNeedsNoFurtherRequest) {
-    EXPECT_FALSE(cg::needs_translation(candidate("ev01", true, painted_file()),
-                                       patched_dir()));
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_painted");
+    EXPECT_FALSE(cg::needs_translation(candidate("ev01", true, ws.painted_file()),
+                                       ws.patched_dir()));
 }
 
 // The patched image can be deleted between runs; the candidate is then painted
 // again, which costs a request.
 TEST(TranslateCoverage, ACandidateWhosePatchedImageIsGoneIsPaintedAgain) {
-    EXPECT_TRUE(cg::needs_translation(candidate("ev01", true, absent_file()),
-                                      patched_dir()));
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_gone");
+    EXPECT_TRUE(cg::needs_translation(candidate("ev01", true, ws.absent_file()),
+                                      ws.patched_dir()));
 }
 
 // A scan hit is recorded with a null region list, which is the state the
 // translate pass exists to fill in.
 TEST(TranslateCoverage, AScanHitWithNoRegionsStillNeedsTranslation) {
-    EXPECT_TRUE(cg::needs_translation(candidate("ev01", false, painted_file()),
-                                      patched_dir()));
-    EXPECT_TRUE(cg::needs_translation(candidate("ev02", false, ""), patched_dir()));
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_no_regions");
+    EXPECT_TRUE(cg::needs_translation(candidate("ev01", false, ws.painted_file()),
+                                      ws.patched_dir()));
+    EXPECT_TRUE(cg::needs_translation(candidate("ev02", false, ""), ws.patched_dir()));
 }
 
 // A candidates file every entry of which is already painted leaves the pass
 // nothing to send, so the run needs no key.
 TEST(TranslateCoverage, AFullyPaintedCandidateListSendsNothing) {
-    bj::array candidates{candidate("ev01", true, painted_file()),
-                         candidate("ev02", true, painted_file())};
-    EXPECT_EQ(cg::count_left_to_translate(candidates, patched_dir()), 0u);
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_all_painted");
+    bj::array candidates{candidate("ev01", true, ws.painted_file()),
+                         candidate("ev02", true, ws.painted_file())};
+    EXPECT_EQ(cg::count_left_to_translate(candidates, ws.patched_dir()), 0u);
 }
 
 // One unpainted candidate is work, and work still needs the key.  The override
 // table is empty in this game, so every unpainted candidate is counted.
 TEST(TranslateCoverage, OneUnpaintedCandidateIsStillCounted) {
-    bj::array candidates{candidate("ev01", true, painted_file()),
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_one_unpainted");
+    bj::array candidates{candidate("ev01", true, ws.painted_file()),
                          candidate("ev02", false, "")};
-    EXPECT_EQ(cg::count_left_to_translate(candidates, patched_dir()), 1u);
+    EXPECT_EQ(cg::count_left_to_translate(candidates, ws.patched_dir()), 1u);
 }
 
 // Every mix of painted and unpainted candidates, counted both ways.
 TEST(TranslateCoverage, TheTranslateCountAndTheTranslateSkipAgreeOnEveryMix) {
-    const unsigned n = 5;
-    for (unsigned mask = 0; mask < (1u << n); ++mask) {
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_mix");
+    for (unsigned mask = 0; mask < (1u << kCombinatorialCandidateCount); ++mask) {
         bj::array candidates;
         std::size_t by_the_skip = 0;
-        for (unsigned i = 0; i < n; ++i) {
+        for (unsigned i = 0; i < kCombinatorialCandidateCount; ++i) {
             const bool painted = (mask & (1u << i)) != 0;
-            candidates.push_back(candidate("ev0" + std::to_string(i), painted,
-                                           painted ? painted_file() : absent_file()));
-            if (cg::needs_translation(candidates.back().get_object(), patched_dir()))
+            candidates.push_back(candidate(
+                "ev0" + std::to_string(i),
+                painted,
+                painted ? ws.painted_file() : ws.absent_file()));
+            if (cg::needs_translation(candidates.back().get_object(), ws.patched_dir())) {
                 ++by_the_skip;
+            }
         }
-        EXPECT_EQ(cg::count_left_to_translate(candidates, patched_dir()), by_the_skip)
+        EXPECT_EQ(cg::count_left_to_translate(candidates, ws.patched_dir()), by_the_skip)
             << "painted mask " << mask;
     }
 }
@@ -238,23 +240,27 @@ TEST(TranslateCoverage, TheTranslateCountAndTheTranslateSkipAgreeOnEveryMix) {
 // A recorded path that still resolves is the answer, byte for byte: a correct
 // record must keep working exactly as it did.
 TEST(PaintedImageLocation, ARecordedPathThatStillResolvesIsUsedUnchanged) {
-    EXPECT_EQ(cg::resolve_patched_path(painted_file(), patched_dir()), painted_file());
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_recorded");
+    EXPECT_EQ(cg::resolve_patched_path(ws.painted_file(), ws.patched_dir()),
+              ws.painted_file());
 }
 
 // Moving the project folder leaves every recorded root behind, and the images
 // are already paid for.  Finding them by name where this run paints is what
 // stops the pass buying all of them a second time.
 TEST(PaintedImageLocation, APathUnderAMovedRootIsFoundWhereTheRunPaints) {
-    ASSERT_FALSE(fs::exists(fs::u8path(path_under_a_moved_root())));
-    ASSERT_TRUE(fs::exists(fs::u8path(same_name_in_the_patched_dir())));
-    EXPECT_EQ(cg::resolve_patched_path(path_under_a_moved_root(), patched_dir()),
-              same_name_in_the_patched_dir());
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_moved_root");
+    ASSERT_FALSE(fs::exists(fs::u8path(ws.path_under_moved_root())));
+    ASSERT_TRUE(fs::exists(fs::u8path(ws.same_name_in_patched_dir())));
+    EXPECT_EQ(cg::resolve_patched_path(ws.path_under_moved_root(), ws.patched_dir()),
+              ws.same_name_in_patched_dir());
     EXPECT_FALSE(cg::needs_translation(
-        candidate("ev01", true, path_under_a_moved_root()), patched_dir()));
+        candidate("ev01", true, ws.path_under_moved_root()), ws.patched_dir()));
 }
 
 // An image in neither location is genuinely gone, and is painted again.
 TEST(PaintedImageLocation, AnImageInNeitherLocationIsReportedMissing) {
-    EXPECT_TRUE(cg::resolve_patched_path(absent_file(), patched_dir()).empty());
-    EXPECT_TRUE(cg::resolve_patched_path("", patched_dir()).empty());
+    const PatchedImageWorkspace ws("mgi_ut_cg_resume_missing");
+    EXPECT_TRUE(cg::resolve_patched_path(ws.absent_file(), ws.patched_dir()).empty());
+    EXPECT_TRUE(cg::resolve_patched_path("", ws.patched_dir()).empty());
 }

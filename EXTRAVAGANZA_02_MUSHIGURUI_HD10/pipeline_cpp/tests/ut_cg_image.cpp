@@ -11,15 +11,18 @@
 // decides its channel count from stb's inferred `comp` instead of the container
 // header, every alpha-bearing UI button repacks as an opaque box -- so the
 // mapping from container header to channel count is pinned here explicitly.
+#include "cg/image.h"
+
+#include "common/util.h"
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
-
-#include "cg/image.h"
-#include "common/util.h"
 
 using namespace mgi;
 using namespace mgi::cg;

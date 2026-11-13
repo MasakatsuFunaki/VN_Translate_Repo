@@ -9,19 +9,25 @@
 // speaker extraction, English speaker-plate re-attachment, response parsing,
 // context window prompt construction, Gemini API request/response handling,
 // and translation_cache_gemini.json persistence and discard guards.
+#include "cache/cache_core.h"
+
+#include "cache/gemini_client.h"
+#include "cache/glossary.h"
+#include "common/util.h"
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
-
-#include "cache/cache_core.h"
-#include "cache/gemini_client.h"
-#include "cache/glossary.h"
-#include "common/util.h"
 
 namespace fs = std::filesystem;
 namespace tr = exm::translate;
@@ -38,13 +44,26 @@ constexpr std::int64_t kFakePromptTokenCount = 120;
 constexpr std::int64_t kFakeCandidatesTokenCount = 25;
 constexpr std::int64_t kFakeCachedContentTokenCount = 80;
 
-std::string scratch_cache() {
-    return (fs::temp_directory_path() / "ageha_ut_translation_cache_gemini.json").u8string();
-}
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view name)
+        : path_(fs::temp_directory_path() / fs::u8path(name)) {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
 
-std::string scratch_purge_cache() {
-    return (fs::temp_directory_path() / "ageha_ut_cache_purge_gemini.json").u8string();
-}
+    const fs::path& path() const { return path_; }
+
+private:
+    fs::path path_;
+};
 
 std::string file_bytes(const std::string& path) {
     std::ifstream in(fs::u8path(path), std::ios::binary);
@@ -197,8 +216,9 @@ TEST(CacheMerge, failed_entry_predicate_and_purge_preserve_valid_entries) {
     EXPECT_FALSE(tr::is_failed_entry("OK", "OK"));
     EXPECT_FALSE(tr::is_failed_entry("", ""));
 
-    const std::string path = scratch_purge_cache();
-    const std::string expected = scratch_purge_cache() + ".expected";
+    const ScopedTempDir tmp("ageha_ut_cache_purge_gemini");
+    const std::string path = (tmp.path() / "cache.json").u8string();
+    const std::string expected = (tmp.path() / "cache.json.expected").u8string();
 
     tr::Cache seed;
     seed.set("朝が来た。", "Morning came.");
@@ -221,17 +241,15 @@ TEST(CacheMerge, failed_entry_predicate_and_purge_preserve_valid_entries) {
     tr::save_cache(purged, path);
 
     EXPECT_EQ(file_bytes(path), file_bytes(expected));
-
-    fs::remove(fs::u8path(path));
-    fs::remove(fs::u8path(expected));
 }
 
 TEST(CacheMerge, disk_cache_io_handles_missing_and_malformed_files) {
-    const std::string path = scratch_cache();
-    fs::remove(fs::u8path(path));
-    EXPECT_EQ(tr::load_cache(path).size(), 0u);
-    EXPECT_EQ(tr::cache_entry_count(path), 0u);
+    const ScopedTempDir tmp("ageha_ut_translation_cache_gemini");
+    const std::string missing = (tmp.path() / "missing.json").u8string();
+    EXPECT_EQ(tr::load_cache(missing).size(), 0u);
+    EXPECT_EQ(tr::cache_entry_count(missing), 0u);
 
+    const std::string path = (tmp.path() / "cache.json").u8string();
     for (const char* content : kNotACache) {
         exm::write_file(path, std::string(content));
         try {
@@ -248,5 +266,4 @@ TEST(CacheMerge, disk_cache_io_handles_missing_and_malformed_files) {
     }
     tr::save_cache(cache, path);
     EXPECT_EQ(tr::cache_entry_count(path), kSampleDiskCacheCount);
-    fs::remove(fs::u8path(path));
 }

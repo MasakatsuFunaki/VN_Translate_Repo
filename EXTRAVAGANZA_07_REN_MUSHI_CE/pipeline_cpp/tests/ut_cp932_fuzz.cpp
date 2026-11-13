@@ -7,22 +7,61 @@
 
 // CP932 codec tests covering strict/lossy decoding, encoding round-trips,
 // and the five single-byte vendor extensions (0x80, 0xA0, 0xFD-0xFF).
+#include "common/util.h"
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <stdexcept>
 #include <string>
-
-#include "common/util.h"
+#include <string_view>
 
 using namespace exm;
 
 namespace {
 
-std::string dec(std::initializer_list<std::uint8_t> bytes) {
-    const Bytes b(bytes);
+constexpr unsigned int kCp932CodePage = 932u;
+constexpr std::uint8_t kVendorSingleByteFf = 0xFFu;
+
+Bytes WideToCp932Bytes(std::wstring_view wide) {
+    if (wide.empty()) {
+        return {};
+    }
+    BOOL used_default = FALSE;
+    const int needed = WideCharToMultiByte(
+        kCp932CodePage, WC_NO_BEST_FIT_CHARS, wide.data(),
+        static_cast<int>(wide.size()), nullptr, 0, nullptr, &used_default);
+    if (needed <= 0 || used_default) {
+        throw std::runtime_error("WideCharToMultiByte(CP932) length query failed");
+    }
+    Bytes out(static_cast<std::size_t>(needed), 0u);
+    const int written = WideCharToMultiByte(
+        kCp932CodePage, WC_NO_BEST_FIT_CHARS, wide.data(),
+        static_cast<int>(wide.size()), reinterpret_cast<char*>(out.data()),
+        needed, nullptr, &used_default);
+    if (written != needed || used_default) {
+        throw std::runtime_error("WideCharToMultiByte(CP932) conversion failed");
+    }
+    return out;
+}
+
+std::string dec(const Bytes& b) {
     auto s = cp932_to_utf8_strict(b);
     return s ? *s : std::string("<INVALID>");
+}
+
+std::string dec(std::initializer_list<std::uint8_t> bytes) {
+    return dec(Bytes(bytes));
 }
 
 bool valid(std::initializer_list<std::uint8_t> bytes) {
@@ -43,7 +82,9 @@ TEST(Cp932Fuzz, decodes_the_five_special_single_bytes) {
 TEST(Cp932Fuzz, special_bytes_survive_inside_a_run) {
     EXPECT_TRUE(valid({0xB5, 0xFF, 0xFF, 0xFF, 0x20, 0x03}));
     EXPECT_EQ(dec({'a', 0xFF, 'b'}), "a\xEF\xA3\xB3" "b");
-    EXPECT_EQ(dec({0x82, 0xA0, 0xFF}), "あ\xEF\xA3\xB3");
+    Bytes run = WideToCp932Bytes(L"あ");
+    run.push_back(kVendorSingleByteFf);
+    EXPECT_EQ(dec(run), "あ\xEF\xA3\xB3");
 }
 
 TEST(Cp932Fuzz, a0_does_not_swallow_the_following_byte) {
@@ -56,9 +97,9 @@ TEST(Cp932Fuzz, halfwidth_katakana_singles) {
 }
 
 TEST(Cp932Fuzz, decodes_ordinary_two_byte_characters) {
-    EXPECT_EQ(dec({0x82, 0xA0}), "あ");
-    EXPECT_EQ(dec({0x81, 0x75}), "「");
-    EXPECT_EQ(dec({0x93, 0xFA}), "日");
+    EXPECT_EQ(dec(WideToCp932Bytes(L"あ")), "あ");
+    EXPECT_EQ(dec(WideToCp932Bytes(L"「")), "「");
+    EXPECT_EQ(dec(WideToCp932Bytes(L"日")), "日");
 }
 
 TEST(Cp932Fuzz, rejects_bad_trail_bytes) {

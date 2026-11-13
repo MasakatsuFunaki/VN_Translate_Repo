@@ -6,403 +6,677 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "translator.h"
-#include "translator_logic.h"
-#include "log.h"
-#include <windows.h>
-#include <cstring>
-#include <string>
-#include <vector>
-#include <cstdio>
 
-// ==========================================================================
+#include "gdi_text_measurer.h"
+#include "log.h"
+#include "translator_logic.h"
+
+#ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#  define NOMINMAX
+#endif
+#include <windows.h>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <cwchar>
+#include <filesystem>
+#include <new>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace {
+
 // Runtime translator for amakano2pe (CatSystem2 / cs2.exe).
 //
-// Hooks FUN_0063a9b0 (RVA 0x23A9B0), the universal cp932/UTF-8 -> wide
-// converter that all in-game text passes through before being drawn.
-// Signature (cdecl):
-//   void FUN_0063a9b0(char* src, wchar_t* dst);
-// Internally calls MultiByteToWideChar(CP_UTF8 = 0xfde9, ...).
+// Hooks FUN_0063a9b0 (RVA 0x23A9B0), the universal UTF-8 -> UTF-16 converter:
+//   void __cdecl FUN_0063a9b0(const char* src, wchar_t* dst, std::size_t max_wchars);
 //
-// Stack layout at entry (cdecl, no thiscall):
+// Entry stack layout (cdecl):
 //   [esp+0x00] = return address
-//   [esp+0x04] = src  (char*) <- intercepted
-//   [esp+0x08] = dst  (wchar_t*)
+//   [esp+0x04] = src        (const char*)
+//   [esp+0x08] = dst        (wchar_t*)
+//   [esp+0x0C] = max_wchars (std::size_t)
 //
-// Hook prologue (14 bytes stolen):
-//   83 EC 20            sub  esp, 20h
-//   A1 A4 C5 A6 00      mov  eax, [00A6C5A4h]
-//   33 C4               xor  eax, esp
-//   89 44 24 1C         mov  [esp+1Ch], eax
-//
-// Translation table file format (UTF-8, tab-separated):
-//   <jp_utf8>\t<en_utf8>\n
-//   Escapes: \\ \r \n \t
-// Lookup misses pass through unchanged.
-//
-// The pure logic for TSV parsing + UTF-8-safe truncation + direct
-// lookup lives in translator_logic.{h,cpp} so it can be exercised
-// by the gtest suite under tests/ without pulling in any Win32.
-// ==========================================================================
+// Also hooks FUN_0063d000 (RVA 0x23D000), CatSystem2's FontContext::SetHeight:
+//   void __thiscall FUN_0063d000(Cs2FontContext* ctx, int raw_height);
+// to scale LOGFONTW.lfHeight by 9/10 and keep GdiTextWidthMeasurer synchronized
+// exclusively with meswnd.fes's STRING8 base dialogue font and active font
+// weight across all 4 STRING8 base-font setup sites (`0x22596B`, `0x225C03`,
+// `0x22BA7B`, `0x22BD09`), ignoring log.fes, inline \f glyph overrides, ruby,
+// and speaker nameplates.
 
-static translator_logic::TranslationMap g_translations;
-static bool g_translationsLoaded = false;
+constexpr DWORD kTextHookRva = 0x23A9B0u;
+constexpr std::size_t kTextHookPrologueLen = 14;
+constexpr SIZE_T kTextTrampolineAllocBytes = 256;
 
-static BYTE* g_trampoline = nullptr;
-static BYTE* g_hookSite = nullptr;
+constexpr DWORD kFontHookRva = 0x23D000u;
+constexpr std::size_t kFontHookPrologueLen = 7;
+constexpr SIZE_T kFontTrampolineAllocBytes = 128;
 
-static int g_hookHits = 0;
-static int g_translationHits = 0;
-static int g_truncations = 0;
-static int g_fontScaleHits = 0;
+constexpr std::size_t kJmpOpcodeBytes = 1;
+constexpr std::size_t kRel32Bytes = 4;
+constexpr std::size_t kJmpPatchBytes = kJmpOpcodeBytes + kRel32Bytes;
+constexpr std::size_t kMinReadableStringBytes = 1;
 
-// Font shrink ratio: every lfHeight is multiplied by FONT_NUM/FONT_DEN before
-// being written into the LOGFONTW struct. 9/10 = 90% of original size,
-// enough to fit ~25% more English chars per textbox row.
-static const int FONT_NUM = 9;
-static const int FONT_DEN = 10;
+constexpr BYTE kOpPushEax = 0x50u;
+constexpr BYTE kOpPushEcx = 0x51u;
+constexpr BYTE kOpPushEdx = 0x52u;
+constexpr BYTE kOpPushEbx = 0x53u;
+constexpr BYTE kOpPushEbp = 0x55u;
+constexpr BYTE kOpPushEsi = 0x56u;
+constexpr BYTE kOpPopEdx = 0x5Au;
+constexpr BYTE kOpPopEcx = 0x59u;
+constexpr BYTE kOpPushad = 0x60u;
+constexpr BYTE kOpPopad = 0x61u;
+constexpr BYTE kOpArithRm32Imm8 = 0x83u;
+constexpr BYTE kOpMovRm32Reg = 0x89u;
+constexpr BYTE kOpMovRegRm32 = 0x8Bu;
+constexpr BYTE kModRmEaxSibDisp8 = 0x44u;
+constexpr BYTE kModRmAddEspImm8 = 0xC4u;
+constexpr BYTE kSibEspBaseNoIndex = 0x24u;
+constexpr BYTE kOpNop = 0x90u;
+constexpr BYTE kOpCallRel32 = 0xE8u;
+constexpr BYTE kOpJmpRel32 = 0xE9u;
+constexpr BYTE kStackCleanTwoArgs = 0x08u;
+constexpr BYTE kStackCleanSixArgs = 0x18u;
 
-// Maximum English characters per textbox line before a word-wrap break
-// is inserted. The engine wraps at ~80-82 chars for typical English at
-// 9/10 font scale; 76 gives ~5-char margin for wide letters (W, M) and
-// punctuation without cutting lines excessively short.
-static const size_t WRAP_CHARS = 76;
+// Stack offsets inside InstallTextHook after `pushad` (0x20 bytes):
+//   [esp+0x24] = src, [esp+0x2C] = max_wchars.
+// Pushing max_wchars shifts esp by -4, placing src at [esp+0x28].
+constexpr BYTE kStackArgSrcAfterPushad = 0x24u;
+constexpr BYTE kStackArgSrcAfterOnePush = 0x28u;
+constexpr BYTE kStackArgMaxWcharsAfterPushad = 0x2Cu;
 
-// Running column position on the engine's current textbox line. The
-// engine concatenates consecutive MESSAGEs into a single rendered
-// line, so per-MESSAGE wrap that always assumes col=0 fails to wrap
-// correctly when a short MESSAGE is appended to a longer prior one
-// (mid-word break). We carry the col across calls and reset it when
-// a new utterance starts (no leading `\n` continuation marker).
-static size_t g_currentCol = 0;
+// Stack offsets inside InstallFontScaleHook:
+// Entry: [esp+0x00] = caller_ret, [esp+0x04] = raw_height.
+// After `push ecx; push edx; push ebp; push ebx; push esi` (20 bytes = 0x14):
+//   [esp+0x14] = caller_ret.
+// After `push caller_ret` (24 bytes = 0x18):
+//   [esp+0x1C] = raw_height.
+constexpr BYTE kFontStackEntryHeightDisp = 0x04u;
+constexpr BYTE kFontStackRetAfterFivePushes = 0x14u;
+constexpr BYTE kFontStackHeightAfterSixPushes = 0x1Cu;
 
-// Last-call dedup. The engine calls FUN_0063a9b0 (our hook) TWICE
-// per MESSAGE -- once during layout/measurement, once during draw --
-// so a non-cached wrap path produces a different output the second
-// time (col was already advanced by the first call), and the engine
-// draws the WRONG (un-broken) output. Solution: when the second call
-// arrives with the same src bytes as the last one, return the same
-// translated slot and DO NOT advance col. The per-MESSAGE col carry
-// across distinct MESSAGEs still works because we update the cache
-// only on a fresh src.
-static std::string g_lastSrcKey;
-static const char* g_lastOutput = nullptr;
+constexpr std::size_t kInitialModulePathChars = 260;
+constexpr std::size_t kMaxModulePathChars = 32768;
+constexpr std::size_t kPathGrowthFactor = 2;
 
-// -- TSV loader (wraps the pure parser with Win32 file I/O) --------------
+constexpr int kInitialHookLogBurst = 200;
+constexpr int kInitialTranslateLogBurst = 50;
+constexpr int kInitialTruncateLogBurst = 30;
+constexpr int kPeriodicLogStride = 100;
 
-static bool LoadTranslations()
-{
-    wchar_t exePath[MAX_PATH];
-    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-    wchar_t* lastSlash = wcsrchr(exePath, L'\\');
-    if (lastSlash) wcscpy(lastSlash + 1, L"translation_table.tsv");
-    else           wcscpy(exePath, L"translation_table.tsv");
+constexpr std::size_t kFontContextSlotCount = 32;
+constexpr int kPrimaryFontSlotIndex = 0;
 
-    FILE* f = _wfopen(exePath, L"rb");
-    if (!f) {
-        Log("Translator: translation_table.tsv not found");
+constexpr wchar_t kTranslationTableFilename[] = L"translation_table.tsv";
+
+// Exact layout of CatSystem2's FontContext (`sizeof == 0xB8C`, verified against
+// `imul eax, [ecx+0xB84], 0x5C` at 0x0063D000 and `push 0xB8C` at 0x00625AC9).
+struct Cs2FontContext {
+    HFONT current_font;
+    std::array<LOGFONTW, kFontContextSlotCount> slots;
+    int active_slot;
+    int dirty;
+};
+
+static_assert(sizeof(LOGFONTW) == 0x5Cu,
+              "Win32 LOGFONTW size must match CatSystem2 0x5C stride");
+static_assert(offsetof(Cs2FontContext, active_slot) == 0xB84u,
+              "Cs2FontContext::active_slot offset must match [ecx+0xB84]");
+static_assert(sizeof(Cs2FontContext) == 0xB8Cu,
+              "Cs2FontContext size must match CatSystem2 0xB8C allocation");
+
+class CriticalSection {
+public:
+    CriticalSection() noexcept { InitializeCriticalSection(&cs_); }
+    ~CriticalSection() { DeleteCriticalSection(&cs_); }
+
+    CriticalSection(const CriticalSection&) = delete;
+    CriticalSection& operator=(const CriticalSection&) = delete;
+
+    CRITICAL_SECTION* native_handle() noexcept { return &cs_; }
+
+private:
+    CRITICAL_SECTION cs_{};
+};
+
+class ScopedLock {
+public:
+    explicit ScopedLock(CriticalSection* mutex) noexcept : mutex_(mutex) {
+        if (mutex_ != nullptr) {
+            EnterCriticalSection(mutex_->native_handle());
+        }
+    }
+    ~ScopedLock() {
+        if (mutex_ != nullptr) {
+            LeaveCriticalSection(mutex_->native_handle());
+        }
+    }
+
+    ScopedLock(const ScopedLock&) = delete;
+    ScopedLock& operator=(const ScopedLock&) = delete;
+
+private:
+    CriticalSection* mutex_;
+};
+
+struct RuntimeTranslatorState {
+    translator_logic::TranslationMap translations;
+    bool loaded = false;
+
+    gdi_text::GdiTextWidthMeasurer measurer{
+        gdi_text::kDefaultScaledDialogueLfHeight};
+    translator_logic::DialogueTranslationSession session{
+        &translations,
+        &measurer,
+        translator_logic::DialogueSessionConfig{
+            gdi_text::kDefaultMaxDialogueLineWidthPx,
+            translator_logic::kSingleCharDecoderMaxWchars,
+            translator_logic::kMaxSpeakerWideChars,
+            translator_logic::kDefaultMaxOutputBytes,
+        }};
+
+    translator_logic::TranslationSlotRingBuffer slots;
+
+    int hook_hits = 0;
+    int translation_hits = 0;
+    int truncations = 0;
+    int font_scale_hits = 0;
+};
+
+// Leaky heap singletons initialized via InitOnceExecuteOnce so CRT static
+// destruction on DLL_PROCESS_DETACH never destroys the mutex or GDI/session
+// state while cs2.exe's patched detour trampolines remain live.
+INIT_ONCE g_translator_mutex_init_once = INIT_ONCE_STATIC_INIT;
+CriticalSection* g_translator_mutex = nullptr;
+
+INIT_ONCE g_translator_state_init_once = INIT_ONCE_STATIC_INIT;
+RuntimeTranslatorState* g_translator_state = nullptr;
+
+BYTE* g_module_base = nullptr;
+BYTE* g_text_trampoline = nullptr;
+BYTE* g_font_trampoline = nullptr;
+bool g_text_hook_installed = false;
+bool g_font_hook_installed = false;
+
+BOOL CALLBACK InitTranslatorMutexCallback(PINIT_ONCE /*init_once*/,
+                                          PVOID /*parameter*/,
+                                          PVOID* /*context*/) noexcept {
+    g_translator_mutex = new (std::nothrow) CriticalSection();
+    return g_translator_mutex != nullptr ? TRUE : FALSE;
+}
+
+CriticalSection* GetTranslatorMutex() noexcept {
+    if (!InitOnceExecuteOnce(&g_translator_mutex_init_once,
+                             InitTranslatorMutexCallback, nullptr, nullptr)) {
+        return nullptr;
+    }
+    return g_translator_mutex;
+}
+
+BOOL CALLBACK InitTranslatorStateCallback(PINIT_ONCE /*init_once*/,
+                                          PVOID /*parameter*/,
+                                          PVOID* /*context*/) noexcept {
+    try {
+        g_translator_state = new RuntimeTranslatorState();
+        return TRUE;
+    } catch (...) {
+        return FALSE;
+    }
+}
+
+RuntimeTranslatorState* GetTranslatorState() noexcept {
+    if (!InitOnceExecuteOnce(&g_translator_state_init_once,
+                             InitTranslatorStateCallback, nullptr, nullptr)) {
+        return nullptr;
+    }
+    return g_translator_state;
+}
+
+void ReleaseTrampoline(BYTE*& trampoline) noexcept {
+    if (trampoline != nullptr) {
+        VirtualFree(trampoline, 0, MEM_RELEASE);
+        trampoline = nullptr;
+    }
+}
+
+bool WideToUtf8(std::wstring_view wide, std::string& utf8_out) {
+    if (wide.empty()) {
+        utf8_out.clear();
+        return true;
+    }
+    const int needed = WideCharToMultiByte(
+        CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), nullptr, 0,
+        nullptr, nullptr);
+    if (needed <= 0) {
         return false;
     }
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (size <= 0) { fclose(f); return false; }
-    std::vector<char> buf(static_cast<size_t>(size));
-    size_t n = fread(buf.data(), 1, buf.size(), f);
-    fclose(f);
-
-    int count = translator_logic::ParseTsvBuffer(buf.data(), n, g_translations);
-    Log("Translator: loaded %d translations from translation_table.tsv", count);
-    g_translationsLoaded = (count > 0);
-    return count > 0;
-}
-
-// -- String pool for translated output -----------------------------------
-
-#define TRANS_POOL_SLOTS 64
-#define TRANS_SLOT_SIZE 4096
-static char g_transPool[TRANS_POOL_SLOTS][TRANS_SLOT_SIZE];
-static int g_transPoolIdx = 0;
-
-static char* AllocTransSlot()
-{
-    int idx = g_transPoolIdx;
-    g_transPoolIdx = (g_transPoolIdx + 1) % TRANS_POOL_SLOTS;
-    return g_transPool[idx];
-}
-
-static bool IsReadablePtr(const void* ptr)
-{
-    MEMORY_BASIC_INFORMATION mbi;
-    if (!VirtualQuery(ptr, &mbi, sizeof(mbi))) return false;
-    if (mbi.State != MEM_COMMIT) return false;
-    if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) return false;
+    std::string utf8(static_cast<std::size_t>(needed), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), utf8.data(),
+        needed, nullptr, nullptr);
+    if (written != needed) {
+        return false;
+    }
+    utf8_out = std::move(utf8);
     return true;
 }
 
-static const char* TranslateTextInner(const char* src)
-{
-    if (!g_translationsLoaded || !src) return src;
-    if (!IsReadablePtr(src)) return src;
-    if (!src[0]) return src;
-
-    g_hookHits++;
-
-    // Log first 200 distinct strings, then 1-in-100 thereafter
-    if (g_hookHits <= 200 || (g_hookHits % 100) == 0) {
-        Log("Hook #%d: ptr=0x%p [%.80s]", g_hookHits, src, src);
-    }
-
-    const std::string key(src);
-    const std::string* en = translator_logic::FindTranslation(g_translations, key);
-    if (!en) return src;
-
-    // Engine calls us twice per MESSAGE (layout pass + draw pass).
-    // Without dedup the second call re-wraps from an already-advanced
-    // col and may drop the break our first call inserted, leaving the
-    // engine to mid-word break the un-wrapped string. Returning the
-    // same cached slot makes the second call a no-op for state.
-    if (!g_lastSrcKey.empty() && g_lastSrcKey == key && g_lastOutput) {
-        if (g_translationHits <= 50 || (g_translationHits % 100) == 0) {
-            Log("Translate dedup: [%.50s] -> [%.50s] col=%zu",
-                src, g_lastOutput, g_currentCol);
+bool ResolveExecutableDirectoryPath(std::filesystem::path& dir_out) {
+    std::size_t capacity = kInitialModulePathChars;
+    while (capacity <= kMaxModulePathChars) {
+        std::vector<wchar_t> buf(capacity, L'\0');
+        SetLastError(ERROR_SUCCESS);
+        const DWORD len = GetModuleFileNameW(
+            nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+        if (len == 0) {
+            return false;
         }
-        return g_lastOutput;
+        if (len < buf.size() && GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            dir_out = std::filesystem::path(
+                          std::wstring_view(buf.data(), len))
+                          .parent_path();
+            return true;
+        }
+        capacity *= kPathGrowthFactor;
+    }
+    return false;
+}
+
+bool LoadTranslations() {
+    std::filesystem::path exe_dir;
+    if (!ResolveExecutableDirectoryPath(exe_dir)) {
+        Log("Translator: failed to resolve executable path");
+        return false;
     }
 
-    g_translationHits++;
-    char* slot = AllocTransSlot();
-
-    // Word-wrap the English text before copying into the slot so the
-    // engine's pixel-based line-break never cuts mid-word. The wrapper
-    // inserts `\n` control codes at word boundaries slightly inside the
-    // engine's ~80-char pixel limit (WRAP_CHARS = 76).
-    //
-    // The engine concatenates consecutive MESSAGEs into a single
-    // textbox line, so we carry g_currentCol across calls. When the EN
-    // begins with the JP-authored `\n` continuation marker, this
-    // MESSAGE is appended to the prior one -- soften the marker to a
-    // space and wrap starting from the running column. Otherwise
-    // (fresh utterance / new textbox), reset col to 0.
-    std::string wrapped = *en;
-    bool isContinuation = translator_logic::StripLeadingControlNewline(wrapped);
-    size_t startCol = isContinuation ? g_currentCol : 0;
-    if (!isContinuation) g_currentCol = 0;
-    g_currentCol = translator_logic::WordWrapForEngine(
-        wrapped, WRAP_CHARS, g_currentCol);
-
-    // Per-call wrap trace (throttled the same way as Translate logs).
-    // Logs cont/start_col/end_col so you can replay the column carry
-    // and verify each \n landed where the wrapper claimed it would.
-    if (g_translationHits <= 50 || (g_translationHits % 100) == 0) {
-        Log("Wrap #%d: cont=%d sc=%zu ec=%zu en=[%.80s] out=[%.80s]",
-            g_translationHits, isContinuation ? 1 : 0,
-            startCol, g_currentCol, en->c_str(), wrapped.c_str());
+    const std::filesystem::path tsv_path = exe_dir / kTranslationTableFilename;
+    std::string tsv_utf8;
+    if (!WideToUtf8(tsv_path.native(), tsv_utf8)) {
+        Log("Translator: failed to encode translation_table.tsv path");
+        return false;
     }
 
-    // SAFETY: cap translation length to avoid downstream buffer
-    // overflows. Empirically the engine tolerates several x the source
-    // length (heap-allocated dst), so we allow a generous margin --
-    // enough for word-wrapped multi-line English replacing a short JP
-    // string, but not unbounded.
-    size_t srcLen  = strlen(src);
-    size_t wrapLen = wrapped.size();
-    size_t maxLen  = srcLen * 8 + 64;
-    if (maxLen > 512) maxLen = 512;
-    size_t copyLen = wrapLen;
-    if (copyLen > maxLen) {
-        copyLen = translator_logic::Utf8SafeTruncate(wrapped.c_str(), maxLen);
-        g_truncations++;
-        if (g_truncations <= 30 || (g_truncations % 100) == 0) {
-            Log("Truncate #%d: src=%u en=%u kept=%u [%.40s] -> [%.*s]",
-                g_truncations, (unsigned)srcLen, (unsigned)wrapLen,
-                (unsigned)copyLen, src, (int)copyLen, wrapped.c_str());
+    CriticalSection* const mutex = GetTranslatorMutex();
+    RuntimeTranslatorState* const state = GetTranslatorState();
+    if (mutex == nullptr || state == nullptr) {
+        Log("Translator: failed to initialize runtime state");
+        return false;
+    }
+
+    ScopedLock lock(mutex);
+    state->translations.clear();
+    state->session.ResetDialogueState();
+    state->slots.Reset();
+    if (!translator_logic::LoadTsvFile(tsv_utf8, state->translations)) {
+        Log("Translator: translation_table.tsv not found or empty");
+        state->loaded = false;
+        return false;
+    }
+
+    state->loaded = true;
+    Log("Translator: loaded %zu translations from translation_table.tsv",
+        state->translations.size());
+    return true;
+}
+
+void WriteRel32(BYTE* operand_addr, const BYTE* target) noexcept {
+    const auto next_ip = reinterpret_cast<std::uintptr_t>(operand_addr + kRel32Bytes);
+    const auto dest = reinterpret_cast<std::uintptr_t>(target);
+    const auto rel = static_cast<std::uint32_t>(dest - next_ip);
+    std::memcpy(operand_addr, &rel, sizeof(rel));
+}
+
+const char* TranslateTextInner(const char* src, std::size_t max_wchars) {
+    if (src == nullptr ||
+        !gdi_text::IsReadableMemoryRange(src, kMinReadableStringBytes) ||
+        src[0] == '\0') {
+        return src;
+    }
+
+    CriticalSection* const mutex = GetTranslatorMutex();
+    RuntimeTranslatorState* const state = GetTranslatorState();
+    if (mutex == nullptr || state == nullptr) {
+        return src;
+    }
+
+    ScopedLock lock(mutex);
+    if (!state->loaded) {
+        return src;
+    }
+
+    ++state->hook_hits;
+    if (state->hook_hits <= kInitialHookLogBurst ||
+        (state->hook_hits % kPeriodicLogStride) == 0) {
+        Log("Hook #%d: ptr=0x%p max_wchars=%zu [%.80s]",
+            state->hook_hits, src, max_wchars, src);
+    }
+
+    const std::string_view src_view(src);
+    const translator_logic::TranslationResult result =
+        state->session.Translate(src_view, max_wchars);
+    if (!result.translated) {
+        return src;
+    }
+
+    if (result.deduplicated) {
+        const char* const cached_slot =
+            state->slots.FindReusableDialogueSlot(result.text.size());
+        if (cached_slot != nullptr) {
+            if (state->translation_hits <= kInitialTranslateLogBurst ||
+                (state->translation_hits % kPeriodicLogStride) == 0) {
+                Log("Translate dedup: [%.50s] -> [%.50s] width=%zu",
+                    src, cached_slot, result.end_width);
+            }
+            return cached_slot;
         }
     }
-    if (copyLen >= TRANS_SLOT_SIZE) copyLen = TRANS_SLOT_SIZE - 1;
-    memcpy(slot, wrapped.c_str(), copyLen);
-    slot[copyLen] = '\0';
-    if (g_translationHits <= 50 || (g_translationHits % 100) == 0) {
-        Log("Translate #%d: [%.50s] -> [%.50s]",
-            g_translationHits, src, slot);
+
+    ++state->translation_hits;
+    std::size_t copy_len = 0;
+    const char* const slot =
+        state->slots.Store(result.text, !result.is_speaker_name, &copy_len);
+
+    if (!result.is_speaker_name &&
+        (state->translation_hits <= kInitialTranslateLogBurst ||
+         (state->translation_hits % kPeriodicLogStride) == 0)) {
+        Log("Wrap #%d: cont=%d sw=%zu ew=%zu max_w=%zu out=[%.80s]",
+            state->translation_hits, static_cast<int>(result.is_continuation),
+            result.start_width, result.end_width, max_wchars, slot);
     }
 
-    // Cache for the dedup check above. Engine's next layout/draw pass
-    // for this same MESSAGE will return `slot` directly without a
-    // second wrap, keeping g_currentCol stable.
-    g_lastSrcKey = key;
-    g_lastOutput = slot;
+    if (result.truncated) {
+        ++state->truncations;
+        if (state->truncations <= kInitialTruncateLogBurst ||
+            (state->truncations % kPeriodicLogStride) == 0) {
+            Log("Truncate #%d: max_wchars=%zu kept=%zu [%.40s] -> [%.60s]",
+                state->truncations, max_wchars, copy_len, src, slot);
+        }
+    }
+
+    if (state->translation_hits <= kInitialTranslateLogBurst ||
+        (state->translation_hits % kPeriodicLogStride) == 0) {
+        Log("Translate #%d (%s): [%.50s] -> [%.50s]",
+            state->translation_hits,
+            result.is_speaker_name ? "name" : "text", src, slot);
+    }
+
     return slot;
 }
 
-static const char* __cdecl TranslateText(const char* src)
-{
+const char* __cdecl TranslateText(const char* src, std::size_t max_wchars) {
     __try {
-        return TranslateTextInner(src);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-        Log("Translator: EXCEPTION in TranslateText, ptr=0x%p hit=%d",
-            src, g_hookHits);
+        return TranslateTextInner(src, max_wchars);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Log("Translator: EXCEPTION in TranslateText, ptr=0x%p", src);
         return src;
     }
 }
 
-// -- Hook installation ---------------------------------------------------
+int ScaleHeightInner(const Cs2FontContext* ctx,
+                     int raw_height,
+                     std::uintptr_t caller_ret,
+                     const void* caller_esi,
+                     const void* caller_ebx,
+                     std::uintptr_t caller_ebp) {
+    const int scaled = gdi_text::ScaleEngineFontHeight(raw_height);
 
-static bool InstallTextHook(BYTE* base)
-{
-    const DWORD hookRVA = 0x23A9B0;
-    const size_t hookLen = 14;
-    g_hookSite = base + hookRVA;
-    BYTE* returnAddr = g_hookSite + hookLen;
+    CriticalSection* const mutex = GetTranslatorMutex();
+    RuntimeTranslatorState* const state = GetTranslatorState();
+    if (mutex == nullptr || state == nullptr) {
+        return scaled;
+    }
 
-    const BYTE expected[hookLen] = {
-        0x83, 0xEC, 0x20,                    // sub esp, 20h
-        0xA1, 0xA4, 0xC5, 0xA6, 0x00,        // mov eax, [00A6C5A4h]
-        0x33, 0xC4,                          // xor eax, esp
-        0x89, 0x44, 0x24, 0x1C               // mov [esp+1Ch], eax
+    ScopedLock lock(mutex);
+    ++state->font_scale_hits;
+
+    if (ctx == nullptr || g_module_base == nullptr ||
+        !gdi_text::IsReadableMemoryRange(ctx, sizeof(Cs2FontContext)) ||
+        ctx->active_slot != kPrimaryFontSlotIndex) {
+        return scaled;
+    }
+
+    gdi_text::String8BaseFontObservation obs{};
+    const auto base_addr = reinterpret_cast<std::uintptr_t>(g_module_base);
+    if (!gdi_text::ResolveString8BaseFontObservation(
+            base_addr, caller_ret, caller_esi, caller_ebx, caller_ebp, obs)) {
+        return scaled;
+    }
+
+    const LOGFONTW& slot0 = ctx->slots[kPrimaryFontSlotIndex];
+    const std::size_t face_len = wcsnlen(slot0.lfFaceName, LF_FACESIZE);
+    const std::wstring_view face_view(slot0.lfFaceName, face_len);
+    return state->measurer.SyncFromString8BaseFont(
+        ctx->active_slot, &obs.layout_sizes, raw_height, face_view,
+        obs.font_weight);
+}
+
+int __cdecl ScaleHeight(const Cs2FontContext* ctx,
+                        int raw_height,
+                        std::uintptr_t caller_ret,
+                        const void* caller_esi,
+                        const void* caller_ebx,
+                        std::uintptr_t caller_ebp) {
+    __try {
+        return ScaleHeightInner(ctx, raw_height, caller_ret, caller_esi,
+                                caller_ebx, caller_ebp);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return gdi_text::ScaleEngineFontHeight(raw_height);
+    }
+}
+
+bool InstallTextHook(BYTE* base) {
+    BYTE* const hook_site = base + kTextHookRva;
+    const BYTE* const return_addr = hook_site + kTextHookPrologueLen;
+
+    constexpr std::array<BYTE, kTextHookPrologueLen> kExpectedPrologue = {
+        0x83u, 0xECu, 0x20u,                          // sub esp, 20h
+        0xA1u, 0xA4u, 0xC5u, 0xA6u, 0x00u,            // mov eax, [00A6C5A4h]
+        0x33u, 0xC4u,                                 // xor eax, esp
+        0x89u, 0x44u, 0x24u, 0x1Cu,                   // mov [esp+1Ch], eax
     };
 
-    if (memcmp(g_hookSite, expected, hookLen) != 0) {
-        Log("TEXT HOOK: bytes mismatch at RVA 0x%X", hookRVA);
-        Log("  Found: %02X %02X %02X %02X %02X %02X %02X %02X "
-            "%02X %02X %02X %02X %02X %02X",
-            g_hookSite[0], g_hookSite[1], g_hookSite[2], g_hookSite[3],
-            g_hookSite[4], g_hookSite[5], g_hookSite[6], g_hookSite[7],
-            g_hookSite[8], g_hookSite[9], g_hookSite[10], g_hookSite[11],
-            g_hookSite[12], g_hookSite[13]);
+    if (std::memcmp(hook_site, kExpectedPrologue.data(),
+                    kExpectedPrologue.size()) != 0) {
+        Log("TEXT HOOK: bytes mismatch at RVA 0x%lX", kTextHookRva);
         return false;
     }
 
-    g_trampoline = (BYTE*)VirtualAlloc(nullptr, 256,
-        MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    if (!g_trampoline) {
-        Log("TEXT HOOK: VirtualAlloc failed");
+    g_text_trampoline = static_cast<BYTE*>(VirtualAlloc(
+        nullptr, kTextTrampolineAllocBytes, MEM_COMMIT | MEM_RESERVE,
+        PAGE_READWRITE));
+    if (g_text_trampoline == nullptr) {
+        Log("TEXT HOOK: VirtualAlloc failed (gle=%lu)", GetLastError());
         return false;
     }
 
-    BYTE* p = g_trampoline;
+    BYTE* p = g_text_trampoline;
 
-    // cdecl, no this/ecx to preserve. Stack at entry:
-    //   [esp+0x00] = ret addr
-    //   [esp+0x04] = src   <- we patch this
-    //   [esp+0x08] = dst
-    //
-    // After pushad (32 bytes), src is at [esp+0x20+0x04] = [esp+0x24].
+    // Entry (cdecl): [esp+0x04] = src, [esp+0x08] = dst, [esp+0x0C] = max_wchars.
+    // After pushad (0x20 bytes): [esp+0x24] = src, [esp+0x2C] = max_wchars.
+    *p++ = kOpPushad;
+    *p++ = kOpMovRegRm32;
+    *p++ = kModRmEaxSibDisp8;
+    *p++ = kSibEspBaseNoIndex;
+    *p++ = kStackArgMaxWcharsAfterPushad;       // mov eax, [esp+0x2C] (max_wchars)
+    *p++ = kOpPushEax;                          // push eax (esp -= 4; src at +0x28)
+    *p++ = kOpMovRegRm32;
+    *p++ = kModRmEaxSibDisp8;
+    *p++ = kSibEspBaseNoIndex;
+    *p++ = kStackArgSrcAfterOnePush;            // mov eax, [esp+0x28] (src)
+    *p++ = kOpPushEax;                          // push eax
+    *p++ = kOpCallRel32;                        // call TranslateText
+    WriteRel32(p, reinterpret_cast<const BYTE*>(&TranslateText));
+    p += kRel32Bytes;
+    *p++ = kOpArithRm32Imm8;
+    *p++ = kModRmAddEspImm8;
+    *p++ = kStackCleanTwoArgs;                  // add esp, 8
+    *p++ = kOpMovRm32Reg;
+    *p++ = kModRmEaxSibDisp8;
+    *p++ = kSibEspBaseNoIndex;
+    *p++ = kStackArgSrcAfterPushad;             // mov [esp+0x24], eax
+    *p++ = kOpPopad;
 
-    *p++ = 0x60;                             // pushad
+    std::memcpy(p, kExpectedPrologue.data(), kExpectedPrologue.size());
+    p += kExpectedPrologue.size();
 
-    *p++ = 0x8B; *p++ = 0x44; *p++ = 0x24;   // mov eax, [esp+0x24]
-    *p++ = 0x24;
-    *p++ = 0x50;                             // push eax
-    *p++ = 0xE8;                             // call TranslateText
-    *(DWORD*)p = (DWORD)(BYTE*)&TranslateText - (DWORD)(p + 4);
-    p += 4;
-    *p++ = 0x83; *p++ = 0xC4; *p++ = 0x04;   // add esp, 4
-    *p++ = 0x89; *p++ = 0x44; *p++ = 0x24;   // mov [esp+0x24], eax
-    *p++ = 0x24;
+    *p++ = kOpJmpRel32;
+    WriteRel32(p, return_addr);
+    p += kRel32Bytes;
 
-    *p++ = 0x61;                             // popad
+    DWORD trampoline_old_protect = 0;
+    if (!VirtualProtect(g_text_trampoline, kTextTrampolineAllocBytes,
+                        PAGE_EXECUTE_READ, &trampoline_old_protect)) {
+        Log("TEXT HOOK: trampoline VirtualProtect failed (gle=%lu)",
+            GetLastError());
+        ReleaseTrampoline(g_text_trampoline);
+        return false;
+    }
+    FlushInstructionCache(GetCurrentProcess(), g_text_trampoline,
+                          kTextTrampolineAllocBytes);
 
-    // Execute stolen prologue (14 bytes)
-    memcpy(p, expected, hookLen);
-    p += hookLen;
-
-    // jmp back to hookSite + 14
-    *p++ = 0xE9;
-    *(DWORD*)p = (DWORD)returnAddr - (DWORD)(p + 4);
-    p += 4;
-
-    DWORD oldProtect;
-    if (!VirtualProtect(g_hookSite, hookLen, PAGE_EXECUTE_READWRITE,
-                        &oldProtect)) {
-        Log("TEXT HOOK: VirtualProtect failed");
+    DWORD old_protect = 0;
+    if (!VirtualProtect(hook_site, kTextHookPrologueLen,
+                        PAGE_EXECUTE_READWRITE, &old_protect)) {
+        Log("TEXT HOOK: hook_site VirtualProtect failed (gle=%lu)",
+            GetLastError());
+        ReleaseTrampoline(g_text_trampoline);
         return false;
     }
 
-    // Write 5-byte JMP + NOP padding
-    g_hookSite[0] = 0xE9;
-    *(DWORD*)(g_hookSite + 1) = (DWORD)g_trampoline - (DWORD)(g_hookSite + 5);
-    for (size_t i = 5; i < hookLen; i++) g_hookSite[i] = 0x90;
+    hook_site[0] = kOpJmpRel32;
+    WriteRel32(hook_site + kJmpOpcodeBytes, g_text_trampoline);
+    for (std::size_t i = kJmpPatchBytes; i < kTextHookPrologueLen; ++i) {
+        hook_site[i] = kOpNop;
+    }
 
-    DWORD dummy;
-    VirtualProtect(g_hookSite, hookLen, oldProtect, &dummy);
-    FlushInstructionCache(GetCurrentProcess(), g_hookSite, hookLen);
+    DWORD restored_protect = 0;
+    VirtualProtect(hook_site, kTextHookPrologueLen, old_protect,
+                   &restored_protect);
+    FlushInstructionCache(GetCurrentProcess(), hook_site, kTextHookPrologueLen);
+    g_text_hook_installed = true;
 
-    Log("TEXT HOOK: installed at 0x%08X (RVA 0x%X), trampoline=0x%08X",
-        (DWORD)g_hookSite, hookRVA, (DWORD)g_trampoline);
+    Log("TEXT HOOK: installed at 0x%08X (RVA 0x%lX), trampoline=0x%08X",
+        static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(hook_site)),
+        kTextHookRva,
+        static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(g_text_trampoline)));
     return true;
 }
 
-// -- Font-size scaling hook ----------------------------------------------
-// Hooks FUN_0063d000 (RVA 0x23D000) -- global LOGFONTW.lfHeight setter.
-// Stack at entry: [esp+4]=height. ECX = `this` (font ctx).
-// Stolen prologue (7 bytes, no RIP-relative bytes): 6B 81 84 0B 00 00 5C
-//   = imul eax,[ecx+0xB84],0x5C
+bool InstallFontScaleHook(BYTE* base) {
+    BYTE* const site = base + kFontHookRva;
+    const BYTE* const return_addr = site + kFontHookPrologueLen;
 
-static int __cdecl ScaleHeight(int h)
-{
-    g_fontScaleHits++;
-    if (h > 0) return (h * FONT_NUM) / FONT_DEN;
-    if (h < 0) return -(((-h) * FONT_NUM) / FONT_DEN);
-    return 0;
-}
-
-static bool InstallFontScaleHook(BYTE* base)
-{
-    const DWORD hookRVA = 0x23D000;
-    const size_t hookLen = 7;
-    BYTE* site = base + hookRVA;
-    BYTE* returnAddr = site + hookLen;
-
-    const BYTE expected[hookLen] = {
-        0x6B, 0x81, 0x84, 0x0B, 0x00, 0x00, 0x5C
+    constexpr std::array<BYTE, kFontHookPrologueLen> kExpectedPrologue = {
+        0x6Bu, 0x81u, 0x84u, 0x0Bu, 0x00u, 0x00u, 0x5Cu,  // imul eax,[ecx+0xB84],0x5C
     };
-    if (memcmp(site, expected, hookLen) != 0) {
-        Log("FONT HOOK: bytes mismatch at RVA 0x%X", hookRVA);
+
+    if (std::memcmp(site, kExpectedPrologue.data(),
+                    kExpectedPrologue.size()) != 0) {
+        Log("FONT HOOK: bytes mismatch at RVA 0x%lX", kFontHookRva);
         return false;
     }
 
-    BYTE* tramp = (BYTE*)VirtualAlloc(nullptr, 128,
-        MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    if (!tramp) return false;
-
-    BYTE* p = tramp;
-    *p++ = 0x51;                                  // push ecx
-    *p++ = 0x8B; *p++ = 0x44; *p++ = 0x24; *p++ = 0x08; // mov eax,[esp+8]
-    *p++ = 0x50;                                  // push eax
-    *p++ = 0xE8;                                  // call ScaleHeight
-    *(DWORD*)p = (DWORD)(BYTE*)&ScaleHeight - (DWORD)(p + 4);
-    p += 4;
-    *p++ = 0x83; *p++ = 0xC4; *p++ = 0x04;        // add esp,4
-    *p++ = 0x89; *p++ = 0x44; *p++ = 0x24; *p++ = 0x08; // mov [esp+8],eax
-    *p++ = 0x59;                                  // pop ecx
-
-    memcpy(p, expected, hookLen);                 // stolen prologue
-    p += hookLen;
-
-    *p++ = 0xE9;                                  // jmp back
-    *(DWORD*)p = (DWORD)returnAddr - (DWORD)(p + 4);
-    p += 4;
-
-    DWORD oldProtect;
-    if (!VirtualProtect(site, hookLen, PAGE_EXECUTE_READWRITE, &oldProtect))
+    g_font_trampoline = static_cast<BYTE*>(VirtualAlloc(
+        nullptr, kFontTrampolineAllocBytes, MEM_COMMIT | MEM_RESERVE,
+        PAGE_READWRITE));
+    if (g_font_trampoline == nullptr) {
+        Log("FONT HOOK: VirtualAlloc failed (gle=%lu)", GetLastError());
         return false;
-    site[0] = 0xE9;
-    *(DWORD*)(site + 1) = (DWORD)tramp - (DWORD)(site + 5);
-    for (size_t i = 5; i < hookLen; i++) site[i] = 0x90;
-    DWORD dummy;
-    VirtualProtect(site, hookLen, oldProtect, &dummy);
-    FlushInstructionCache(GetCurrentProcess(), site, hookLen);
+    }
 
-    Log("FONT HOOK: installed at 0x%08X (RVA 0x%X), scale=%d/%d",
-        (DWORD)site, hookRVA, FONT_NUM, FONT_DEN);
+    BYTE* p = g_font_trampoline;
+    *p++ = kOpPushEcx;                          // save ecx (this)
+    *p++ = kOpPushEdx;                          // save edx
+    *p++ = kOpPushEbp;                          // arg6: caller_ebp
+    *p++ = kOpPushEbx;                          // arg5: caller_ebx
+    *p++ = kOpPushEsi;                          // arg4: caller_esi
+    *p++ = kOpMovRegRm32;
+    *p++ = kModRmEaxSibDisp8;
+    *p++ = kSibEspBaseNoIndex;
+    *p++ = kFontStackRetAfterFivePushes;        // mov eax, [esp+0x14] (caller_ret)
+    *p++ = kOpPushEax;                          // arg3: caller_ret
+    *p++ = kOpMovRegRm32;
+    *p++ = kModRmEaxSibDisp8;
+    *p++ = kSibEspBaseNoIndex;
+    *p++ = kFontStackHeightAfterSixPushes;      // mov eax, [esp+0x1C] (raw_height)
+    *p++ = kOpPushEax;                          // arg2: raw_height
+    *p++ = kOpPushEcx;                          // arg1: ctx (this)
+    *p++ = kOpCallRel32;                        // call ScaleHeight
+    WriteRel32(p, reinterpret_cast<const BYTE*>(&ScaleHeight));
+    p += kRel32Bytes;
+    *p++ = kOpArithRm32Imm8;
+    *p++ = kModRmAddEspImm8;
+    *p++ = kStackCleanSixArgs;                  // add esp, 0x18
+    *p++ = kOpPopEdx;                           // restore edx
+    *p++ = kOpPopEcx;                           // restore ecx
+    *p++ = kOpMovRm32Reg;
+    *p++ = kModRmEaxSibDisp8;
+    *p++ = kSibEspBaseNoIndex;
+    *p++ = kFontStackEntryHeightDisp;           // mov [esp+0x04], eax (scaled height)
+
+    std::memcpy(p, kExpectedPrologue.data(), kExpectedPrologue.size());
+    p += kExpectedPrologue.size();
+
+    *p++ = kOpJmpRel32;
+    WriteRel32(p, return_addr);
+    p += kRel32Bytes;
+
+    DWORD trampoline_old_protect = 0;
+    if (!VirtualProtect(g_font_trampoline, kFontTrampolineAllocBytes,
+                        PAGE_EXECUTE_READ, &trampoline_old_protect)) {
+        Log("FONT HOOK: trampoline VirtualProtect failed (gle=%lu)",
+            GetLastError());
+        ReleaseTrampoline(g_font_trampoline);
+        return false;
+    }
+    FlushInstructionCache(GetCurrentProcess(), g_font_trampoline,
+                          kFontTrampolineAllocBytes);
+
+    DWORD old_protect = 0;
+    if (!VirtualProtect(site, kFontHookPrologueLen, PAGE_EXECUTE_READWRITE,
+                        &old_protect)) {
+        Log("FONT HOOK: site VirtualProtect failed (gle=%lu)", GetLastError());
+        ReleaseTrampoline(g_font_trampoline);
+        return false;
+    }
+
+    site[0] = kOpJmpRel32;
+    WriteRel32(site + kJmpOpcodeBytes, g_font_trampoline);
+    for (std::size_t i = kJmpPatchBytes; i < kFontHookPrologueLen; ++i) {
+        site[i] = kOpNop;
+    }
+
+    DWORD restored_protect = 0;
+    VirtualProtect(site, kFontHookPrologueLen, old_protect, &restored_protect);
+    FlushInstructionCache(GetCurrentProcess(), site, kFontHookPrologueLen);
+    g_font_hook_installed = true;
+
+    Log("FONT HOOK: installed at 0x%08X (RVA 0x%lX), scale=%d/%d",
+        static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(site)),
+        kFontHookRva, gdi_text::kFontScaleNumerator,
+        gdi_text::kFontScaleDenominator);
     return true;
 }
 
-void TranslatorInit()
-{
+}  // namespace
+
+void TranslatorInit() {
     LoadTranslations();
-    BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
-    Log("Translator: cs2.exe base=0x%08X", (DWORD)base);
+    auto* const base = reinterpret_cast<BYTE*>(GetModuleHandleW(nullptr));
+    g_module_base = base;
+    Log("Translator: host base=0x%08X",
+        static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(base)));
+    if (base == nullptr) {
+        return;
+    }
     if (!InstallTextHook(base)) {
         Log("Translator: hook install FAILED - translation disabled");
     }
@@ -411,8 +685,23 @@ void TranslatorInit()
     }
 }
 
-void TranslatorShutdown()
-{
-    Log("Translator: %d hook hits, %d translations applied, %d truncations, %d font scales",
-        g_hookHits, g_translationHits, g_truncations, g_fontScaleHits);
+void TranslatorShutdown() {
+    CriticalSection* const mutex = GetTranslatorMutex();
+    RuntimeTranslatorState* const state = GetTranslatorState();
+    ScopedLock lock(mutex);
+    // Installed trampolines remain mapped during DLL_PROCESS_DETACH because
+    // cs2.exe's patched prologue sites still jump into them and background
+    // engine threads may not yet have terminated; the OS reclaims the address
+    // space on process exit. Any unpatched trampoline allocation is freed.
+    if (!g_text_hook_installed && g_text_trampoline != nullptr) {
+        ReleaseTrampoline(g_text_trampoline);
+    }
+    if (!g_font_hook_installed && g_font_trampoline != nullptr) {
+        ReleaseTrampoline(g_font_trampoline);
+    }
+    if (state != nullptr) {
+        Log("Translator: %d hook hits, %d translations applied, %d truncations, %d font scales",
+            state->hook_hits, state->translation_hits, state->truncations,
+            state->font_scale_hits);
+    }
 }

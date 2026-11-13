@@ -6,20 +6,23 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "translator.h"
-#include "translator_logic.h"
+
 #include "iat_hook.h"
 #include "log.h"
+#include "translator_logic.h"
 
 #include <windows.h>
+
+#include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <string>
-#include <algorithm>
-#include <vector>
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-// ============================================================================
 // Cross-Channel runtime script patcher.
 //
 // Hooks FUN_00855910 (RVA 0x45910), the LZSS decompressor that unpacks
@@ -63,11 +66,10 @@
 // (PreLoopHook / PostLoopHook) instead. Removing the in-place limit would
 // require allocating a larger output buffer + fixing up any opcode-internal
 // text-offset references, which is a separate workstream.
-// ============================================================================
 
 namespace {
 
-// ── LZSS decompressor hook (in-place buffer patcher) ─────────────────────
+// LZSS decompressor hook (in-place buffer patcher)
 constexpr DWORD  LZSS_RVA       = 0x45910;
 constexpr int    STOLEN_LEN     = 6;
 constexpr BYTE   EXPECTED[STOLEN_LEN] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C };
@@ -92,7 +94,7 @@ int g_jpHits            = 0;
 int g_jpTooLong         = 0;
 
 
-// ── Render-time text substitution hook (FUN_0083a7a0, RVA 0x2A7A0) ────────
+// Render-time text substitution hook (FUN_0083a7a0, RVA 0x2A7A0)
 //
 // FUN_0083a7a0 is the actual text renderer (39 calls per session confirmed).
 // At offset +474 it reads the current text position from [0x06D92B78]:
@@ -177,24 +179,76 @@ BYTE*  g_choiceRestoreCursor = nullptr;
 BYTE   g_choiceBuf[8192];
 int    g_choiceHookFires    = 0;
 
-// ── TSV loader ────────────────────────────────────────────────────────────
+// TSV loader
+
+constexpr DWORD kInitialModulePathChars = MAX_PATH;
+constexpr DWORD kMaxModulePathChars = 32768;
+
+bool GetExecutableSiblingPathUtf8(const wchar_t* siblingName, std::string& outUtf8) {
+    std::vector<wchar_t> buf(kInitialModulePathChars, L'\0');
+    DWORD len = 0;
+    for (;;) {
+        SetLastError(ERROR_SUCCESS);
+        len = GetModuleFileNameW(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+        if (len == 0) {
+            return false;
+        }
+        if (len < buf.size() - 1 && GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            break;
+        }
+        if (buf.size() >= kMaxModulePathChars) {
+            return false;
+        }
+        const std::size_t nextSize =
+            std::min<std::size_t>(buf.size() * 2, kMaxModulePathChars);
+        buf.assign(nextSize, L'\0');
+    }
+
+    std::wstring fullPath(buf.data(), len);
+    const std::size_t sep = fullPath.find_last_of(L"\\/");
+    if (sep != std::wstring::npos) {
+        fullPath.resize(sep + 1);
+        fullPath += siblingName;
+    } else {
+        fullPath = siblingName;
+    }
+    if (fullPath.empty()) {
+        return false;
+    }
+
+    const int utf8Len = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, fullPath.data(),
+        static_cast<int>(fullPath.size()), nullptr, 0, nullptr, nullptr);
+    if (utf8Len <= 0) {
+        return false;
+    }
+    outUtf8.assign(static_cast<std::size_t>(utf8Len), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, fullPath.data(),
+        static_cast<int>(fullPath.size()), &outUtf8[0], utf8Len, nullptr, nullptr);
+    if (written != utf8Len) {
+        outUtf8.clear();
+        return false;
+    }
+    return true;
+}
 
 bool LoadTranslations() {
-    wchar_t exePath[MAX_PATH];
-    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-    wchar_t* slash = wcsrchr(exePath, L'\\');
-    if (slash) wcscpy(slash + 1, L"translations.tsv");
-    else       wcscpy(exePath, L"translations.tsv");
-    char pathA[MAX_PATH];
-    WideCharToMultiByte(CP_ACP, 0, exePath, -1, pathA, sizeof(pathA), nullptr, nullptr);
-    bool ok = translator_logic::LoadTsvFile(pathA, g_translations);
-    if (!ok) { Log("Translator: translations.tsv NOT FOUND at %s", pathA); return false; }
+    std::string pathUtf8;
+    if (!GetExecutableSiblingPathUtf8(L"translations.tsv", pathUtf8)) {
+        Log("Translator: failed to resolve translations.tsv path");
+        return false;
+    }
+    const bool ok = translator_logic::LoadTsvFile(pathUtf8, g_translations);
+    if (!ok) {
+        Log("Translator: translations.tsv NOT FOUND at %s", pathUtf8.c_str());
+        return false;
+    }
     Log("Translator: loaded %zu entries from translations.tsv", g_translations.size());
     return true;
 }
 
-
-// ── Word-wrap helper ─────────────────────────────────────────────────────
+// Word-wrap helper
 // The narration renderer (FUN_0083bcc0) recognises "%N" as an explicit line
 // break: it resets X to 0, advances Y, and continues rendering the rest of
 // the string centered on the new line (same as its own overflow-wrap logic).
@@ -202,8 +256,8 @@ bool LoadTranslations() {
 // wrap (at ~65 chars) never fires mid-word.
 static constexpr int WRAP_COLS = 72;
 
-static void WordWrap(const char* src, char* dst, size_t dst_size) {
-    size_t out = 0;
+static void WordWrap(const char* src, char* dst, std::size_t dst_size) {
+    std::size_t out = 0;
     int col = 0;
     const char* p = src;
     while (*p && out + 2 < dst_size) {
@@ -225,7 +279,7 @@ static void WordWrap(const char* src, char* dst, size_t dst_size) {
     dst[out] = '\0';
 }
 
-// ── Mid-function render hooks ─────────────────────────────────────────────
+// Mid-function render hooks
 //
 // C_PreLoopHookText / C_PreLoopHookNarr: called by PreLoopTramp which replaces
 //   A1 78 2B D9 06  (MOV EAX, [0x06D92B78])  at FUN_0083a7a0 +474 (textbox)
@@ -249,7 +303,7 @@ static void DoTextSubstitution() {
     BYTE* jp_ptr = *reinterpret_cast<BYTE**>(g_textPtrGlobal);
     if (!jp_ptr || jp_ptr[0] == 0xFF) { g_textSubstituted = false; return; }
 
-    size_t jp_len = strnlen(reinterpret_cast<char*>(jp_ptr), 4096);
+    std::size_t jp_len = strnlen(reinterpret_cast<char*>(jp_ptr), 4096);
     g_renderCalls++;
     if (g_renderCalls <= 5) {
         Log("PRE-LOOP #%d: jp_ptr=%p len=%zu bytes=[%02X %02X %02X %02X %02X]",
@@ -287,7 +341,7 @@ static void DoTextSubstitution() {
     const std::string& en = *enPtr;
     g_textJpNullPtr = jp_ptr + jp_len + 1;  // one past JP null terminator
     char enBuf[4096];
-    size_t copy_len = en.size() < sizeof(enBuf) - 1 ? en.size() : sizeof(enBuf) - 1;
+    std::size_t copy_len = en.size() < sizeof(enBuf) - 1 ? en.size() : sizeof(enBuf) - 1;
     memcpy(enBuf, en.data(), copy_len);
     enBuf[copy_len] = '\0';
     WordWrap(enBuf, g_textRenderBuf, sizeof(g_textRenderBuf));
@@ -473,7 +527,7 @@ static int BuildChoiceOurBuf(BYTE* cursor) {
         in  += 10;
 
         // Read bytes until null
-        size_t jp_len = 0;
+        std::size_t jp_len = 0;
         while (jp_len < 64 && in[jp_len] != 0) ++jp_len;
         std::string current(reinterpret_cast<const char*>(in), jp_len);
 
@@ -500,7 +554,7 @@ static int BuildChoiceOurBuf(BYTE* cursor) {
         }
         if (!have) en = current;   // copy unchanged if both lookups missed
 
-        size_t en_size = en.size();
+        std::size_t en_size = en.size();
         if (out + en_size + 1 > end) en_size = (end - out) - 1;
         memcpy(out, en.data(), en_size);
         out += en_size;
@@ -568,8 +622,7 @@ extern "C" DWORD __cdecl SehReadDword(BYTE* p) {
 
 extern "C" void PatchScriptBuffer(BYTE* outBuf, BYTE* inPtr);  // forward decl
 
-// ── Post-decompress patcher (called from PostHandler trampoline) ─────────
-
+// Post-decompress patcher (called from PostHandler trampoline)
 extern "C" void __cdecl PatchScriptBuffer(BYTE* outBuf, BYTE* inPtr) {
     g_decompressCalls++;
 
@@ -605,7 +658,7 @@ extern "C" void __cdecl PatchScriptBuffer(BYTE* outBuf, BYTE* inPtr) {
         stats.hits, stats.too_long);
 }
 
-// ── CreateFontA hook — reduce font size to fit more text per line ─────────
+// CreateFontA hook — reduce font size to fit more text per line
 //
 // cc.exe's narration renderer uses a software text engine; it does NOT call
 // ExtTextOutA. The only GDI import it makes is CreateFontA, so that is our
@@ -616,7 +669,7 @@ extern "C" void __cdecl PatchScriptBuffer(BYTE* outBuf, BYTE* inPtr) {
 // FONT_SCALE = 3/5 → 60% of original height (40% reduction).
 // Adjust if text looks too small or word-wrap is still triggering.
 
-// ── CreateFontA inline hook (trampoline detour) ───────────────────────────
+// CreateFontA inline hook (trampoline detour)
 // IATHook fails on this packer because it zeros the ILT at runtime.
 // Instead we patch the first 5 bytes of CreateFontA in gdi32.dll directly
 // (copy-on-write keeps it process-local) and call back through a trampoline.
@@ -628,7 +681,7 @@ static inline int ScaleFontH(int h) {
     return h;
 }
 
-// ── CreateFontA ───────────────────────────────────────────────────────────
+// CreateFontA
 typedef HFONT (WINAPI* CreateFontA_t)(int,int,int,int,int,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,LPCSTR);
 static CreateFontA_t g_origCreateFontA = nullptr;
 static BYTE* g_createFontATramp = nullptr;
@@ -651,7 +704,7 @@ static HFONT WINAPI Hook_CreateFontA(int cHeight, int cWidth, int cEscapement, i
         iQuality, iPitchAndFamily, pszFaceName);
 }
 
-// ── CreateFontW ───────────────────────────────────────────────────────────
+// CreateFontW
 typedef HFONT (WINAPI* CreateFontW_t)(int,int,int,int,int,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,LPCWSTR);
 static CreateFontW_t g_origCreateFontW = nullptr;
 static BYTE* g_createFontWTramp = nullptr;
@@ -673,7 +726,7 @@ static HFONT WINAPI Hook_CreateFontW(int cHeight, int cWidth, int cEscapement, i
         iQuality, iPitchAndFamily, pszFaceName);
 }
 
-// ── CreateFontIndirectA ───────────────────────────────────────────────────
+// CreateFontIndirectA
 typedef HFONT (WINAPI* CreateFontIndirectA_t)(const LOGFONTA*);
 static CreateFontIndirectA_t g_origCreateFontIndirectA = nullptr;
 static BYTE* g_createFontIndirectATramp = nullptr;
@@ -692,7 +745,7 @@ static HFONT WINAPI Hook_CreateFontIndirectA(const LOGFONTA* lf) {
     return g_origCreateFontIndirectA(&mod);
 }
 
-// ── CreateFontIndirectW ───────────────────────────────────────────────────
+// CreateFontIndirectW
 typedef HFONT (WINAPI* CreateFontIndirectW_t)(const LOGFONTW*);
 static CreateFontIndirectW_t g_origCreateFontIndirectW = nullptr;
 static BYTE* g_createFontIndirectWTramp = nullptr;
@@ -711,7 +764,7 @@ static HFONT WINAPI Hook_CreateFontIndirectW(const LOGFONTW* lf) {
     return g_origCreateFontIndirectW(&mod);
 }
 
-// ── Generic inline-detour installer ───────────────────────────────────────
+// Generic inline-detour installer
 // Patches first 5 bytes of `procName` in gdi32.dll with JMP to `hookFn`.
 // Returns trampoline (stolen bytes + JMP back) via *outTramp; nullptr on failure.
 static BYTE* InstallInlineDetour(const char* procName, void* hookFn, const char* tag) {
@@ -753,7 +806,7 @@ static void InstallCreateFontAHook() {
     g_origCreateFontIndirectW = reinterpret_cast<CreateFontIndirectW_t>(g_createFontIndirectWTramp);
 }
 
-// ── GetGlyphOutline diagnostic hooks (logging only, no scaling) ───────────
+// GetGlyphOutline diagnostic hooks (logging only, no scaling)
 // If the engine rasterizes its own glyphs from system TTF data, it'll call
 // GetGlyphOutlineA/W per character. Hook + log both to find out.
 
@@ -793,8 +846,7 @@ static void InstallGlyphOutlineHooks() {
     g_origGetGlyphOutlineW = reinterpret_cast<GetGlyphOutlineW_t>(g_getGlyphOutlineWTramp);
 }
 
-// ── Hook installer ───────────────────────────────────────────────────────
-
+// Hook installer
 DWORD WINAPI HookInstallerThread(LPVOID) {
     BYTE* site = g_exeBase + LZSS_RVA;
     DWORD waited = 0;
@@ -825,7 +877,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
     g_postHandler = mem + 128;
     g_hookSite    = site;
 
-    // ── Build dispatcher ──
+    // Build dispatcher
     //   pop  edx
     //   mov  [g_savedRetAddr], edx
     //   push <PostHandler>
@@ -849,7 +901,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
     *reinterpret_cast<DWORD*>(p) =
         (DWORD)(site + STOLEN_LEN) - (DWORD)(p + 4); p += 4;                // jmp original+6
 
-    // ── Build post-handler ──
+    // Build post-handler
     //   pushad
     //   push [g_savedInPtr]; push [g_savedOutBuf]
     //   call PatchScriptBuffer
@@ -870,7 +922,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
     *q++ = 0xFF; *q++ = 0x25;
     *reinterpret_cast<DWORD*>(q) = (DWORD)&g_savedRetAddr; q += 4;          // jmp [g_savedRetAddr]
 
-    // ── Patch site → JMP dispatcher + NOP pad ──
+    // Patch site → JMP dispatcher + NOP pad
     DWORD oldProt;
     VirtualProtect(site, STOLEN_LEN, PAGE_EXECUTE_READWRITE, &oldProt);
     site[0] = 0xE9;
@@ -885,7 +937,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
 
 
 
-    // ── Install mid-function render hooks in FUN_0083a7a0 ─────────────────────
+    // Install mid-function render hooks in FUN_0083a7a0
     // We do NOT hook the function entry. Instead we patch two 5-byte instructions
     // deep inside the function body:
     //   tsite+474: A1 78 2B D9 06  MOV EAX,[0x06D92B78]  → CALL PreLoopTramp
@@ -908,7 +960,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
             if (!midMem) {
                 Log("TEXT-HOOK: VirtualAlloc failed gle=%lu", GetLastError());
             } else {
-                // ── PreLoopTramp (replaces A1 at tsite+474) ──
+                // PreLoopTramp (replaces A1 at tsite+474)
                 //   pushad
                 //   call C_PreLoopHookText      ; may redirect [g_textPtrGlobal]
                 //   popad
@@ -924,7 +976,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
                 *reinterpret_cast<DWORD*>(pp) = g_textPtrGlobal; pp += 4;       // mov eax,[global]
                 *pp++ = 0xC3;                                                    // ret
 
-                // ── PostLoopTramp (replaces A3 at tsite+493) ──
+                // PostLoopTramp (replaces A3 at tsite+493)
                 //   mov [g_postLoopEAX], eax    ; save EAX before pushad clobbers it
                 //   pushad
                 //   call C_PostLoopHook         ; writes correct value to [global]
@@ -940,7 +992,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
                 *pq++ = 0x61;                                                    // popad
                 *pq++ = 0xC3;                                                    // ret
 
-                // ── Patch tsite+474 and tsite+493 → CALL trampolines ──
+                // Patch tsite+474 and tsite+493 → CALL trampolines
                 BYTE* p474 = tsite + 474;
                 BYTE* p493 = tsite + 493;
                 DWORD oldProt;
@@ -963,7 +1015,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
         }
     }
 
-    // ── Install mid-function render hooks in FUN_0083bcc0 (fullscreen narration) ──
+    // Install mid-function render hooks in FUN_0083bcc0 (fullscreen narration)
     // Same engine global [0x06D92B78], same C hooks — different offsets.
     {
         BYTE* nsite = g_exeBase + NARR_RVA;
@@ -1041,7 +1093,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
         }
     }
 
-    // ── Choice render hook: patch +3 of FUN_008360A0 / 00836500 / 00836AC0 ──
+    // Choice render hook: patch +3 of FUN_008360A0 / 00836500 / 00836AC0
     // Each function reads the script cursor at its prologue (`MOV EAX,
     // [DAT_06D92B78]` at offset +3, 5 bytes). We replace that with `JMP
     // dispatcher`. One shared dispatcher handles all 3 — they have identical
@@ -1171,7 +1223,7 @@ DWORD WINAPI HookInstallerThread(LPVOID) {
         }
     }
 
-    // ── Centering fix: patch CALL FUN_0089a0e0 inside FUN_0083bcc0 ────────────
+    // Centering fix: patch CALL FUN_0089a0e0 inside FUN_0083bcc0
     // The centering helper is called right after FUN_0081d8c0 (line 2315 in the
     // Ghidra decompilation) before the character loop starts.  We replace just the
     // 4-byte relative displacement in that CALL instruction so it calls
@@ -1238,9 +1290,9 @@ void BuildTruncatedEnMap() {
         // Slot in heap is jp.size() plus however many trailing nulls fit
         // before the next non-null metadata byte. [jp_len .. jp_len+6]
         // covers everything PatchScriptBuffer has been observed to write.
-        size_t maxSlot = jp.size() + 7;
+        std::size_t maxSlot = jp.size() + 7;
         if (maxSlot > en.size()) maxSlot = en.size();
-        for (size_t slot = jp.size(); slot < maxSlot; ++slot) {
+        for (std::size_t slot = jp.size(); slot < maxSlot; ++slot) {
             std::string trunc = translator_logic::FitToSlot(en, slot);
             if (trunc.empty() || trunc.size() >= en.size()) continue;
             // First-write wins on collisions — needs two different JPs
@@ -1254,8 +1306,7 @@ void BuildTruncatedEnMap() {
 
 }  // anonymous namespace
 
-// ── Public API ────────────────────────────────────────────────────────────
-
+// Public API
 void TranslatorInit() {
     g_exeBase = reinterpret_cast<BYTE*>(GetModuleHandleW(nullptr));
     Log("Translator: cc.exe base=%p — RUNTIME SCRIPT PATCHER (sn.bin in-place)",

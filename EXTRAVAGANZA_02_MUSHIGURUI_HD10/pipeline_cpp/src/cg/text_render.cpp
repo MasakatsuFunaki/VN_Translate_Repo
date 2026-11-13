@@ -5,20 +5,35 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "text_render.h"
+#include "cg/text_render.h"
 
-#include <algorithm>
-#include <vector>
+#include "common/util.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_STROKER_H
 
-#include "common/util.h"
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <exception>
+#include <limits>
+#include <memory>
+#include <utility>
+#include <vector>
 
 namespace mgi::cg {
 
 namespace {
+
+constexpr unsigned kMaxCoverage = 255;
+constexpr unsigned kMulDivRoundingBias = 128;
+constexpr unsigned kByteShift = 8;
+constexpr int kFixed26Dot6Shift = 6;
+constexpr FT_Fixed kFixed26Dot6Unit = 64;
+constexpr unsigned kMonoByteBitShift = 3;
+constexpr unsigned kMonoBitIndexMask = 7;
+constexpr FT_Long kDefaultFaceIndex = 0;
 
 FT_Library ft_library() {
     static FT_Library lib = [] {
@@ -33,43 +48,90 @@ FT_Library ft_library() {
 // disagree by a unit on a lot of anti-aliased edge pixels, which shows up as a
 // visible fringe around every glyph.
 inline unsigned muldiv255(unsigned a, unsigned b) {
-    const unsigned t = a * b + 128;
-    return (t + (t >> 8)) >> 8;
+    const unsigned t = a * b + kMulDivRoundingBias;
+    return (t + (t >> kByteShift)) >> kByteShift;
 }
+
+std::uint8_t sample_bitmap_pixel(const FT_Bitmap& bm, unsigned r, unsigned c) {
+    if (bm.pixel_mode == FT_PIXEL_MODE_MONO) {
+        const std::uint8_t byte = bm.buffer[r * bm.pitch + (c >> kMonoByteBitShift)];
+        const unsigned shift = kMonoBitIndexMask - (c & kMonoBitIndexMask);
+        return ((byte >> shift) & 1U) != 0 ? static_cast<std::uint8_t>(kMaxCoverage) : 0;
+    }
+    return bm.buffer[r * static_cast<unsigned>(bm.pitch) + c];
+}
+
+class ScopedStroker {
+public:
+    ScopedStroker() = default;
+    ScopedStroker(const ScopedStroker&) = delete;
+    ScopedStroker& operator=(const ScopedStroker&) = delete;
+
+    ~ScopedStroker() {
+        if (handle != nullptr) {
+            FT_Stroker_Done(handle);
+        }
+    }
+
+    FT_Stroker handle = nullptr;
+};
+
+class ScopedGlyph {
+public:
+    ScopedGlyph() = default;
+    ScopedGlyph(const ScopedGlyph&) = delete;
+    ScopedGlyph& operator=(const ScopedGlyph&) = delete;
+
+    ~ScopedGlyph() {
+        if (handle != nullptr) {
+            FT_Done_Glyph(handle);
+        }
+    }
+
+    FT_Glyph handle = nullptr;
+};
 
 // One rasterised glyph, positioned relative to the pen origin.
 struct GlyphBitmap {
-    int left = 0;   // x offset from pen
-    int top = 0;    // y offset from the baseline, upward
-    unsigned width = 0, rows = 0;
+    int left = 0;  // x offset from pen
+    int top = 0;   // y offset from the baseline, upward
+    unsigned width = 0;
+    unsigned rows = 0;
     std::vector<std::uint8_t> gray;  // 8-bit coverage, row-major, pitch == width
 };
 
 }  // namespace
 
 struct Font::Impl {
-    FT_Face face = nullptr;
+    Impl() = default;
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+    Impl(Impl&&) = delete;
+    Impl& operator=(Impl&&) = delete;
+
+    // FreeType requires the memory buffer passed to FT_New_Memory_Face to
+    // remain alive and un-reallocated until FT_Done_Face completes.
     ~Impl() {
-        if (face) FT_Done_Face(face);
+        if (face != nullptr) {
+            FT_Done_Face(face);
+            face = nullptr;
+        }
     }
 
     int ascender_px() const {
-        return static_cast<int>(face->size->metrics.ascender >> 6);
+        return static_cast<int>(face->size->metrics.ascender >> kFixed26Dot6Shift);
     }
 
     void copy_bitmap(const FT_Bitmap& bm, GlyphBitmap& out) const {
         out.width = bm.width;
         out.rows = bm.rows;
         out.gray.assign(static_cast<std::size_t>(bm.width) * bm.rows, 0);
-        for (unsigned r = 0; r < bm.rows; ++r)
+        for (unsigned r = 0; r < bm.rows; ++r) {
             for (unsigned c = 0; c < bm.width; ++c) {
-                std::uint8_t v;
-                if (bm.pixel_mode == FT_PIXEL_MODE_MONO)
-                    v = (bm.buffer[r * bm.pitch + (c >> 3)] >> (7 - (c & 7))) & 1 ? 255 : 0;
-                else
-                    v = bm.buffer[r * static_cast<unsigned>(bm.pitch) + c];
-                out.gray[static_cast<std::size_t>(r) * bm.width + c] = v;
+                out.gray[static_cast<std::size_t>(r) * bm.width + c] =
+                    sample_bitmap_pixel(bm, r, c);
             }
+        }
     }
 
     // Lay the string out, returning one entry per rendered glyph.  When
@@ -81,69 +143,91 @@ struct Font::Impl {
         FT_UInt prev_index = 0;
         const bool has_kerning = FT_HAS_KERNING(face) != 0;
 
-        FT_Stroker stroker = nullptr;
-        if (stroke_width > 0 && FT_Stroker_New(ft_library(), &stroker) == 0)
-            FT_Stroker_Set(stroker, static_cast<FT_Fixed>(stroke_width * 64),
+        ScopedStroker stroker;
+        if (stroke_width > 0 && FT_Stroker_New(ft_library(), &stroker.handle) == 0) {
+            FT_Stroker_Set(stroker.handle,
+                           static_cast<FT_Fixed>(stroke_width) * kFixed26Dot6Unit,
                            FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+        }
 
         std::size_t i = 0;
         while (i < utf8.size()) {
             const char32_t cp = utf8_next(utf8, i);
             const FT_UInt gi = FT_Get_Char_Index(face, static_cast<FT_ULong>(cp));
-            if (has_kerning && prev_index && gi) {
+            if (has_kerning && prev_index != 0 && gi != 0) {
                 FT_Vector delta;
                 FT_Get_Kerning(face, prev_index, gi, FT_KERNING_DEFAULT, &delta);
-                pen_x += delta.x >> 6;
+                pen_x += delta.x >> kFixed26Dot6Shift;
             }
-            if (stroker) {
+            if (stroker.handle != nullptr) {
                 if (FT_Load_Glyph(face, gi, FT_LOAD_DEFAULT) == 0) {
-                    FT_Glyph glyph = nullptr;
-                    if (FT_Get_Glyph(face->glyph, &glyph) == 0) {
-                        if (FT_Glyph_StrokeBorder(&glyph, stroker, 0, 1) == 0 &&
-                            FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, nullptr, 1) == 0) {
-                            auto* bg = reinterpret_cast<FT_BitmapGlyph>(glyph);
-                            GlyphBitmap g;
-                            g.left = static_cast<int>(pen_x) + bg->left;
-                            g.top = bg->top;
-                            copy_bitmap(bg->bitmap, g);
-                            if (g.width && g.rows) out.push_back(std::move(g));
+                    ScopedGlyph glyph;
+                    if (FT_Get_Glyph(face->glyph, &glyph.handle) == 0 &&
+                        FT_Glyph_StrokeBorder(&glyph.handle, stroker.handle, 0, 1) == 0 &&
+                        FT_Glyph_To_Bitmap(&glyph.handle, FT_RENDER_MODE_NORMAL, nullptr, 1) == 0) {
+                        auto* bg = reinterpret_cast<FT_BitmapGlyph>(glyph.handle);
+                        GlyphBitmap g;
+                        g.left = static_cast<int>(pen_x) + bg->left;
+                        g.top = bg->top;
+                        copy_bitmap(bg->bitmap, g);
+                        if (g.width != 0 && g.rows != 0) {
+                            out.push_back(std::move(g));
                         }
-                        FT_Done_Glyph(glyph);
                     }
-                    pen_x += face->glyph->advance.x >> 6;
+                    pen_x += face->glyph->advance.x >> kFixed26Dot6Shift;
                 }
             } else if (FT_Load_Glyph(face, gi, FT_LOAD_RENDER) == 0) {
                 const FT_GlyphSlot slot = face->glyph;
-                if (slot->bitmap.width && slot->bitmap.rows) {
+                if (slot->bitmap.width != 0 && slot->bitmap.rows != 0) {
                     GlyphBitmap g;
                     g.left = static_cast<int>(pen_x) + slot->bitmap_left;
                     g.top = slot->bitmap_top;
                     copy_bitmap(slot->bitmap, g);
                     out.push_back(std::move(g));
                 }
-                pen_x += slot->advance.x >> 6;
+                pen_x += slot->advance.x >> kFixed26Dot6Shift;
             }
             prev_index = gi;
         }
-        if (stroker) FT_Stroker_Done(stroker);
         advance_ = pen_x;
         return out;
     }
 
+    Bytes font_bytes;
+    FT_Face face = nullptr;
     mutable long advance_ = 0;
 };
 
 std::unique_ptr<Font> Font::load(const std::string& path, int pixel_size) {
-    if (pixel_size <= 0) return nullptr;
-    FT_Face face = nullptr;
-    if (FT_New_Face(ft_library(), path.c_str(), 0, &face) != 0) return nullptr;
-    if (FT_Set_Pixel_Sizes(face, 0, static_cast<FT_UInt>(pixel_size)) != 0) {
-        FT_Done_Face(face);
+    if (pixel_size <= 0 || path.empty()) {
         return nullptr;
     }
+
+    auto impl = std::make_unique<Impl>();
+    try {
+        impl->font_bytes = read_file(path);
+    } catch (const std::exception&) {
+        return nullptr;
+    }
+    if (impl->font_bytes.empty() ||
+        impl->font_bytes.size() >
+            static_cast<std::size_t>(std::numeric_limits<FT_Long>::max())) {
+        return nullptr;
+    }
+
+    if (FT_New_Memory_Face(ft_library(),
+                           reinterpret_cast<const FT_Byte*>(impl->font_bytes.data()),
+                           static_cast<FT_Long>(impl->font_bytes.size()),
+                           kDefaultFaceIndex, &impl->face) != 0) {
+        impl->face = nullptr;
+        return nullptr;
+    }
+    if (FT_Set_Pixel_Sizes(impl->face, 0, static_cast<FT_UInt>(pixel_size)) != 0) {
+        return nullptr;
+    }
+
     auto font = std::unique_ptr<Font>(new Font());
-    font->impl_ = std::make_unique<Impl>();
-    font->impl_->face = face;
+    font->impl_ = std::move(impl);
     font->pixel_size_ = pixel_size;
     return font;
 }
@@ -153,8 +237,9 @@ Font::~Font() = default;
 TextBBox Font::measure(const std::string& utf8, int stroke_width) const {
     const int asc = impl_->ascender_px();
     const auto glyphs = impl_->layout(utf8, stroke_width);
-    if (glyphs.empty())
+    if (glyphs.empty()) {
         return {0, 0, static_cast<int>(impl_->advance_), 0};
+    }
 
     TextBBox bb{};
     bool any = false;
@@ -177,44 +262,61 @@ TextBBox Font::measure(const std::string& utf8, int stroke_width) const {
 }
 
 void Font::draw(Image& img, int x, int y, const std::string& utf8,
-                const std::array<std::uint8_t, 4>& rgba, int stroke_width,
-                const std::array<std::uint8_t, 4>& stroke_rgba) const {
+                const std::array<std::uint8_t, kRgbaChannelCount>& rgba,
+                int stroke_width,
+                const std::array<std::uint8_t, kRgbaChannelCount>& stroke_rgba) const {
     const int asc = impl_->ascender_px();
 
     const auto blit = [&](const std::vector<GlyphBitmap>& glyphs,
-                          const std::array<std::uint8_t, 4>& ink) {
+                          const std::array<std::uint8_t, kRgbaChannelCount>& ink) {
         for (const auto& g : glyphs) {
             for (unsigned r = 0; r < g.rows; ++r) {
                 const int py = y + asc - g.top + static_cast<int>(r);
-                if (py < 0 || py >= img.height) continue;
+                if (py < 0 || py >= img.height) {
+                    continue;
+                }
                 for (unsigned c = 0; c < g.width; ++c) {
                     const int px_x = x + g.left + static_cast<int>(c);
-                    if (px_x < 0 || px_x >= img.width) continue;
+                    if (px_x < 0 || px_x >= img.width) {
+                        continue;
+                    }
                     const unsigned a = g.gray[static_cast<std::size_t>(r) * g.width + c];
-                    if (a == 0) continue;
+                    if (a == 0) {
+                        continue;
+                    }
                     std::uint8_t* d = img.at(px_x, py);
-                    for (int ch = 0; ch < img.channels; ++ch)
-                        d[ch] = static_cast<std::uint8_t>(muldiv255(d[ch], 255 - a) +
-                                                          muldiv255(ink[ch], a));
+                    for (int ch = 0; ch < img.channels; ++ch) {
+                        const auto channel_idx = static_cast<std::size_t>(ch);
+                        d[ch] = static_cast<std::uint8_t>(
+                            muldiv255(d[ch], kMaxCoverage - a) +
+                            muldiv255(ink[channel_idx], a));
+                    }
                 }
             }
         }
     };
 
     // Stroke first, then the fill on top -- the other order buries the glyph.
-    if (stroke_width > 0) blit(impl_->layout(utf8, stroke_width), stroke_rgba);
+    if (stroke_width > 0) {
+        blit(impl_->layout(utf8, stroke_width), stroke_rgba);
+    }
     blit(impl_->layout(utf8, 0), rgba);
 }
 
 void fill_rect(Image& img, int x1, int y1, int x2, int y2,
-               const std::array<std::uint8_t, 4>& rgba) {
-    const int ylo = std::max(0, y1), yhi = std::min(img.height - 1, y2);
-    const int xlo = std::max(0, x1), xhi = std::min(img.width - 1, x2);
-    for (int y = ylo; y <= yhi; ++y)
+               const std::array<std::uint8_t, kRgbaChannelCount>& rgba) {
+    const int ylo = std::max(0, y1);
+    const int yhi = std::min(img.height - 1, y2);
+    const int xlo = std::max(0, x1);
+    const int xhi = std::min(img.width - 1, x2);
+    for (int y = ylo; y <= yhi; ++y) {
         for (int x = xlo; x <= xhi; ++x) {
             std::uint8_t* d = img.at(x, y);
-            for (int c = 0; c < img.channels; ++c) d[c] = rgba[c];
+            for (int c = 0; c < img.channels; ++c) {
+                d[c] = rgba[static_cast<std::size_t>(c)];
+            }
         }
+    }
 }
 
 }  // namespace mgi::cg

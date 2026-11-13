@@ -5,29 +5,46 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// Step-2 helpers: the inline-speaker matcher, the STRICT response parser,
-// postprocess, and the cache byte format.
-#include <map>
-#include <string>
-#include <vector>
-
-#include <gtest/gtest.h>
-
+// Inline-speaker matcher, strict response parser, postprocess, and cache format.
 #include "cache/cache_core.h"
 #include "cache/glossary.h"
 #include "common/util.h"
 #include "test_support.h"
 
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <map>
+#include <string>
+#include <vector>
+
 using namespace frat;
 using namespace frat::translate;
+
+namespace {
+
+constexpr std::size_t kIdx0 = 0;
+constexpr std::size_t kIdx1 = 1;
+constexpr std::size_t kIdx2 = 2;
+constexpr std::size_t kIdx3 = 3;
+constexpr std::size_t kCount1 = 1;
+constexpr std::size_t kCount3 = 3;
+constexpr std::size_t kCount4 = 4;
+constexpr std::size_t kCount5 = 5;
+constexpr std::size_t kExpectedCacheFileBytes = 76u;
+constexpr std::size_t kPaidCacheEntryCount = 56103u;
+constexpr std::size_t kPurgedCount = 2u;
+constexpr std::size_t kExpectedGlossarySize = 78u;
+
+}  // namespace
 
 TEST(Translate, NeedsTranslation_Threshold2NotThree) {
     EXPECT_FALSE(needs_translation(""));
     EXPECT_FALSE(needs_translation("   "));
-    EXPECT_FALSE(needs_translation("\xE3\x80\x80"));  // U+3000 only
-    EXPECT_FALSE(needs_translation("ab"));            // <= 2 codepoints, no JP
+    EXPECT_FALSE(needs_translation("　"));  // U+3000 only
+    EXPECT_FALSE(needs_translation("ab"));  // <= 2 codepoints, no JP
     EXPECT_FALSE(needs_translation("abc"));
-    EXPECT_FALSE(needs_translation("……"));            // punctuation is not JP
+    EXPECT_FALSE(needs_translation("……"));  // punctuation is not JP
     EXPECT_TRUE(needs_translation("漢字"));
     EXPECT_TRUE(needs_translation("こんにちは"));
     EXPECT_TRUE(needs_translation("カタカナ"));
@@ -37,20 +54,21 @@ TEST(Translate, NeedsTranslation_Threshold2NotThree) {
 // None is a message.  The model romanised 14 of them and echoed the other 7,
 // and an echo is never cached, so those 7 re-open the API on every run.
 TEST(Translate, NeedsTranslation_RejectsSmallKanaFragments) {
-    for (const char* frag : {"ょ", "ゎ", "ャ", "ュ", "ョ", "ヮ", "ヶ"})
+    for (const char* frag : {"ょ", "ゎ", "ャ", "ュ", "ョ", "ヮ", "ヶ"}) {
         EXPECT_FALSE(needs_translation(frag)) << "fragment: " << frag;
+    }
 
-    EXPECT_FALSE(needs_translation("ャュョ"));   // a run of them is still a table
-    EXPECT_FALSE(needs_translation("  ょ  "));   // padding does not make it text
+    EXPECT_FALSE(needs_translation("ャュョ"));  // a run of them is still a table
+    EXPECT_FALSE(needs_translation("  ょ  "));  // padding does not make it text
 }
 
 // The rule is whole-string: a small kana INSIDE a word must not disqualify it.
 TEST(Translate, NeedsTranslation_KeepsWordsContainingSmallKana) {
-    EXPECT_TRUE(needs_translation("一ヶ月"));     // ヶ as a counter
-    EXPECT_TRUE(needs_translation("ちょっと"));   // ょ inside a word
-    EXPECT_TRUE(needs_translation("がっこう"));   // っ inside a word
-    EXPECT_TRUE(needs_translation("シャツ"));     // ャ inside a word
-    EXPECT_TRUE(needs_translation("ょう"));       // trailing full kana still counts
+    EXPECT_TRUE(needs_translation("一ヶ月"));    // ヶ as a counter
+    EXPECT_TRUE(needs_translation("ちょっと"));  // ょ inside a word
+    EXPECT_TRUE(needs_translation("がっこう"));  // っ inside a word
+    EXPECT_TRUE(needs_translation("シャツ"));    // ャ inside a word
+    EXPECT_TRUE(needs_translation("ょう"));      // trailing full kana still counts
 }
 
 TEST(Translate, TranslatableIndices_IncludesNameType) {
@@ -65,7 +83,8 @@ TEST(Translate, TranslatableIndices_IncludesNameType) {
     }
     fdata["strings"] = strings;
     // "name" IS translatable in this game; anything else is not.
-    EXPECT_EQ(translatable_indices(fdata), (std::vector<std::size_t>{0, 1, 2, 3}));
+    EXPECT_EQ(translatable_indices(fdata),
+              (std::vector<std::size_t>{kIdx0, kIdx1, kIdx2, kIdx3}));
 }
 
 TEST(Translate, InlineSpeakerMatch_LengthAndCharClass) {
@@ -84,7 +103,7 @@ TEST(Translate, InlineSpeakerMatch_LengthAndCharClass) {
     EXPECT_FALSE(inline_speaker_match("a「x」").has_value());
     EXPECT_FALSE(inline_speaker_match("1「x」").has_value());
     EXPECT_FALSE(inline_speaker_match(" 「x」").has_value());
-    EXPECT_FALSE(inline_speaker_match("\xE3\x80\x80" "「x」").has_value());
+    EXPECT_FALSE(inline_speaker_match("　「x」").has_value());
     EXPECT_FALSE(inline_speaker_match("(あ「x」").has_value());
     // The matcher is happy with prose fragments; only extract_speaker's
     // glossary gate rejects them.
@@ -107,38 +126,40 @@ TEST(Translate, ExtractSpeaker_CrlfBranchFallsBackToRawJapanese) {
 
 TEST(Translate, ParseTranslations_StrictAcceptsAndRejects) {
     using M = std::map<int, std::string>;
-    EXPECT_EQ(parse_translations("1. First\n2. Second\n3. Third", 3),
+    EXPECT_EQ(parse_translations("1. First\n2. Second\n3. Third", kCount3),
               (M{{1, "First"}, {2, "Second"}, {3, "Third"}}));
     // 0-indexed responses are shifted, with a WARNING line.
-    EXPECT_EQ(parse_translations("0. First\n1. Second\n2. Third", 3),
+    EXPECT_EQ(parse_translations("0. First\n1. Second\n2. Third", kCount3),
               (M{{1, "First"}, {2, "Second"}, {3, "Third"}}));
-    // The regression that poisoned the cache around idx 720-726: N-1 outputs
-    // for N inputs used to shift every remaining line by one.
-    EXPECT_TRUE(parse_translations("1. a\n2. b", 3).empty());
-    EXPECT_TRUE(parse_translations("1. a\n2. b\n3. c\n4. d", 3).empty());
-    EXPECT_TRUE(parse_translations("1. a\n2. b\n4. d", 4).empty());
-    EXPECT_TRUE(parse_translations("1. a\n2. b\n2. b_alt\n3. c", 3).empty());
-    EXPECT_TRUE(parse_translations("", 5).empty());
-    EXPECT_TRUE(parse_translations("Just chatter, no numbers", 3).empty());
+    // N-1 outputs for N inputs used to shift every remaining line by one.
+    EXPECT_TRUE(parse_translations("1. a\n2. b", kCount3).empty());
+    EXPECT_TRUE(parse_translations("1. a\n2. b\n3. c\n4. d", kCount3).empty());
+    EXPECT_TRUE(parse_translations("1. a\n2. b\n4. d", kCount4).empty());
+    EXPECT_TRUE(parse_translations("1. a\n2. b\n2. b_alt\n3. c", kCount3).empty());
+    EXPECT_TRUE(parse_translations("", kCount5).empty());
+    EXPECT_TRUE(parse_translations("Just chatter, no numbers", kCount3).empty());
     // Unnumbered chatter around a clean sequence is ignored.
     EXPECT_EQ(parse_translations(
-                  "Here are the translations:\n1. one\n\n2. two\n3. three\nNote: done", 3),
+                  "Here are the translations:\n1. one\n\n2. two\n3. three\nNote: done",
+                  kCount3),
               (M{{1, "one"}, {2, "two"}, {3, "three"}}));
     // Literal backslash-r-backslash-n decodes to a real CRLF.
-    EXPECT_EQ(parse_translations("1. line one\\r\\nline two", 1),
+    EXPECT_EQ(parse_translations("1. line one\\r\\nline two", kCount1),
               (M{{1, "line one\r\nline two"}}));
 }
 
 TEST(Translate, ParseTranslations_StripsSpeakerTagIncludingAmpersand) {
     using M = std::map<int, std::string>;
-    EXPECT_EQ(parse_translations("[NARRATION] 1. text", 1), (M{{1, "text"}}));
-    EXPECT_EQ(parse_translations("[Mother (Shizuko)] 1. text", 1), (M{{1, "text"}}));
+    EXPECT_EQ(parse_translations("[NARRATION] 1. text", kCount1), (M{{1, "text"}}));
+    EXPECT_EQ(parse_translations("[Mother (Shizuko)] 1. text", kCount1),
+              (M{{1, "text"}}));
     // This game's tag class accepts '&'; the sibling games' does not.
-    EXPECT_EQ(parse_translations("[R&B] 1. text", 1), (M{{1, "text"}}));
-    EXPECT_EQ(parse_translations("[Yuka's Mother] 1. text", 1), (M{{1, "text"}}));
+    EXPECT_EQ(parse_translations("[R&B] 1. text", kCount1), (M{{1, "text"}}));
+    EXPECT_EQ(parse_translations("[Yuka's Mother] 1. text", kCount1),
+              (M{{1, "text"}}));
     // A tag containing a digit is not a tag at all -- the line keeps it and
     // then fails the number match.
-    EXPECT_TRUE(parse_translations("[Man 1] 1. text", 1).empty());
+    EXPECT_TRUE(parse_translations("[Man 1] 1. text", kCount1).empty());
 }
 
 TEST(Translate, Postprocess_NamePrefixSubstitutionIsLongestFirst) {
@@ -159,16 +180,15 @@ TEST(Translate, Postprocess_ReattachesBracketsWhenModelDroppedThem) {
 }
 
 TEST(Translate, SanitizeAscii_FlattensSmartPunctuation) {
-    const std::string out = postprocess("日本語", "\xE2\x80\x9C" "Hello" "\xE2\x80\x9D"
-                                                  " \xE2\x80\x94 nope\xE2\x80\xA6");
+    const std::string out = postprocess("日本語", "“Hello” — nope…");
     EXPECT_NE(out.find("\"Hello\""), std::string::npos);
     EXPECT_NE(out.find("--"), std::string::npos);
     EXPECT_NE(out.find("..."), std::string::npos);
 }
 
 TEST(Translate, EnHasJapaneseContent_ExcludesSoundMarks) {
-    EXPECT_FALSE(en_has_japanese_content("ah\xE3\x82\x9B" "hh"));  // U+309B
-    EXPECT_FALSE(en_has_japanese_content("Ahh \xE3\x83\xBC"));     // U+30FC
+    EXPECT_FALSE(en_has_japanese_content("ah゛hh"));  // U+309B
+    EXPECT_FALSE(en_has_japanese_content("Ahh ー"));  // U+30FC
     EXPECT_FALSE(en_has_japanese_content("plain english"));
     EXPECT_TRUE(en_has_japanese_content("ああ"));
     EXPECT_TRUE(en_has_japanese_content("ア"));
@@ -187,14 +207,14 @@ TEST(Translate, SaveCache_Indent2_CRLF_InsertionOrder) {
     const Bytes written = read_file(path);
     // The cache file's exact bytes: indent 2, raw (non-escaped) UTF-8, CRLF
     // line endings, keys in insertion order.
-    EXPECT_EQ(written.size(), 76u);
+    EXPECT_EQ(written.size(), kExpectedCacheFileBytes);
     EXPECT_EQ(frat_test::sha256_hex(written.data(), written.size()),
               "a794f960f52d07efe55ca6a801a035784d17b4d0581c5c85d35bd8ce468c2fca");
 
     const Cache back = load_cache(path);
-    ASSERT_EQ(back.size(), 3u);
-    EXPECT_EQ(back.items()[0].first, "こんにちは");
-    EXPECT_EQ(back.items()[2].second, "c\\d");
+    ASSERT_EQ(back.size(), kCount3);
+    EXPECT_EQ(back.items()[kIdx0].first, "こんにちは");
+    EXPECT_EQ(back.items()[kIdx2].second, "c\\d");
 }
 
 // The guard refuses flags that would delete a paid cache until --discard-cache
@@ -207,7 +227,8 @@ TEST(Translate, AFlagThatDeletesAPaidCacheIsRefusedUntilItIsMeant) {
 
     // One entry past the threshold, every flag is refused.
     for (const char* flag : {"--test", "--retranslate", "--clean"}) {
-        auto why = refuse_cache_discard(CACHE_DISCARD_THRESHOLD + 1, flag, false);
+        const auto why =
+            refuse_cache_discard(CACHE_DISCARD_THRESHOLD + 1, flag, false);
         ASSERT_TRUE(why.has_value()) << flag;
         EXPECT_NE(why->find(flag), std::string::npos) << *why;
         EXPECT_NE(why->find("--max-batches"), std::string::npos) << *why;
@@ -216,12 +237,12 @@ TEST(Translate, AFlagThatDeletesAPaidCacheIsRefusedUntilItIsMeant) {
 
     // The count is in the message, because "some lines" is not a reason to
     // stop and "56103 lines" is.
-    auto why = refuse_cache_discard(56103, "--test", false);
+    const auto why = refuse_cache_discard(kPaidCacheEntryCount, "--test", false);
     ASSERT_TRUE(why.has_value());
     EXPECT_NE(why->find("56103"), std::string::npos) << *why;
 
     // --discard-cache is the caller saying they meant it.
-    EXPECT_FALSE(refuse_cache_discard(56103, "--test", true).has_value());
+    EXPECT_FALSE(refuse_cache_discard(kPaidCacheEntryCount, "--test", true).has_value());
 }
 
 // An echo -- the model handing back the line it was given -- is a failure only
@@ -251,8 +272,8 @@ TEST(Translate, PurgeRemovesFailedEntriesAndKeepsTheRest) {
     cache.set("Eスbg152n", "Eスbg152n");
     cache.set("bg152n", "bg152n");
 
-    EXPECT_EQ(purge_failed_entries(cache), 2u);
-    EXPECT_EQ(cache.size(), 3u);
+    EXPECT_EQ(purge_failed_entries(cache), kPurgedCount);
+    EXPECT_EQ(cache.size(), kCount3);
     EXPECT_FALSE(cache.contains("こんにちは"));
     EXPECT_FALSE(cache.contains("Eスbg152n"));
     ASSERT_TRUE(cache.get("朝が来た。"));
@@ -261,18 +282,18 @@ TEST(Translate, PurgeRemovesFailedEntriesAndKeepsTheRest) {
     EXPECT_TRUE(cache.contains("bg152n"));
 
     const auto& items = cache.items();
-    ASSERT_EQ(items.size(), 3u);
-    EXPECT_EQ(items[0].first, "朝が来た。");
-    EXPECT_EQ(items[1].first, "OK");
-    EXPECT_EQ(items[2].first, "bg152n");
+    ASSERT_EQ(items.size(), kCount3);
+    EXPECT_EQ(items[kIdx0].first, "朝が来た。");
+    EXPECT_EQ(items[kIdx1].first, "OK");
+    EXPECT_EQ(items[kIdx2].first, "bg152n");
 
     // Nothing left to remove on a second pass.
     EXPECT_EQ(purge_failed_entries(cache), 0u);
-    EXPECT_EQ(cache.size(), 3u);
+    EXPECT_EQ(cache.size(), kCount3);
 }
 
 TEST(Translate, Glossary_HasSeventyEightOrderedEntries) {
-    EXPECT_EQ(name_translations_ordered().size(), 78u);
+    EXPECT_EQ(name_translations_ordered().size(), kExpectedGlossarySize);
     EXPECT_EQ(name_translations_ordered().front().first, "大智");
     EXPECT_EQ(name_translations().at("園田Ｈ"), "Sonoda (H)");
     EXPECT_EQ(story_order(), (std::vector<std::string>{"bn.ypf"}));

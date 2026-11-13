@@ -8,15 +8,20 @@
 #include "box_budget.h"
 
 #include "build_tsv.h"
-
-#include <algorithm>
-#include <cstdio>
-#include <fstream>
-#include <sstream>
+#include "common/util.h"
 
 #include <boost/json.hpp>
 
-#include "common/util.h"
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace snu::build_tsv {
 
@@ -364,7 +369,7 @@ void report_box_budget_audit(const std::string& translated_file,
 
 tl::TranslationMap load_runtime_table(const std::string& tsv_path) {
     tl::TranslationMap table;
-    std::ifstream f(tsv_path, std::ios::binary);
+    std::ifstream f(std::filesystem::u8path(tsv_path), std::ios::binary);
     if (!f) return table;
     std::stringstream ss;
     ss << f.rdbuf();

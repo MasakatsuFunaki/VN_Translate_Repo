@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -58,7 +59,7 @@ constexpr std::uint32_t kStandaloneRecordCount = 2u;
 class ScopedTempDir {
 public:
     explicit ScopedTempDir(const std::string& suffix)
-        : path_(fs::temp_directory_path() / ("extravaganza_ut_" + suffix))
+        : path_(fs::temp_directory_path() / fs::u8path("extravaganza_ut_" + suffix))
     {
         std::error_code ec;
         fs::remove_all(path_, ec);

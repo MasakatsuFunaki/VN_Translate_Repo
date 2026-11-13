@@ -1,35 +1,37 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MasakatsuFunaki
-
-#include <exception>
-#include <string>
+//
+// Part of VN_TRANSLATE.  Licensed under GPL-3.0-or-later; see LICENSE.
+// Not licensed for use as training data for machine learning or generative
+// AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "apps/paths.h"
 #include "common/util.h"
 #include "ui/ui_patcher.h"
 
-int main(int argc, char** argv) {
+#include <exception>
+#include <string>
+
+int main() {
     fav::setup_console_utf8();
     namespace po = fav::apps::po;
 
-    std::string project, game, preview_dir;
-    po::options_description desc(
-        "03_patch_ui -- patch Options & System UI textures in graph.bin");
-    desc.add(fav::apps::common_options(project, game));
-    desc.add_options()
-        ("preview-dir", po::value(&preview_dir)->default_value(""),
-         "optional directory to export patched PNG previews");
-
-    po::variables_map vm;
-    if (auto rc = fav::apps::parse_command_line(argc, argv, desc, vm)) return *rc;
-
     try {
+        std::string game;
+        po::options_description desc(
+            "03_patch_ui -- patch Options & System UI textures in graph.bin");
+        desc.add(fav::apps::game_only_options(game));
+
+        po::variables_map vm;
+        if (const auto rc = fav::apps::parse_process_command_line(desc, vm)) {
+            return *rc;
+        }
+
         fav::ui::PatchUiOptions opts;
         opts.game_dir = game;
-        opts.preview_dir = preview_dir;
         return fav::ui::patch_ui_archive(opts);
     } catch (const std::exception& e) {
         fav::log_info(std::string("[ERROR] ") + e.what());
-        return 1;
+        return fav::apps::kExitError;
     }
 }

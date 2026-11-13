@@ -8,7 +8,5 @@
 #pragma once
 // WINMM.dll proxy: forwards all winmm exports to the real system DLL.
 
-#include <windows.h>
-
 void ProxyInit();
 void ProxyShutdown();

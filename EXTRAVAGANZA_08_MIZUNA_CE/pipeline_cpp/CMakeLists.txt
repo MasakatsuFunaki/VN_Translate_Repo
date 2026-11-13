@@ -54,7 +54,7 @@ target_link_libraries(exm_core PUBLIC
 
 function(exm_app target main)
     add_executable(${target} ${main} src/apps/paths.h src/apps/paths.cpp)
-    target_link_libraries(${target} PRIVATE exm_core Boost::program_options)
+    target_link_libraries(${target} PRIVATE exm_core Boost::program_options shell32)
 endfunction()
 
 exm_app(00_run_all              src/apps/run_all_main.cpp)

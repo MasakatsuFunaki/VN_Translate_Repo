@@ -146,9 +146,13 @@ def build_table():
     if not os.path.isfile(doc):
         return
     exe = os.path.join(BUILD_DIR, "pipeline", CONFIG, "02_build_tsv.exe")
+    if not os.path.isfile(exe):
+        return
     tsv = os.path.join(INSTALL_DIR, "game", "translations.tsv")
     os.makedirs(os.path.dirname(tsv), exist_ok=True)
-    if os.path.isfile(tsv) and os.path.getsize(tsv) > 0 and os.path.getmtime(tsv) >= os.path.getmtime(doc):
+    if (os.path.isfile(tsv) and os.path.getsize(tsv) > 0
+            and os.path.getmtime(tsv) >= os.path.getmtime(doc)
+            and os.path.getmtime(tsv) >= os.path.getmtime(exe)):
         return
     run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
 
