@@ -1,5 +1,9 @@
 # Visual Novel Translation Patches
 
+> [!CAUTION]
+> **CRACKED, PIRATED, OR MODIFIED `.EXE` VERSIONS ARE NOT SUPPORTED AND WILL NOT WORK.**
+> **ONLY CLEAN, UNMODIFIED OFFICIAL RELEASES ARE SUPPORTED. CRACKED COPIES MODIFY THE GAME EXECUTABLE AND BREAK THE SCRIPT TRANSLATION.**
+
 English translation patches for Japanese visual novels. Each patch translates the game text at
 runtime — the original game files stay untouched.
 
