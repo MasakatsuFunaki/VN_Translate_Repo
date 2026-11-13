@@ -4,7 +4,7 @@
 > **CRACKED, PIRATED, OR MODIFIED `.EXE` VERSIONS ARE NOT SUPPORTED AND WILL NOT WORK.**
 > **ONLY CLEAN, UNMODIFIED OFFICIAL RELEASES ARE SUPPORTED. CRACKED COPIES MODIFY THE GAME EXECUTABLE AND BREAK THE SCRIPT TRANSLATION.**
 
-English translation patches for Japanese visual novels. Original game files are either left untouched or backed up automatically on first launch.
+English translation patches for Japanese visual novels.
 
 ## Support the Project
 
@@ -45,18 +45,18 @@ All reverse engineering, runtime hook development, UI/menu translation, and LLM 
 |---|---|
 | `CROSS_CHANNEL` | Copy everything inside `CROSS_CHANNEL\game\` into your game's install directory. |
 | `SakuraNoUta` | Copy everything inside `SakuraNoUta\game\` into your game's install directory. |
-| `EXTRAVAGANZA_01_CE` | Copy everything inside `EXTRAVAGANZA_01_CE\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
-| `EXTRAVAGANZA_02_MUSHIGURUI_HD10` | Copy everything inside `EXTRAVAGANZA_02_MUSHIGURUI_HD10\game\` into your game's install directory — works with both Mushigurui HD10 and EXTRAVAGANZA Complete Edition (a backup of the original files is created automatically on first launch). |
-| `EXTRAVAGANZA_03_MATSURO_CE` | Copy everything inside `EXTRAVAGANZA_03_MATSURO_CE\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
-| `EXTRAVAGANZA_04_AGEHA_CE` | Copy everything inside `EXTRAVAGANZA_04_AGEHA_CE\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
-| `EXTRAVAGANZA_05_ANZU_CE` | Copy everything inside `EXTRAVAGANZA_05_ANZU_CE\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
-| `EXTRAVAGANZA_06_YUMEMI_CE` | Copy everything inside `EXTRAVAGANZA_06_YUMEMI_CE\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
-| `EXTRAVAGANZA_07_REN_MUSHI_CE` | Copy everything inside `EXTRAVAGANZA_07_REN_MUSHI_CE\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
-| `EXTRAVAGANZA_08_MIZUNA_CE` | Copy everything inside `EXTRAVAGANZA_08_MIZUNA_CE\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
+| `EXTRAVAGANZA_01_CE` | Copy everything inside `EXTRAVAGANZA_01_CE\game\` into your game's install directory. |
+| `EXTRAVAGANZA_02_MUSHIGURUI_HD10` | Copy everything inside `EXTRAVAGANZA_02_MUSHIGURUI_HD10\game\` into your game's install directory (works with both Mushigurui HD10 and EXTRAVAGANZA Complete Edition). |
+| `EXTRAVAGANZA_03_MATSURO_CE` | Copy everything inside `EXTRAVAGANZA_03_MATSURO_CE\game\` into your game's install directory. |
+| `EXTRAVAGANZA_04_AGEHA_CE` | Copy everything inside `EXTRAVAGANZA_04_AGEHA_CE\game\` into your game's install directory. |
+| `EXTRAVAGANZA_05_ANZU_CE` | Copy everything inside `EXTRAVAGANZA_05_ANZU_CE\game\` into your game's install directory. |
+| `EXTRAVAGANZA_06_YUMEMI_CE` | Copy everything inside `EXTRAVAGANZA_06_YUMEMI_CE\game\` into your game's install directory. |
+| `EXTRAVAGANZA_07_REN_MUSHI_CE` | Copy everything inside `EXTRAVAGANZA_07_REN_MUSHI_CE\game\` into your game's install directory. |
+| `EXTRAVAGANZA_08_MIZUNA_CE` | Copy everything inside `EXTRAVAGANZA_08_MIZUNA_CE\game\` into your game's install directory. |
 | `amakano2pe` | Copy everything inside `amakano2pe\game\` into your game's install directory. |
-| `shingakkou` | Copy everything inside `shingakkou\game\` into your game's install directory (a backup of the original files is created automatically on first launch). |
-| `FRATERNITE_HD` | Copy everything inside `FRATERNITE_HD\game\` into your game's install directory (a backup of the original files is created automatically on first launch; press `F1` in-game to toggle EN/JP). |
-| `SakuraMoyu` (*Sakura, Moyu.*) | Copy everything inside `SakuraMoyu\game\` into your game's install directory and run `SakuraMoyu\bin\03_patch_ui.exe --game-dir "C:\path\to\game"` (a backup of the original files is created automatically). |
+| `shingakkou` | Copy everything inside `shingakkou\game\` into your game's install directory. |
+| `FRATERNITE_HD` | Copy everything inside `FRATERNITE_HD\game\` into your game's install directory (press `F1` in-game to toggle EN/JP). |
+| `SakuraMoyu` (*Sakura, Moyu.*) | Copy everything inside `SakuraMoyu\game\` into your game's install directory and run `SakuraMoyu\bin\03_patch_ui.exe --game-dir "C:\path\to\game"`. |
 | `kishin_hisho` | Copy everything inside `kishin_hisho\game\` into your game's install directory, then start the game via `launch.exe`. |
 
 3. Start the game as usual.
