@@ -31,7 +31,7 @@ build\install\bin\00_run_all.exe --game-dir <install>
 
 ### Encrypted Script Storage (`*.json.enc`)
 
-Across all shipped games, `script_output/translated_text.json` and `script_output/translation_cache_*.json` are tracked in git as `VNE2`-encrypted `.json.enc` files using the public passphrase in the repository root `translations_key.txt`. Both `python build.py` and `spot_checker` automatically and idempotently sync `.json <-> .json.enc` via the repository root `encrypt_translations.bat` and `decrypt_translations.bat` scripts:
+Across all shipped games, `script_output/translated_text.json` and `script_output/translation_cache_*.json` are tracked in git as `VNE2`-encrypted `.json.enc` files using the passphrase from `TRANSLATIONS_KEY` (in CI) or the local git-ignored `translations_key.txt` at the repository root. Both `python build.py` and `spot_checker` automatically and idempotently sync `.json <-> .json.enc` via the repository root `encrypt_translations.bat` and `decrypt_translations.bat` scripts:
 
 ```powershell
 :: manual sync for this game from the repository root

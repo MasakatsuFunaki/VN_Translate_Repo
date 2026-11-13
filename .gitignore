@@ -39,9 +39,11 @@ FRATERNITE_HD/analysys/ybn_samples/*
 venv/
 __pycache__/
 
-# The AES passphrase is the root translations_key.txt, which is committed and
-# public on purpose.  The rule below is kept so that a stray key.txt — from an
-# older checkout, or from another tool — is never committed by accident.
+# The AES passphrase lives in a local-only, git-ignored translations_key.txt at
+# the repository root (CI reads the TRANSLATIONS_KEY repository secret instead).
+# Both translations_key.txt and the legacy key.txt are ignored so the passphrase
+# is never committed.
+translations_key.txt
 key.txt
 
 # Claude Code local config.  CLAUDE.md is instructions for the agent working

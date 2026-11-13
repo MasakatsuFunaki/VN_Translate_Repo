@@ -40,6 +40,8 @@ jobs:
         run: conan profile detect --force
 
       - name: Build, test, and stage every shipped game
+        env:
+          TRANSLATIONS_KEY: ${{ secrets.TRANSLATIONS_KEY }}
         run: python build.py --test --install
 
       - name: Verify every staged game carries its translation

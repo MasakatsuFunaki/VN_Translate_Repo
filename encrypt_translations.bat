@@ -1,7 +1,7 @@
 @echo off
 REM  Encrypt or decrypt the translation JSON files.
 REM  Usage: encrypt_translations.bat --encrypt|--decrypt [--dir <game_dir>]
-REM  Passphrase: translations_key.txt (at repository root, public).
+REM  Passphrase: TRANSLATIONS_KEY env var (CI) or translations_key.txt (local, git-ignored).
 setlocal
 set "VNHERE=%~dp0"
 set "VNARGS=%*"
@@ -88,16 +88,29 @@ $candidates = @(
     (Join-Path (Split-Path $here -Parent) 'translations_key.txt'),
     (Join-Path (Split-Path $walkRoot -Parent) 'translations_key.txt')
 )
-$keyFile = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
-if (-not $keyFile) {
-    Write-Host "ERROR: translations_key.txt not found." -ForegroundColor Red
-    exit 1
+$keyText = $null
+if ($env:TRANSLATIONS_KEY) {
+    $line = ($env:TRANSLATIONS_KEY -split '\r?\n' |
+             Where-Object { $_.Trim() -and -not $_.TrimStart().StartsWith('#') } |
+             Select-Object -First 1)
+    if ($line) { $keyText = $line.Trim() }
 }
-$keyText = (Get-Content -LiteralPath $keyFile |
-            Where-Object { $_.Trim() -and -not $_.TrimStart().StartsWith('#') } |
-            Select-Object -First 1)
 if (-not $keyText) {
-    Write-Host "ERROR: translations_key.txt holds no passphrase line." -ForegroundColor Red
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path -LiteralPath $c)) {
+            $line = (Get-Content -LiteralPath $c |
+                     Where-Object { $_.Trim() -and -not $_.TrimStart().StartsWith('#') } |
+                     Select-Object -First 1)
+            if ($line) {
+                $keyText = $line.Trim()
+                break
+            }
+        }
+    }
+}
+if (-not $keyText) {
+    Write-Host "ERROR: passphrase not found. Set TRANSLATIONS_KEY or provide translations_key.txt in one of:" -ForegroundColor Red
+    $candidates | ForEach-Object { Write-Host "  $_" }
     exit 1
 }
 $key = [System.Security.Cryptography.SHA256]::Create().ComputeHash(
