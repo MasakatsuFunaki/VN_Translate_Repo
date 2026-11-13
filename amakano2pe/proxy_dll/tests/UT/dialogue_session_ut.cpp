@@ -14,10 +14,20 @@
 
 #include <gtest/gtest.h>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#  define NOMINMAX
+#endif
+#include <windows.h>
+
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cwchar>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -94,6 +104,8 @@ constexpr std::size_t kMockNormalGlyphWidthPx = 11;
 constexpr std::size_t kSingleCharStep = 1;
 constexpr std::size_t kEscapePairLength = 2;
 
+constexpr std::size_t kFirstLineIndex = 0;
+constexpr std::size_t kSecondLineIndex = 1;
 constexpr std::size_t kExpectedTwoLines = 2;
 constexpr std::size_t kExpectedThreeLines = 3;
 constexpr std::size_t kMaxMeswndVisibleLines = 3;
@@ -135,6 +147,37 @@ constexpr std::size_t kNearRightMarginOffsetPx = 2;
 constexpr std::size_t kMaxCandidateWordAppends = 128;
 constexpr std::size_t kNoWrapCodePointLimit = 256;
 
+constexpr std::size_t kNullTerminatorChars = 1;
+constexpr std::wstring_view kMeiryoJapaneseFaceName =
+    L"\u30E1\u30A4\u30EA\u30AA";
+constexpr std::wstring_view kMeiryoEnglishFaceName = L"Meiryo";
+constexpr std::wstring_view kArialFaceName = L"Arial";
+
+constexpr std::string_view kTrainSceneJpSeg1 =
+    "\xE6\x96\xB0\xE5\xB9\xB9\xE7\xB7\x9A\xE3\x81\x8C\xE6\xAD\xA2\xE3\x81"
+    "\xBE\xE3\x82\x8B\xE3\x81\xA8\xE3\x80\x81\xE6\x96\xB0\xE3\x81\x9F\xE3"
+    "\x81\xAB\xE4\xBA\xBA\xE3\x81\x8C\xE4\xB9\x97\xE8\xBB\x8A\xE3\x81\x97"
+    "\xE3\x81\xA6\xE3\x81\x8F\xE3\x82\x8B\xE3\x80\x82";
+constexpr std::string_view kTrainSceneEnSeg1 =
+    "When the train stopped, new passengers began boarding.";
+constexpr std::string_view kTrainSceneJpSeg2 =
+    "\\n\xE9\x99\x8D\xE3\x82\x8A\xE3\x82\x8B\xE3\x82\x88\xE3\x82\x8A\xE3"
+    "\x80\x81\xE4\xB9\x97\xE3\x82\x8B\xE4\xBA\xBA\xE3\x81\xAE\xE6\x96\xB9"
+    "\xE3\x81\x8C\xE5\xA4\x9A\xE3\x81\x84\xE3\x80\x82";
+constexpr std::string_view kTrainSceneEnSeg2 =
+    "\\nMore people were getting on than getting off.";
+constexpr std::string_view kTrainSceneFitsPrefix =
+    "When the train stopped, new passengers began boarding. More peopl";
+constexpr std::string_view kTrainSceneOverflowsPrefix =
+    "When the train stopped, new passengers began boarding. More people";
+constexpr std::string_view kTrainSceneExpectedMeiryoLine1 =
+    "When the train stopped, new passengers began boarding. More";
+constexpr std::string_view kTrainSceneExpectedMeiryoLine2 =
+    "people were getting on than getting off.";
+constexpr std::string_view kTrainSceneExpectedFullText =
+    "When the train stopped, new passengers began boarding. More people were "
+    "getting on than getting off.";
+
 // Deterministic mock proportional measurer modeling Meiryo's average glyph
 // advance (7 px space, 13 px uppercase/wide, 11 px normal, 5 px narrow
 // punctuation) for OS-independent unit verification.
@@ -162,6 +205,85 @@ public:
         }
         return total;
     }
+};
+
+// RAII owner for a memory DC and selected CatSystem2-compatible HFONT used to
+// query the typeface name resolved by the Win32 GDI font mapper.
+class ScopedGdiFontSelection final {
+public:
+    ScopedGdiFontSelection(int lf_height,
+                           std::wstring_view face_name,
+                           long font_weight) noexcept
+        : dc_(CreateCompatibleDC(nullptr)) {
+        if (dc_ == nullptr) {
+            return;
+        }
+
+        LOGFONTW lf{};
+        lf.lfHeight = lf_height;
+        lf.lfWeight = font_weight;
+        lf.lfCharSet = SHIFTJIS_CHARSET;
+        lf.lfOutPrecision = OUT_DEFAULT_PRECIS;
+        lf.lfClipPrecision = CLIP_DEFAULT_PRECIS;
+        lf.lfQuality = ANTIALIASED_QUALITY;
+        lf.lfPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;
+
+        const std::size_t copy_chars = std::min<std::size_t>(
+            face_name.size(), LF_FACESIZE - kNullTerminatorChars);
+        if (copy_chars > 0) {
+            std::wmemcpy(lf.lfFaceName, face_name.data(), copy_chars);
+        }
+        lf.lfFaceName[copy_chars] = L'\0';
+
+        font_ = CreateFontIndirectW(&lf);
+        if (font_ == nullptr) {
+            return;
+        }
+        prev_obj_ = SelectObject(dc_, font_);
+    }
+
+    ScopedGdiFontSelection(const ScopedGdiFontSelection&) = delete;
+    ScopedGdiFontSelection& operator=(const ScopedGdiFontSelection&) = delete;
+    ScopedGdiFontSelection(ScopedGdiFontSelection&&) = delete;
+    ScopedGdiFontSelection& operator=(ScopedGdiFontSelection&&) = delete;
+
+    ~ScopedGdiFontSelection() noexcept {
+        if (dc_ != nullptr && prev_obj_ != nullptr &&
+            prev_obj_ != HGDI_ERROR) {
+            SelectObject(dc_, prev_obj_);
+        }
+        if (font_ != nullptr) {
+            DeleteObject(font_);
+        }
+        if (dc_ != nullptr) {
+            DeleteDC(dc_);
+        }
+    }
+
+    bool IsValid() const noexcept {
+        return dc_ != nullptr && font_ != nullptr &&
+               prev_obj_ != nullptr && prev_obj_ != HGDI_ERROR;
+    }
+
+    std::wstring ResolvedFaceName() const {
+        if (!IsValid()) {
+            return {};
+        }
+        std::array<wchar_t, LF_FACESIZE> resolved_face{};
+        const int face_chars = GetTextFaceW(
+            dc_, static_cast<int>(resolved_face.size()),
+            resolved_face.data());
+        if (face_chars <= 0) {
+            return {};
+        }
+        resolved_face.back() = L'\0';
+        return std::wstring(resolved_face.data());
+    }
+
+private:
+    HDC dc_ = nullptr;
+    HFONT font_ = nullptr;
+    HGDIOBJ prev_obj_ = nullptr;
 };
 
 // Splits CatSystem2 concatenated textbox text on 2-byte `\n`/`\N` (and literal
@@ -225,6 +347,73 @@ std::size_t MeasureVisibleCodePoints(std::string_view tagged_line) {
     return width;
 }
 
+// Returns true iff Win32 GDI resolves CatSystem2's default `メイリオ` LOGFONTW
+// directly to Meiryo rather than substituting a fallback system font on Windows
+// installations without optional Japanese supplemental fonts.
+bool IsMeiryoGdiFontInstalled() {
+    const ScopedGdiFontSelection selection(kDefaultScaledDialogueLfHeight,
+                                           kMeiryoJapaneseFaceName,
+                                           kDefaultFontWeight);
+    const std::wstring resolved = selection.ResolvedFaceName();
+    return resolved == kMeiryoJapaneseFaceName ||
+           resolved == kMeiryoEnglishFaceName;
+}
+
+std::string_view FirstSpaceDelimitedToken(std::string_view text) noexcept {
+    const std::size_t space_pos = text.find(' ');
+    if (space_pos == std::string_view::npos) {
+        return text;
+    }
+    return text.substr(0, space_pos);
+}
+
+void RunTrainSceneTwoLineGdiChecks(const GdiTextWidthMeasurer& measurer,
+                                   std::vector<std::string>& out_lines) {
+    ASSERT_TRUE(measurer.IsValid());
+
+    TranslationMap map{
+        {std::string(kTrainSceneJpSeg1), std::string(kTrainSceneEnSeg1)},
+        {std::string(kTrainSceneJpSeg2), std::string(kTrainSceneEnSeg2)},
+    };
+
+    DialogueTranslationSession session(&map, &measurer);
+    const TranslationResult r1 =
+        session.Translate(kTrainSceneJpSeg1, kDialogueMaxWchars);
+    const TranslationResult r2 =
+        session.Translate(kTrainSceneJpSeg2, kDialogueMaxWchars);
+
+    ASSERT_TRUE(r1.translated);
+    ASSERT_TRUE(r2.translated);
+    EXPECT_FALSE(r1.is_continuation);
+    EXPECT_TRUE(r2.is_continuation);
+
+    out_lines = SplitCatSystem2Lines(r1.text + r2.text);
+    ASSERT_EQ(out_lines.size(), kExpectedTwoLines);
+    ASSERT_FALSE(out_lines[kFirstLineIndex].empty());
+    ASSERT_FALSE(out_lines[kSecondLineIndex].empty());
+    EXPECT_NE(out_lines[kFirstLineIndex].front(), ' ');
+    EXPECT_NE(out_lines[kFirstLineIndex].back(), ' ');
+    EXPECT_NE(out_lines[kSecondLineIndex].front(), ' ');
+    EXPECT_NE(out_lines[kSecondLineIndex].back(), ' ');
+
+    for (const std::string& line : out_lines) {
+        const std::size_t px = measurer.MeasureSpanWidth(line);
+        EXPECT_LE(px, kDefaultMaxDialogueLineWidthPx) << line;
+        EXPECT_LE(px, kEngineTextboxPixelWidth) << line;
+    }
+
+    const std::string_view next_word =
+        FirstSpaceDelimitedToken(out_lines[kSecondLineIndex]);
+    ASSERT_FALSE(next_word.empty());
+    EXPECT_GT(
+        measurer.MeasureSpanWidth(
+            out_lines[kFirstLineIndex] + " " + std::string(next_word)),
+        kDefaultMaxDialogueLineWidthPx);
+    EXPECT_EQ(
+        out_lines[kFirstLineIndex] + " " + out_lines[kSecondLineIndex],
+        kTrainSceneExpectedFullText);
+}
+
 }  // namespace
 
 TEST(DialogueSession, SplitCatSystem2LinesPreservesLiteralBackslashBeforeN) {
@@ -270,56 +459,24 @@ TEST(DialogueSession, TrainSceneMockProportionalNeverSplitsWordsAcrossLines) {
 }
 
 TEST(DialogueSession, TrainSceneRealGdiMeiryoProducesTwoCleanLines) {
-    TranslationMap map{
-        {"\xE6\x96\xB0\xE5\xB9\xB9\xE7\xB7\x9A\xE3\x81\x8C\xE6\xAD\xA2\xE3\x81"
-         "\xBE\xE3\x82\x8B\xE3\x81\xA8\xE3\x80\x81\xE6\x96\xB0\xE3\x81\x9F\xE3"
-         "\x81\xAB\xE4\xBA\xBA\xE3\x81\x8C\xE4\xB9\x97\xE8\xBB\x8A\xE3\x81\x97"
-         "\xE3\x81\xA6\xE3\x81\x8F\xE3\x82\x8B\xE3\x80\x82",
-         "When the train stopped, new passengers began boarding."},
-        {"\\n\xE9\x99\x8D\xE3\x82\x8A\xE3\x82\x8B\xE3\x82\x88\xE3\x82\x8A\xE3"
-         "\x80\x81\xE4\xB9\x97\xE3\x82\x8B\xE4\xBA\xBA\xE3\x81\xAE\xE6\x96\xB9"
-         "\xE3\x81\x8C\xE5\xA4\x9A\xE3\x81\x84\xE3\x80\x82",
-         "\\nMore people were getting on than getting off."},
-    };
-
     const GdiTextWidthMeasurer gdi_measurer(kDefaultScaledDialogueLfHeight);
-    ASSERT_TRUE(gdi_measurer.IsValid());
+    std::vector<std::string> lines;
+    ASSERT_NO_FATAL_FAILURE(RunTrainSceneTwoLineGdiChecks(gdi_measurer, lines));
 
-    EXPECT_LE(gdi_measurer.MeasureSpanWidth(
-                  "When the train stopped, new passengers began boarding. More peopl"),
-              kEngineTextboxPixelWidth);
-    EXPECT_GT(gdi_measurer.MeasureSpanWidth(
-                  "When the train stopped, new passengers began boarding. More people"),
-              kEngineTextboxPixelWidth);
-
-    DialogueTranslationSession session(&map, &gdi_measurer);
-    const TranslationResult r1 = session.Translate(
-        "\xE6\x96\xB0\xE5\xB9\xB9\xE7\xB7\x9A\xE3\x81\x8C\xE6\xAD\xA2\xE3\x81"
-        "\xBE\xE3\x82\x8B\xE3\x81\xA8\xE3\x80\x81\xE6\x96\xB0\xE3\x81\x9F\xE3"
-        "\x81\xAB\xE4\xBA\xBA\xE3\x81\x8C\xE4\xB9\x97\xE8\xBB\x8A\xE3\x81\x97"
-        "\xE3\x81\xA6\xE3\x81\x8F\xE3\x82\x8B\xE3\x80\x82",
-        kDialogueMaxWchars);
-    const TranslationResult r2 = session.Translate(
-        "\\n\xE9\x99\x8D\xE3\x82\x8A\xE3\x82\x8B\xE3\x82\x88\xE3\x82\x8A\xE3"
-        "\x80\x81\xE4\xB9\x97\xE3\x82\x8B\xE4\xBA\xBA\xE3\x81\xAE\xE6\x96\xB9"
-        "\xE3\x81\x8C\xE5\xA4\x9A\xE3\x81\x84\xE3\x80\x82",
-        kDialogueMaxWchars);
-
-    ASSERT_TRUE(r1.translated);
-    ASSERT_TRUE(r2.translated);
-
-    const std::vector<std::string> lines = SplitCatSystem2Lines(r1.text + r2.text);
-    ASSERT_EQ(lines.size(), kExpectedTwoLines);
-    EXPECT_EQ(lines[0],
-              "When the train stopped, new passengers began boarding. More");
-    EXPECT_EQ(lines[kSingleCharStep],
-              "people were getting on than getting off.");
-
-    for (const std::string& line : lines) {
-        const std::size_t px = gdi_measurer.MeasureSpanWidth(line);
-        EXPECT_LE(px, kDefaultMaxDialogueLineWidthPx) << line;
-        EXPECT_LE(px, kEngineTextboxPixelWidth) << line;
+    if (IsMeiryoGdiFontInstalled()) {
+        EXPECT_LE(gdi_measurer.MeasureSpanWidth(kTrainSceneFitsPrefix),
+                  kEngineTextboxPixelWidth);
+        EXPECT_GT(gdi_measurer.MeasureSpanWidth(kTrainSceneOverflowsPrefix),
+                  kEngineTextboxPixelWidth);
+        EXPECT_EQ(lines[kFirstLineIndex], kTrainSceneExpectedMeiryoLine1);
+        EXPECT_EQ(lines[kSecondLineIndex], kTrainSceneExpectedMeiryoLine2);
     }
+
+    const GdiTextWidthMeasurer arial_measurer(
+        kDefaultScaledDialogueLfHeight, kArialFaceName);
+    std::vector<std::string> arial_lines;
+    ASSERT_NO_FATAL_FAILURE(
+        RunTrainSceneTwoLineGdiChecks(arial_measurer, arial_lines));
 }
 
 TEST(DialogueSession, TwoSegmentNarrationFitsInThreeLinesWithEndingIntact) {
