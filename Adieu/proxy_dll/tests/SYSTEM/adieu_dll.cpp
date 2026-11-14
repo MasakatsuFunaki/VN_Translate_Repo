@@ -335,17 +335,33 @@ TEST(ProxyDllSystem, DriverLoadsDllAndDllMainWritesBanner) {
     ASSERT_STRNE(EXPECTED_BANNER, "");
 
     const ScopedTempDir temp_dir("adieu_proxy_dll_st_");
-    const fs::path driver_dir = fs::u8path(DRIVER_EXE_PATH).parent_path();
+    const fs::path source_driver_exe = fs::u8path(DRIVER_EXE_PATH);
+    const fs::path driver_dir = source_driver_exe.parent_path();
 
-    // Ensure debug dump artifacts are absent around both CWD and driver_dir.
+    // Mirror Start.exe launching StartData/GameData/SiglusEngine.exe while
+    // inheriting CWD = StartData/: default proxy_log.txt and table lookup must
+    // resolve next to the host executable without writing into launcher CWD.
+    const fs::path launcher_cwd = temp_dir.path() / "StartData";
+    const fs::path sandbox_game_dir = launcher_cwd / "GameData";
+    std::error_code fs_ec;
+    fs::create_directories(sandbox_game_dir, fs_ec);
+    ASSERT_FALSE(fs_ec) << fs_ec.message();
+
+    const fs::path sandbox_driver_exe =
+        sandbox_game_dir / source_driver_exe.filename();
+    fs::copy_file(source_driver_exe, sandbox_driver_exe,
+                  fs::copy_options::overwrite_existing, fs_ec);
+    ASSERT_FALSE(fs_ec) << fs_ec.message();
+
+    // Ensure debug dump artifacts are absent around CWD, sandbox, and driver_dir.
     const ScopedFileRemover driver_cap_guard(driver_dir /
                                              "adieu_jp_strings.txt");
     const ScopedFileRemover driver_key_guard(driver_dir /
                                              "siglus_key_dump.txt");
 
-    // Stage a synthetic 3-row translation_table.tsv in the isolated CWD.
+    // Stage a synthetic 3-row translation_table.tsv next to the host executable.
     {
-        std::ofstream tsv(temp_dir.path() / "translation_table.tsv",
+        std::ofstream tsv(sandbox_game_dir / "translation_table.tsv",
                           std::ios::binary);
         tsv << "人見\tHitomi\n"
             << "睦　月\tMutsuki\n"
@@ -355,12 +371,13 @@ TEST(ProxyDllSystem, DriverLoadsDllAndDllMainWritesBanner) {
     const fs::path configured_log = fs::u8path(LOG_FILE_PATH);
     const fs::path active_log_path = configured_log.is_absolute()
                                          ? configured_log
-                                         : (temp_dir.path() / configured_log);
+                                         : (sandbox_game_dir / configured_log);
     const ScopedFileRemover active_log_guard(active_log_path);
 
+    const std::string sandbox_driver_utf8 = sandbox_driver_exe.u8string();
     DWORD exit_code = kSentinelExitCode;
-    ASSERT_TRUE(RunDriverExe(DRIVER_EXE_PATH, PROXY_DLL_PATH, temp_dir.path(),
-                             &exit_code))
+    ASSERT_TRUE(RunDriverExe(sandbox_driver_utf8.c_str(), PROXY_DLL_PATH,
+                             launcher_cwd, &exit_code))
         << "driver EXE failed to spawn or timed out (gle=" << ::GetLastError()
         << ")";
     EXPECT_EQ(exit_code, kCleanExitCode);
@@ -368,6 +385,11 @@ TEST(ProxyDllSystem, DriverLoadsDllAndDllMainWritesBanner) {
     const std::string log = ReadAllBytes(active_log_path);
     ASSERT_FALSE(log.empty())
         << "log file empty or missing: " << active_log_path.u8string();
+
+    if (!configured_log.is_absolute()) {
+        EXPECT_FALSE(fs::exists(launcher_cwd / configured_log))
+            << "proxy_log.txt leaked into parent launcher CWD";
+    }
 
     EXPECT_NE(log.find(EXPECTED_BANNER), std::string::npos) << log;
     EXPECT_NE(log.find("Loaded 3 entries"), std::string::npos) << log;
@@ -377,8 +399,10 @@ TEST(ProxyDllSystem, DriverLoadsDllAndDllMainWritesBanner) {
     EXPECT_NE(log.find("[Chrome] Patched "), std::string::npos) << log;
 
     // Debug capture and key-dump files must NOT be created by default.
-    EXPECT_FALSE(fs::exists(temp_dir.path() / "adieu_jp_strings.txt"));
-    EXPECT_FALSE(fs::exists(temp_dir.path() / "siglus_key_dump.txt"));
+    EXPECT_FALSE(fs::exists(launcher_cwd / "adieu_jp_strings.txt"));
+    EXPECT_FALSE(fs::exists(launcher_cwd / "siglus_key_dump.txt"));
+    EXPECT_FALSE(fs::exists(sandbox_game_dir / "adieu_jp_strings.txt"));
+    EXPECT_FALSE(fs::exists(sandbox_game_dir / "siglus_key_dump.txt"));
     EXPECT_FALSE(fs::exists(driver_dir / "adieu_jp_strings.txt"));
     EXPECT_FALSE(fs::exists(driver_dir / "siglus_key_dump.txt"));
 }

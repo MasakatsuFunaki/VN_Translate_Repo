@@ -36,3 +36,24 @@ target_compile_definitions(menu_autopatch_ct PRIVATE
     ADIEU_SOURCE_DIR="${CMAKE_SOURCE_DIR}/.."
 )
 gtest_discover_tests(menu_autopatch_ct PROPERTIES LABELS "CT")
+
+add_executable(win32_chrome_ct
+    win32_chrome_ct.cpp
+    $<TARGET_OBJECTS:win32_chrome>
+    $<TARGET_OBJECTS:chrome_text_logic>
+    $<TARGET_OBJECTS:proxy_log>
+)
+target_link_libraries(win32_chrome_ct PRIVATE
+    GTest::gtest
+    GTest::gtest_main
+    user32
+    gdi32
+    comctl32
+)
+target_include_directories(win32_chrome_ct PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+target_compile_definitions(win32_chrome_ct PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
+gtest_discover_tests(win32_chrome_ct PROPERTIES LABELS "CT")

@@ -8,7 +8,7 @@
 #pragma once
 
 // Thread-safe diagnostic logger writing timestamped UTF-8 lines to `path`
-// (defaults to L"proxy_log.txt" in the current working directory).
+// (defaults to L"proxy_log.txt" next to the host executable).
 void LogInit();
 void LogInit(const wchar_t* path);
 void LogClose();

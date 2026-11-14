@@ -15,12 +15,18 @@
 #endif
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdarg>
+#include <cstddef>
 #include <cstdio>
+#include <string>
+#include <vector>
 
 namespace {
 
 constexpr wchar_t kDefaultLogFileName[] = L"proxy_log.txt";
+constexpr DWORD kInitialPathBufferChars = MAX_PATH;
+constexpr DWORD kMaxPathBufferChars = 32768u;
 
 INIT_ONCE g_log_init_once = INIT_ONCE_STATIC_INIT;
 CRITICAL_SECTION g_log_mutex{};
@@ -53,10 +59,44 @@ private:
     CRITICAL_SECTION* cs_;
 };
 
+std::wstring ResolveDefaultLogPath() {
+    std::vector<wchar_t> buffer(kInitialPathBufferChars, L'\0');
+    DWORD len = 0u;
+
+    for (;;) {
+        ::SetLastError(ERROR_SUCCESS);
+        len = ::GetModuleFileNameW(nullptr, buffer.data(),
+                                   static_cast<DWORD>(buffer.size()));
+        if (len == 0u) {
+            return kDefaultLogFileName;
+        }
+        if (len < buffer.size() - 1u &&
+            ::GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            break;
+        }
+        if (buffer.size() >= kMaxPathBufferChars) {
+            return kDefaultLogFileName;
+        }
+        buffer.assign(
+            std::min<std::size_t>(buffer.size() * 2u, kMaxPathBufferChars),
+            L'\0');
+    }
+
+    std::wstring path(buffer.data(), len);
+    const std::size_t sep = path.find_last_of(L"\\/");
+    if (sep == std::wstring::npos) {
+        return kDefaultLogFileName;
+    }
+    path.resize(sep + 1u);
+    path.append(kDefaultLogFileName);
+    return path;
+}
+
 }  // namespace
 
 void LogInit() {
-    LogInit(kDefaultLogFileName);
+    const std::wstring default_path = ResolveDefaultLogPath();
+    LogInit(default_path.c_str());
 }
 
 void LogInit(const wchar_t* path) {
