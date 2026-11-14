@@ -49,17 +49,27 @@ std::string join(const std::vector<std::string>& v, char sep) {
 int translate_xtx_file(const std::string& filepath,
                        const std::vector<std::pair<std::string, std::string>>& translations,
                        const std::string& backup_dir, int name_field) {
-    if (!fs::exists(fs::u8path(filepath))) {
+    const fs::path live_path = fs::u8path(filepath);
+    const fs::path bak_path = fs::u8path(filepath + ".bak");
+    const std::string fname = live_path.filename().u8string();
+    const fs::path legacy_backup_path = fs::u8path(backup_dir + "\\" + fname);
+
+    std::error_code ec;
+    const bool has_bak = fs::is_regular_file(bak_path, ec);
+    const bool has_legacy_backup = fs::is_regular_file(legacy_backup_path, ec);
+    const bool has_live = fs::is_regular_file(live_path, ec);
+    if (!has_bak && !has_legacy_backup && !has_live) {
         log_info("  SKIP: " + filepath + " not found");
         return 0;
     }
 
-    const std::string fname = fs::u8path(filepath).filename().u8string();
-    const std::string backup_path = backup_dir + "\\" + fname;
-    if (!fs::exists(fs::u8path(backup_path)))
-        fs::copy_file(fs::u8path(filepath), fs::u8path(backup_path));
+    const fs::path pristine_src =
+        has_bak ? bak_path : (has_legacy_backup ? legacy_backup_path : live_path);
+    if (!has_legacy_backup) {
+        fs::copy_file(pristine_src, legacy_backup_path);
+    }
 
-    const Bytes raw = read_file(backup_path);
+    const Bytes raw = read_file(pristine_src.u8string());
     auto strict = cp932_to_utf8_strict(raw);
     const std::string content =
         strict ? *strict : cp932_to_utf8_replace(raw.data(), raw.size());

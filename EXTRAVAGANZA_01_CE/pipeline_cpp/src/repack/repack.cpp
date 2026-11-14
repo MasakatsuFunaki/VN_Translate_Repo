@@ -383,16 +383,28 @@ int run_repack(const std::string& translated_file, const std::string& spt_dir,
         }
 
         const std::string filepath = spt_dir + "\\" + fname;
-        if (!fs::exists(fs::u8path(filepath))) {
+        const fs::path live_path = fs::u8path(filepath);
+        const fs::path bak_path = fs::u8path(filepath + ".bak");
+        const fs::path legacy_backup_path = fs::u8path(backup_dir + "\\" + fname);
+
+        std::error_code ec;
+        const bool has_bak = fs::is_regular_file(bak_path, ec);
+        const bool has_legacy_backup = fs::is_regular_file(legacy_backup_path, ec);
+        const bool has_live = fs::is_regular_file(live_path, ec);
+        if (!has_bak && !has_legacy_backup && !has_live) {
             log_info("  SKIP " + fname + ": file not found");
             continue;
         }
-        const std::string backup_path = backup_dir + "\\" + fname;
-        if (!fs::exists(fs::u8path(backup_path)))
-            fs::copy_file(fs::u8path(filepath), fs::u8path(backup_path));
 
-        // ALWAYS read the pristine backup, so repacking is idempotent.
-        const Bytes dec = decrypt_spt(read_file(backup_path));
+        const fs::path pristine_src =
+            has_bak ? bak_path : (has_legacy_backup ? legacy_backup_path : live_path);
+        if (!has_legacy_backup) {
+            fs::copy_file(pristine_src, legacy_backup_path);
+        }
+
+        // Prefer <file>.bak over legacy spt_backup so repacking always starts
+        // from the pristine retail script even if spt_backup is stale.
+        const Bytes dec = decrypt_spt(read_file(pristine_src.u8string()));
 
         std::vector<std::size_t> translated_offsets;
         translated_offsets.reserve(trans_map.size());
@@ -522,11 +534,29 @@ int run_repack(const std::string& translated_file, const std::string& spt_dir,
 }
 
 int run_restore(const std::string& spt_dir, const std::string& backup_dir) {
-    if (!fs::exists(fs::u8path(backup_dir))) {
+    int restored = 0;
+    std::error_code ec;
+    if (fs::is_directory(fs::u8path(spt_dir), ec)) {
+        for (const auto& e : fs::directory_iterator(fs::u8path(spt_dir), ec)) {
+            const std::string name = e.path().filename().u8string();
+            if (name.size() < 8 || name.compare(name.size() - 8, 8, ".spt.bak") != 0) {
+                continue;
+            }
+            const std::string target_name = name.substr(0, name.size() - 4);
+            fs::copy_file(e.path(), fs::u8path(spt_dir + "\\" + target_name),
+                          fs::copy_options::overwrite_existing);
+            ++restored;
+        }
+    }
+    if (restored > 0) {
+        log_info("Restored " + std::to_string(restored) + " files from .bak backups.");
+        return 0;
+    }
+
+    if (!fs::exists(fs::u8path(backup_dir), ec)) {
         log_info("No backup found. Nothing to restore.");
         return 0;
     }
-    int restored = 0;
     for (const auto& e : fs::directory_iterator(fs::u8path(backup_dir))) {
         const std::string name = e.path().filename().u8string();
         if (name.size() < 4 || name.compare(name.size() - 4, 4, ".spt") != 0) continue;

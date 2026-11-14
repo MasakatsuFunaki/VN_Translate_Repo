@@ -3,13 +3,11 @@
 # Two binaries:
 #   extravaganza_ce_driver -- tiny fake host EXE; LoadLibrary's the proxy
 #                              so DllMain runs in a real process (writes
-#                              the banner to proxy_log.txt).
-#   extravaganza_ce_dll    -- the gtest. Spawns the driver, waits, reads
-#                              the log, asserts the banner substring.
-#
-# Per-game knobs are passed as compile-time -D defines so the gtest C++
-# source stays identical across games and CMake stays the single point
-# of variation.
+#                              the banner to proxy_log.txt and invokes
+#                              EnsureGameFilesPatched).
+#   extravaganza_ce_dll    -- the gtest. Spawns the driver inside an
+#                              isolated temporary directory, waits, reads
+#                              the log and patched sandbox files.
 
 include(GoogleTest)
 
@@ -20,9 +18,17 @@ target_compile_definitions(extravaganza_ce_driver PRIVATE
 )
 add_dependencies(extravaganza_ce_driver proxy)
 
-add_executable(extravaganza_ce_dll extravaganza_ce_dll.cpp)
+add_executable(extravaganza_ce_dll
+    extravaganza_ce_dll.cpp
+    $<TARGET_OBJECTS:patcher_logic>
+)
 target_link_libraries(extravaganza_ce_dll PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(extravaganza_ce_dll PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(extravaganza_ce_dll PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
     _CRT_SECURE_NO_WARNINGS
     PROXY_DLL_PATH="$<TARGET_FILE:proxy>"
     DRIVER_EXE_PATH="$<TARGET_FILE:extravaganza_ce_driver>"

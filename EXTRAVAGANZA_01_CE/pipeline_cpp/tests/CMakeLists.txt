@@ -14,11 +14,31 @@ function(exc_test name)
 endfunction()
 
 function(exc_ct_test name)
-    exc_labeled_test(${name} "CT")
+    add_executable(${name} ${name}.cpp ../../proxy_dll/src/menu_autopatch.cpp)
+    target_include_directories(${name} PRIVATE ../../proxy_dll/src)
+    target_compile_definitions(${name} PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        UNICODE
+        _UNICODE
+        _CRT_SECURE_NO_WARNINGS
+    )
+    target_link_libraries(${name} PRIVATE exc_core GTest::gtest GTest::gtest_main)
+    gtest_discover_tests(${name} PROPERTIES LABELS "CT")
 endfunction()
 
 function(exc_st_test name)
-    exc_labeled_test(${name} "SYSTEM")
+    add_executable(${name} ${name}.cpp ../../proxy_dll/src/menu_autopatch.cpp)
+    target_include_directories(${name} PRIVATE ../../proxy_dll/src)
+    target_compile_definitions(${name} PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        UNICODE
+        _UNICODE
+        _CRT_SECURE_NO_WARNINGS
+    )
+    target_link_libraries(${name} PRIVATE exc_core GTest::gtest GTest::gtest_main)
+    gtest_discover_tests(${name} PROPERTIES LABELS "SYSTEM")
 endfunction()
 
 exc_test(ut_spt_script)

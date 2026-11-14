@@ -23,8 +23,13 @@ namespace bj = boost::json;
 namespace fs = std::filesystem;
 
 std::string resolve_spt_dir(const std::string& game_dir) {
+    const std::string spt_dir = game_dir + "\\spt";
+    std::error_code ec;
+    if (fs::is_regular_file(fs::u8path(spt_dir + "\\01.spt.bak"), ec)) {
+        return spt_dir;
+    }
     const std::string backup = game_dir + "\\spt_backup";
-    return fs::is_directory(fs::u8path(backup)) ? backup : game_dir + "\\spt";
+    return fs::is_directory(fs::u8path(backup), ec) ? backup : spt_dir;
 }
 
 int run_extract(const std::string& spt_dir, const std::string& output_file) {
@@ -40,7 +45,11 @@ int run_extract(const std::string& spt_dir, const std::string& output_file) {
     long long total_strings = 0, total_jp = 0;
 
     for (const auto& fname : spt_files) {
-        const Bytes data = read_file(spt_dir + "\\" + fname);
+        std::error_code ec;
+        const std::string live_path = spt_dir + "\\" + fname;
+        const std::string bak_path = live_path + ".bak";
+        const Bytes data =
+            read_file(fs::is_regular_file(fs::u8path(bak_path), ec) ? bak_path : live_path);
         const Bytes dec = spt::decrypt(data);
 
         if (!spt::is_valid(dec)) {

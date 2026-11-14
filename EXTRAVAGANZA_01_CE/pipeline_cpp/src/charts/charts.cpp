@@ -305,6 +305,20 @@ int run_translate_charts(const ChartOptions& opt) {
 
     const std::vector<std::string> files = chart_files(opt.chart_dir);
 
+    auto resolve_pristine_chart = [&](const std::string& fname) -> std::string {
+        std::error_code ec;
+        const fs::path live_path = fs::u8path(opt.chart_dir + "\\" + fname);
+        const fs::path bak_path = fs::u8path(opt.chart_dir + "\\" + fname + ".bak");
+        if (fs::is_regular_file(bak_path, ec)) {
+            return bak_path.u8string();
+        }
+        const fs::path backup_path = fs::u8path(opt.backup_dir + "\\" + fname);
+        if (fs::is_regular_file(backup_path, ec)) {
+            return backup_path.u8string();
+        }
+        return live_path.u8string();
+    };
+
     // De-duplicated in first-seen order so batch composition is reproducible.
     std::vector<std::string> to_translate;
     std::set<std::string> seen;
@@ -314,7 +328,7 @@ int run_translate_charts(const ChartOptions& opt) {
     };
 
     for (const auto& fname : files) {
-        const std::string text = decode_chart(opt.chart_dir + "\\" + fname);
+        const std::string text = decode_chart(resolve_pristine_chart(fname));
         for (const auto& line : split(text, "\n")) {
             std::string prefix;
             std::vector<std::string> segments;
@@ -355,12 +369,13 @@ int run_translate_charts(const ChartOptions& opt) {
     log_info("\n--- Repacking chart files ---");
     for (const auto& fname : files) {
         const std::string filepath = opt.chart_dir + "\\" + fname;
+        const std::string pristine_path = resolve_pristine_chart(fname);
         const std::string backup_path = opt.backup_dir + "\\" + fname;
         if (!fs::exists(fs::u8path(backup_path)))
-            fs::copy_file(fs::u8path(filepath), fs::u8path(backup_path));
+            fs::copy_file(fs::u8path(pristine_path), fs::u8path(backup_path));
 
-        // Always read the pristine backup, so repacking is idempotent.
-        const std::string text = decode_chart(backup_path);
+        // Prefer <file>.bak over legacy chart_backup so repacking is idempotent.
+        const std::string text = decode_chart(pristine_path);
 
         long long changes = 0;
         std::vector<std::string> new_lines;

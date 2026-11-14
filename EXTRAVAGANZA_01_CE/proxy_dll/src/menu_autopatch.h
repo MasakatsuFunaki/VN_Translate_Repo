@@ -29,7 +29,8 @@ void XorMaskPayload(std::uint8_t* buf,
 // Ensures that all 29 target game files in `game_dir` (`16` `spt\*.spt`,
 // `8` `chart\chart1..8.fxf`, `spt\charaname.xtx`, `init2\mainControl.fxf`,
 // `init2\backlog.fxf`, `dwq\sys0.gpk`, and `dwq\sys0.gtb`) have been backed up
-// to `<file>.bak` and patched using `<game_dir>\extravaganza_patch.bin`.
+// to `<file>.bak` and patched using `<game_dir>\extravaganza_patch.bin`,
+// recording `<game_dir>\extravaganza_patch.bin.applied` for fast-path launches.
 //
 // Returns true if the game files were patched on this call or were already
 // patched on a previous launch. Returns false without modifying any game file

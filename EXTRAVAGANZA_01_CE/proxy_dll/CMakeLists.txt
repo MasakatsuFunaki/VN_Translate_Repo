@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # real C2065 compile errors on the next line. This is the standard
 # fix every MSVC project with non-ASCII source needs.
 if(MSVC)
-    add_compile_options(/utf-8)
+    add_compile_options(/utf-8 /Brepro)
 endif()
 
 # The proxy DLL must be 32-bit (EXTRAVAGANZA_CE's mushiEx_CE.exe is
@@ -84,6 +84,10 @@ set_target_properties(proxy PROPERTIES
 )
 
 target_include_directories(proxy PRIVATE src)
+
+if(MSVC)
+    target_link_options(proxy PRIVATE /BREPRO)
+endif()
 
 # --------------------------------------------------------------------
 # Install: what the user copies INTO the game folder.
