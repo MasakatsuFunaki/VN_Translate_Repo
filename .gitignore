@@ -5,7 +5,6 @@
 # release contains.  Do not add one back without meaning to ship it.
 /.ghidra_smoke/
 /.vscode/
-/Adieu/
 /docs/
 /TOOLS/
 
@@ -135,3 +134,16 @@ _specs*
 resume.md
 fraternite_hd_box_art_*.png
 *.mp4
+
+# Adieu runtime logs, backups, sentinel files, and intermediate unpacked sprites
+**/*.bak
+**/menu_patch.applied
+Adieu/adieu_jp_strings.txt
+Adieu/**/adieu_jp_strings.txt
+Adieu/**/siglus_key_dump.txt
+Adieu/**/proxy_log.txt
+Adieu/menu_assets/
+Adieu/**/g00_extracted/
+Adieu/**/g00_rendered/
+Adieu/**/contact_sheets/
+

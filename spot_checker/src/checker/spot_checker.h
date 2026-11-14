@@ -145,7 +145,11 @@ std::vector<std::pair<std::string, std::string>> parse_glossary_from_tone_md(
 
 // Extracts all translatable dialogue/narration entries from a parsed
 // translated_text.json root value (supporting both "strings" and "lines").
-std::vector<ScriptEntry> extract_script_entries(const boost::json::value& root);
+// When `tone_markdown` is provided, raw Japanese speaker tags are resolved
+// against `<name_reference>` and Markdown glossary rows.
+std::vector<ScriptEntry> extract_script_entries(
+    const boost::json::value& root,
+    const std::string& tone_markdown = {});
 
 // Builds a sliding window [offset, offset + window_size) with context_before
 // and context_after slices.

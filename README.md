@@ -33,7 +33,7 @@ All reverse engineering, runtime hook development, UI/menu translation, and LLM 
 | Kishin Hishou Demonbane | `kishin_hisho` | Shipped |
 | Oretachi ni Tsubasa wa Nai Anniversary Edition (*We Without Wings*) | `Oretachi_ni_Tsubasa_wa_Nai` | In progress |
 | Sakura no Toki | `sakuranotoki` | In progress |
-| Adieu | `Adieu` | In progress |
+| Adieu (*Sayonara o Oshiete ~comment te dire adieu~*) | `Adieu` | In progress |
 
 ## How to use (Release Zip)
 
@@ -58,6 +58,7 @@ All reverse engineering, runtime hook development, UI/menu translation, and LLM 
 | `FRATERNITE_HD` | Copy everything inside `FRATERNITE_HD\game\` into your game's install directory (press `F1` in-game to toggle EN/JP). |
 | `SakuraMoyu` (*Sakura, Moyu.*) | Copy everything inside `SakuraMoyu\game\` into your game's install directory and run `SakuraMoyu\bin\03_patch_ui.exe --game-dir "C:\path\to\game"`. |
 | `kishin_hisho` | Copy everything inside `kishin_hisho\game\` into your game's install directory, then start the game via `launch.exe`. |
+| `Adieu` (*Sayonara o Oshiete ~comment te dire adieu~*) | Copy everything inside `Adieu\game\` (`winmm.dll`, `translation_table.tsv`, and `menu_patch.bin`) into your game's **`StartData\GameData\`** folder (next to `SiglusEngine.exe`, `Scene.pck`, and `Gameexe.dat` — **not** the outer `Start.exe` launcher folder). |
 
 3. Start the game as usual.
 
