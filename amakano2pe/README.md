@@ -37,7 +37,33 @@ build\install\bin\00_run_all.exe --game-dir <install>
 |------|-----------|-------------|
 | 1 | `01_extract.exe` | Walk every CatScene script in `scene.int` → `script_output/extracted_text.json` |
 | 2 | `02_build_tsv.exe` | Speaker gate (5 checks, zero tokens), apply cached JP → EN translations, write `translation_table.tsv` |
-| 3 | `python build.py --deploy --game-dir <install>` | Copy `winmm.dll` and `translation_table.tsv` next to `cs2.exe` |
+| 3 | `03_patch_menus.exe` | Render every translated menu `.hg3` sprite and rebuild the `.fes` / `.xml` / `.kcs` / `export\*.zt` UI text, then pack them as keyless XOR-deltas into `menu_patch.bin` |
+| 4 | `python build.py --deploy --game-dir <install>` | Copy `winmm.dll`, `translation_table.tsv` and `menu_patch.bin` next to `cs2.exe` |
+
+`menu_patch.bin` is committed, so steps 1–3 are only needed after a
+translation or renderer change.  Regenerating it needs the retail archives:
+
+```batch
+build\install\bin\03_patch_menus.exe --game-dir <install>                       :: writes amakano2pe\menu_patch.bin
+build\install\bin\03_patch_menus.exe --game-dir <install> --contact-sheets <dir> :: also dump before/after PNG contact sheets
+```
+
+### Menu patch (`menu_patch.bin`)
+
+`config\startup.xml` ships with `<direct>1</direct>`, so `cs2.exe` reads loose
+files from `image\`, `fes\`, `config\`, `kcs\` and `export\` before it looks in
+the `.int` archives.  `menu_patch.bin` (`"AMK2MENU"` v1) stores each translated
+asset as a keyless XOR-delta against its original encrypted slice in the
+user's own archive, so the repository carries no game assets.
+
+On first launch `winmm.dll` takes `Local\Amakano2PeMenuPatchMutex`, checks each
+retail slice's MurmurHash2, rebuilds the translated files and writes them into
+the override folders through `.tmp` + `MoveFileExW`.  Standalone root files
+such as `boot.hg3` get a `.bak` backup first.  A `menu_patch.applied` sentinel
+makes later launches skip the work.  `image00.int`, `image01.int` and every
+other `.int` stay byte-for-byte untouched, and the window title is translated
+live, so the `%APPDATA%\あざらしそふと\アマカノ2～Perfect Edition～` save folder
+does not change.
 
 ### Step-by-step (manual)
 
@@ -70,9 +96,23 @@ cd ..\..\.. && python build.py --deploy --game-dir <install>   :: deploy winmm.d
 ## Restore Original
 
 ```batch
-:: Remove the proxy
+:: Remove the proxy, the table and the menu patch
 del "<install>\winmm.dll"
 del "<install>\translation_table.tsv"
+del "<install>\menu_patch.bin"
+del "<install>\menu_patch.applied"
 
-:: scene.int is never modified — there's no backup to restore
+:: Remove the loose menu overrides the patch wrote
+rmdir /s /q "<install>\image"
+rmdir /s /q "<install>\fes"
+rmdir /s /q "<install>\kcs"
+rmdir /s /q "<install>\export"
+:: config\ holds retail files too: delete only the overrides the patch wrote there
+
+:: Put back any standalone root file the patch replaced
+move /y "<install>\boot.hg3.bak" "<install>\boot.hg3"
 ```
+
+The `.int` archives are never modified, so there is nothing to restore in
+them.  Check that `image\`, `fes\`, `kcs\` and `export\` did not exist in the
+retail install before you delete them.

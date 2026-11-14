@@ -42,6 +42,36 @@ add_library(ama_core STATIC
     src/cache/speaker_gate.h
     src/cache/cache_core.cpp
     src/cache/cache_core.h
+    src/imaging/bgra_image.cpp
+    src/imaging/bgra_image.h
+    src/imaging/wic_image_io.cpp
+    src/imaging/wic_image_io.h
+    src/imaging/contact_sheet.cpp
+    src/imaging/contact_sheet.h
+    src/hg3/hg3_codec.cpp
+    src/hg3/hg3_codec.h
+    src/menu/core/fes_script_codec.cpp
+    src/menu/core/fes_script_codec.h
+    src/menu/core/menu_patch_container.cpp
+    src/menu/core/menu_patch_container.h
+    src/menu/core/sprite_canvas.cpp
+    src/menu/core/sprite_canvas.h
+    src/menu/domain_renderer.cpp
+    src/menu/domain_renderer.h
+    src/menu/render_config.cpp
+    src/menu/render_config.h
+    src/menu/render_hud_saveload.cpp
+    src/menu/render_hud_saveload.h
+    src/menu/render_title_dialogs.cpp
+    src/menu/render_title_dialogs.h
+    src/menu/render_map_graphs.cpp
+    src/menu/render_map_graphs.h
+    src/menu/render_extra_eyecatch.cpp
+    src/menu/render_extra_eyecatch.h
+    src/menu/render_story_items.cpp
+    src/menu/render_story_items.h
+    src/menu/ui_text_builders.cpp
+    src/menu/ui_text_builders.h
 )
 target_include_directories(ama_core PUBLIC src)
 target_compile_definitions(ama_core PUBLIC
@@ -61,6 +91,9 @@ target_link_libraries(ama_core PUBLIC
     ZLIB::ZLIB
     ws2_32
     crypt32
+    gdi32
+    ole32
+    windowscodecs
 )
 
 # --------------------------------------------------------------------
@@ -78,16 +111,17 @@ function(ama_app target main)
     target_link_libraries(${target} PRIVATE ama_core Boost::program_options shell32)
 endfunction()
 
-ama_app(00_run_all   src/apps/run_all_main.cpp)
-ama_app(01_extract   src/apps/extract_main.cpp)
-ama_app(02_build_tsv src/apps/build_tsv_main.cpp)
+ama_app(00_run_all     src/apps/run_all_main.cpp)
+ama_app(01_extract     src/apps/extract_main.cpp)
+ama_app(02_build_tsv   src/apps/build_tsv_main.cpp)
+ama_app(03_patch_menus src/apps/patch_menus_main.cpp)
 
 # --------------------------------------------------------------------
-# Install: the three executables a user runs, and nothing else.  ama_core
+# Install: the executables a user runs, and nothing else.  ama_core
 # and the test binaries exist to produce these and stay in the build tree.
 # Every dependency is a static library, so there is no runtime to carry.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_build_tsv
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_patch_menus
         RUNTIME DESTINATION bin)
 
 

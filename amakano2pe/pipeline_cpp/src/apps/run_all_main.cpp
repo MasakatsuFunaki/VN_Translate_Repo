@@ -101,6 +101,26 @@ bool deploy(const std::string& project, const std::string& game) {
         log_info("  WARN: translation_table.tsv not in the game folder -- "
                  "02_build_tsv writes it there.");
     }
+
+    fs::path patch_bin;
+    for (const auto& candidate : {project + "\\menu_patch.bin",
+                                  project + "\\build\\install\\game\\menu_patch.bin",
+                                  apps::exe_dir() + "\\..\\game\\menu_patch.bin"}) {
+        std::error_code patch_ec;
+        if (fs::exists(fs::u8path(candidate), patch_ec)) {
+            patch_bin = fs::u8path(candidate);
+            break;
+        }
+    }
+    if (!patch_bin.empty()) {
+        fs::copy_file(patch_bin, fs::u8path(game + "\\menu_patch.bin"),
+                      fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            log_info("[ERROR] copying menu_patch.bin failed (" + ec.message() + ")");
+            return false;
+        }
+        log_info("  menu_patch.bin -> " + game);
+    }
     return true;
 }
 

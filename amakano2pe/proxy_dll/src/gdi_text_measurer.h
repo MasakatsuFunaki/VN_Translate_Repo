@@ -138,7 +138,7 @@ class GdiTextWidthMeasurer final : public translator_logic::TextWidthMeasurer {
 public:
     explicit GdiTextWidthMeasurer(
         int initial_lf_height = kDefaultScaledDialogueLfHeight,
-        std::wstring_view face_name = L"\u30E1\u30A4\u30EA\u30AA",
+        std::wstring_view face_name = L"メイリオ",
         long font_weight = kDefaultFontWeight);
     ~GdiTextWidthMeasurer() override;
 
