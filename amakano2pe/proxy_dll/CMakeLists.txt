@@ -36,9 +36,77 @@ option(ENABLE_TESTS "Build the Google Test suite for translator_logic" ON)
 add_library(translator_logic OBJECT
     src/translator_logic.cpp
     src/translator_logic.h
+    src/ui_text_lookup.cpp
+    src/ui_text_lookup.h
+    src/chrome_text_logic.cpp
+    src/chrome_text_logic.h
 )
 target_include_directories(translator_logic PUBLIC src)
 target_compile_definitions(translator_logic PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
+
+# --------------------------------------------------------------------
+# menu_patch_format: pure (OS-independent) "AMK2MENU" container parser,
+# MurmurHash2, XOR unmasker, relative-path validator and applied-sentinel
+# codec. Shared by the proxy DLL and the auto-patcher unit tests.
+# --------------------------------------------------------------------
+add_library(menu_patch_format OBJECT
+    src/menu_patch_format.cpp
+    src/menu_patch_format.h
+)
+target_include_directories(menu_patch_format PUBLIC src)
+target_compile_definitions(menu_patch_format PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
+
+# --------------------------------------------------------------------
+# proxy_log: thread-safe diagnostic file logger.
+# --------------------------------------------------------------------
+add_library(proxy_log OBJECT
+    src/log.cpp
+    src/log.h
+)
+target_include_directories(proxy_log PUBLIC src)
+target_compile_definitions(proxy_log PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
+    _CRT_SECURE_NO_WARNINGS
+)
+
+# --------------------------------------------------------------------
+# menu_autopatch: Win32 first-launch extractor that reconstructs loose
+# <direct>1</direct> override files from <GameDir>\menu_patch.bin.
+# --------------------------------------------------------------------
+add_library(menu_autopatch OBJECT
+    src/menu_autopatch.cpp
+    src/menu_autopatch.h
+)
+target_include_directories(menu_autopatch PUBLIC src)
+target_compile_definitions(menu_autopatch PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
+    _CRT_SECURE_NO_WARNINGS
+)
+
+# --------------------------------------------------------------------
+# win32_chrome: import-table hooks that show the English window title
+# while startup.xml keeps the Japanese <title> the save folder needs.
+# --------------------------------------------------------------------
+add_library(win32_chrome OBJECT
+    src/win32_chrome.cpp
+    src/win32_chrome.h
+)
+target_include_directories(win32_chrome PUBLIC src)
+target_compile_definitions(win32_chrome PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    UNICODE
+    _UNICODE
     _CRT_SECURE_NO_WARNINGS
 )
 
@@ -64,8 +132,6 @@ target_compile_definitions(gdi_text_measurer PRIVATE
 # --------------------------------------------------------------------
 add_library(proxy SHARED
     src/dllmain.cpp
-    src/log.cpp
-    src/log.h
     src/proxy.cpp
     src/proxy.h
     src/translator.cpp
@@ -73,9 +139,13 @@ add_library(proxy SHARED
     src/winmm.def
     $<TARGET_OBJECTS:translator_logic>
     $<TARGET_OBJECTS:gdi_text_measurer>
+    $<TARGET_OBJECTS:menu_patch_format>
+    $<TARGET_OBJECTS:proxy_log>
+    $<TARGET_OBJECTS:menu_autopatch>
+    $<TARGET_OBJECTS:win32_chrome>
 )
 
-target_link_libraries(proxy PRIVATE gdi32)
+target_link_libraries(proxy PRIVATE gdi32 user32)
 
 target_compile_definitions(proxy PRIVATE
     WIN32_LEAN_AND_MEAN

@@ -12,6 +12,8 @@
 // Everything here is free of Win32 / GDI / hook / trampoline dependencies so
 // the same object code links into both the proxy DLL and GoogleTest binaries.
 
+#include "ui_text_lookup.h"
+
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -130,6 +132,7 @@ struct TranslationResult {
     bool translated = false;
     bool deduplicated = false;
     bool is_speaker_name = false;
+    bool is_ui_text = false;
     bool is_continuation = false;
     bool truncated = false;
     std::size_t start_width = 0;

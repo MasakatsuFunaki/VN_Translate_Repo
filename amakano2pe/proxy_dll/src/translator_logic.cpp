@@ -7,6 +7,8 @@
 
 #include "translator_logic.h"
 
+#include "ui_text_lookup.h"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -999,110 +1001,110 @@ std::size_t WordWrapForEngine(std::string& s, std::size_t line_chars,
 // `MESSAGE` strings.
 const SpeakerKeySet& DefaultSpeakerNameKeys() {
     static const SpeakerKeySet* const kKeys = new SpeakerKeySet{
-        "\xE3\x81\x8A\xE3\x81\x98\xE3\x81\x95\xE3\x82\x93",  // おじさん -> Uncle
-        "\xE3\x81\x8A\xE3\x81\xB0\xE3\x81\x82\xE3\x81\x95\xE3\x82\x93",  // おばあさん -> Grandmother
-        "\xE3\x81\x8A\xE3\x81\xB0\xE3\x81\x95\xE3\x82\x93",  // おばさん -> Aunt
-        "\xE3\x81\x8A\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93",  // お客さん -> Customer
-        "\xE3\x81\x93\xE3\x81\xAF\xE3\x82\x8B\xEF\xBC\xA0\xE5\xBA\x97\xE5\x93\xA1\xE3\x81\x95\xE3\x82\x93",  // こはる＠店員さん -> Koharu (Clerk)
-        "\xE3\x81\x93\xE3\x81\xAF\xE3\x82\x8B\xEF\xBC\xA0\xE8\xA6\xB3\xE5\x85\x89\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA2",  // こはる＠観光客さんＢ -> Koharu (Tourist B)
-        "\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B",  // ちとせ -> Chitose
-        "\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B\xEF\xBC\x86$str20",  // ちとせ＆$str20 -> Chitose & $str20
-        "\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B\xEF\xBC\x86\xE8\xB3\xA2\xE4\xB8\x80",  // ちとせ＆賢一 -> Chitose & Kenichi
-        "\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B\xEF\xBC\xA0\xE4\xBA\x8C\xE4\xBA\xBA",  // ちとせ＠二人 -> Chitose (Both)
-        "\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B\xEF\xBC\xA0\xEF\xBC\x9F\xEF\xBC\x9F\xEF\xBC\x9F",  // ちとせ＠？？？ -> Chitose (???)
-        "\xE3\x82\x86\xE3\x81\x86\xE3\x81\xB2",  // ゆうひ -> Yuuhi
-        "\xE3\x82\xB8\xE3\x83\xA3\xE3\x83\x83\xE3\x82\xAF",  // ジャック -> Jack
-        "\xE3\x82\xBE\xE3\x83\xB3\xE3\x83\x93",  // ゾンビ -> Zombie
-        "\xE3\x83\x97\xE3\x83\xAA\xE3\x83\xB3\xE3\x83\x88\xE6\xA9\x9F",  // プリント機 -> Printer
-        "\xE3\x83\x9E\xE3\x82\xB9\xE3\x82\xBF\xE3\x83\xBC",  // マスター -> Master
-        "\xE4\xB8\x89\xE4\xBA\xBA",  // 三人 -> Three of Them
-        "\xE5\x89\xAF\xE9\x83\xA8\xE9\x95\xB7",  // 副部長 -> Vice President
-        "\xE5\x89\xAF\xE9\x83\xA8\xE9\x95\xB7\xEF\xBC\xA0\xE8\x8C\x89\xE8\x8E\x89",  // 副部長＠茉莉 -> Vice President (Mari)
-        "\xE5\x90\xB8\xE8\xA1\x80\xE9\xAC\xBC",  // 吸血鬼 -> Vampire
-        "\xE5\x9B\xBD\xE8\xAA\x9E\xE6\x95\x99\xE5\xB8\xAB",  // 国語教師 -> Japanese Teacher
-        "\xE5\xA5\x8F\xEF\xBC\xA0\xE8\xA6\xB3\xE5\x85\x89\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA1",  // 奏＠観光客さんＡ -> Kanade (Tourist A)
-        "\xE5\xA5\x8F\xEF\xBC\xA0\xE8\xA6\xB3\xE5\x85\x89\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA2",  // 奏＠観光客さんＢ -> Kanade (Tourist B)
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE4\xB8\x8B\xE7\xB4\x9A\xE7\x94\x9F\xEF\xBC\xA1",  // 女子下級生Ａ -> Female Underclassman A
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE4\xB8\x8B\xE7\xB4\x9A\xE7\x94\x9F\xEF\xBC\xA2",  // 女子下級生Ｂ -> Female Underclassman B
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE4\xB8\x8B\xE7\xB4\x9A\xE7\x94\x9F\xEF\xBC\xA3",  // 女子下級生Ｃ -> Female Underclassman C
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE4\xB8\x8B\xE7\xB4\x9A\xE7\x94\x9F\xEF\xBC\xA4",  // 女子下級生Ｄ -> Female Underclassman D
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\x85\x88\xE8\xBC\xA9\xEF\xBC\xA1",  // 女子先輩Ａ -> Female Senior A
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\x85\x88\xE8\xBC\xA9\xEF\xBC\xA2",  // 女子先輩Ｂ -> Female Senior B
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F",  // 女子学生 -> Female Student
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xE3\x81\x9F\xE3\x81\xA1",  // 女子学生たち -> Female Students
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xEF\xBC\xA1",  // 女子学生Ａ -> Female Student A
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xEF\xBC\xA2",  // 女子学生Ｂ -> Female Student B
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xEF\xBC\xA3",  // 女子学生Ｃ -> Female Student C
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xEF\xBC\xA4",  // 女子学生Ｄ -> Female Student D
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE9\x83\xA8\xE5\x93\xA1\xE3\x81\x9F\xE3\x81\xA1",  // 女子部員たち -> Female Club Members
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE9\x83\xA8\xE5\x93\xA1\xEF\xBC\xA1",  // 女子部員Ａ -> Female Club Member A
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE9\x83\xA8\xE5\x93\xA1\xEF\xBC\xA2",  // 女子部員Ｂ -> Female Club Member B
-        "\xE5\xA5\xB3\xE5\xAD\x90\xE9\x83\xA8\xE5\x93\xA1\xEF\xBC\xA3",  // 女子部員Ｃ -> Female Club Member C
-        "\xE5\xA5\xB3\xE5\xB0\x86\xE3\x81\x95\xE3\x82\x93",  // 女将さん -> Hostess
-        "\xE5\xA5\xB3\xE5\xB0\x86\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA0\xE3\x81\x8A\xE3\x81\xB0\xE3\x81\x82\xE3\x81\x95\xE3\x82\x93",  // 女将さん＠おばあさん -> Hostess (Grandmother)
-        "\xE5\xA5\xB3\xE6\x80\xA7\xE4\xBF\xB3\xE5\x84\xAA",  // 女性俳優 -> Female Actress
-        "\xE5\xA5\xB3\xE6\x80\xA7\xE5\xAE\xA2",  // 女性客 -> Female Customer
-        "\xE5\xAD\xA6\xE7\x94\x9F\xE3\x81\x9F\xE3\x81\xA1",  // 学生たち -> Students
-        "\xE5\xAF\xB6\xE6\xB3\x89\xE8\xB7\xAF",  // 寶泉路 -> Housenji
-        "\xE5\xAF\xB6\xE6\xB3\x89\xE8\xB7\xAF\xEF\xBC\xA0\xEF\xBC\x9F\xEF\xBC\x9F\xEF\xBC\x9F",  // 寶泉路＠？？？ -> Housenji (???)
-        "\xE5\xB0\x91\xE5\xA5\xB3",  // 少女 -> Girl
-        "\xE5\xB0\x91\xE5\xB9\xB4",  // 少年 -> Boy
-        "\xE5\xBA\x97\xE5\x93\xA1\xE3\x81\x95\xE3\x82\x93",  // 店員さん -> Clerk
-        "\xE6\x8B\x85\xE4\xBB\xBB",  // 担任 -> Homeroom Teacher
-        "\xE6\x94\xBE\xE9\x80\x81",  // 放送 -> Broadcast
-        "\xE6\x95\x99\xE5\x93\xA1",  // 教員 -> Teacher
-        "\xE6\x95\xB0\xE5\xAD\xA6\xE6\x95\x99\xE5\xB8\xAB",  // 数学教師 -> Math Teacher
-        "\xE6\x97\xA6\xE9\x82\xA3\xE3\x81\x95\xE3\x82\x93",  // 旦那さん -> Husband
-        "\xE6\xAD\xB4\xE5\x8F\xB2\xE6\x95\x99\xE5\xB8\xAB",  // 歴史教師 -> History Teacher
-        "\xE6\xAF\x8D\xE3\x81\x95\xE3\x82\x93",  // 母さん -> Mom
-        "\xE6\xB6\x99\xE9\xA6\x99\xEF\xBC\xA0\xE8\xA6\xB3\xE5\x85\x89\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA1",  // 涙香＠観光客さんＡ -> Ruika (Tourist A)
-        "\xE6\xB7\xB5\xE4\xB8\x8A",  // 淵上 -> Fuchinoe
-        "\xE6\xB7\xB5\xE4\xB8\x8A\xEF\xBC\xA0\xEF\xBC\x9F\xEF\xBC\x9F\xEF\xBC\x9F",  // 淵上＠？？？ -> Fuchinoe (???)
-        "\xE7\x8C\xAB",  // 猫 -> Cat
-        "\xE7\x8E\xB2",  // 玲 -> Rei
-        "\xE7\x8E\xB2\xE3\x81\xAE\xE7\x88\xB6",  // 玲の父 -> Rei's Father
-        "\xE7\x8E\xB2\xEF\xBC\xA0\xE3\x81\x8A\xE3\x81\xB0\xE3\x81\x91",  // 玲＠おばけ -> Rei (Ghost)
-        "\xE7\x8E\xB2\xEF\xBC\xA0\xE7\x8E\xB2\xE3\x81\xAE\xE5\xA3\xB0",  // 玲＠玲の声 -> Rei (Rei's Voice)
-        "\xE7\x8E\xB2\xEF\xBC\xA0\xE9\x9D\x99\xE3\x81\x8B\xE3\x81\xAA\xE5\xA3\xB0",  // 玲＠静かな声 -> Rei (Quiet Voice)
-        "\xE7\x8E\xB2\xEF\xBC\xA0\xEF\xBC\x9F\xEF\xBC\x9F\xEF\xBC\x9F",  // 玲＠？？？ -> Rei (???)
-        "\xE7\x94\xB7\xE3\x81\xAE\xE5\xAD\x90",  // 男の子 -> Boy
-        "\xE7\x94\xB7\xE3\x81\xAE\xE5\xAD\x90\xE3\x81\xAE\xE6\xAF\x8D",  // 男の子の母 -> Boy's Mother
-        "\xE7\x94\xB7\xE3\x81\xAE\xE5\xAD\x90\xE3\x81\xAE\xE6\xAF\x8D\xE8\xA6\xAA",  // 男の子の母親 -> Boy's Mother
-        "\xE7\x94\xB7\xE3\x81\xAE\xE5\xAD\x90\xE3\x81\xAE\xE7\x88\xB6\xE8\xA6\xAA",  // 男の子の父親 -> Boy's Father
-        "\xE7\x94\xB7\xE5\xAD\x90\xE4\xB8\x8B\xE7\xB4\x9A\xE7\x94\x9F\xEF\xBC\xA1",  // 男子下級生Ａ -> Male Underclassman A
-        "\xE7\x94\xB7\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F",  // 男子学生 -> Male Student
-        "\xE7\x94\xB7\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xEF\xBC\xA1",  // 男子学生Ａ -> Male Student A
-        "\xE7\x94\xB7\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xEF\xBC\xA2",  // 男子学生Ｂ -> Male Student B
-        "\xE7\x94\xB7\xE5\xAD\x90\xE5\xAD\xA6\xE7\x94\x9F\xEF\xBC\xA3",  // 男子学生Ｃ -> Male Student C
-        "\xE7\x94\xB7\xE6\x80\xA7",  // 男性 -> Man
-        "\xE7\x94\xB7\xE6\x80\xA7\xE4\xBF\xB3\xE5\x84\xAA",  // 男性俳優 -> Male Actor
-        "\xE7\x94\xB7\xE6\x80\xA7\xE5\xAE\xA2",  // 男性客 -> Male Customer
-        "\xE7\xA4\xBE\xE4\xBC\x9A\xE6\x95\x99\xE5\xB8\xAB",  // 社会教師 -> Social Studies Teacher
-        "\xE7\xA4\xBE\xE4\xBC\x9A\xE7\xA7\x91\xE6\x95\x99\xE5\xB8\xAB",  // 社会科教師 -> Social Studies Teacher
-        "\xE7\xA9\x82\xE6\xB3\xA2\xEF\xBC\xA0\xE3\x81\x8A\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA2",  // 穂波＠お客さんＢ -> Honami (Customer B)
-        "\xE7\xA9\x82\xE6\xB3\xA2\xEF\xBC\xA0\xE8\xA6\xB3\xE5\x85\x89\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA1",  // 穂波＠観光客さんＡ -> Honami (Tourist A)
-        "\xE7\xB4\x97\xE9\x9B\xAA\xEF\xBC\xA0\xE5\xB7\xAB\xE5\xA5\xB3\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA1",  // 紗雪＠巫女さんＡ -> Sayuki (Shrine Maiden A)
-        "\xE7\xB4\x97\xE9\x9B\xAA\xEF\xBC\xA0\xE8\xA6\xB3\xE5\x85\x89\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA2",  // 紗雪＠観光客さんＢ -> Sayuki (Tourist B)
-        "\xE7\xB5\x90\xE7\x81\xAF",  // 結灯 -> Yuuhi
-        "\xE7\xB5\x90\xE7\x81\xAF\xE3\x81\xAE\xE7\x88\xB6",  // 結灯の父 -> Yuuhi's Father
-        "\xE7\xB5\x90\xE7\x81\xAF\xE3\x81\xAE\xE7\x88\xB6\xEF\xBC\xA0\xEF\xBC\x9F\xEF\xBC\x9F\xEF\xBC\x9F",  // 結灯の父＠？？？ -> Yuuhi's Father (???)
-        "\xE7\xB5\x90\xE7\x81\xAF\xEF\xBC\xA0\xE5\xB0\x91\xE5\xA5\xB3",  // 結灯＠少女 -> Yuuhi (Girl)
-        "\xE7\xB5\x90\xE7\x81\xAF\xEF\xBC\xA0\xE5\xBA\x97\xE5\x93\xA1\xE3\x81\x95\xE3\x82\x93",  // 結灯＠店員さん -> Yuuhi (Clerk)
-        "\xE7\xB5\x90\xE7\x81\xAF\xEF\xBC\xA0\xE5\xBA\x97\xE5\x93\xA1\xE3\x81\x95\xE3\x82\x93\xE3\x81\xAE\xE5\xA3\xB0",  // 結灯＠店員さんの声 -> Yuuhi (Clerk's Voice)
-        "\xE7\xB5\x90\xE7\x81\xAF\xEF\xBC\xA0\xEF\xBC\x9F\xEF\xBC\x9F\xEF\xBC\x9F",  // 結灯＠？？？ -> Yuuhi (???)
-        "\xE8\x81\x96\xEF\xBC\xA0\xE3\x81\x8A\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA1",  // 聖＠お客さんＡ -> Mizuki (Customer A)
-        "\xE8\x81\x96\xEF\xBC\xA0\xE8\xA6\xB3\xE5\x85\x89\xE5\xAE\xA2\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA2",  // 聖＠観光客さんＢ -> Mizuki (Tourist B)
-        "\xE8\x8B\xB1\xE8\xAA\x9E\xE6\x95\x99\xE5\xB8\xAB",  // 英語教師 -> English Teacher
-        "\xE8\xAA\xB0\xE3\x81\x8B\xE3\x81\xAE\xE5\xA3\xB0",  // 誰かの声 -> Someone's Voice
-        "\xE8\xB3\xA2\xE4\xB8\x80",  // 賢一 -> Kenichi
-        "\xE8\xBF\xB7\xE5\xAD\x90\xE3\x81\xAE\xE5\xA5\xB3\xE3\x81\xAE\xE5\xAD\x90",  // 迷子の女の子 -> Lost Girl
-        "\xE9\x80\x9A\xE8\xA1\x8C\xE4\xBA\xBA\xEF\xBC\xA1",  // 通行人Ａ -> Passerby A
-        "\xE9\x80\x9A\xE8\xA1\x8C\xE4\xBA\xBA\xEF\xBC\xA2",  // 通行人Ｂ -> Passerby B
-        "\xE9\x80\x9A\xE8\xA1\x8C\xE4\xBA\xBA\xEF\xBC\xA3",  // 通行人Ｃ -> Passerby C
-        "\xE9\x80\x9A\xE8\xA1\x8C\xE4\xBA\xBA\xEF\xBC\xA4",  // 通行人Ｄ -> Passerby D
-        "\xE9\x83\xA8\xE5\x93\xA1\xE3\x81\x9F\xE3\x81\xA1",  // 部員たち -> Club Members
-        "\xE9\x9B\xAA\xE9\x9D\x99\xEF\xBC\xA0\xE5\xB7\xAB\xE5\xA5\xB3\xE3\x81\x95\xE3\x82\x93\xEF\xBC\xA2",  // 雪静＠巫女さんＢ -> Yuzuka (Shrine Maiden B)
-        "\xEF\xBC\x9F\xEF\xBC\x9F\xEF\xBC\x9F",  // ？？？ -> ???
+        "おじさん",  // Uncle
+        "おばあさん",  // Grandmother
+        "おばさん",  // Aunt
+        "お客さん",  // Customer
+        "こはる＠店員さん",  // Koharu (Clerk)
+        "こはる＠観光客さんＢ",  // Koharu (Tourist B)
+        "ちとせ",  // Chitose
+        "ちとせ＆$str20",  // Chitose & $str20
+        "ちとせ＆賢一",  // Chitose & Kenichi
+        "ちとせ＠二人",  // Chitose (Both)
+        "ちとせ＠？？？",  // Chitose (???)
+        "ゆうひ",  // Yuuhi
+        "ジャック",  // Jack
+        "ゾンビ",  // Zombie
+        "プリント機",  // Printer
+        "マスター",  // Master
+        "三人",  // Three of Them
+        "副部長",  // Vice President
+        "副部長＠茉莉",  // Vice President (Mari)
+        "吸血鬼",  // Vampire
+        "国語教師",  // Japanese Teacher
+        "奏＠観光客さんＡ",  // Kanade (Tourist A)
+        "奏＠観光客さんＢ",  // Kanade (Tourist B)
+        "女子下級生Ａ",  // Female Underclassman A
+        "女子下級生Ｂ",  // Female Underclassman B
+        "女子下級生Ｃ",  // Female Underclassman C
+        "女子下級生Ｄ",  // Female Underclassman D
+        "女子先輩Ａ",  // Female Senior A
+        "女子先輩Ｂ",  // Female Senior B
+        "女子学生",  // Female Student
+        "女子学生たち",  // Female Students
+        "女子学生Ａ",  // Female Student A
+        "女子学生Ｂ",  // Female Student B
+        "女子学生Ｃ",  // Female Student C
+        "女子学生Ｄ",  // Female Student D
+        "女子部員たち",  // Female Club Members
+        "女子部員Ａ",  // Female Club Member A
+        "女子部員Ｂ",  // Female Club Member B
+        "女子部員Ｃ",  // Female Club Member C
+        "女将さん",  // Hostess
+        "女将さん＠おばあさん",  // Hostess (Grandmother)
+        "女性俳優",  // Female Actress
+        "女性客",  // Female Customer
+        "学生たち",  // Students
+        "寶泉路",  // Housenji
+        "寶泉路＠？？？",  // Housenji (???)
+        "少女",  // Girl
+        "少年",  // Boy
+        "店員さん",  // Clerk
+        "担任",  // Homeroom Teacher
+        "放送",  // Broadcast
+        "教員",  // Teacher
+        "数学教師",  // Math Teacher
+        "旦那さん",  // Husband
+        "歴史教師",  // History Teacher
+        "母さん",  // Mom
+        "涙香＠観光客さんＡ",  // Ruika (Tourist A)
+        "淵上",  // Fuchinoe
+        "淵上＠？？？",  // Fuchinoe (???)
+        "猫",  // Cat
+        "玲",  // Rei
+        "玲の父",  // Rei's Father
+        "玲＠おばけ",  // Rei (Ghost)
+        "玲＠玲の声",  // Rei (Rei's Voice)
+        "玲＠静かな声",  // Rei (Quiet Voice)
+        "玲＠？？？",  // Rei (???)
+        "男の子",  // Boy
+        "男の子の母",  // Boy's Mother
+        "男の子の母親",  // Boy's Mother
+        "男の子の父親",  // Boy's Father
+        "男子下級生Ａ",  // Male Underclassman A
+        "男子学生",  // Male Student
+        "男子学生Ａ",  // Male Student A
+        "男子学生Ｂ",  // Male Student B
+        "男子学生Ｃ",  // Male Student C
+        "男性",  // Man
+        "男性俳優",  // Male Actor
+        "男性客",  // Male Customer
+        "社会教師",  // Social Studies Teacher
+        "社会科教師",  // Social Studies Teacher
+        "穂波＠お客さんＢ",  // Honami (Customer B)
+        "穂波＠観光客さんＡ",  // Honami (Tourist A)
+        "紗雪＠巫女さんＡ",  // Sayuki (Shrine Maiden A)
+        "紗雪＠観光客さんＢ",  // Sayuki (Tourist B)
+        "結灯",  // Yuuhi
+        "結灯の父",  // Yuuhi's Father
+        "結灯の父＠？？？",  // Yuuhi's Father (???)
+        "結灯＠少女",  // Yuuhi (Girl)
+        "結灯＠店員さん",  // Yuuhi (Clerk)
+        "結灯＠店員さんの声",  // Yuuhi (Clerk's Voice)
+        "結灯＠？？？",  // Yuuhi (???)
+        "聖＠お客さんＡ",  // Mizuki (Customer A)
+        "聖＠観光客さんＢ",  // Mizuki (Tourist B)
+        "英語教師",  // English Teacher
+        "誰かの声",  // Someone's Voice
+        "賢一",  // Kenichi
+        "迷子の女の子",  // Lost Girl
+        "通行人Ａ",  // Passerby A
+        "通行人Ｂ",  // Passerby B
+        "通行人Ｃ",  // Passerby C
+        "通行人Ｄ",  // Passerby D
+        "部員たち",  // Club Members
+        "雪静＠巫女さんＢ",  // Yuzuka (Shrine Maiden B)
+        "？？？",  // ???
     };
     return *kKeys;
 }
@@ -1193,15 +1195,25 @@ TranslationResult DialogueTranslationSession::Translate(
     if (impl_->speaker_name_keys.count(key) > 0 &&
         max_wchars <= impl_->config.max_speaker_wchars) {
         const std::string* en = FindTranslation(*impl_->translations, key);
-        if (en == nullptr) {
+        if (en != nullptr) {
+            const std::size_t keep = Utf8SafeTruncateForWideLimit(
+                *en, impl_->config.max_output_bytes, max_wchars);
+            result.translated = true;
+            result.is_speaker_name = true;
+            result.truncated = keep < en->size();
+            result.text.assign(en->data(), keep);
             return result;
         }
+    }
+
+    if (const auto ui_en = LookupStatelessUiText(src); ui_en.has_value()) {
         const std::size_t keep = Utf8SafeTruncateForWideLimit(
-            *en, impl_->config.max_output_bytes, max_wchars);
+            *ui_en, impl_->config.max_output_bytes, max_wchars);
         result.translated = true;
-        result.is_speaker_name = true;
-        result.truncated = keep < en->size();
-        result.text.assign(en->data(), keep);
+        result.is_ui_text = true;
+        result.truncated = keep < ui_en->size();
+        result.text.assign(ui_en->data(), keep);
+        StripDanglingTrailingBackslash(result.text);
         return result;
     }
 

@@ -320,3 +320,30 @@ TEST(Cs2Archive, rejects_bad_signature) {
     write_file(path, bad);
     EXPECT_THROW(cs2::KifArchive{path}, std::runtime_error);
 }
+
+TEST(Cs2Archive, kif_v3_name_cipher_round_trip_and_slice_reader) {
+    const cs2::KifNameCipher cipher("NXT-76BPQ5YD");
+    const std::string plain_name = "sys_config_basic.hg3";
+    constexpr std::uint32_t kEntryIdx = 1;
+    const std::string obfuscated = cipher.encode(plain_name, kEntryIdx);
+    EXPECT_NE(obfuscated, plain_name);
+    EXPECT_EQ(cipher.decode(obfuscated, kEntryIdx), plain_name);
+
+    const ScopedTempDir temp("ama_ut_cs2_v3_slice");
+    const Bytes cst = make_catscene({{kKindMessage, utf8_to_cp932_replace("テスト")}});
+    const Bytes kif = make_kif(obfuscated, cst, kSeed12345);
+    const std::string path = (temp.path() / "image01.int").u8string();
+    write_file(path, kif);
+
+    const cs2::KifArchive arc(path, cipher);
+    ASSERT_EQ(arc.entries().size(), 1u);
+    EXPECT_EQ(arc.entries()[0].name, plain_name);
+    EXPECT_EQ(arc.entries()[0].index, kEntryIdx);
+    ASSERT_NE(arc.find("SYS_CONFIG_BASIC.HG3"), nullptr);
+
+    const Bytes raw_slice = cs2::read_kif_raw_slice(
+        path, arc.entries()[0].offset, arc.entries()[0].length);
+    EXPECT_EQ(raw_slice, arc.raw_slice(arc.entries()[0]));
+    const Bytes decrypted = arc.decrypt_slice(raw_slice);
+    EXPECT_EQ(decrypted, cst);
+}

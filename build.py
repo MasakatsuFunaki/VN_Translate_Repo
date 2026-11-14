@@ -174,6 +174,7 @@ def collect(game):
                       f"{os.path.relpath(game_dir, ROOT)}")
                 return False
         elif game in (
+            "amakano2pe",
             "shingakkou",
             "EXTRAVAGANZA_02_MUSHIGURUI_HD10",
             "EXTRAVAGANZA_03_MATSURO_CE",

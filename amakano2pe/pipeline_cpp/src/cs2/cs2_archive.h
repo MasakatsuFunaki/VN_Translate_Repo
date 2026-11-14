@@ -33,33 +33,86 @@ std::uint32_t mt_genrand(std::uint32_t seed);
 // ---- KIF archive (.int) ----------------------------------------------------
 //
 // Header: 4-byte signature "KIF\0" + uint32 entry_count
-// Entries (v2): 64-byte name (cp932, null-padded) + uint32 offset +
+// Entries: 64-byte name (cp932, null-padded) + uint32 offset +
 //   uint32 length = 72 bytes per entry.
 // The first entry is "__key__.dat" -- its `length` field is the MT19937 seed
 // used to derive the Blowfish key.  All subsequent entries have their
 // (offset+index, length) pair Blowfish-decrypted as an LR block, and their
 // payloads are Blowfish-decrypted 8 bytes at a time.
+//
+// Names of encrypted entries are additionally obfuscated by a per-entry
+// alphabet rotation keyed on the executable's V_CODE2 string (KifNameCipher).
+// Opening an archive without a cipher keeps the stored (obfuscated) names,
+// which is all scene extraction needs.
 
 struct KifEntry {
     std::string name;
     std::uint32_t offset = 0;
     std::uint32_t length = 0;
+    std::uint32_t index = 0;  // position in the archive's entry table
 };
+
+// Per-entry filename rotation.  Letters of an encrypted name are rotated
+// through a 52-symbol alphabet by a shift seeded from the entry index and a
+// CRC-style hash of the V_CODE2 string; every other byte is kept.
+//
+// A small value type: copy freely.
+class KifNameCipher {
+public:
+    explicit KifNameCipher(const std::string& vcode2);
+
+    // Decodes stored name bytes (up to the first NUL) of the entry at table
+    // position `entry_index`.
+    std::string decode(const std::string& stored, std::uint32_t entry_index) const;
+
+    // Inverse of decode().
+    std::string encode(const std::string& plain, std::uint32_t entry_index) const;
+
+    std::uint32_t toc_seed() const { return toc_seed_; }
+
+private:
+    std::uint32_t toc_seed_ = 0;
+};
+
+// The V_CODE2 string embedded in a CatSystem2 executable: resource
+// DATA/"V_CODE2" Blowfish-decrypted with resource KEY/"KEY_CODE" (each byte
+// xor 0xCD).  Throws std::runtime_error when the resources are missing.
+std::string read_vcode2_from_exe(const std::string& exe_path);
+
+// Reads `length` raw (still encrypted) bytes at `offset` of any file with a
+// single seek -- the 1.5 GB image archives are never read whole.
+Bytes read_kif_raw_slice(const std::string& archive_path, std::uint64_t offset,
+                         std::uint32_t length);
 
 class KifArchive {
 public:
     explicit KifArchive(const std::string& path);
+    KifArchive(const std::string& path, const KifNameCipher& names);
     ~KifArchive();
     KifArchive(const KifArchive&) = delete;
     KifArchive& operator=(const KifArchive&) = delete;
 
     const std::vector<KifEntry>& entries() const { return entries_; }
+    const std::string& path() const { return path_; }
+
+    // Entry whose name matches `name` case-insensitively (ASCII), or nullptr.
+    const KifEntry* find(const std::string& name) const;
 
     // Decrypt and return the raw bytes of one entry.
     Bytes extract(const KifEntry& entry) const;
 
+    // The entry's stored (encrypted) bytes, exactly as on disk.
+    Bytes raw_slice(const KifEntry& entry) const;
+
+    // Decrypts stored entry bytes read elsewhere (e.g. by read_kif_raw_slice).
+    // Every whole 8-byte block is deciphered; a trailing partial block is
+    // stored in the clear and kept as is.
+    Bytes decrypt_slice(Bytes stored) const;
+
 private:
     struct Cipher;
+    void open(const KifNameCipher* names);
+
     std::string path_;
     std::vector<KifEntry> entries_;
     std::unique_ptr<Cipher> cipher_;

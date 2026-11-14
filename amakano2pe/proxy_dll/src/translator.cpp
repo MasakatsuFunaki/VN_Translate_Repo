@@ -9,7 +9,9 @@
 
 #include "gdi_text_measurer.h"
 #include "log.h"
+#include "menu_autopatch.h"
 #include "translator_logic.h"
+#include "win32_chrome.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
@@ -112,10 +114,17 @@ constexpr int kInitialTranslateLogBurst = 50;
 constexpr int kInitialTruncateLogBurst = 30;
 constexpr int kPeriodicLogStride = 100;
 
+constexpr std::size_t kHookLogPreviewMaxBytes = 80;
+constexpr std::size_t kWrapLogPreviewMaxBytes = 80;
+constexpr std::size_t kTranslateLogPreviewMaxBytes = 50;
+constexpr std::size_t kTruncateSrcLogPreviewMaxBytes = 40;
+constexpr std::size_t kTruncateOutLogPreviewMaxBytes = 60;
+
 constexpr std::size_t kFontContextSlotCount = 32;
 constexpr int kPrimaryFontSlotIndex = 0;
 
 constexpr wchar_t kTranslationTableFilename[] = L"translation_table.tsv";
+constexpr wchar_t kConfigPluginModuleName[] = L"cs2confx.dll";
 
 // Exact layout of CatSystem2's FontContext (`sizeof == 0xB8C`, verified against
 // `imul eax, [ecx+0xB84], 0x5C` at 0x0063D000 and `push 0xB8C` at 0x00625AC9).
@@ -334,6 +343,11 @@ void WriteRel32(BYTE* operand_addr, const BYTE* target) noexcept {
     std::memcpy(operand_addr, &rel, sizeof(rel));
 }
 
+int SafeUtf8LogPreviewLen(const char* text, std::size_t max_bytes) noexcept {
+    return static_cast<int>(
+        translator_logic::Utf8SafeTruncate(text, max_bytes));
+}
+
 const char* TranslateTextInner(const char* src, std::size_t max_wchars) {
     if (src == nullptr ||
         !gdi_text::IsReadableMemoryRange(src, kMinReadableStringBytes) ||
@@ -355,8 +369,9 @@ const char* TranslateTextInner(const char* src, std::size_t max_wchars) {
     ++state->hook_hits;
     if (state->hook_hits <= kInitialHookLogBurst ||
         (state->hook_hits % kPeriodicLogStride) == 0) {
-        Log("Hook #%d: ptr=0x%p max_wchars=%zu [%.80s]",
-            state->hook_hits, src, max_wchars, src);
+        Log("Hook #%d: ptr=0x%p max_wchars=%zu [%.*s]",
+            state->hook_hits, src, max_wchars,
+            SafeUtf8LogPreviewLen(src, kHookLogPreviewMaxBytes), src);
     }
 
     const std::string_view src_view(src);
@@ -372,40 +387,53 @@ const char* TranslateTextInner(const char* src, std::size_t max_wchars) {
         if (cached_slot != nullptr) {
             if (state->translation_hits <= kInitialTranslateLogBurst ||
                 (state->translation_hits % kPeriodicLogStride) == 0) {
-                Log("Translate dedup: [%.50s] -> [%.50s] width=%zu",
-                    src, cached_slot, result.end_width);
+                Log("Translate dedup: [%.*s] -> [%.*s] width=%zu",
+                    SafeUtf8LogPreviewLen(src, kTranslateLogPreviewMaxBytes),
+                    src,
+                    SafeUtf8LogPreviewLen(cached_slot,
+                                          kTranslateLogPreviewMaxBytes),
+                    cached_slot, result.end_width);
             }
             return cached_slot;
         }
     }
 
     ++state->translation_hits;
+    const bool is_dialogue = !result.is_speaker_name && !result.is_ui_text;
     std::size_t copy_len = 0;
     const char* const slot =
-        state->slots.Store(result.text, !result.is_speaker_name, &copy_len);
+        state->slots.Store(result.text, is_dialogue, &copy_len);
 
-    if (!result.is_speaker_name &&
+    if (is_dialogue &&
         (state->translation_hits <= kInitialTranslateLogBurst ||
          (state->translation_hits % kPeriodicLogStride) == 0)) {
-        Log("Wrap #%d: cont=%d sw=%zu ew=%zu max_w=%zu out=[%.80s]",
+        Log("Wrap #%d: cont=%d sw=%zu ew=%zu max_w=%zu out=[%.*s]",
             state->translation_hits, static_cast<int>(result.is_continuation),
-            result.start_width, result.end_width, max_wchars, slot);
+            result.start_width, result.end_width, max_wchars,
+            SafeUtf8LogPreviewLen(slot, kWrapLogPreviewMaxBytes), slot);
     }
 
     if (result.truncated) {
         ++state->truncations;
         if (state->truncations <= kInitialTruncateLogBurst ||
             (state->truncations % kPeriodicLogStride) == 0) {
-            Log("Truncate #%d: max_wchars=%zu kept=%zu [%.40s] -> [%.60s]",
-                state->truncations, max_wchars, copy_len, src, slot);
+            Log("Truncate #%d: max_wchars=%zu kept=%zu [%.*s] -> [%.*s]",
+                state->truncations, max_wchars, copy_len,
+                SafeUtf8LogPreviewLen(src, kTruncateSrcLogPreviewMaxBytes), src,
+                SafeUtf8LogPreviewLen(slot, kTruncateOutLogPreviewMaxBytes),
+                slot);
         }
     }
 
     if (state->translation_hits <= kInitialTranslateLogBurst ||
         (state->translation_hits % kPeriodicLogStride) == 0) {
-        Log("Translate #%d (%s): [%.50s] -> [%.50s]",
-            state->translation_hits,
-            result.is_speaker_name ? "name" : "text", src, slot);
+        const char* const kind_label =
+            result.is_speaker_name ? "name"
+                                   : (result.is_ui_text ? "ui" : "text");
+        Log("Translate #%d (%s): [%.*s] -> [%.*s]",
+            state->translation_hits, kind_label,
+            SafeUtf8LogPreviewLen(src, kTranslateLogPreviewMaxBytes), src,
+            SafeUtf8LogPreviewLen(slot, kTranslateLogPreviewMaxBytes), slot);
     }
 
     return slot;
@@ -669,6 +697,7 @@ bool InstallFontScaleHook(BYTE* base) {
 }  // namespace
 
 void TranslatorInit() {
+    menu_autopatch::EnsureMenuAssetsPatchedForHostProcess();
     LoadTranslations();
     auto* const base = reinterpret_cast<BYTE*>(GetModuleHandleW(nullptr));
     g_module_base = base;
@@ -676,6 +705,11 @@ void TranslatorInit() {
         static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(base)));
     if (base == nullptr) {
         return;
+    }
+    win32_chrome::InstallWindowChromeHooks(base);
+    if (HMODULE confx = GetModuleHandleW(kConfigPluginModuleName);
+        confx != nullptr) {
+        win32_chrome::InstallWindowChromeHooks(confx);
     }
     if (!InstallTextHook(base)) {
         Log("Translator: hook install FAILED - translation disabled");

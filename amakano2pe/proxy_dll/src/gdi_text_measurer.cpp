@@ -42,7 +42,7 @@ constexpr std::size_t kInlineWideBufferSize = 128;
 constexpr std::size_t kMaxSpanCacheEntries = 8192;
 constexpr int kFallbackGlyphWidthDivisor = 2;
 constexpr std::size_t kNullTerminatorChars = 1;
-constexpr wchar_t kDefaultFontFace[] = L"\u30E1\u30A4\u30EA\u30AA";
+constexpr wchar_t kDefaultFontFace[] = L"メイリオ";
 
 class CriticalSection {
 public:

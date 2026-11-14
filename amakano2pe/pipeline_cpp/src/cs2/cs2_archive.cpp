@@ -14,6 +14,15 @@
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <type_traits>
+
+#ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#  define NOMINMAX
+#endif
+#include <windows.h>
 
 // The low-level BF_* API is deprecated in OpenSSL 3 but still shipped; it is
 // the only way to get raw single-block ECB Blowfish without going through the
@@ -129,9 +138,168 @@ std::string decode_name(const std::uint8_t* name, std::size_t n) {
     return *s;
 }
 
+// ---- filename rotation -------------------------------------------------------
+
+constexpr char kForwardAlphabet[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+constexpr char kReverseAlphabet[] = "zyxwvutsrqponmlkjihgfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA";
+constexpr std::uint32_t kAlphabetSize = sizeof(kForwardAlphabet) - 1;
+constexpr std::uint32_t kTocSeedInit = 0xFFFFFFFFu;
+constexpr std::uint32_t kTocSeedPolynomial = 0x04C11DB7u;
+constexpr std::uint32_t kTocSeedTopBit = 0x80000000u;
+constexpr int kTocSeedByteShift = 24;
+constexpr int kBitsPerByte = 8;
+constexpr std::uint32_t kByteMask = 0xFFu;
+
+int alphabet_index(const char* alphabet, char c) {
+    for (std::uint32_t i = 0; i < kAlphabetSize; ++i) {
+        if (alphabet[i] == c) return static_cast<int>(i);
+    }
+    return -1;
+}
+
+std::uint32_t initial_name_shift(std::uint32_t toc_seed, std::uint32_t entry_index) {
+    // The shift is the byte sum of the first MT19937 word.
+    const std::uint32_t k = mt_genrand(toc_seed + entry_index);
+    std::uint32_t sum = 0;
+    for (int byte = 0; byte < static_cast<int>(sizeof(k)); ++byte) {
+        sum += k >> (byte * kBitsPerByte);
+    }
+    return sum & kByteMask;
+}
+
+// ---- executable resources ----------------------------------------------------
+
+constexpr std::uint8_t kKeyCodeXor = 0xCD;
+constexpr std::size_t kBlowfishBlock = 8;
+constexpr std::size_t kBlowfishHalf = 4;
+
+struct ModuleDeleter {
+    void operator()(HMODULE module) const noexcept {
+        if (module != nullptr) FreeLibrary(module);
+    }
+};
+using ScopedModule = std::unique_ptr<std::remove_pointer_t<HMODULE>, ModuleDeleter>;
+
+Bytes load_resource(HMODULE module, const wchar_t* type, const wchar_t* name) {
+    HRSRC info = FindResourceW(module, name, type);
+    if (info == nullptr) return {};
+    HGLOBAL handle = LoadResource(module, info);
+    if (handle == nullptr) return {};
+    const auto* data = static_cast<const std::uint8_t*>(LockResource(handle));
+    const DWORD size = SizeofResource(module, info);
+    if (data == nullptr || size == 0) return {};
+    return Bytes(data, data + size);
+}
+
+std::wstring utf8_path_to_wide(const std::string& s) {
+    return std::filesystem::u8path(s).wstring();
+}
+
 }  // namespace
 
-KifArchive::KifArchive(const std::string& path) : path_(path) {
+KifNameCipher::KifNameCipher(const std::string& vcode2) {
+    std::uint32_t seed = kTocSeedInit;
+    for (const char c : vcode2) {
+        seed ^= static_cast<std::uint32_t>(static_cast<std::uint8_t>(c)) << kTocSeedByteShift;
+        for (int bit = 0; bit < kBitsPerByte; ++bit) {
+            const bool carry = (seed & kTocSeedTopBit) != 0;
+            seed <<= 1;
+            if (carry) seed ^= kTocSeedPolynomial;
+        }
+        seed = ~seed;
+    }
+    toc_seed_ = seed;
+}
+
+std::string KifNameCipher::decode(const std::string& stored, std::uint32_t entry_index) const {
+    std::uint32_t shift = initial_name_shift(toc_seed_, entry_index);
+    std::string out;
+    out.reserve(stored.size());
+    for (const char c : stored) {
+        if (c == '\0') break;
+        const int idx = alphabet_index(kReverseAlphabet, c);
+        if (idx < 0) {
+            out.push_back(c);
+        } else {
+            const std::uint32_t back = shift % kAlphabetSize;
+            out.push_back(kForwardAlphabet[(static_cast<std::uint32_t>(idx) + kAlphabetSize - back) %
+                                           kAlphabetSize]);
+        }
+        ++shift;
+    }
+    return out;
+}
+
+std::string KifNameCipher::encode(const std::string& plain, std::uint32_t entry_index) const {
+    std::uint32_t shift = initial_name_shift(toc_seed_, entry_index);
+    std::string out;
+    out.reserve(plain.size());
+    for (const char c : plain) {
+        if (c == '\0') break;
+        const int idx = alphabet_index(kForwardAlphabet, c);
+        if (idx < 0) {
+            out.push_back(c);
+        } else {
+            out.push_back(kReverseAlphabet[(static_cast<std::uint32_t>(idx) + shift) % kAlphabetSize]);
+        }
+        ++shift;
+    }
+    return out;
+}
+
+std::string read_vcode2_from_exe(const std::string& exe_path) {
+    const ScopedModule module(LoadLibraryExW(utf8_path_to_wide(exe_path).c_str(), nullptr,
+                                             LOAD_LIBRARY_AS_DATAFILE |
+                                                 LOAD_LIBRARY_AS_IMAGE_RESOURCE));
+    if (!module) throw std::runtime_error("cannot load resources of " + exe_path);
+    Bytes key = load_resource(module.get(), L"KEY_CODE", L"KEY");
+    Bytes code = load_resource(module.get(), L"V_CODE2", L"DATA");
+    if (key.empty() || code.empty())
+        throw std::runtime_error("KEY_CODE / V_CODE2 resources missing in " + exe_path);
+    for (auto& b : key) b ^= kKeyCodeXor;
+
+    BF_KEY bf{};
+    BF_set_key(&bf, static_cast<int>(key.size()), key.data());
+    for (std::size_t i = 0; i + kBlowfishBlock <= code.size(); i += kBlowfishBlock) {
+        std::uint8_t block[kBlowfishBlock];
+        std::uint8_t plain[kBlowfishBlock];
+        put_be32(block, rd_u32(code, i));
+        put_be32(block + kBlowfishHalf, rd_u32(code, i + kBlowfishHalf));
+        BF_ecb_encrypt(block, plain, &bf, BF_DECRYPT);
+        const std::uint32_t l = get_be32(plain);
+        const std::uint32_t r = get_be32(plain + kBlowfishHalf);
+        for (std::size_t k = 0; k < kBlowfishHalf; ++k) {
+            code[i + k] = static_cast<std::uint8_t>(l >> (k * kBitsPerByte));
+            code[i + kBlowfishHalf + k] = static_cast<std::uint8_t>(r >> (k * kBitsPerByte));
+        }
+    }
+    const auto nul = std::find(code.begin(), code.end(), std::uint8_t{0});
+    return std::string(code.begin(), nul);
+}
+
+Bytes read_kif_raw_slice(const std::string& archive_path, std::uint64_t offset,
+                         std::uint32_t length) {
+    std::ifstream f(std::filesystem::u8path(archive_path), std::ios::binary);
+    if (!f) throw std::runtime_error("cannot open " + archive_path);
+    f.seekg(static_cast<std::streamoff>(offset));
+    if (!f) throw std::runtime_error("seek past end of " + archive_path);
+    Bytes buf(length);
+    if (length == 0) return buf;
+    f.read(reinterpret_cast<char*>(buf.data()), length);
+    if (static_cast<std::uint32_t>(f.gcount()) != length)
+        throw std::runtime_error("short read of " + std::to_string(length) + " bytes at " +
+                                 std::to_string(offset) + " in " + archive_path);
+    return buf;
+}
+
+KifArchive::KifArchive(const std::string& path) : path_(path) { open(nullptr); }
+
+KifArchive::KifArchive(const std::string& path, const KifNameCipher& names) : path_(path) {
+    open(&names);
+}
+
+void KifArchive::open(const KifNameCipher* names) {
+    const std::string& path = path_;
     std::ifstream f(std::filesystem::u8path(path), std::ios::binary);
     if (!f) throw std::runtime_error("cannot open " + path);
 
@@ -176,14 +344,40 @@ KifArchive::KifArchive(const std::string& path) : path_(path) {
         cipher_->decrypt_block(block, plain);
 
         KifEntry e;
-        e.name = decode_name(raw.data() + base, 64);
+        if (names == nullptr) {
+            e.name = decode_name(raw.data() + base, 64);
+        } else {
+            const auto* stored = reinterpret_cast<const char*>(raw.data() + base);
+            const std::string plain_name = names->decode(std::string(stored, stored + 64), i);
+            e.name = decode_name(reinterpret_cast<const std::uint8_t*>(plain_name.data()),
+                                 plain_name.size());
+        }
         e.offset = get_be32(plain);
         e.length = get_be32(plain + 4);
+        e.index = i;
         entries_.push_back(std::move(e));
     }
 }
 
 KifArchive::~KifArchive() = default;
+
+const KifEntry* KifArchive::find(const std::string& name) const {
+    const auto same = [&name](const KifEntry& e) {
+        if (e.name.size() != name.size()) return false;
+        for (std::size_t i = 0; i < name.size(); ++i) {
+            const auto a = static_cast<unsigned char>(e.name[i]);
+            const auto b = static_cast<unsigned char>(name[i]);
+            if (std::tolower(a) != std::tolower(b)) return false;
+        }
+        return true;
+    };
+    const auto it = std::find_if(entries_.begin(), entries_.end(), same);
+    return it == entries_.end() ? nullptr : &*it;
+}
+
+Bytes KifArchive::raw_slice(const KifEntry& entry) const {
+    return read_kif_raw_slice(path_, entry.offset, entry.length);
+}
 
 Bytes KifArchive::extract(const KifEntry& entry) const {
     if (entry.length == 0) return {};
@@ -195,11 +389,14 @@ Bytes KifArchive::extract(const KifEntry& entry) const {
     // A short read at EOF must not be fatal: shrink to what actually arrived so
     // a truncated archive still yields every complete block before the cut.
     buf.resize(static_cast<std::size_t>(f.gcount()));
+    return decrypt_slice(std::move(buf));
+}
 
+Bytes KifArchive::decrypt_slice(Bytes buf) const {
     // CatSystem2 stores each 8-byte payload block as a LITTLE-endian (L, R)
     // uint32 pair, but the Blowfish round expects big-endian -- byteswap each
     // block before and after.
-    const std::size_t aligned = std::min<std::size_t>(entry.length & ~std::size_t{7}, buf.size());
+    const std::size_t aligned = buf.size() & ~std::size_t{7};
     for (std::size_t i = 0; i + 8 <= aligned; i += 8) {
         const std::uint32_t l = rd_u32(buf, i), r = rd_u32(buf, i + 4);
         std::uint8_t block[8], plain[8];

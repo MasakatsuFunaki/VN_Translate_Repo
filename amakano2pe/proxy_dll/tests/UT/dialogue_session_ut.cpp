@@ -148,22 +148,16 @@ constexpr std::size_t kMaxCandidateWordAppends = 128;
 constexpr std::size_t kNoWrapCodePointLimit = 256;
 
 constexpr std::size_t kNullTerminatorChars = 1;
-constexpr std::wstring_view kMeiryoJapaneseFaceName =
-    L"\u30E1\u30A4\u30EA\u30AA";
+constexpr std::wstring_view kMeiryoJapaneseFaceName = L"メイリオ";
 constexpr std::wstring_view kMeiryoEnglishFaceName = L"Meiryo";
 constexpr std::wstring_view kArialFaceName = L"Arial";
 
 constexpr std::string_view kTrainSceneJpSeg1 =
-    "\xE6\x96\xB0\xE5\xB9\xB9\xE7\xB7\x9A\xE3\x81\x8C\xE6\xAD\xA2\xE3\x81"
-    "\xBE\xE3\x82\x8B\xE3\x81\xA8\xE3\x80\x81\xE6\x96\xB0\xE3\x81\x9F\xE3"
-    "\x81\xAB\xE4\xBA\xBA\xE3\x81\x8C\xE4\xB9\x97\xE8\xBB\x8A\xE3\x81\x97"
-    "\xE3\x81\xA6\xE3\x81\x8F\xE3\x82\x8B\xE3\x80\x82";
+    "新幹線が止まると、新たに人が乗車してくる。";
 constexpr std::string_view kTrainSceneEnSeg1 =
     "When the train stopped, new passengers began boarding.";
 constexpr std::string_view kTrainSceneJpSeg2 =
-    "\\n\xE9\x99\x8D\xE3\x82\x8A\xE3\x82\x8B\xE3\x82\x88\xE3\x82\x8A\xE3"
-    "\x80\x81\xE4\xB9\x97\xE3\x82\x8B\xE4\xBA\xBA\xE3\x81\xAE\xE6\x96\xB9"
-    "\xE3\x81\x8C\xE5\xA4\x9A\xE3\x81\x84\xE3\x80\x82";
+    "\\n降りるより、乗る人の方が多い。";
 constexpr std::string_view kTrainSceneEnSeg2 =
     "\\nMore people were getting on than getting off.";
 constexpr std::string_view kTrainSceneFitsPrefix =
@@ -335,7 +329,9 @@ const char* TranslateThroughSlotPool(std::string_view src,
             return cached;
         }
     }
-    return slots.Store(result.text, !result.is_speaker_name);
+    const bool cache_as_dialogue =
+        !result.is_speaker_name && !result.is_ui_text;
+    return slots.Store(result.text, cache_as_dialogue);
 }
 
 std::size_t MeasureVisibleCodePoints(std::string_view tagged_line) {
@@ -736,11 +732,11 @@ TEST(DialogueSession, ConsecutiveDuplicateDialogueCallsAdvanceWidthOnlyOnce) {
 }
 
 TEST(DialogueSession, SpeakerNameVmAndApendCallsPreserveDialogueState) {
-    ASSERT_GT(DefaultSpeakerNameKeys().count("\xE5\xB0\x91\xE5\xA5\xB3"), 0u);
+    ASSERT_GT(DefaultSpeakerNameKeys().count("少女"), 0u);
 
     TranslationMap map{
-        {"\xE5\xB0\x91\xE5\xA5\xB3", "Girl"},
-        {"\xE8\xA1\x80", "Blood"},
+        {"少女", "Girl"},
+        {"血", "Blood"},
         {"jp_1", "\"Oh, you don't have to--\\@"},
         {"jp_2", "Yes, that's fine.\""},
     };
@@ -755,7 +751,7 @@ TEST(DialogueSession, SpeakerNameVmAndApendCallsPreserveDialogueState) {
 
     // Single-character glyph decoder (max_wchars == 16) passes through untouched.
     const TranslationResult single_char =
-        session.Translate("\xE8\xA1\x80", kSingleCharDecoderMaxWchars);
+        session.Translate("血", kSingleCharDecoderMaxWchars);
     EXPECT_FALSE(single_char.translated);
     EXPECT_EQ(session.CurrentLineWidth(), saved_width);
     EXPECT_TRUE(session.PrevEndedWithInlineWait());
@@ -763,9 +759,9 @@ TEST(DialogueSession, SpeakerNameVmAndApendCallsPreserveDialogueState) {
     // CatScene VM NAME buffer (max_wchars == 4096) followed by STRING8::apend
     // (max_wchars == 2048) returns unwrapped "Girl" without touching dialogue state.
     const TranslationResult name_vm =
-        session.Translate("\xE5\xB0\x91\xE5\xA5\xB3", kDialogueMaxWchars);
+        session.Translate("少女", kDialogueMaxWchars);
     const TranslationResult name_apend =
-        session.Translate("\xE5\xB0\x91\xE5\xA5\xB3", kString8SetTextMaxWchars);
+        session.Translate("少女", kString8SetTextMaxWchars);
 
     EXPECT_TRUE(name_vm.translated);
     EXPECT_TRUE(name_vm.is_speaker_name);
@@ -815,10 +811,10 @@ TEST(DialogueSession, BacklogSpeakerNamesDuringInlineWaitPreserveContinuation) {
     TranslationMap map{
         {"jp_wait_1", "Wait--\\@"},
         {"jp_wait_2", "\"Don't go!\""},
-        {"\xE5\xB0\x91\xE5\xA5\xB3", "Girl"},
-        {"\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B", "Chitose"},
-        {"\xE7\xB5\x90\xE7\x81\xAF", "Yuuhi"},
-        {"\xE5\xA5\xB3\xE5\xAD\x90\xE4\xB8\x8B\xE7\xB4\x9A\xE7\x94\x9F\xEF\xBC\xA1",
+        {"少女", "Girl"},
+        {"ちとせ", "Chitose"},
+        {"結灯", "Yuuhi"},
+        {"女子下級生Ａ",
          "Female Underclassman A"},
     };
 
@@ -846,10 +842,10 @@ TEST(DialogueSession, BacklogSpeakerNamesDuringInlineWaitPreserveContinuation) {
         std::string_view en;
     };
     constexpr std::array<SpeakerExpectation, 4> kBacklogSpeakers = {{
-        {"\xE5\xB0\x91\xE5\xA5\xB3", "Girl"},
-        {"\xE3\x81\xA1\xE3\x81\xA8\xE3\x81\x9B", "Chitose"},
-        {"\xE7\xB5\x90\xE7\x81\xAF", "Yuuhi"},
-        {"\xE5\xA5\xB3\xE5\xAD\x90\xE4\xB8\x8B\xE7\xB4\x9A\xE7\x94\x9F\xEF\xBC\xA1",
+        {"少女", "Girl"},
+        {"ちとせ", "Chitose"},
+        {"結灯", "Yuuhi"},
+        {"女子下級生Ａ",
          "Female Underclassman A"},
     }};
 
@@ -886,7 +882,7 @@ TEST(SlotRingBuffer, WraparoundSpeakerAllocationsNeverClobberDeduplicatedDialogu
     // `last_dialogue_slot` pointer after 64+ speaker allocations wrap around.
     TranslationMap map{
         {"jp_short", "Wait"},
-        {"\xE5\xB0\x91\xE5\xA5\xB3", "Girl"},
+        {"少女", "Girl"},
     };
     const MonospaceByteWidthMeasurer byte_measurer;
     DialogueTranslationSession session(&map, &byte_measurer);
@@ -907,7 +903,7 @@ TEST(SlotRingBuffer, WraparoundSpeakerAllocationsNeverClobberDeduplicatedDialogu
         kDefaultSlotPoolCount + kExtraWraparoundSpeakers;
     for (std::size_t i = 0; i < total_speaker_calls; ++i) {
         const char* const sp_slot = TranslateThroughSlotPool(
-            "\xE5\xB0\x91\xE5\xA5\xB3", kString8SetTextMaxWchars, session, slots);
+            "少女", kString8SetTextMaxWchars, session, slots);
         ASSERT_STREQ(sp_slot, "Girl");
     }
 
@@ -1364,9 +1360,9 @@ TEST(WordWrap, CatSystem2EscapeParityMatchesEngineTokenParser) {
     EXPECT_EQ(MeasureVisibleCodePoints("\\FRG"), 0u);
     EXPECT_EQ(MeasureVisibleCodePoints("\\fr"), 0u);
     EXPECT_EQ(MeasureVisibleCodePoints("\\FR"), 0u);
-    EXPECT_EQ(MeasureVisibleCodePoints("\\fr;\xE3\x81\x82" "H"),
+    EXPECT_EQ(MeasureVisibleCodePoints("\\fr;あH"),
               std::string_view("H").size());
-    EXPECT_EQ(MeasureVisibleCodePoints("\\fr\xE3\x81\x82" "H"),
+    EXPECT_EQ(MeasureVisibleCodePoints("\\frあH"),
               std::string_view("H").size());
 
     //    `\f+` / `\f-` (`\F+` / `\F-`) parse unsigned digits after `+`/`-`;
@@ -1430,9 +1426,9 @@ TEST(WordWrap, CatSystem2EscapeParityMatchesEngineTokenParser) {
     EXPECT_EQ(MeasureVisibleCodePoints("\\CRC"), 0u);
     EXPECT_EQ(MeasureVisibleCodePoints("\\cr"), 0u);
     EXPECT_EQ(MeasureVisibleCodePoints("\\CR"), 0u);
-    EXPECT_EQ(MeasureVisibleCodePoints("\\cr;\xE3\x81\x82" "D"),
+    EXPECT_EQ(MeasureVisibleCodePoints("\\cr;あD"),
               std::string_view("D").size());
-    EXPECT_EQ(MeasureVisibleCodePoints("\\cr\xE3\x81\x82" "D"),
+    EXPECT_EQ(MeasureVisibleCodePoints("\\crあD"),
               std::string_view("D").size());
     EXPECT_EQ(MeasureVisibleCodePoints("\\c;E"), std::string_view("E").size());
     EXPECT_EQ(MeasureVisibleCodePoints("\\C;F"), std::string_view("F").size());
@@ -1882,4 +1878,130 @@ TEST(DialogueSession,
         EXPECT_EQ(sp2.end_width, std::string_view("Next.").size());
     }
 }
+
+TEST(DialogueSession,
+     StatelessUiLookupsDuringInlineWaitPreserveContinuationAndSlotDeduplication) {
+    TranslationMap map{
+        {"jp_wait_seg1", "\"Let's meet at the station.\\@"},
+        {"jp_wait_seg2", "Don't be late!\""},
+        {"jp_seven", "Waiting"},
+    };
+    const GdiTextWidthMeasurer gdi_measurer(kDefaultScaledDialogueLfHeight);
+    ASSERT_TRUE(gdi_measurer.IsValid());
+
+    DialogueTranslationSession uninterrupted(&map, &gdi_measurer);
+    const TranslationResult ref1 =
+        uninterrupted.Translate("jp_wait_seg1", kDialogueMaxWchars);
+    const TranslationResult ref2 =
+        uninterrupted.Translate("jp_wait_seg2", kDialogueMaxWchars);
+    ASSERT_TRUE(ref1.translated);
+    ASSERT_TRUE(ref2.translated);
+    ASSERT_TRUE(ref2.is_continuation);
+
+    DialogueTranslationSession session(&map, &gdi_measurer);
+    TranslationSlotRingBuffer slots;
+
+    const char* const seg1_slot = TranslateThroughSlotPool(
+        "jp_wait_seg1", kDialogueMaxWchars, session, slots);
+    ASSERT_STREQ(seg1_slot, ref1.text.c_str());
+
+    const std::size_t paused_width = session.CurrentLineWidth();
+    ASSERT_EQ(paused_width, ref1.end_width);
+    ASSERT_TRUE(session.PrevEndedWithInlineWait());
+
+    // Single-character glyph tokenization (max_wchars <= 16) must never expand
+    // UI dictionary tokens into multi-character English words.
+    const TranslationResult glyph_pass = session.Translate(
+        "和倉", kSingleCharDecoderMaxWchars);
+    EXPECT_FALSE(glyph_pass.translated);
+
+    struct UiQuery {
+        std::string_view jp;
+        std::string_view expected_en;
+    };
+    constexpr std::array<UiQuery, 8> kMidSceneUiQueries = {{
+        {"和倉", "Wakura"},
+        {"賢一", "Kenichi"},
+        {"[選択肢]", "[Choice]"},
+        {"決定", "Confirm"},
+        {"キャンセル", "Cancel"},
+        {"効果音", "SE"},
+        {"和倉 賢一 さんでお間違いないですか？",
+         "Is Wakura Kenichi correct?"},
+        {"Is 和倉 賢一 correct?",
+         "Is Wakura Kenichi correct?"},
+    }};
+
+    for (const UiQuery& q : kMidSceneUiQueries) {
+        const TranslationResult ui_res =
+            session.Translate(q.jp, kString8SetTextMaxWchars);
+        ASSERT_TRUE(ui_res.translated) << q.jp;
+        EXPECT_TRUE(ui_res.is_ui_text) << q.jp;
+        EXPECT_FALSE(ui_res.is_speaker_name) << q.jp;
+        EXPECT_FALSE(ui_res.is_continuation) << q.jp;
+        EXPECT_EQ(ui_res.text, q.expected_en);
+        EXPECT_EQ(ui_res.text.find("\\n"), std::string::npos);
+
+        const char* const ui_slot = TranslateThroughSlotPool(
+            q.jp, kString8SetTextMaxWchars, session, slots);
+        EXPECT_STREQ(ui_slot, std::string(q.expected_en).c_str());
+
+        EXPECT_EQ(session.CurrentLineWidth(), paused_width);
+        EXPECT_TRUE(session.PrevEndedWithInlineWait());
+    }
+
+    // Closing the UI modal and redrawing the paused dialogue line must still
+    // deduplicate against `seg1_slot` and return the original dialogue text.
+    const char* const seg1_redraw = TranslateThroughSlotPool(
+        "jp_wait_seg1", kString8SetTextMaxWchars, session, slots);
+    EXPECT_EQ(seg1_redraw, seg1_slot);
+    EXPECT_STREQ(seg1_redraw, ref1.text.c_str());
+
+    // Advancing past `\@` into segment 2 must produce the exact same wrapped
+    // continuation as the uninterrupted session.
+    const TranslationResult resumed =
+        session.Translate("jp_wait_seg2", kDialogueMaxWchars);
+    ASSERT_TRUE(resumed.translated);
+    EXPECT_TRUE(resumed.is_continuation);
+    EXPECT_EQ(resumed.start_width, ref2.start_width);
+    EXPECT_EQ(resumed.end_width, ref2.end_width);
+    EXPECT_EQ(resumed.text, ref2.text);
+
+    // Equal-length UI string ("Confirm", 7 bytes) must never overwrite the
+    // cached dialogue slot for a 7-byte dialogue string ("Waiting").
+    session.ResetDialogueState();
+    slots.Reset();
+    const char* const seven_slot = TranslateThroughSlotPool(
+        "jp_seven", kDialogueMaxWchars, session, slots);
+    ASSERT_STREQ(seven_slot, "Waiting");
+    const char* const confirm_slot = TranslateThroughSlotPool(
+        "決定", kString8SetTextMaxWchars, session, slots);
+    ASSERT_STREQ(confirm_slot, "Confirm");
+    const char* const seven_dedup = TranslateThroughSlotPool(
+        "jp_seven", kString8SetTextMaxWchars, session, slots);
+    EXPECT_EQ(seven_dedup, seven_slot);
+    EXPECT_STREQ(seven_dedup, "Waiting");
+}
+
+TEST(Utf8Truncate, LogPreviewLimitsNeverSplitThreeByteJapaneseCodepoints) {
+    // 30 fullwidth Japanese characters = 90 UTF-8 bytes (each 3 bytes).
+    // Preview limits 40, 50, 60, and 80 must round down to multiples of 3
+    // (39, 48, 60, and 78 bytes respectively).
+    constexpr std::size_t kJapaneseCharRepeats = 30;
+    constexpr std::size_t kThreeByteUtf8Stride = 3;
+    constexpr std::array<std::size_t, 4> kLogPreviewCaps = {40, 50, 60, 80};
+
+    std::string sample;
+    for (std::size_t i = 0; i < kJapaneseCharRepeats; ++i) {
+        sample.append("あ");
+    }
+
+    for (const std::size_t cap : kLogPreviewCaps) {
+        const std::size_t safe_len = Utf8SafeTruncate(sample.c_str(), cap);
+        EXPECT_LE(safe_len, cap);
+        EXPECT_EQ(safe_len % kThreeByteUtf8Stride, 0u);
+        EXPECT_EQ(safe_len, (cap / kThreeByteUtf8Stride) * kThreeByteUtf8Stride);
+    }
+}
+
 
