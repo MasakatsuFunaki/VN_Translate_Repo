@@ -19,13 +19,13 @@
 #include <windows.h>
 #include <commctrl.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace {
 
@@ -33,12 +33,14 @@ constexpr UINT kCodePage932 = 932u;
 constexpr uint32_t kMaxPeHeaderOffset = 0x1000u;
 constexpr int kDialogFontHeight9PtAt96Dpi = -12;  // -MulDiv(9, 96, 72)
 constexpr wchar_t kDialogFontFace[] = L"Segoe UI";
-constexpr wchar_t kOrigDlgProcProp[] = L"AdieuOrigDlgProc";
 
 constexpr std::size_t kClassNameBufChars = 64u;
 constexpr std::size_t kItemTextBufChars = 512u;
 constexpr int kMaxTabItems = 32;
 constexpr int kMaxListViewColumns = 16;
+constexpr int kCheckBoxExtraWidthPx = 32;
+constexpr int kControlRightMarginPx = 6;
+constexpr int kSiblingOverlapSlackPx = 2;
 
 using SetWindowTextWFn = BOOL(WINAPI*)(HWND, LPCWSTR);
 using SetWindowTextAFn = BOOL(WINAPI*)(HWND, LPCSTR);
@@ -58,6 +60,8 @@ using ModifyMenuWFn = BOOL(WINAPI*)(HMENU, UINT, UINT, UINT_PTR, LPCWSTR);
 using SetDlgItemTextWFn = BOOL(WINAPI*)(HWND, int, LPCWSTR);
 using DialogBoxParamWFn = INT_PTR(WINAPI*)(HINSTANCE, LPCWSTR, HWND, DLGPROC,
                                            LPARAM);
+using DialogBoxIndirectParamWFn = INT_PTR(WINAPI*)(HINSTANCE, LPCDLGTEMPLATEW,
+                                                   HWND, DLGPROC, LPARAM);
 using CreateDialogParamWFn = HWND(WINAPI*)(HINSTANCE, LPCWSTR, HWND, DLGPROC,
                                            LPARAM);
 using CreateDialogIndirectParamWFn = HWND(WINAPI*)(HINSTANCE, LPCDLGTEMPLATEW,
@@ -76,13 +80,20 @@ AppendMenuWFn g_orig_AppendMenuW = nullptr;
 ModifyMenuWFn g_orig_ModifyMenuW = nullptr;
 SetDlgItemTextWFn g_orig_SetDlgItemTextW = nullptr;
 DialogBoxParamWFn g_orig_DialogBoxParamW = nullptr;
+DialogBoxIndirectParamWFn g_orig_DialogBoxIndirectParamW = nullptr;
 CreateDialogParamWFn g_orig_CreateDialogParamW = nullptr;
 CreateDialogIndirectParamWFn g_orig_CreateDialogIndirectParamW = nullptr;
 
 INIT_ONCE g_dialog_font_once = INIT_ONCE_STATIC_INIT;
 HFONT g_dialog_font = nullptr;
 
-thread_local std::vector<DLGPROC> g_pending_dlg_procs;
+struct ThreadDialogObserverState {
+    HHOOK hook = nullptr;
+    std::size_t active_depth = 0u;
+    bool localizing = false;
+};
+
+thread_local ThreadDialogObserverState g_dialog_observer;
 
 char AsciiLower(char ch) noexcept {
     if (ch >= 'A' && ch <= 'Z') {
@@ -238,23 +249,176 @@ void LocalizeListViewColumns(HWND lv_hwnd) {
     }
 }
 
-BOOL CALLBACK LocalizeChildControlCallback(HWND child, LPARAM lparam) {
-    const auto dialog_font = reinterpret_cast<HFONT>(lparam);
-    if (dialog_font != nullptr) {
-        ::SendMessageW(child, WM_SETFONT,
-                       reinterpret_cast<WPARAM>(dialog_font), TRUE);
-    }
+bool ShouldApplyDialogFont(const wchar_t* class_name) noexcept {
+    return ::_wcsicmp(class_name, L"Button") == 0 ||
+           ::_wcsicmp(class_name, L"Static") == 0 ||
+           ::_wcsicmp(class_name, WC_TABCONTROLW) == 0 ||
+           ::_wcsicmp(class_name, WC_LISTVIEWW) == 0 ||
+           ::_wcsicmp(class_name, WC_HEADERW) == 0;
+}
 
-    const std::wstring current_text = ReadWindowTextString(child);
-    if (!current_text.empty()) {
-        if (const auto en = chrome_text::TranslateChromeWide(current_text)) {
-            ::SetWindowTextW(child, en->c_str());
+bool IsCheckOrRadioButton(HWND hwnd, const wchar_t* class_name) noexcept {
+    if (::_wcsicmp(class_name, L"Button") != 0) {
+        return false;
+    }
+    const LONG style = ::GetWindowLongW(hwnd, GWL_STYLE);
+    if ((style & BS_PUSHLIKE) != 0) {
+        return false;
+    }
+    const LONG btn_type = style & BS_TYPEMASK;
+    return btn_type == BS_CHECKBOX || btn_type == BS_AUTOCHECKBOX ||
+           btn_type == BS_RADIOBUTTON || btn_type == BS_AUTORADIOBUTTON ||
+           btn_type == BS_3STATE || btn_type == BS_AUTO3STATE;
+}
+
+bool IsGroupBoxButton(HWND hwnd) noexcept {
+    wchar_t cls[kClassNameBufChars] = {};
+    if (::GetClassNameW(hwnd, cls, static_cast<int>(kClassNameBufChars)) <= 0 ||
+        ::_wcsicmp(cls, L"Button") != 0) {
+        return false;
+    }
+    return (::GetWindowLongW(hwnd, GWL_STYLE) & BS_TYPEMASK) == BS_GROUPBOX;
+}
+
+class ScopedScreenDcFont {
+public:
+    explicit ScopedScreenDcFont(HFONT font) noexcept : hdc_(::GetDC(nullptr)) {
+        if (hdc_ != nullptr && font != nullptr) {
+            prev_font_ = ::SelectObject(hdc_, font);
         }
     }
 
+    ~ScopedScreenDcFont() noexcept {
+        if (hdc_ != nullptr) {
+            if (prev_font_ != nullptr) {
+                ::SelectObject(hdc_, prev_font_);
+            }
+            ::ReleaseDC(nullptr, hdc_);
+        }
+    }
+
+    ScopedScreenDcFont(const ScopedScreenDcFont&) = delete;
+    ScopedScreenDcFont& operator=(const ScopedScreenDcFont&) = delete;
+
+    HDC get() const noexcept { return hdc_; }
+
+private:
+    HDC hdc_ = nullptr;
+    HGDIOBJ prev_font_ = nullptr;
+};
+
+RECT ReadRectInParentClient(HWND hwnd, HWND parent) noexcept {
+    RECT rc{};
+    ::GetWindowRect(hwnd, &rc);
+    ::MapWindowPoints(HWND_DESKTOP, parent, reinterpret_cast<LPPOINT>(&rc), 2u);
+    return rc;
+}
+
+void WidenClippedCheckOrRadioControl(HWND child,
+                                     HFONT dialog_font,
+                                     std::wstring_view text) noexcept {
+    if (text.empty()) {
+        return;
+    }
+    const HWND parent = ::GetParent(child);
+    if (parent == nullptr) {
+        return;
+    }
+
+    HFONT effective_font = dialog_font;
+    if (effective_font == nullptr) {
+        effective_font =
+            reinterpret_cast<HFONT>(::SendMessageW(child, WM_GETFONT, 0, 0));
+    }
+
+    SIZE text_extent{};
+    {
+        ScopedScreenDcFont dc(effective_font);
+        if (dc.get() == nullptr ||
+            !::GetTextExtentPoint32W(dc.get(), text.data(),
+                                     static_cast<int>(text.size()),
+                                     &text_extent)) {
+            return;
+        }
+    }
+
+    const int needed_width = text_extent.cx +
+                             ::GetSystemMetrics(SM_CXMENUCHECK) +
+                             kCheckBoxExtraWidthPx;
+    const RECT child_rc = ReadRectInParentClient(child, parent);
+    const int current_width = child_rc.right - child_rc.left;
+    if (current_width >= needed_width) {
+        return;
+    }
+
+    RECT parent_client{};
+    if (!::GetClientRect(parent, &parent_client)) {
+        return;
+    }
+    int max_right = parent_client.right - kControlRightMarginPx;
+
+    for (HWND sib = ::GetWindow(parent, GW_CHILD); sib != nullptr;
+         sib = ::GetWindow(sib, GW_HWNDNEXT)) {
+        if (sib == child) {
+            continue;
+        }
+        const RECT sib_rc = ReadRectInParentClient(sib, parent);
+        if (sib_rc.bottom <= child_rc.top || sib_rc.top >= child_rc.bottom) {
+            continue;
+        }
+        if (IsGroupBoxButton(sib) && sib_rc.left <= child_rc.left &&
+            sib_rc.right >= child_rc.right) {
+            max_right =
+                std::min(max_right,
+                         static_cast<int>(sib_rc.right) - kControlRightMarginPx);
+            continue;
+        }
+        if ((::GetWindowLongW(sib, GWL_STYLE) & WS_VISIBLE) != 0 &&
+            sib_rc.left >= child_rc.right - kSiblingOverlapSlackPx) {
+            max_right =
+                std::min(max_right,
+                         static_cast<int>(sib_rc.left) - kControlRightMarginPx);
+        }
+    }
+
+    const int target_right =
+        std::min(static_cast<int>(child_rc.left) + needed_width, max_right);
+    if (target_right > child_rc.right) {
+        ::SetWindowPos(child, nullptr, 0, 0, target_right - child_rc.left,
+                       child_rc.bottom - child_rc.top,
+                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
+BOOL CALLBACK LocalizeChildControlCallback(HWND child, LPARAM lparam) {
     wchar_t class_name[kClassNameBufChars] = {};
-    if (::GetClassNameW(child, class_name,
-                        static_cast<int>(kClassNameBufChars)) > 0) {
+    const bool has_class =
+        ::GetClassNameW(child, class_name,
+                        static_cast<int>(kClassNameBufChars)) > 0;
+
+    const auto dialog_font = reinterpret_cast<HFONT>(lparam);
+    if (dialog_font != nullptr && has_class &&
+        ShouldApplyDialogFont(class_name)) {
+        const auto current_font =
+            reinterpret_cast<HFONT>(::SendMessageW(child, WM_GETFONT, 0, 0));
+        if (current_font != dialog_font) {
+            ::SendMessageW(child, WM_SETFONT,
+                           reinterpret_cast<WPARAM>(dialog_font), TRUE);
+        }
+    }
+
+    std::wstring final_text = ReadWindowTextString(child);
+    if (!final_text.empty()) {
+        if (const auto en = chrome_text::TranslateChromeWide(final_text)) {
+            ::SetWindowTextW(child, en->c_str());
+            final_text = *en;
+        }
+        if (has_class && IsCheckOrRadioButton(child, class_name)) {
+            WidenClippedCheckOrRadioControl(child, dialog_font, final_text);
+        }
+    }
+
+    if (has_class) {
         if (::_wcsicmp(class_name, WC_TABCONTROLW) == 0) {
             LocalizeTabControlItems(child);
         } else if (::_wcsicmp(class_name, WC_LISTVIEWW) == 0) {
@@ -276,49 +440,67 @@ void LocalizeInitializedDialog(HWND hdlg) {
                        reinterpret_cast<LPARAM>(font));
 }
 
-class ScopedPendingDlgProc {
+class ScopedLocalizingGuard {
 public:
-    explicit ScopedPendingDlgProc(DLGPROC proc) : baseline_depth_(0u) {
-        baseline_depth_ = g_pending_dlg_procs.size();
-        g_pending_dlg_procs.push_back(proc);
+    explicit ScopedLocalizingGuard(bool& flag) noexcept : flag_(flag) {
+        flag_ = true;
     }
-    ~ScopedPendingDlgProc() {
-        if (g_pending_dlg_procs.size() > baseline_depth_) {
-            g_pending_dlg_procs.resize(baseline_depth_);
+    ~ScopedLocalizingGuard() noexcept { flag_ = false; }
+
+    ScopedLocalizingGuard(const ScopedLocalizingGuard&) = delete;
+    ScopedLocalizingGuard& operator=(const ScopedLocalizingGuard&) = delete;
+
+private:
+    bool& flag_;
+};
+
+// Observes WM_INITDIALOG completion via WH_CALLWNDPROCRET without replacing
+// `dialog_func` or altering DWLP_DLGPROC, keeping SiglusEngine's
+// C_window_base::attach_window subclassing check completely untouched.
+LRESULT CALLBACK DialogInitCallWndRetProc(int code,
+                                          WPARAM wparam,
+                                          LPARAM lparam) noexcept {
+    const HHOOK current_hook = g_dialog_observer.hook;
+    if (code >= 0 && !g_dialog_observer.localizing && lparam != 0) {
+        const auto* ret = reinterpret_cast<const CWPRETSTRUCT*>(lparam);
+        if (ret->message == WM_INITDIALOG && ret->hwnd != nullptr) {
+            ScopedLocalizingGuard reentrancy_guard(
+                g_dialog_observer.localizing);
+            try {
+                LocalizeInitializedDialog(ret->hwnd);
+            } catch (...) {
+            }
+        }
+    }
+    return ::CallNextHookEx(current_hook, code, wparam, lparam);
+}
+
+class ScopedDialogInitObserver {
+public:
+    ScopedDialogInitObserver() noexcept {
+        if (g_dialog_observer.active_depth == 0u) {
+            g_dialog_observer.hook = ::SetWindowsHookExW(
+                WH_CALLWNDPROCRET, &DialogInitCallWndRetProc, nullptr,
+                ::GetCurrentThreadId());
+        }
+        ++g_dialog_observer.active_depth;
+    }
+
+    ~ScopedDialogInitObserver() noexcept {
+        if (g_dialog_observer.active_depth > 0u) {
+            --g_dialog_observer.active_depth;
+        }
+        if (g_dialog_observer.active_depth == 0u &&
+            g_dialog_observer.hook != nullptr) {
+            ::UnhookWindowsHookEx(g_dialog_observer.hook);
+            g_dialog_observer.hook = nullptr;
         }
     }
 
-    ScopedPendingDlgProc(const ScopedPendingDlgProc&) = delete;
-    ScopedPendingDlgProc& operator=(const ScopedPendingDlgProc&) = delete;
-
-private:
-    std::size_t baseline_depth_;
+    ScopedDialogInitObserver(const ScopedDialogInitObserver&) = delete;
+    ScopedDialogInitObserver& operator=(const ScopedDialogInitObserver&) =
+        delete;
 };
-
-INT_PTR CALLBACK WrappedDialogProc(HWND hdlg,
-                                   UINT msg,
-                                   WPARAM wparam,
-                                   LPARAM lparam) {
-    auto real_proc =
-        reinterpret_cast<DLGPROC>(::GetPropW(hdlg, kOrigDlgProcProp));
-    if (real_proc == nullptr && !g_pending_dlg_procs.empty()) {
-        real_proc = g_pending_dlg_procs.back();
-        g_pending_dlg_procs.pop_back();
-        ::SetPropW(hdlg, kOrigDlgProcProp, reinterpret_cast<HANDLE>(real_proc));
-    }
-
-    INT_PTR result = FALSE;
-    if (real_proc != nullptr) {
-        result = real_proc(hdlg, msg, wparam, lparam);
-    }
-
-    if (msg == WM_INITDIALOG) {
-        LocalizeInitializedDialog(hdlg);
-    } else if (msg == WM_NCDESTROY) {
-        ::RemovePropW(hdlg, kOrigDlgProcProp);
-    }
-    return result;
-}
 
 // --------------------------------------------------------------------------
 // USER32 IAT Detours
@@ -524,13 +706,20 @@ INT_PTR WINAPI HookedDialogBoxParamW(HINSTANCE instance,
                                      HWND parent,
                                      DLGPROC dialog_func,
                                      LPARAM init_param) {
-    if (dialog_func == nullptr) {
-        return g_orig_DialogBoxParamW(instance, template_name, parent, nullptr,
-                                      init_param);
-    }
-    ScopedPendingDlgProc guard(dialog_func);
-    return g_orig_DialogBoxParamW(instance, template_name, parent,
-                                  &WrappedDialogProc, init_param);
+    ScopedDialogInitObserver observer;
+    return g_orig_DialogBoxParamW(instance, template_name, parent, dialog_func,
+                                  init_param);
+}
+
+INT_PTR WINAPI HookedDialogBoxIndirectParamW(
+    HINSTANCE instance,
+    LPCDLGTEMPLATEW dialog_template,
+    HWND parent,
+    DLGPROC dialog_func,
+    LPARAM init_param) {
+    ScopedDialogInitObserver observer;
+    return g_orig_DialogBoxIndirectParamW(instance, dialog_template, parent,
+                                          dialog_func, init_param);
 }
 
 HWND WINAPI HookedCreateDialogParamW(HINSTANCE instance,
@@ -538,13 +727,9 @@ HWND WINAPI HookedCreateDialogParamW(HINSTANCE instance,
                                      HWND parent,
                                      DLGPROC dialog_func,
                                      LPARAM init_param) {
-    if (dialog_func == nullptr) {
-        return g_orig_CreateDialogParamW(instance, template_name, parent,
-                                         nullptr, init_param);
-    }
-    ScopedPendingDlgProc guard(dialog_func);
+    ScopedDialogInitObserver observer;
     return g_orig_CreateDialogParamW(instance, template_name, parent,
-                                     &WrappedDialogProc, init_param);
+                                     dialog_func, init_param);
 }
 
 HWND WINAPI HookedCreateDialogIndirectParamW(HINSTANCE instance,
@@ -552,13 +737,9 @@ HWND WINAPI HookedCreateDialogIndirectParamW(HINSTANCE instance,
                                              HWND parent,
                                              DLGPROC dialog_func,
                                              LPARAM init_param) {
-    if (dialog_func == nullptr) {
-        return g_orig_CreateDialogIndirectParamW(instance, dialog_template,
-                                                 parent, nullptr, init_param);
-    }
-    ScopedPendingDlgProc guard(dialog_func);
-    return g_orig_CreateDialogIndirectParamW(
-        instance, dialog_template, parent, &WrappedDialogProc, init_param);
+    ScopedDialogInitObserver observer;
+    return g_orig_CreateDialogIndirectParamW(instance, dialog_template, parent,
+                                             dialog_func, init_param);
 }
 
 // --------------------------------------------------------------------------
@@ -653,6 +834,9 @@ bool InstallWindowChromeHooks(void* host_module_base) noexcept {
          reinterpret_cast<void**>(&g_orig_SetDlgItemTextW)},
         {"DialogBoxParamW", reinterpret_cast<void*>(&HookedDialogBoxParamW),
          reinterpret_cast<void**>(&g_orig_DialogBoxParamW)},
+        {"DialogBoxIndirectParamW",
+         reinterpret_cast<void*>(&HookedDialogBoxIndirectParamW),
+         reinterpret_cast<void**>(&g_orig_DialogBoxIndirectParamW)},
         {"CreateDialogParamW",
          reinterpret_cast<void*>(&HookedCreateDialogParamW),
          reinterpret_cast<void**>(&g_orig_CreateDialogParamW)},
@@ -722,6 +906,7 @@ void Win32ChromeShutdown() noexcept {
         ::DeleteObject(g_dialog_font);
         g_dialog_font = nullptr;
     }
+    ::InitOnceInitialize(&g_dialog_font_once);
 }
 
 }  // namespace win32_chrome

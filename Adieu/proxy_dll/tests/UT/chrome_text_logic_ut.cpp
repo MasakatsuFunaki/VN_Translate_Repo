@@ -181,6 +181,75 @@ TEST(ChromeTextLogic, TranslatesConfigAndSaveLoadDialogControlsTabsAndColumns) {
     }
 }
 
+TEST(ChromeTextLogic,
+     RehashedDictionaryPreservesEarlyLateMultilineAndHalfwidthEntries) {
+    // ChromeDictionary starts at kInitialBucketCount = 256 and rehashes past
+    // 50% load factor (> 128 entries). Verify rehashing occurred and preserved
+    // lookup across early/late insertions, halfwidth katakana, and CRLF/LF.
+    constexpr std::size_t kInitialRehashThreshold = 128u;
+    ChromeDictionary dict;
+    EXPECT_GT(dict.Size(), kInitialRehashThreshold);
+
+    EXPECT_EQ(dict.TranslateControlOrMenuText(L"最初から始めてもよろしいですか？"),
+              std::optional<std::wstring>(L"Start from the beginning?"));
+    EXPECT_EQ(dict.TranslateControlOrMenuText(L"クリップボードにコピー"),
+              std::optional<std::wstring>(L"Copy to Clipboard"));
+    EXPECT_EQ(dict.TranslateControlOrMenuText(L"？？？"),
+              std::optional<std::wstring>(L"???"));
+    EXPECT_EQ(dict.TranslateControlOrMenuText(L"ｼｽﾃﾑ"),
+              std::optional<std::wstring>(L"System"));
+
+    EXPECT_EQ(
+        dict.TranslateControlOrMenuText(
+            L"『 Windows Media Player 』 を利用するには\r\n"
+            L"Windows Media Player のバージョン９以上が必要です。\r\n"
+            L"　※環境によってうまく動作しない場合があります。"),
+        std::optional<std::wstring>(
+            L"\"Windows Media Player\" requires Windows Media Player 9 or later.\r\n"
+            L" * Compatibility may vary depending on your system."));
+    EXPECT_EQ(
+        dict.TranslateControlOrMenuText(
+            L"『 Windows Media Player 』 を利用するには\n"
+            L"Windows Media Player のバージョン９以上が必要です。\n"
+            L"　※環境によってうまく動作しない場合があります。"),
+        std::optional<std::wstring>(
+            L"\"Windows Media Player\" requires Windows Media Player 9 or later.\n"
+            L" * Compatibility may vary depending on your system."));
+}
+
+TEST(ChromeTextLogic,
+     TranslatesSecondsReadoutBoundariesAndRejectsMalformedInputs) {
+    struct ReadoutCase {
+        std::wstring_view input;
+        std::wstring_view expected;
+    };
+
+    constexpr ReadoutCase kAcceptedReadouts[] = {
+        {L"0.10 秒", L"0.10 s"},
+        {L"0．10 秒", L"0.10 s"},
+        {L"２．００秒", L"2.00 s"},
+        {L"10秒", L"10 s"},
+    };
+    for (const auto& tc : kAcceptedReadouts) {
+        const auto actual = TranslateChromeWide(tc.input);
+        ASSERT_TRUE(actual.has_value());
+        EXPECT_EQ(*actual, tc.expected);
+    }
+
+    constexpr std::wstring_view kRejectedInputs[] = {
+        L"秒",
+        L" 秒",
+        L". 秒",
+        L"．秒",
+        L"1.2.3 秒",
+        L"-1.0 秒",
+        L"あと少し秒",
+    };
+    for (const auto input : kRejectedInputs) {
+        EXPECT_EQ(TranslateChromeWide(input), std::nullopt);
+    }
+}
+
 TEST(ChromeTextLogic, ReturnsNulloptOnUnknownOrAsciiInputsAndSupportsCopy) {
     EXPECT_EQ(TranslateChromeWide(L""), std::nullopt);
     EXPECT_EQ(TranslateChromeWide(L"OK"), std::nullopt);
