@@ -13,6 +13,7 @@
 #include <boost/json.hpp>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -164,6 +165,130 @@ TEST(SpotCheckerExtract, ExtractsFromBothStringsAndLinesSchemas) {
     EXPECT_EQ(entries[2].entry_index, 2u);
     EXPECT_EQ(entries[2].text_key, "content");
     EXPECT_EQ(entries[2].speaker, "Miki");
+}
+
+TEST(SpotCheckerExtract, ResetsActiveSpeakerOnSiglusNamaeMacroEntries) {
+    const bj::value root = bj::parse(R"json({
+        "seen101": {
+            "strings": [
+                {"type": "name", "text": "まひる", "translated": "Mahiru"},
+                {"type": "dialogue", "speaker": "", "text": "「先輩！」", "translated": "\"Senpai!\""},
+                {"type": "other", "has_jp": false, "text": "＊Ａ"},
+                {"type": "dialogue", "speaker": "", "text": "「……ああ、おはよう」", "translated": "\"...Yeah, morning.\""},
+                {"type": "name", "text": "こより", "translated": "Koyori"},
+                {"type": "other", "has_jp": false, "text": "se_chime"},
+                {"type": "dialogue", "speaker": "", "text": "「ですかぁ？」", "translated": "\"Is that right?\""},
+                {"type": "other", "has_jp": false, "text": " ＊Ｂ "},
+                {"type": "dialogue", "speaker": "", "text": "「さあな」", "translated": "\"Who knows.\""}
+            ]
+        }
+    })json");
+
+    const auto entries = extract_script_entries(root);
+    ASSERT_EQ(entries.size(), 4u);
+
+    EXPECT_EQ(entries[0].entry_index, 1u);
+    EXPECT_EQ(entries[0].speaker, "Mahiru");
+
+    EXPECT_EQ(entries[1].entry_index, 3u);
+    EXPECT_EQ(entries[1].speaker, "NARRATION");
+
+    EXPECT_EQ(entries[2].entry_index, 6u);
+    EXPECT_EQ(entries[2].speaker, "Koyori");
+
+    EXPECT_EQ(entries[3].entry_index, 8u);
+    EXPECT_EQ(entries[3].speaker, "NARRATION");
+}
+
+TEST(SpotCheckerExtract, ResolvesRawJapaneseSpeakerViaToneReferenceAndActiveSpeaker) {
+    const bj::value root = bj::parse(R"json({
+        "seen020": {
+            "strings": [
+                {"type": "name", "text": "睦　月", "translated": "Mutsuki"},
+                {"type": "dialogue", "speaker": "睦　月", "text": "「おはよう」", "translated": "\"Good morning.\""},
+                {"type": "other", "has_jp": false, "text": "＊Ａ"},
+                {"type": "dialogue", "speaker": "人見", "text": "「……ああ」", "translated": "\"...Yeah.\""},
+                {"type": "dialogue", "speaker": "まひる", "text": "「お兄ちゃん！」", "translated": "\"Onii-chan!\""},
+                {"type": "dialogue", "speaker": "愛", "text": "「ええ」", "translated": "\"Yes.\""},
+                {"type": "dialogue", "speaker": "？？？", "text": "「だれ？」", "translated": "\"Who is it?\""},
+                {"type": "dialogue", "speaker": "弓月", "text": "「どうぞ」", "translated": "\"Come in.\""}
+            ]
+        }
+    })json");
+
+    // Without tone_markdown, the preceding translated standalone speaker plate
+    // ("睦　月" -> "Mutsuki") still resolves the raw Japanese speaker tag.
+    const auto entries_no_tone = extract_script_entries(root);
+    ASSERT_EQ(entries_no_tone.size(), 6u);
+    EXPECT_EQ(entries_no_tone[0].speaker, "Mutsuki");
+
+    const std::string tone_md =
+        "<name_reference>人見=Hitomi, 睦　月=Mutsuki, 愛=Ai, ？？？=???</name_reference>\n"
+        "| Japanese | English | Notes |\n"
+        "|---|---|---|\n"
+        "| 睦月 | Mutsuki | Unspaced prose |\n"
+        "| **まひる** | **Mahiru** | Heroine |\n"
+        "| **弓月** | **Yuzuki (Nurse)** |\n";
+
+    const auto entries_with_tone = extract_script_entries(root, tone_md);
+    ASSERT_EQ(entries_with_tone.size(), 6u);
+    EXPECT_EQ(entries_with_tone[0].speaker, "Mutsuki");
+    EXPECT_EQ(entries_with_tone[1].speaker, "Hitomi");
+    EXPECT_EQ(entries_with_tone[2].speaker, "Mahiru");
+    EXPECT_EQ(entries_with_tone[3].speaker, "Ai");
+    EXPECT_EQ(entries_with_tone[4].speaker, "???");
+    EXPECT_EQ(entries_with_tone[5].speaker, "Yuzuki");
+
+    const auto glossary = parse_glossary_from_tone_md(tone_md);
+    const std::vector<std::pair<std::string, std::string>> expected_glossary = {
+        {"睦月", "Mutsuki"},
+        {"まひる", "Mahiru"},
+        {"弓月", "Yuzuki"},
+        {"人見", "Hitomi"},
+        {"睦　月", "Mutsuki"},
+    };
+    ASSERT_EQ(glossary.size(), expected_glossary.size());
+    for (const auto& kv : expected_glossary) {
+        EXPECT_NE(std::find(glossary.begin(), glossary.end(), kv), glossary.end())
+            << "Missing glossary pair: " << kv.first << " -> " << kv.second;
+    }
+
+    TempDir tmp;
+    write_file((tmp.path() / "TONE_OF_NOVEL.md").u8string(), tone_md);
+    write_file((tmp.path() / "script_output" / "translated_text.json").u8string(),
+               json_pretty(root, 2));
+    SpotCheckConfig cfg;
+    cfg.game_dir = tmp.str();
+    SpotChecker checker(cfg, [](const std::string&, const std::string&) {
+        return std::string("[]");
+    });
+    ASSERT_EQ(checker.entries().size(), 6u);
+    EXPECT_EQ(checker.entries()[0].speaker, "Mutsuki");
+    EXPECT_EQ(checker.entries()[1].speaker, "Hitomi");
+    EXPECT_EQ(checker.entries()[2].speaker, "Mahiru");
+    EXPECT_EQ(checker.entries()[5].speaker, "Yuzuki");
+}
+
+TEST(SpotCheckerExtract, ResetsActiveSpeakerOnMenuEntries) {
+    const bj::value root = bj::parse(R"json({
+        "seen030": {
+            "strings": [
+                {"type": "name", "text": "まひる", "translated": "Mahiru"},
+                {"type": "dialogue", "speaker": "", "text": "「どこ行くの？」", "translated": "\"Where are you going?\""},
+                {"type": "menu", "speaker": "", "text": "教室へ行く", "translated": "Go to the classroom"},
+                {"type": "dialogue", "speaker": "", "text": "「誰もいないな」", "translated": "\"Nobody is here.\""}
+            ]
+        }
+    })json");
+
+    const auto entries = extract_script_entries(root);
+    ASSERT_EQ(entries.size(), 3u);
+    EXPECT_EQ(entries[0].entry_index, 1u);
+    EXPECT_EQ(entries[0].speaker, "Mahiru");
+    EXPECT_EQ(entries[1].entry_index, 2u);
+    EXPECT_EQ(entries[1].speaker, "NARRATION");
+    EXPECT_EQ(entries[2].entry_index, 3u);
+    EXPECT_EQ(entries[2].speaker, "NARRATION");
 }
 
 TEST(SpotCheckerWindow, BuildsSlidingWindowAtStartMiddleAndEnd) {

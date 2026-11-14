@@ -21,6 +21,7 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -472,6 +473,175 @@ bool is_passthrough_or_non_jp_entry(const ScriptEntry& e) {
     return false;
 }
 
+constexpr std::string_view kSiglusMacroStarPrefix = "＊";
+constexpr std::string_view kFormattingRulesOpenTag = "<formatting_rules>";
+constexpr std::string_view kFormattingRulesCloseTag = "</formatting_rules>";
+constexpr std::string_view kNameReferenceOpenTag = "<name_reference>";
+constexpr std::string_view kNameReferenceCloseTag = "</name_reference>";
+constexpr std::string_view kBoldMarker = "**";
+constexpr std::size_t kMinWrappedPairLen = 2;
+constexpr std::size_t kMinGlossaryJpChars = 2;
+constexpr std::size_t kMinGlossaryEnBytes = 4;
+constexpr std::size_t kMaxSpeakerKeyChars = 20;
+constexpr unsigned char kFirstNonAsciiByte = 0x80U;
+
+std::string strip_translator_formatting_rules(const std::string& md) {
+    std::string out = md;
+    for (;;) {
+        const std::size_t open_tag = out.find(kFormattingRulesOpenTag);
+        if (open_tag == std::string::npos) {
+            break;
+        }
+        const std::size_t close_tag = out.find(kFormattingRulesCloseTag, open_tag);
+        if (close_tag == std::string::npos) {
+            out.erase(open_tag);
+            break;
+        }
+        out.erase(open_tag, close_tag + kFormattingRulesCloseTag.size() - open_tag);
+    }
+    return trim(out);
+}
+
+std::string normalize_tone_reference_tags(const std::string& md) {
+    std::string out = strip_translator_formatting_rules(md);
+    for (const std::string_view tag : {kNameReferenceOpenTag, kNameReferenceCloseTag}) {
+        std::size_t pos = 0;
+        while ((pos = out.find(tag, pos)) != std::string::npos) {
+            out.replace(pos, tag.size(), "\n");
+            ++pos;
+        }
+    }
+    return out;
+}
+
+std::string strip_markdown_cell_decorations(std::string s) {
+    s = trim(s);
+    for (;;) {
+        if (s.size() >= kMinWrappedPairLen && s.front() == '`' && s.back() == '`') {
+            s = trim(s.substr(1, s.size() - kMinWrappedPairLen));
+            continue;
+        }
+        if (s.size() >= kBoldMarker.size() * kMinWrappedPairLen &&
+            s.rfind(kBoldMarker, 0) == 0 &&
+            s.compare(s.size() - kBoldMarker.size(),
+                      kBoldMarker.size(),
+                      kBoldMarker.data()) == 0) {
+            s = trim(s.substr(kBoldMarker.size(),
+                              s.size() - kBoldMarker.size() * kMinWrappedPairLen));
+            continue;
+        }
+        return s;
+    }
+}
+
+bool has_non_ascii_bytes(const std::string& s) {
+    return std::any_of(s.begin(), s.end(), [](unsigned char c) {
+        return c >= kFirstNonAsciiByte;
+    });
+}
+
+std::unordered_map<std::string, std::string> parse_speaker_reference_map(
+    const std::string& tone_markdown) {
+    std::unordered_map<std::string, std::string> out;
+    if (tone_markdown.empty()) {
+        return out;
+    }
+
+    auto add_pair = [&out](std::string jp, std::string en) {
+        jp = strip_markdown_cell_decorations(std::move(jp));
+        en = strip_markdown_cell_decorations(std::move(en));
+        if (const std::size_t p = en.find('('); p != std::string::npos) {
+            en = trim(en.substr(0, p));
+        }
+        if (jp.empty() || en.empty()) {
+            return;
+        }
+        if (jp.front() == '#' || jp.front() == '-' || jp.front() == '*' ||
+            jp.front() == '<') {
+            return;
+        }
+        if (!has_non_ascii_bytes(jp) || has_binary_or_pua_noise(jp) ||
+            utf8_char_len(jp) > kMaxSpeakerKeyChars) {
+            return;
+        }
+        for (char c : jp) {
+            if (c == ':' || c == '(' || c == ')' || c == '"' || c == '\'' ||
+                c == ';') {
+                return;
+            }
+        }
+        if (en.front() == '(' || has_japanese(en) || has_binary_or_pua_noise(en)) {
+            return;
+        }
+        if (en.find('/') != std::string::npos || en.find(',') != std::string::npos ||
+            en.find('"') != std::string::npos) {
+            return;
+        }
+        out.emplace(std::move(jp), std::move(en));
+    };
+
+    const std::string normalized_md = normalize_tone_reference_tags(tone_markdown);
+    std::size_t pos = 0;
+    while (pos <= normalized_md.size()) {
+        const std::size_t nl = normalized_md.find('\n', pos);
+        std::string line = normalized_md.substr(
+            pos, nl == std::string::npos ? std::string::npos : nl - pos);
+        pos = nl == std::string::npos ? normalized_md.size() + 1 : nl + 1;
+        line = trim(line);
+        if (line.empty() || line.front() == '#') {
+            continue;
+        }
+
+        if (line.front() == '|' && line.back() == '|') {
+            const std::size_t p1 = line.find('|', 1);
+            if (p1 != std::string::npos && p1 + 1 < line.size()) {
+                const std::size_t p2 = line.find('|', p1 + 1);
+                if (p2 != std::string::npos) {
+                    add_pair(line.substr(1, p1 - 1),
+                             line.substr(p1 + 1, p2 - p1 - 1));
+                }
+            }
+            continue;
+        }
+
+        if (line.find('=') != std::string::npos) {
+            std::size_t start = 0;
+            while (start < line.size()) {
+                const std::size_t comma = line.find(',', start);
+                const std::string token = trim(line.substr(
+                    start, comma == std::string::npos ? std::string::npos : comma - start));
+                const std::size_t eq = token.find('=');
+                if (eq != std::string::npos) {
+                    add_pair(token.substr(0, eq), token.substr(eq + 1));
+                }
+                if (comma == std::string::npos) {
+                    break;
+                }
+                start = comma + 1;
+            }
+        }
+    }
+
+    return out;
+}
+
+std::string resolve_entry_speaker_tag(
+    const std::string& speaker,
+    const std::unordered_map<std::string, std::string>& speaker_ref_map,
+    const std::string& active_speaker) {
+    if (speaker.empty() || (!has_japanese(speaker) && !has_non_ascii_bytes(speaker))) {
+        return speaker;
+    }
+    if (const auto it = speaker_ref_map.find(speaker); it != speaker_ref_map.end()) {
+        return it->second;
+    }
+    if (!active_speaker.empty() && active_speaker != "NARRATION" &&
+        !has_japanese(active_speaker) && !has_non_ascii_bytes(active_speaker)) {
+        return active_speaker;
+    }
+    return speaker;
+}
+
 }  // namespace
 
 std::string default_editorial_rules_prompt(bool fix_punctuation) {
@@ -542,21 +712,6 @@ std::string default_editorial_rules_prompt(bool fix_punctuation) {
     return rules;
 }
 
-std::string strip_translator_formatting_rules(const std::string& md) {
-    std::string out = md;
-    for (;;) {
-        const std::size_t open_tag = out.find("<formatting_rules>");
-        if (open_tag == std::string::npos) break;
-        const std::size_t close_tag = out.find("</formatting_rules>", open_tag);
-        if (close_tag == std::string::npos) {
-            out.erase(open_tag);
-            break;
-        }
-        out.erase(open_tag, close_tag + 19 - open_tag);
-    }
-    return trim(out);
-}
-
 std::string build_system_prompt(const std::string& tone_markdown, bool fix_punctuation) {
     std::string sys = default_editorial_rules_prompt(fix_punctuation);
     const std::string cleaned_tone = strip_translator_formatting_rules(tone_markdown);
@@ -579,8 +734,8 @@ std::vector<std::pair<std::string, std::string>> parse_glossary_from_tone_md(
     };
 
     auto add_pair = [&](std::string jp, std::string en) {
-        jp = trim(jp);
-        en = trim(en);
+        jp = strip_markdown_cell_decorations(std::move(jp));
+        en = strip_markdown_cell_decorations(std::move(en));
         // Strip parenthetical annotations in glossary target (e.g. "Yuuhi (Girl)" -> "Yuuhi")
         if (const std::size_t p = en.find('('); p != std::string::npos) {
             en = trim(en.substr(0, p));
@@ -595,20 +750,23 @@ std::vector<std::pair<std::string, std::string>> parse_glossary_from_tone_md(
         if (ignored_common_jp.count(jp) != 0) return;
         // Avoid short 1-char kanji or <=2-char kana terms or <=3-char English substrings
         // that cause false-positive substring collisions (e.g. "レン"="Ren" inside "different")
-        if (utf8_char_len(jp) < 2 || en.size() <= 3) return;
+        if (utf8_char_len(jp) < kMinGlossaryJpChars || en.size() < kMinGlossaryEnBytes) {
+            return;
+        }
         if (seen_jp.insert(jp).second) {
             out.emplace_back(std::move(jp), std::move(en));
         }
     };
 
+    const std::string normalized_md = normalize_tone_reference_tags(tone_markdown);
     std::size_t pos = 0;
-    while (pos <= tone_markdown.size()) {
-        const std::size_t nl = tone_markdown.find('\n', pos);
-        std::string line = tone_markdown.substr(
+    while (pos <= normalized_md.size()) {
+        const std::size_t nl = normalized_md.find('\n', pos);
+        std::string line = normalized_md.substr(
             pos, nl == std::string::npos ? std::string::npos : nl - pos);
-        pos = nl == std::string::npos ? tone_markdown.size() + 1 : nl + 1;
+        pos = nl == std::string::npos ? normalized_md.size() + 1 : nl + 1;
         line = trim(line);
-        if (line.empty()) continue;
+        if (line.empty() || line.front() == '#') continue;
 
         // Pattern 1: Markdown table row `| `JP` | `EN` |` or `| JP | EN |`
         if (line.front() == '|' && line.back() == '|') {
@@ -616,15 +774,7 @@ std::vector<std::pair<std::string, std::string>> parse_glossary_from_tone_md(
             if (p1 != std::string::npos && p1 + 1 < line.size()) {
                 const std::size_t p2 = line.find('|', p1 + 1);
                 if (p2 != std::string::npos) {
-                    std::string c1 = trim(line.substr(1, p1 - 1));
-                    std::string c2 = trim(line.substr(p1 + 1, p2 - p1 - 1));
-                    auto strip_backticks = [](std::string s) {
-                        if (s.size() >= 2 && s.front() == '`' && s.back() == '`') {
-                            return s.substr(1, s.size() - 2);
-                        }
-                        return s;
-                    };
-                    add_pair(strip_backticks(c1), strip_backticks(c2));
+                    add_pair(line.substr(1, p1 - 1), line.substr(p1 + 1, p2 - p1 - 1));
                 }
             }
             continue;
@@ -650,9 +800,13 @@ std::vector<std::pair<std::string, std::string>> parse_glossary_from_tone_md(
     return out;
 }
 
-std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
+std::vector<ScriptEntry> extract_script_entries(
+    const bj::value& root,
+    const std::string& tone_markdown) {
     std::vector<ScriptEntry> out;
     if (!root.is_object()) return out;
+
+    const auto speaker_ref_map = parse_speaker_reference_map(tone_markdown);
 
     for (const auto& kv : root.as_object()) {
         if (!kv.value().is_object()) continue;
@@ -714,6 +868,11 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
                 in_dialogue = false;
                 continue;
             }
+            if (type == "other" && trim(jp_text).rfind(kSiglusMacroStarPrefix, 0) == 0) {
+                active_speaker = "NARRATION";
+                in_dialogue = false;
+                continue;
+            }
             if (is_excluded_entry_type(type) && type != "name") continue;
 
             if (const auto* hj = entry_obj.if_contains("has_jp");
@@ -727,10 +886,12 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
             }
 
             std::string speaker = trim(json_str(entry_obj, "speaker"));
-            if (type == "narration" || type == "narrative") {
+            if (type == "narration" || type == "narrative" || type == "menu") {
                 active_speaker = "NARRATION";
                 in_dialogue = false;
-                if (speaker.empty()) speaker = "NARRATION";
+                if (speaker.empty()) {
+                    speaker = "NARRATION";
+                }
             } else if (type == "MESSAGE" && speaker.empty()) {
                 std::string t_jp = trim(jp_text);
                 while (t_jp.rfind(kSoftWrapEscape, 0) == 0) {
@@ -754,6 +915,7 @@ std::vector<ScriptEntry> extract_script_entries(const bj::value& root) {
                     in_dialogue = false;
                 }
             }
+            speaker = resolve_entry_speaker_tag(speaker, speaker_ref_map, active_speaker);
             if (speaker.empty()) {
                 speaker = extract_speaker_prefix(translated);
             }
@@ -1508,7 +1670,7 @@ struct SpotChecker::Impl {
             fs::u8path(cfg.game_dir) / "script_output" / "translated_text.json";
         if (fs::exists(translated_path)) {
             const bj::value root = json_parse_file(translated_path.u8string());
-            script_entries = extract_script_entries(root);
+            script_entries = extract_script_entries(root, tone_md);
             HotspotConfig hcfg;
             hcfg.skip_h_scenes = cfg.skip_h_scenes;
             hcfg.fix_punctuation = cfg.fix_punctuation;
