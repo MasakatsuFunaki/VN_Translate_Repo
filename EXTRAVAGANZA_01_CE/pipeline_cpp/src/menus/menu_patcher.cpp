@@ -203,13 +203,16 @@ fs::path resolve_original_file_path(const fs::path& game_root,
                                     const char* filename,
                                     const char* rel_path) {
     std::error_code ec;
-    const fs::path backup_cand = game_root / backup_dir / filename;
-    if (fs::is_regular_file(backup_cand, ec)) {
-        return backup_cand;
-    }
     const fs::path bak_cand = game_root / fs::u8path(std::string(rel_path) + ".bak");
     if (fs::is_regular_file(bak_cand, ec)) {
         return bak_cand;
+    }
+    if (backup_dir != nullptr && backup_dir[0] != '\0' &&
+        filename != nullptr && filename[0] != '\0') {
+        const fs::path backup_cand = game_root / backup_dir / filename;
+        if (fs::is_regular_file(backup_cand, ec)) {
+            return backup_cand;
+        }
     }
     const fs::path live_cand = game_root / fs::u8path(rel_path);
     if (fs::is_regular_file(live_cand, ec)) {
@@ -217,6 +220,17 @@ fs::path resolve_original_file_path(const fs::path& game_root,
     }
     throw std::runtime_error(std::string("resolve_original_file_path: missing original file for ") +
                              rel_path);
+}
+
+void ensure_bak_backup_file(const fs::path& target_path, const Bytes& orig_bytes) {
+    std::error_code ec;
+    fs::path bak_path = target_path;
+    bak_path += ".bak";
+    if (fs::is_regular_file(bak_path, ec) &&
+        fs::file_size(bak_path, ec) == orig_bytes.size() && !ec) {
+        return;
+    }
+    write_file(bak_path.u8string(), orig_bytes);
 }
 
 std::string to_lower_ascii(std::string s) {
@@ -1230,7 +1244,12 @@ MenuBuildSummary MenuArchivePatcher::apply_patch_bin_to_game_dir(
     auto [new_gtb, new_gpk] =
         reconstruct_archive_from_patch_bin(patch_bin, orig_gtb, orig_gpk);
 
-    std::vector<std::pair<fs::path, Bytes>> standalone_outputs;
+    struct StagedStandaloneWrite {
+        fs::path target_path;
+        Bytes orig_bytes;
+        Bytes new_bytes;
+    };
+    std::vector<StagedStandaloneWrite> standalone_outputs;
     standalone_outputs.reserve(parsed.standalone_records.size());
 
     for (std::size_t i = 0; i < parsed.standalone_records.size(); ++i) {
@@ -1245,7 +1264,7 @@ MenuBuildSummary MenuArchivePatcher::apply_patch_bin_to_game_dir(
                 game_root, "", "", rec.rel_path.c_str());
         }
 
-        const Bytes orig_bytes = read_file(orig_path.u8string());
+        Bytes orig_bytes = read_file(orig_path.u8string());
         if (orig_bytes.size() != rec.orig_file_size ||
             ComputeMurmurHash2(orig_bytes.data(), orig_bytes.size()) != rec.orig_data_hash) {
             throw std::runtime_error("apply_patch_bin_to_game_dir: orig hash mismatch for " +
@@ -1259,14 +1278,22 @@ MenuBuildSummary MenuArchivePatcher::apply_patch_bin_to_game_dir(
             throw std::runtime_error("apply_patch_bin_to_game_dir: new hash mismatch for " +
                                      rec.rel_path);
         }
-        standalone_outputs.emplace_back(game_root / fs::u8path(rec.rel_path), std::move(unmasked));
+        standalone_outputs.push_back(StagedStandaloneWrite{
+            game_root / fs::u8path(rec.rel_path),
+            std::move(orig_bytes),
+            std::move(unmasked)});
     }
 
     if (!test_mode) {
-        write_file((game_root / "dwq" / "sys0.gpk").u8string(), new_gpk);
-        write_file((game_root / "dwq" / "sys0.gtb").u8string(), new_gtb);
-        for (const auto& [out_path, data] : standalone_outputs) {
-            write_file(out_path.u8string(), data);
+        const fs::path gpk_target = game_root / "dwq" / "sys0.gpk";
+        const fs::path gtb_target = game_root / "dwq" / "sys0.gtb";
+        ensure_bak_backup_file(gpk_target, orig_gpk);
+        ensure_bak_backup_file(gtb_target, orig_gtb);
+        write_file(gpk_target.u8string(), new_gpk);
+        write_file(gtb_target.u8string(), new_gtb);
+        for (const StagedStandaloneWrite& item : standalone_outputs) {
+            ensure_bak_backup_file(item.target_path, item.orig_bytes);
+            write_file(item.target_path.u8string(), item.new_bytes);
         }
     }
 

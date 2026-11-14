@@ -5,11 +5,11 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-// End-to-end black-box test for the built EXTRAVAGANZA_CE proxy DLL.
-//
-// Spawns driver_exe to LoadLibraryW the built proxy DLL in an isolated process,
-// waits for completion, and verifies that DllMain flushed the expected startup
-// banner to the proxy log file.
+// End-to-end black-box system tests for the built 32-bit EXTRAVAGANZA_CE
+// winmm.dll proxy: spawns extravaganza_ce_driver.exe inside isolated RAII
+// temporary directories to verify both DllMain startup banner logging and
+// automatic clean-install asset patching on process attach.
+#include "menu_autopatch.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -21,7 +21,9 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -44,12 +46,27 @@
 #define EXPECTED_BANNER ""
 #endif
 
+namespace fs = std::filesystem;
+
 namespace {
+
+using Bytes = std::vector<std::uint8_t>;
 
 constexpr DWORD kDriverWaitTimeoutMs = 30000u;
 constexpr UINT kTimeoutTerminateExitCode = 99u;
 constexpr DWORD kSentinelExitCode = 0xDEADBEEFu;
 constexpr std::size_t kBackslashEscapeFactor = 2u;
+
+constexpr std::size_t kPatchMagicBytes = 8u;
+constexpr char kPatchMagic[kPatchMagicBytes] = {'E', 'X', 'C', 'E', 'P', 'A', 'T', '1'};
+constexpr std::uint32_t kPatchVersion = 1u;
+constexpr std::uint32_t kStandaloneCount = 1u;
+constexpr std::uint32_t kArchiveCount = 1u;
+constexpr std::uint32_t kModifiedGpkCount = 1u;
+constexpr std::uint32_t kLowByteMask = 0xFFu;
+constexpr unsigned int kShift8 = 8u;
+constexpr unsigned int kShift16 = 16u;
+constexpr unsigned int kShift24 = 24u;
 
 class ScopedHandle {
 public:
@@ -67,6 +84,72 @@ public:
 private:
     HANDLE handle_ = nullptr;
 };
+
+class ScopedTempDir {
+public:
+    explicit ScopedTempDir(std::string_view prefix) {
+        static std::atomic<std::uint64_t> counter{0};
+        const std::uint64_t id = counter.fetch_add(1u, std::memory_order_relaxed);
+        const std::string dir_name =
+            std::string(prefix) + "_" + std::to_string(GetCurrentProcessId()) +
+            "_" + std::to_string(id);
+        path_ = fs::temp_directory_path() / fs::u8path(dir_name);
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ~ScopedTempDir() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir& operator=(const ScopedTempDir&) = delete;
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
+
+void AppendU16Le(Bytes& out, std::uint16_t v) {
+    out.push_back(static_cast<std::uint8_t>(v & kLowByteMask));
+    out.push_back(static_cast<std::uint8_t>((v >> kShift8) & kLowByteMask));
+}
+
+void AppendU32Le(Bytes& out, std::uint32_t v) {
+    out.push_back(static_cast<std::uint8_t>(v & kLowByteMask));
+    out.push_back(static_cast<std::uint8_t>((v >> kShift8) & kLowByteMask));
+    out.push_back(static_cast<std::uint8_t>((v >> kShift16) & kLowByteMask));
+    out.push_back(static_cast<std::uint8_t>((v >> kShift24) & kLowByteMask));
+}
+
+void WriteBytes(const fs::path& path, const Bytes& data) {
+    std::error_code ec;
+    fs::create_directories(path.parent_path(), ec);
+    std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(ofs.good());
+    if (!data.empty()) {
+        ofs.write(reinterpret_cast<const char*>(data.data()),
+                  static_cast<std::streamsize>(data.size()));
+    }
+    ASSERT_TRUE(ofs.good());
+}
+
+Bytes ReadBytes(const fs::path& path) {
+    std::ifstream ifs(path, std::ios::binary | std::ios::ate);
+    if (!ifs) {
+        return {};
+    }
+    const std::streamsize sz = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    Bytes buf(static_cast<std::size_t>(sz));
+    if (sz > 0) {
+        ifs.read(reinterpret_cast<char*>(buf.data()), sz);
+    }
+    return buf;
+}
 
 bool Utf8ToWide(std::string_view utf8, std::wstring& out) {
     out.clear();
@@ -110,8 +193,8 @@ std::wstring QuoteWindowsCommandArgW(std::wstring_view arg) {
     return out;
 }
 
-std::string ReadAllBytes(std::string_view utf8_path) {
-    std::ifstream f(std::filesystem::u8path(utf8_path), std::ios::binary);
+std::string ReadAllText(const fs::path& path) {
+    std::ifstream f(path, std::ios::binary);
     if (!f) {
         return {};
     }
@@ -120,16 +203,17 @@ std::string ReadAllBytes(std::string_view utf8_path) {
     return ss.str();
 }
 
-bool RunDriverExe(std::string_view exe_path, std::string_view dll_arg,
-                  DWORD* out_exit_code) {
+bool RunDriverExeInDir(std::string_view exe_path,
+                       const std::wstring& dll_arg_w,
+                       const std::wstring& work_dir_w,
+                       DWORD* out_exit_code) {
     std::wstring exe_w;
-    std::wstring dll_w;
-    if (!Utf8ToWide(exe_path, exe_w) || !Utf8ToWide(dll_arg, dll_w)) {
+    if (!Utf8ToWide(exe_path, exe_w)) {
         return false;
     }
 
     const std::wstring cmd_line =
-        L"\"" + exe_w + L"\" " + QuoteWindowsCommandArgW(dll_w);
+        L"\"" + exe_w + L"\" " + QuoteWindowsCommandArgW(dll_arg_w);
     std::vector<wchar_t> cmd_buf(cmd_line.begin(), cmd_line.end());
     cmd_buf.push_back(L'\0');
 
@@ -137,7 +221,7 @@ bool RunDriverExe(std::string_view exe_path, std::string_view dll_arg,
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
     if (!CreateProcessW(exe_w.c_str(), cmd_buf.data(), nullptr, nullptr, FALSE,
-                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+                        CREATE_NO_WINDOW, nullptr, work_dir_w.c_str(), &si, &pi)) {
         return false;
     }
     ScopedHandle process_handle(pi.hProcess);
@@ -155,34 +239,121 @@ bool RunDriverExe(std::string_view exe_path, std::string_view dll_arg,
 }  // namespace
 
 TEST(ProxyDllSystem, DriverLoadsDllAndDllMainWritesBanner) {
-    ASSERT_STRNE(PROXY_DLL_PATH, "")
-        << "PROXY_DLL_PATH must be set at build time";
-    ASSERT_STRNE(DRIVER_EXE_PATH, "")
-        << "DRIVER_EXE_PATH must be set at build time";
-    ASSERT_STRNE(LOG_FILE_PATH, "")
-        << "LOG_FILE_PATH must be set at build time";
-    ASSERT_STRNE(EXPECTED_BANNER, "")
-        << "EXPECTED_BANNER must be set at build time";
+    ASSERT_STRNE(PROXY_DLL_PATH, "");
+    ASSERT_STRNE(DRIVER_EXE_PATH, "");
+    ASSERT_STRNE(LOG_FILE_PATH, "");
+    ASSERT_STRNE(EXPECTED_BANNER, "");
 
-    std::error_code ec;
-    std::filesystem::remove(std::filesystem::u8path(LOG_FILE_PATH), ec);
+    ScopedTempDir work_dir("exc_proxy_st_banner");
+    std::wstring dll_w;
+    ASSERT_TRUE(Utf8ToWide(PROXY_DLL_PATH, dll_w));
 
     DWORD exit_code = kSentinelExitCode;
-    ASSERT_TRUE(RunDriverExe(DRIVER_EXE_PATH, PROXY_DLL_PATH, &exit_code))
-        << "driver EXE failed to spawn or timed out -- DllMain may "
-           "have hung, or CreateProcessW failed (gle="
-        << GetLastError() << ")";
-    std::cout << "[ NOTE     ] driver exit_code=" << exit_code
-              << " (0 = clean ATTACH; non-zero usually = post-banner DllMain hook crash)\n";
+    ASSERT_TRUE(RunDriverExeInDir(
+        DRIVER_EXE_PATH, dll_w, work_dir.path().wstring(), &exit_code))
+        << "driver EXE failed to spawn or timed out (gle=" << GetLastError() << ")";
+    EXPECT_EQ(exit_code, 0u);
 
-    const std::string log = ReadAllBytes(LOG_FILE_PATH);
-    ASSERT_FALSE(log.empty())
-        << "log file empty or missing: " << LOG_FILE_PATH
-        << " -- did DllMain run and reach LogInit/log_init?";
+    const fs::path log_path = work_dir.path() / fs::u8path(LOG_FILE_PATH);
+    const std::string log = ReadAllText(log_path);
+    ASSERT_FALSE(log.empty()) << "log file empty or missing: " << log_path.u8string();
+    EXPECT_NE(log.find(EXPECTED_BANNER), std::string::npos) << log;
+}
 
-    EXPECT_NE(log.find(EXPECTED_BANNER), std::string::npos)
-        << "log did not contain expected banner.\n"
-        << "  expected substring: " << EXPECTED_BANNER << "\n"
-        << "  log path:           " << LOG_FILE_PATH << "\n"
-        << "  log contents:\n" << log;
+TEST(ProxyDllSystem, CompiledDllAutoPatchesCleanInstallOnProcessAttach) {
+    ASSERT_STRNE(PROXY_DLL_PATH, "");
+    ASSERT_STRNE(DRIVER_EXE_PATH, "");
+
+    ScopedTempDir sandbox("exc_proxy_st_autopatch");
+    const fs::path sandbox_dll = sandbox.path() / "winmm.dll";
+    std::error_code ec;
+    fs::copy_file(fs::u8path(PROXY_DLL_PATH), sandbox_dll,
+                  fs::copy_options::overwrite_existing, ec);
+    ASSERT_FALSE(ec) << "Failed copying winmm.dll into sandbox: " << ec.message();
+
+    const std::string orig_spt_str = "蟲愛でる少女・原本スクリプト";
+    const std::string new_spt_str = "The Girl Who Loved Insects - Patched Script";
+    const Bytes orig_spt(orig_spt_str.begin(), orig_spt_str.end());
+    const Bytes new_spt(new_spt_str.begin(), new_spt_str.end());
+
+    const Bytes orig_gpk = {0x42u, 0x4Du, 0x10u, 0x20u, 0x30u, 0x40u};
+    const Bytes new_gpk = {0x42u, 0x4Du, 0xAAu, 0xBBu, 0xCCu, 0xDDu, 0xEEu, 0xFFu};
+
+    Bytes gtb;
+    AppendU32Le(gtb, kArchiveCount);
+    AppendU32Le(gtb, 0u);
+    AppendU32Le(gtb, 0u);
+    const std::string_view entry_name = "btn_start";
+    gtb.insert(gtb.end(), entry_name.begin(), entry_name.end());
+    gtb.push_back(0u);
+
+    const std::uint32_t gtb_hash =
+        menu_autopatch::ComputeMurmurHash2(gtb.data(), gtb.size());
+    const std::uint32_t orig_spt_hash =
+        menu_autopatch::ComputeMurmurHash2(orig_spt.data(), orig_spt.size());
+    const std::uint32_t new_spt_hash =
+        menu_autopatch::ComputeMurmurHash2(new_spt.data(), new_spt.size());
+    const std::uint32_t orig_gpk_hash =
+        menu_autopatch::ComputeMurmurHash2(orig_gpk.data(), orig_gpk.size());
+    const std::uint32_t new_gpk_hash =
+        menu_autopatch::ComputeMurmurHash2(new_gpk.data(), new_gpk.size());
+
+    Bytes patch_bin;
+    patch_bin.insert(patch_bin.end(), kPatchMagic, kPatchMagic + kPatchMagicBytes);
+    AppendU32Le(patch_bin, kPatchVersion);
+    AppendU32Le(patch_bin, kStandaloneCount);
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(orig_gpk.size()));
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(new_gpk.size()));
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(gtb.size()));
+    AppendU32Le(patch_bin, gtb_hash);
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(gtb.size()));
+    AppendU32Le(patch_bin, gtb_hash);
+    AppendU32Le(patch_bin, kModifiedGpkCount);
+
+    const std::string_view rel_spt = "spt\\01.spt";
+    Bytes masked_spt = new_spt;
+    menu_autopatch::XorMaskPayload(
+        masked_spt.data(), masked_spt.size(), orig_spt.data(), orig_spt.size(), orig_spt_hash);
+    AppendU16Le(patch_bin, static_cast<std::uint16_t>(rel_spt.size()));
+    patch_bin.insert(patch_bin.end(), rel_spt.begin(), rel_spt.end());
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(orig_spt.size()));
+    AppendU32Le(patch_bin, orig_spt_hash);
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(new_spt.size()));
+    AppendU32Le(patch_bin, new_spt_hash);
+    patch_bin.insert(patch_bin.end(), masked_spt.begin(), masked_spt.end());
+
+    Bytes masked_gtb = gtb;
+    menu_autopatch::XorMaskPayload(
+        masked_gtb.data(), masked_gtb.size(), gtb.data(), gtb.size(), gtb_hash);
+    patch_bin.insert(patch_bin.end(), masked_gtb.begin(), masked_gtb.end());
+
+    Bytes masked_gpk = new_gpk;
+    menu_autopatch::XorMaskPayload(
+        masked_gpk.data(), masked_gpk.size(), orig_gpk.data(), orig_gpk.size(), orig_gpk_hash);
+    AppendU32Le(patch_bin, 0u);
+    AppendU32Le(patch_bin, 0u);
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(orig_gpk.size()));
+    AppendU32Le(patch_bin, orig_gpk_hash);
+    AppendU32Le(patch_bin, static_cast<std::uint32_t>(new_gpk.size()));
+    AppendU32Le(patch_bin, new_gpk_hash);
+    patch_bin.insert(patch_bin.end(), masked_gpk.begin(), masked_gpk.end());
+
+    WriteBytes(sandbox.path() / "spt" / "01.spt", orig_spt);
+    WriteBytes(sandbox.path() / "dwq" / "sys0.gtb", gtb);
+    WriteBytes(sandbox.path() / "dwq" / "sys0.gpk", orig_gpk);
+    WriteBytes(sandbox.path() / "extravaganza_patch.bin", patch_bin);
+
+    DWORD exit_code = kSentinelExitCode;
+    ASSERT_TRUE(RunDriverExeInDir(
+        DRIVER_EXE_PATH, sandbox_dll.wstring(), sandbox.path().wstring(), &exit_code));
+    EXPECT_EQ(exit_code, 0u);
+
+    EXPECT_TRUE(fs::is_regular_file(sandbox.path() / "extravaganza_patch.bin.applied"));
+    EXPECT_EQ(ReadBytes(sandbox.path() / "spt" / "01.spt"), new_spt);
+    EXPECT_EQ(ReadBytes(sandbox.path() / "spt" / "01.spt.bak"), orig_spt);
+    EXPECT_EQ(ReadBytes(sandbox.path() / "dwq" / "sys0.gpk"), new_gpk);
+    EXPECT_EQ(ReadBytes(sandbox.path() / "dwq" / "sys0.gpk.bak"), orig_gpk);
+
+    const std::string log = ReadAllText(sandbox.path() / fs::u8path(LOG_FILE_PATH));
+    EXPECT_NE(log.find("Auto-patched EXTRAVAGANZA_CE game assets"), std::string::npos) << log;
 }

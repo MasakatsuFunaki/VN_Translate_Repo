@@ -9,7 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # mangles the UTF-8 Japanese literals in the glossary.  /utf-8 is the standard
 # fix.  /bigobj: glossary + boost headers overflow the default section limit.
 if(MSVC)
-    add_compile_options(/utf-8 /bigobj)
+    add_compile_options(/utf-8 /bigobj /Brepro)
+    add_link_options(/BREPRO)
 endif()
 
 option(ENABLE_TESTS "Build the GoogleTest suite" ON)
