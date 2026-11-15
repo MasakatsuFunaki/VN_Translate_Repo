@@ -81,6 +81,7 @@ spot_checker/build/
 **/helper_dll/build/
 # Conan rewrites this on every `conan install`
 **/CMakeUserPresets.json
+**/cmake_test_discovery_*.json
 **/proxy_dll/_build_log.txt
 **/proxy_dll/build.log
 

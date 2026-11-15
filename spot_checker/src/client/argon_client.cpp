@@ -6,12 +6,13 @@
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
 #include "client/argon_client.h"
-#include "common/util.h"
+
+#include "client/argon_wire_codec.h"
+#include "common/utf8_text.h"
+#include "ports/file_store.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-#include <windows.h>
-#include <wincrypt.h>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -19,265 +20,218 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
-#include <boost/beast/version.hpp>
 
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
+
+#include <windows.h>
+#include <wincrypt.h>
+
+#ifdef X509_NAME
+#undef X509_NAME
+#endif
+#ifdef X509_EXTENSIONS
+#undef X509_EXTENSIONS
+#endif
+#ifdef X509_CERT_PAIR
+#undef X509_CERT_PAIR
+#endif
+#ifdef PKCS7_SIGNER_INFO
+#undef PKCS7_SIGNER_INFO
+#endif
+
+#include <algorithm>
 #include <chrono>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
-#include <filesystem>
-#include <fstream>
-#include <limits>
+#include <memory>
+#include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 
 namespace spot_checker {
+namespace {
 
 namespace beast = boost::beast;
 namespace http = beast::http;
 namespace asio = boost::asio;
-namespace bj = boost::json;
 namespace fs = std::filesystem;
 using tcp = asio::ip::tcp;
 
-namespace {
-
-constexpr const char* kApiHost = "generativelanguage.googleapis.com";
-constexpr const char* kApiPort = "443";
-constexpr const char* kDefaultArgonModel = "gemini-4-argon";
-constexpr std::int64_t kThinkingBudget = 2048;
-constexpr std::int64_t kMaxOutputTokens = 16384;
-constexpr std::string_view kGeminiKeyPrefix = "GEMINI_API_KEY=";
-constexpr std::size_t kMinQuotedLength = 2;
 constexpr int kHttpVersion11 = 11;
+constexpr int kRequestTimeoutSeconds = 180;
+constexpr int kServerErrorMin = 500;
+constexpr int kServerErrorMax = 599;
+constexpr int kBackoffMultiplier = 2;
 constexpr std::uint64_t kMaxResponseBodyBytes = 64ULL * 1024ULL * 1024ULL;
-constexpr unsigned kHttpTooManyRequests = 429;
-constexpr unsigned kHttpOkMin = 200;
-constexpr unsigned kHttpOkExclusiveMax = 300;
+constexpr const char* kUserAgentHeader = "vn-spot-checker/1.0";
+constexpr const char* kJsonMimeType = "application/json";
+constexpr const char* kGeminiEnvVarName = "GEMINI_API_KEY";
 
-void load_windows_root_certs(asio::ssl::context& ctx) {
-    HCERTSTORE store = CertOpenSystemStoreW(0, L"ROOT");
-    if (!store) {
-        return;
-    }
-    X509_STORE* x509 = X509_STORE_new();
-    for (PCCERT_CONTEXT cert = CertEnumCertificatesInStore(store, nullptr);
-         cert != nullptr; cert = CertEnumCertificatesInStore(store, cert)) {
-        const unsigned char* p = cert->pbCertEncoded;
-        if (X509* x = d2i_X509(nullptr, &p, static_cast<long>(cert->cbCertEncoded))) {
-            X509_STORE_add_cert(x509, x);
-            X509_free(x);
+struct CertStoreGuard {
+    explicit CertStoreGuard(HCERTSTORE h) noexcept : handle(h) {}
+    ~CertStoreGuard() {
+        if (handle != nullptr) {
+            ::CertCloseStore(handle, 0);
         }
     }
-    CertCloseStore(store, 0);
-    SSL_CTX_set_cert_store(ctx.native_handle(), x509);
+
+    CertStoreGuard(const CertStoreGuard&) = delete;
+    CertStoreGuard& operator=(const CertStoreGuard&) = delete;
+
+    HCERTSTORE handle = nullptr;
+};
+
+struct X509StoreDeleter {
+    void operator()(X509_STORE* store) const noexcept {
+        if (store != nullptr) {
+            X509_STORE_free(store);
+        }
+    }
+};
+
+struct X509CertDeleter {
+    void operator()(X509* cert) const noexcept {
+        if (cert != nullptr) {
+            X509_free(cert);
+        }
+    }
+};
+
+using X509StorePtr = std::unique_ptr<X509_STORE, X509StoreDeleter>;
+using X509CertPtr = std::unique_ptr<X509, X509CertDeleter>;
+
+Status populate_windows_root_certs(asio::ssl::context& ssl_ctx) {
+    const CertStoreGuard win_store(::CertOpenSystemStoreW(0, L"ROOT"));
+    if (win_store.handle == nullptr) {
+        return Status::error(ErrorCode::NetworkError,
+                             "CertOpenSystemStoreW(ROOT) failed");
+    }
+
+    X509StorePtr x509_store(X509_STORE_new());
+    if (!x509_store) {
+        return Status::error(ErrorCode::NetworkError, "X509_STORE_new failed");
+    }
+
+    std::size_t loaded_count = 0;
+    for (PCCERT_CONTEXT cert =
+             ::CertEnumCertificatesInStore(win_store.handle, nullptr);
+         cert != nullptr;
+         cert = ::CertEnumCertificatesInStore(win_store.handle, cert)) {
+        const unsigned char* encoded = cert->pbCertEncoded;
+        X509CertPtr decoded(d2i_X509(
+            nullptr, &encoded, static_cast<long>(cert->cbCertEncoded)));
+        if (decoded) {
+            if (X509_STORE_add_cert(x509_store.get(), decoded.get()) == 1) {
+                ++loaded_count;
+            }
+        }
+    }
+
+    if (loaded_count == 0) {
+        return Status::error(
+            ErrorCode::NetworkError,
+            "Windows ROOT certificate store yielded 0 X.509 certificates");
+    }
+
+    SSL_CTX_set_cert_store(ssl_ctx.native_handle(), x509_store.release());
+    return Status::ok();
 }
 
-std::string read_key_from_dotenv(const fs::path& dotenv_path) {
-    if (!fs::exists(dotenv_path)) {
-        return {};
+bool is_retryable_failure(const Status& status) noexcept {
+    if (status.code == ErrorCode::RateLimited ||
+        status.code == ErrorCode::NetworkError) {
+        return true;
     }
-    std::ifstream in(dotenv_path);
-    std::string line;
-    while (std::getline(in, line)) {
-        line = trim(line);
-        if (line.empty() || line[0] == '#') {
-            continue;
-        }
-        if (line.rfind(kGeminiKeyPrefix, 0) == 0) {
-            std::string key = trim(line.substr(kGeminiKeyPrefix.size()));
-            if (key.size() >= kMinQuotedLength &&
-                ((key.front() == '"' && key.back() == '"') ||
-                 (key.front() == '\'' && key.back() == '\''))) {
-                key = key.substr(1, key.size() - kMinQuotedLength);
-            }
-            if (!key.empty()) {
-                return key;
-            }
-        }
-    }
-    return {};
-}
-
-bool set_wide_env_utf8(const wchar_t* name, std::string_view value_utf8) {
-    if (name == nullptr || *name == L'\0') {
-        return false;
-    }
-    if (value_utf8.empty()) {
-        return ::_wputenv_s(name, L"") == 0;
-    }
-    if (value_utf8.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-        return false;
-    }
-    const int src_len = static_cast<int>(value_utf8.size());
-    const int needed = ::MultiByteToWideChar(
-        CP_UTF8, MB_ERR_INVALID_CHARS, value_utf8.data(), src_len, nullptr, 0);
-    if (needed <= 0) {
-        return false;
-    }
-    std::wstring wide_value(static_cast<std::size_t>(needed), L'\0');
-    const int written = ::MultiByteToWideChar(
-        CP_UTF8, MB_ERR_INVALID_CHARS, value_utf8.data(), src_len,
-        wide_value.data(), needed);
-    if (written != needed) {
-        return false;
-    }
-    return ::_wputenv_s(name, wide_value.c_str()) == 0;
+    return status.code == ErrorCode::HttpError &&
+           status.http_status >= kServerErrorMin &&
+           status.http_status <= kServerErrorMax;
 }
 
 }  // namespace
 
-std::string load_gemini_api_key() {
-    try {
-        if (const wchar_t* env = _wgetenv(L"GEMINI_API_KEY");
-            env != nullptr && *env != L'\0') {
-            return wide_to_utf8(env);
-        }
-        if (const wchar_t* home = _wgetenv(L"USERPROFILE");
-            home != nullptr && *home != L'\0') {
-            const fs::path cfg = fs::u8path(wide_to_utf8(home)) / ".gemini" / ".env";
-            if (std::string key = read_key_from_dotenv(cfg); !key.empty()) {
-                if (!set_wide_env_utf8(L"GEMINI_API_KEY", key)) {
-                    return {};
-                }
-                return key;
-            }
-        }
-    } catch (...) {
-        return {};
-    }
-    return {};
-}
-
-bj::object build_argon_request_payload(const std::string& system_prompt,
-                                       const std::string& user_prompt) {
-    bj::object req_json;
-    if (!system_prompt.empty()) {
-        req_json["systemInstruction"] = bj::object{
-            {"parts", bj::array{bj::object{{"text", system_prompt}}}}};
-    }
-    req_json["contents"] = bj::array{
-        bj::object{
-            {"role", "user"},
-            {"parts", bj::array{bj::object{{"text", user_prompt}}}},
-        },
-    };
-    req_json["generationConfig"] = bj::object{
-        {"maxOutputTokens", kMaxOutputTokens},
-        {"thinkingConfig", bj::object{{"thinkingBudget", kThinkingBudget}}},
-        {"responseMimeType", "application/json"},
-    };
-    return req_json;
-}
-
-ArgonResponse parse_argon_response_payload(const bj::value& raw) {
-    ArgonResponse out;
-    if (!raw.is_object()) {
-        return out;
-    }
-
-    const auto& robj = raw.as_object();
-    if (const auto* cands = robj.if_contains("candidates");
-        cands && cands->is_array() && !cands->as_array().empty() &&
-        cands->as_array()[0].is_object()) {
-        const auto& cand0 = cands->as_array()[0].as_object();
-        if (const auto* content = cand0.if_contains("content");
-            content && content->is_object()) {
-            if (const auto* parts = content->as_object().if_contains("parts");
-                parts && parts->is_array()) {
-                for (const auto& pv : parts->as_array()) {
-                    if (!pv.is_object()) {
-                        continue;
-                    }
-                    const auto& part = pv.as_object();
-                    if (const auto* th = part.if_contains("thought");
-                        th && th->is_bool() && th->as_bool()) {
-                        continue;
-                    }
-                    if (const auto* txt = part.if_contains("text");
-                        txt && txt->is_string()) {
-                        out.text += std::string(txt->as_string());
-                    }
-                }
-            }
-        }
-        if (const auto* fr = cand0.if_contains("finishReason"); fr && fr->is_string()) {
-            out.finish_reason = std::string(fr->as_string());
-        }
-    }
-
-    if (const auto* um = robj.if_contains("usageMetadata"); um && um->is_object()) {
-        const auto& u = um->as_object();
-        const auto get_int = [&](const char* k) -> std::int64_t {
-            if (const auto* v = u.if_contains(k)) {
-                if (v->is_int64()) {
-                    return v->as_int64();
-                }
-                if (v->is_uint64()) {
-                    return static_cast<std::int64_t>(v->as_uint64());
-                }
-            }
-            return 0;
-        };
-        out.prompt_tokens = get_int("promptTokenCount");
-        out.output_tokens = get_int("candidatesTokenCount");
-        out.thought_tokens = get_int("thoughtsTokenCount");
-    }
-
-    return out;
-}
-
 struct ArgonClient::Impl {
-    std::string api_key;
-    std::string model;
+    ArgonClientOptions options;
+    SystemClock default_clock;
+    NullLogSink default_log;
+    std::optional<asio::ssl::context> ssl_ctx;
 
-    Impl(std::string key, std::string mdl)
-        : api_key(std::move(key)), model(std::move(mdl)) {
-        if (api_key.empty()) {
-            api_key = load_gemini_api_key();
+    explicit Impl(ArgonClientOptions opts) : options(std::move(opts)) {
+        if (options.api_key.empty()) {
+            options.api_key = ArgonClient::resolve_gemini_api_key();
         }
-        if (api_key.empty()) {
-            throw ApiError("GEMINI_API_KEY not set in environment or ~/.gemini/.env");
-        }
-        if (model.empty()) {
-            model = kDefaultArgonModel;
+        if (options.model.empty()) {
+            options.model = std::string(kDefaultArgonModel);
         }
     }
 
-    ArgonResponse generate(const std::string& system_prompt,
-                           const std::string& user_prompt,
-                           int timeout_sec) {
+    IClock& clock() noexcept {
+        return options.clock != nullptr ? *options.clock : default_clock;
+    }
+
+    ILogSink& log() noexcept {
+        return options.log_sink != nullptr ? *options.log_sink : default_log;
+    }
+
+    Status ensure_ssl_context() {
+        if (ssl_ctx.has_value()) {
+            return Status::ok();
+        }
         try {
-            const bj::object req_json =
-                build_argon_request_payload(system_prompt, user_prompt);
-            const std::string target =
-                "/v1beta/models/" + model + ":generateContent?key=" + api_key;
-
-            asio::io_context ioc;
-            asio::ssl::context ssl_ctx(asio::ssl::context::tls_client);
-            ssl_ctx.set_verify_mode(asio::ssl::verify_peer);
-            load_windows_root_certs(ssl_ctx);
-
-            beast::ssl_stream<beast::tcp_stream> stream(ioc, ssl_ctx);
-            if (!SSL_set_tlsext_host_name(stream.native_handle(), kApiHost)) {
-                throw ApiError("SNI setup failed");
+            asio::ssl::context ctx(asio::ssl::context::tls_client);
+            ctx.set_verify_mode(asio::ssl::verify_peer);
+            const Status cert_status = populate_windows_root_certs(ctx);
+            if (!cert_status.is_ok()) {
+                return cert_status;
             }
-            SSL_set1_host(stream.native_handle(), kApiHost);
+            ssl_ctx.emplace(std::move(ctx));
+            return Status::ok();
+        } catch (const std::exception& ex) {
+            return Status::error(
+                ErrorCode::NetworkError,
+                std::string("TLS context initialization failed: ") + ex.what());
+        }
+    }
+
+    Result<LlmResponse> send_once(const std::string& request_body) {
+        const Status tls_status = ensure_ssl_context();
+        if (!tls_status.is_ok()) {
+            return Result<LlmResponse>::failure(tls_status);
+        }
+
+        const std::string host(kDefaultArgonHost);
+        const std::string port(kDefaultArgonPort);
+        const std::string target = std::string(kDefaultArgonBasePath) + "/" +
+                                   options.model +
+                                   ":generateContent?key=" + options.api_key;
+
+        try {
+            asio::io_context ioc;
+            beast::ssl_stream<beast::tcp_stream> stream(ioc, *ssl_ctx);
+            if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str())) {
+                return Result<LlmResponse>::failure(
+                    ErrorCode::NetworkError, "TLS SNI host setup failed");
+            }
+            if (SSL_set1_host(stream.native_handle(), host.c_str()) != 1) {
+                return Result<LlmResponse>::failure(
+                    ErrorCode::NetworkError,
+                    "TLS hostname verification setup failed");
+            }
 
             tcp::resolver resolver(ioc);
-            const auto endpoints = resolver.resolve(kApiHost, kApiPort);
+            const auto endpoints = resolver.resolve(host, port);
             beast::get_lowest_layer(stream).expires_after(
-                std::chrono::seconds(timeout_sec));
+                std::chrono::seconds(kRequestTimeoutSeconds));
             beast::get_lowest_layer(stream).connect(endpoints);
             stream.handshake(asio::ssl::stream_base::client);
 
-            http::request<http::string_body> req{http::verb::post, target, kHttpVersion11};
-            req.set(http::field::host, kApiHost);
-            req.set(http::field::user_agent, "vn-spot-checker/1.0");
-            req.set(http::field::content_type, "application/json");
-            req.body() = bj::serialize(req_json);
+            http::request<http::string_body> req{http::verb::post, target,
+                                                 kHttpVersion11};
+            req.set(http::field::host, host);
+            req.set(http::field::user_agent, kUserAgentHeader);
+            req.set(http::field::content_type, kJsonMimeType);
+            req.body() = request_body;
             req.prepare_payload();
 
             http::write(stream, req);
@@ -288,42 +242,98 @@ struct ArgonClient::Impl {
             http::read(stream, buffer, parser);
             const http::response<http::string_body> res = parser.release();
 
-            beast::error_code ec;
-            stream.shutdown(ec);
+            beast::error_code shutdown_ec;
+            stream.shutdown(shutdown_ec);
 
-            const unsigned status = res.result_int();
-            if (status == kHttpTooManyRequests) {
-                throw RateLimitError("HTTP 429: " + res.body());
+            return parse_argon_response_json(
+                res.body(), static_cast<int>(res.result_int()));
+        } catch (const std::exception& ex) {
+            return Result<LlmResponse>::failure(
+                ErrorCode::NetworkError,
+                std::string("HTTPS transport error: ") + ex.what());
+        }
+    }
+
+    Result<LlmResponse> generate(const LlmRequest& request) {
+        if (options.api_key.empty()) {
+            return Result<LlmResponse>::failure(
+                ErrorCode::MissingApiKey,
+                "GEMINI_API_KEY is not set in environment or ~/.gemini/.env");
+        }
+
+        const std::string request_body = build_argon_request_json(request);
+        const int max_retries = std::max(0, options.max_retries);
+        std::chrono::milliseconds backoff = options.initial_backoff;
+
+        for (int attempt = 0;; ++attempt) {
+            auto res = send_once(request_body);
+            if (res.is_ok()) {
+                return res;
             }
-            if (status < kHttpOkMin || status >= kHttpOkExclusiveMax) {
-                throw ApiError("HTTP " + std::to_string(status) + ": " + res.body());
+            if (attempt >= max_retries || !is_retryable_failure(res.status())) {
+                return res;
             }
-            return parse_argon_response_payload(bj::parse(res.body()));
-        } catch (const RateLimitError&) {
-            throw;
-        } catch (const ApiError&) {
-            throw;
-        } catch (const std::exception& e) {
-            throw ApiError(std::string("transport error: ") + e.what());
+            log().warn("Argon API transient error (" +
+                       std::string(to_string(res.error_code())) +
+                       "), retrying after " +
+                       std::to_string(backoff.count()) + "ms");
+            clock().sleep_for(backoff);
+            backoff *= kBackoffMultiplier;
         }
     }
 };
 
+ArgonClient::ArgonClient(ArgonClientOptions options)
+    : impl_(std::make_unique<Impl>(std::move(options))) {}
+
 ArgonClient::ArgonClient(std::string api_key, std::string model)
-    : impl_(std::make_unique<Impl>(std::move(api_key), std::move(model))) {}
+    : ArgonClient(ArgonClientOptions{std::move(api_key), std::move(model)}) {}
 
 ArgonClient::~ArgonClient() = default;
-ArgonClient::ArgonClient(ArgonClient&& other) noexcept = default;
-ArgonClient& ArgonClient::operator=(ArgonClient&& other) noexcept = default;
+ArgonClient::ArgonClient(ArgonClient&&) noexcept = default;
+ArgonClient& ArgonClient::operator=(ArgonClient&&) noexcept = default;
 
-ArgonResponse ArgonClient::generate(const std::string& system_prompt,
-                                    const std::string& user_prompt,
-                                    int timeout_sec) {
-    return impl_->generate(system_prompt, user_prompt, timeout_sec);
+Result<LlmResponse> ArgonClient::generate(const LlmRequest& request) {
+    return impl_->generate(request);
 }
 
-const std::string& ArgonClient::model() const {
-    return impl_->model;
+std::string ArgonClient::resolve_gemini_api_key(
+    const std::filesystem::path& dotenv_override) {
+    if (!dotenv_override.empty()) {
+        const DiskFileStore store;
+        const auto text_res = store.read_text(dotenv_override);
+        if (!text_res.is_ok()) {
+            return {};
+        }
+        return parse_dotenv_value(text_res.value(), kGeminiEnvVarName);
+    }
+
+    if (const wchar_t* env_val = ::_wgetenv(L"GEMINI_API_KEY");
+        env_val != nullptr && *env_val != L'\0') {
+        const std::string trimmed = trim_ascii(wide_to_utf8(env_val));
+        if (!trimmed.empty()) {
+            return trimmed;
+        }
+    }
+
+    fs::path dotenv_path;
+    if (const wchar_t* home = ::_wgetenv(L"USERPROFILE");
+        home != nullptr && *home != L'\0') {
+        dotenv_path = fs::path(home) / ".gemini" / ".env";
+    } else if (const wchar_t* posix_home = ::_wgetenv(L"HOME");
+               posix_home != nullptr && *posix_home != L'\0') {
+        dotenv_path = fs::path(posix_home) / ".gemini" / ".env";
+    }
+    if (dotenv_path.empty()) {
+        return {};
+    }
+
+    const DiskFileStore store;
+    const auto text_res = store.read_text(dotenv_path);
+    if (!text_res.is_ok()) {
+        return {};
+    }
+    return parse_dotenv_value(text_res.value(), kGeminiEnvVarName);
 }
 
 }  // namespace spot_checker

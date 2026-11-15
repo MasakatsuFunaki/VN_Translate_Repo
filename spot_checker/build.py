@@ -1,9 +1,10 @@
 """spot_checker build driver -- Conan 2 + CMake + MSVC (x64).
 
-    python build.py                  # build everything, tests included
-    python build.py --test           # build, then run all the tests
-    python build.py --install        # build, then stage 01_spot_check.exe into build/install/bin
-    python build.py --clean          # delete the build tree
+    python build.py                      # build everything, tests included
+    python build.py --test               # build, stage 01_spot_check.exe, run offline UT+CT+ST
+    python build.py --test --live-api    # build, stage 01_spot_check.exe, run LIVE_API STs
+    python build.py --install            # build, then stage 01_spot_check.exe into build/install/bin
+    python build.py --clean              # delete the build tree
 """
 
 import argparse
@@ -65,15 +66,6 @@ def build():
     run_with_vcvars("build", ["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
 
 
-def test():
-    print("\n=== spot_checker (x64): tests ===")
-    rc = run(["ctest", "--preset", PRESET, "-C", CONFIG, "--output-on-failure"],
-             ROOT, check=False)
-    if rc != 0:
-        print(f"\nspot_checker: TESTS FAILED (rc={rc}) -- stopping.")
-        sys.exit(rc)
-
-
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG, "--prefix", INSTALL_DIR], ROOT)
@@ -83,11 +75,27 @@ def install():
             print(f"  bin/{name}")
 
 
+def test(live_api=False):
+    label_args = ["-L", "LIVE_API"] if live_api else ["-LE", "LIVE_API"]
+    suite_label = "LIVE_API system tests" if live_api else "offline UT + CT + SYSTEM tests"
+    print(f"\n=== spot_checker (x64): {suite_label} ===")
+    rc = run(
+        ["ctest", "--preset", PRESET, "-C", CONFIG, "--output-on-failure"] + label_args,
+        ROOT,
+        check=False,
+    )
+    if rc != 0:
+        print(f"\nspot_checker: TESTS FAILED (rc={rc}) -- stopping.")
+        sys.exit(rc)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Build the standalone spot_checker tool (x64).")
     parser.add_argument("--test", action="store_true",
-                        help="run all the unit tests after building")
+                        help="stage 01_spot_check.exe and run offline UT/CT/SYSTEM tests")
+    parser.add_argument("--live-api", action="store_true",
+                        help="when combined with --test, run opt-in LIVE_API system tests")
     parser.add_argument("--install", action="store_true",
                         help="stage 01_spot_check.exe into build/install/bin")
     parser.add_argument("--clean", action="store_true",
@@ -100,11 +108,11 @@ def main():
 
     build()
 
-    if args.test:
-        test()
-
-    if args.install:
+    if args.install or args.test:
         install()
+
+    if args.test:
+        test(live_api=args.live_api)
 
     print("\nDone.")
 
