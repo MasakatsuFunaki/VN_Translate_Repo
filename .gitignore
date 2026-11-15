@@ -152,3 +152,12 @@ Adieu/**/g00_extracted/
 Adieu/**/g00_rendered/
 Adieu/**/contact_sheets/
 
+# Per-game tone & glossary guides used locally by spot_checker.
+# Oretachi_ni_Tsubasa_wa_Nai loads its speaker nameplate table from
+# TONE_OF_NOVEL.md during 02_build_tsv and CTest, so its copy stays tracked.
+**/TONE_OF_NOVEL.md
+**/TONE.md
+!Oretachi_ni_Tsubasa_wa_Nai/TONE_OF_NOVEL.md
+!spot_checker/tests/**/tone_of_novel.md
+!spot_checker/tests/**/*tone_of_novel.md
+
