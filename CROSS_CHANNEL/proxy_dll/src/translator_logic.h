@@ -38,6 +38,88 @@ bool IsChoiceLikeJp(const std::string& jp);
 // possible, otherwise hard-clip at `slot`. Empty result iff slot == 0.
 std::string FitToSlot(const std::string& en, std::size_t slot);
 
+// Bytecode layout bounds for op 0x31 / 0x32 choice records in sn.bin.
+constexpr std::size_t kChoiceHeaderBytes         = 6;
+constexpr std::size_t kChoiceOptionPreambleBytes = 10;
+constexpr std::size_t kMaxChoiceOptions          = 16;
+constexpr std::size_t kMaxChoiceOptionSrcBytes   = 512;
+constexpr std::size_t kMaxChoiceOptionOutBytes   = 256;
+constexpr std::size_t kDefaultMaxChoiceInBytes   = 16384;
+
+// Backlog ring-buffer slot text layout for op 0x86 (FUN_0083efb0, RVA 0x2EFB0):
+//   slot base 0x06C2B880, text at +0x008, engine state snapshot at +0x200
+//   -> 0x1F8 = 504 bytes (max 503 payload bytes + NUL terminator).
+// Backlog line renderer FUN_0081df60 (RVA 0x0DF60) parses "%N" line breaks
+// and otherwise hard-splits mid-word at column 60 (0x3C).
+constexpr std::size_t kBacklogSlotTextCapacity   = 504;
+constexpr std::size_t kBacklogWrapCols           = 58;
+
+// Optional reverse-prefix lookup callback used by BuildChoiceBuffer when an
+// earlier in-place script patcher overwrote a choice option with truncated EN.
+using ChoicePrefixLookupFn = bool (*)(const std::string& maybe_truncated_en,
+                                      std::string& full_en_out);
+
+// Parse a Cross-Channel choice opcode record (op 0x31 / 0x32) starting at
+// `cursor` (bounded by `max_in_bytes`) and emit a structurally identical
+// choice record with translated option strings into `out_buf[0..out_capacity)`.
+//
+// Bytecode layout at `cursor` (after opcode byte consumption):
+//   [0..1]   2-byte preamble (0x80 0x80)
+//   [2..3]   uint16 LE option count (1..kMaxChoiceOptions)
+//   [4..5]   uint16 LE default option index
+//   Per option (`count` records):
+//     [0..9] 10-byte option preamble + jump/flag metadata (copied verbatim)
+//     [10..] NUL-terminated CP932/ASCII option text, scanned up to
+//            kMaxChoiceOptionSrcBytes (512 bytes)
+//
+// Each option resolves via LookupWithStrippedPrefix(), then trailing-space
+// trim + LookupWithStrippedPrefix() + optional `prefix_lookup`, and is
+// clamped via FitToSlot() to `kMaxChoiceOptionOutBytes - 1` (255B + NUL).
+//
+// Returns the total byte length consumed from `cursor` (`> 0`) so the caller's
+// post-hook advances the script cursor past the original JP record; returns 0
+// on invalid arguments, out-of-range count, unterminated string, or insufficient
+// `out_capacity`.
+std::size_t BuildChoiceBuffer(const unsigned char* cursor,
+                              std::size_t max_in_bytes,
+                              unsigned char* out_buf,
+                              std::size_t out_capacity,
+                              const TranslationMap& translations,
+                              ChoicePrefixLookupFn prefix_lookup = nullptr);
+
+std::size_t BuildChoiceBuffer(const unsigned char* cursor,
+                              unsigned char* out_buf,
+                              std::size_t out_capacity,
+                              const TranslationMap& translations,
+                              ChoicePrefixLookupFn prefix_lookup = nullptr);
+
+// Seed `out` with built-in CP932 -> EN translations for sn.bin strings that
+// are absent from or lose semantic prefixes in translations.tsv:
+//   * script[0] op 0x32 scenario-launcher options & op 0x45 controller legend
+//   * all 35 CASE chapter cards & Bad-End failure cards ("ＣＡＳＥ　１　失敗"...)
+//   * all 31 op 0x86 silent-backlog lines (Miki route)
+//   * stripped-prefix lines where stripping drops meaningful leading tokens
+//     ("Ａ定食は…", "FLOWER'S…", "２リットルの天然水。", "†が閃く。", ...)
+//   * short/unextracted choice & speaker/decorator safety entries
+//
+// Inserts via `emplace` so entries already present in `out` (loaded from
+// translations.tsv) are never overwritten, while literal unstripped CP932 keys
+// take priority over LookupWithStrippedPrefix()'s stripped fallback.
+// Returns the number of newly inserted entries.
+int SeedScriptMenuTranslations(TranslationMap& out);
+
+// Look up `jp_cp932` in `translations` (via LookupWithStrippedPrefix),
+// word-wrap lines at `wrap_cols` using Cross-Channel's "%N" line-break token,
+// and clamp to `slot_capacity - 1` payload bytes so the NUL-terminated output
+// fits cleanly inside the 504-byte op 0x86 backlog text field.
+// Returns true on substitution; returns false without mutating `out_formatted`
+// on lookup miss or invalid `slot_capacity` (< 2).
+bool FormatBacklogSlotText(const std::string& jp_cp932,
+                           const TranslationMap& translations,
+                           std::string& out_formatted,
+                           std::size_t wrap_cols = kBacklogWrapCols,
+                           std::size_t slot_capacity = kBacklogSlotTextCapacity);
+
 // --- Lookup with leading-decorator fallback --------------------------
 
 // Look up `jp` in `translations`. If absent, retry after walking past

@@ -31,6 +31,10 @@ option(ENABLE_TESTS "Build the Google Test suite for translator_logic" ON)
 add_library(translator_logic OBJECT
     src/translator_logic.cpp
     src/translator_logic.h
+    src/chrome_text_logic.cpp
+    src/chrome_text_logic.h
+    src/menu_patch_format.cpp
+    src/menu_patch_format.h
 )
 target_include_directories(translator_logic PUBLIC src)
 target_compile_definitions(translator_logic PRIVATE
@@ -49,6 +53,14 @@ add_library(proxy SHARED
     src/iat_hook.h
     src/translator.cpp
     src/translator.h
+    src/bytecode_hooks.cpp
+    src/bytecode_hooks.h
+    src/engine_ui_hooks.cpp
+    src/engine_ui_hooks.h
+    src/menu_autopatch.cpp
+    src/menu_autopatch.h
+    src/win32_chrome.cpp
+    src/win32_chrome.h
     src/log.h
     src/xinput1_3.def
     $<TARGET_OBJECTS:translator_logic>

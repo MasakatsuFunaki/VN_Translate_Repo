@@ -7,9 +7,13 @@
 
 #include "translator.h"
 
+#include "bytecode_hooks.h"
+#include "engine_ui_hooks.h"
 #include "iat_hook.h"
 #include "log.h"
+#include "menu_autopatch.h"
 #include "translator_logic.h"
+#include "win32_chrome.h"
 
 #include <windows.h>
 
@@ -235,17 +239,21 @@ bool GetExecutableSiblingPathUtf8(const wchar_t* siblingName, std::string& outUt
 
 bool LoadTranslations() {
     std::string pathUtf8;
-    if (!GetExecutableSiblingPathUtf8(L"translations.tsv", pathUtf8)) {
+    if (GetExecutableSiblingPathUtf8(L"translations.tsv", pathUtf8)) {
+        if (translator_logic::LoadTsvFile(pathUtf8, g_translations)) {
+            Log("Translator: loaded %zu entries from translations.tsv",
+                g_translations.size());
+        } else {
+            Log("Translator: translations.tsv NOT FOUND at %s", pathUtf8.c_str());
+        }
+    } else {
         Log("Translator: failed to resolve translations.tsv path");
-        return false;
     }
-    const bool ok = translator_logic::LoadTsvFile(pathUtf8, g_translations);
-    if (!ok) {
-        Log("Translator: translations.tsv NOT FOUND at %s", pathUtf8.c_str());
-        return false;
-    }
-    Log("Translator: loaded %zu entries from translations.tsv", g_translations.size());
-    return true;
+
+    const int seeded = translator_logic::SeedScriptMenuTranslations(g_translations);
+    Log("Translator: seeded %d built-in script menu/CASE/op0x86 entries (total=%zu)",
+        seeded, g_translations.size());
+    return !g_translations.empty();
 }
 
 // Word-wrap helper
@@ -399,18 +407,23 @@ static void TryScalePatch() {
 static constexpr DWORD kGhidraImageBase     = 0x00810000;
 static constexpr DWORD kGhidraVA_ChoiceFont = 0x008D4698;
 static constexpr float kChoiceFontScale     = 0.6f;   // 60% glyph scale; 64-px cell advance unchanged (tighter visual spacing without touching frame layout)
+static bool g_choiceFontScalePatched = false;
 
 static void PatchChoiceFontScale() {
-    if (!g_exeBase) return;
+    if (g_choiceFontScalePatched || !g_exeBase) return;
     DWORD runtimeVA = reinterpret_cast<DWORD>(g_exeBase)
                     + (kGhidraVA_ChoiceFont - kGhidraImageBase);
     float* p = reinterpret_cast<float*>(runtimeVA);
     // Sanity check: this constant is 6/7 = 0.857143 in cc_dumped.exe.
     // If we read 0 or NaN, .rdata isn't unpacked yet — caller should
-    // delay until after HookInstallerThread sees the LZSS prologue.
+    // delay until after HookInstallerThread confirms unpack + .reloc.
     float was = 0.0f;
     __try { was = *p; } __except (EXCEPTION_EXECUTE_HANDLER) {
         Log("CHOICE-FONT: AV reading %p — skip", p);
+        return;
+    }
+    if (was >= 0.58f && was <= 0.62f) {
+        g_choiceFontScalePatched = true;
         return;
     }
     if (was < 0.7f || was > 1.0f) {
@@ -425,6 +438,7 @@ static void PatchChoiceFontScale() {
     }
     __try {
         *p = kChoiceFontScale;
+        g_choiceFontScalePatched = true;
         Log("CHOICE-FONT: patched [%p] %.6f -> %.3f (Ghidra _DAT_008d4698)",
             p, was, kChoiceFontScale);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -506,73 +520,16 @@ extern "C" int __cdecl C_CenteringHook() {
 // FUN_00833920 returns uint16 read at cursor and advances cursor by 2 bytes
 // (it operates on ushort* with +1 stride). Called twice for count + default,
 // preceded by an explicit +2 advance for the opcode byte. Net: +6 bytes.
-static int BuildChoiceOurBuf(BYTE* cursor) {
-    BYTE* out = g_choiceBuf;
-    BYTE* end = g_choiceBuf + sizeof(g_choiceBuf) - 64;  // safety margin
-    BYTE* in  = cursor;
-
-    // Header (6 bytes copied verbatim)
-    memcpy(out, in, 6);
-    int count = in[2];                     // low byte of count ushort
-    if (count < 0 || count > 16) return 0; // sanity
-    out += 6;
-    in  += 6;
-
-    for (int i = 0; i < count; ++i) {
-        if (out + 11 > end) break;
-        // 2 preamble + 8 metadata = 10 bytes copied verbatim (engine reads
-        // them for active-flag check, jump labels, etc).
-        memcpy(out, in, 10);
-        out += 10;
-        in  += 10;
-
-        // Read bytes until null
-        std::size_t jp_len = 0;
-        while (jp_len < 64 && in[jp_len] != 0) ++jp_len;
-        std::string current(reinterpret_cast<const char*>(in), jp_len);
-
-        // PatchScriptBuffer (LZSS decompress hook) has already replaced JP
-        // with truncated EN by the time we reach this hook — sn.bin is
-        // patched at decompress time, well before any choice opcode runs.
-        // The bytes here are typically `"Go up to  "` (truncated + 0x20
-        // space padding), not 屋上に行く. So:
-        //   1. Strip trailing space padding (PatchScriptBuffer pads to fill
-        //      the original JP byte width).
-        //   2. Try forward lookup (in case some entry was unpatched).
-        //   3. Fall back to prefix lookup (truncated EN -> full EN).
-        while (!current.empty() && current.back() == ' ') current.pop_back();
-
-        std::string en;
-        bool have = false;
-        if (g_translationsLoaded && !current.empty()) {
-            auto it = g_translations.find(current);
-            if (it != g_translations.end()) {
-                en = it->second; have = true;
-            } else if (Translator_PrefixLookup(current, en)) {
-                have = true;
-            }
-        }
-        if (!have) en = current;   // copy unchanged if both lookups missed
-
-        std::size_t en_size = en.size();
-        if (out + en_size + 1 > end) en_size = (end - out) - 1;
-        memcpy(out, en.data(), en_size);
-        out += en_size;
-        *out++ = 0;
-
-        in += jp_len + 1;   // past JP and its null
-    }
-    return static_cast<int>(in - cursor);
-}
-
 extern "C" void __cdecl C_PreChoiceHook(DWORD orig_ebp) {
     ++g_choiceHookFires;
-    if (!g_textPtrGlobal) return;
+    if (!g_textPtrGlobal || !g_translationsLoaded) return;
     BYTE* orig_cursor = *reinterpret_cast<BYTE**>(g_textPtrGlobal);
     if (!orig_cursor) return;
 
-    int orig_size = BuildChoiceOurBuf(orig_cursor);
-    if (orig_size <= 0) return;
+    const std::size_t orig_size = translator_logic::BuildChoiceBuffer(
+        orig_cursor, g_choiceBuf, sizeof(g_choiceBuf), g_translations,
+        &Translator_PrefixLookup);
+    if (orig_size == 0) return;
     g_choiceRestoreCursor = orig_cursor + orig_size;
 
     *reinterpret_cast<BYTE**>(g_textPtrGlobal) = g_choiceBuf;
@@ -585,7 +542,7 @@ extern "C" void __cdecl C_PreChoiceHook(DWORD orig_ebp) {
     *retaddr_ptr = reinterpret_cast<DWORD>(g_choicePostHandler);
 
     if (g_choiceHookFires <= 5) {
-        Log("CHOICE-HOOK #%d: orig_cursor=%p orig_size=%d our_buf=%p "
+        Log("CHOICE-HOOK #%d: orig_cursor=%p orig_size=%zu our_buf=%p "
             "saved_ret=0x%X",
             g_choiceHookFires, orig_cursor, orig_size, g_choiceBuf,
             g_choiceSavedRetAddr);
@@ -625,6 +582,16 @@ extern "C" void PatchScriptBuffer(BYTE* outBuf, BYTE* inPtr);  // forward decl
 // Post-decompress patcher (called from PostHandler trampoline)
 extern "C" void __cdecl PatchScriptBuffer(BYTE* outBuf, BYTE* inPtr) {
     g_decompressCalls++;
+
+    // Belt-and-suspenders: by the first LZSS decompression call inside WinMain,
+    // .text/.rdata/.data and .reloc are guaranteed complete.
+    if (g_decompressCalls == 1 && g_exeBase != nullptr) {
+        if (!g_choiceFontScalePatched) {
+            PatchChoiceFontScale();
+        }
+        engine_ui_hooks::InstallEngineUiHooks(
+            reinterpret_cast<std::uintptr_t>(g_exeBase));
+    }
 
     if (!outBuf || !inPtr) return;
 
@@ -848,24 +815,31 @@ static void InstallGlyphOutlineHooks() {
 
 // Hook installer
 DWORD WINAPI HookInstallerThread(LPVOID) {
+    const auto exe_base_addr = reinterpret_cast<std::uintptr_t>(g_exeBase);
     BYTE* site = g_exeBase + LZSS_RVA;
+    constexpr DWORD kPollStepMs = 25u;
+    constexpr DWORD kPollTimeoutMs = 30000u;
     DWORD waited = 0;
-    while (waited < 30000) {
-        if (memcmp(site, EXPECTED, STOLEN_LEN) == 0) break;
-        Sleep(100);
-        waited += 100;
+    while (waited < kPollTimeoutMs) {
+        if (engine_ui_hooks::IsEngineImageUnpackedAndRelocated(exe_base_addr)) {
+            break;
+        }
+        Sleep(kPollStepMs);
+        waited += kPollStepMs;
     }
-    if (waited >= 30000) {
-        Log("HOOK: timed out waiting for LZSS prologue at RVA 0x%X", LZSS_RVA);
+    if (waited >= kPollTimeoutMs) {
+        Log("HOOK: timed out after %u ms waiting for unpack + .reloc at base=%p",
+            waited, g_exeBase);
         return 0;
     }
-    Log("HOOK: packer done after %u ms — installing LZSS hook at RVA 0x%X",
+    Log("HOOK: packer & .reloc ready after %u ms — installing hooks (LZSS RVA 0x%X)",
         waited, LZSS_RVA);
 
-    // Now that .rdata is unpacked, the choice/UI font scale constant
-    // (Ghidra _DAT_008d4698) is at its expected runtime VA with the
-    // expected value (6/7 ≈ 0.857143). Patch it down here.
+    // .text, .rdata, .data, and all 176 .reloc blocks (through RVA 0x0CB828)
+    // are now unpacked and relocated to g_exeBase.
     PatchChoiceFontScale();
+    engine_ui_hooks::InstallEngineUiHooks(exe_base_addr);
+    bytecode_hooks::InstallBytecodeMenuHooks(exe_base_addr, &g_translations);
 
     BYTE* mem = reinterpret_cast<BYTE*>(VirtualAlloc(
         nullptr, 256, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
@@ -1312,14 +1286,19 @@ void TranslatorInit() {
     Log("Translator: cc.exe base=%p — RUNTIME SCRIPT PATCHER (sn.bin in-place)",
         g_exeBase);
 
-    // Install font hook immediately — gdi32.dll is already loaded at this point,
-    // and the game creates its font handles before the packer finishes.
+    // Auto-patch data\sys.cpk from menu_patch.bin (atomic .bak backup +
+    // <1 ms .applied fast-path) before cc.exe opens any game archives.
+    menu_autopatch::EnsureMenuArchivePatched();
+
+    // Install font and Win32 chrome hooks immediately — gdi32.dll and
+    // user32.dll are already loaded, and the game creates its font handles
+    // and startup error dialogs before the runtime packer finishes.
     InstallCreateFontAHook();
     InstallGlyphOutlineHooks();
+    win32_chrome::InstallWin32ChromeHooks();
 
-    // (Choice font scale is patched from HookInstallerThread once the
-    // packer has unpacked .rdata — the constant we want lives in a section
-    // that's still zeroed at DllMain time.)
+    // (Choice font scale, .data/.rdata UI tables, modal renderer, and op 0x86
+    // are patched from HookInstallerThread once the packer unpacks .text/.rdata.)
 
     g_translationsLoaded = LoadTranslations();
     if (g_translationsLoaded) BuildTruncatedEnMap();
@@ -1332,7 +1311,7 @@ void TranslatorInit() {
 
 }
 
-// Used by BuildChoiceOurBuf when the entry hook sees space-padded
+// Used by BuildChoiceBuffer when the entry hook sees space-padded
 // truncated EN at a slot (PatchScriptBuffer wrote it there at decompress
 // time) and needs to recover the full untruncated EN.
 bool Translator_PrefixLookup(const std::string& maybe_truncated_en,
@@ -1344,6 +1323,9 @@ bool Translator_PrefixLookup(const std::string& maybe_truncated_en,
 }
 
 void TranslatorShutdown() {
+    bytecode_hooks::ShutdownBytecodeMenuHooks();
+    engine_ui_hooks::ShutdownEngineUiHooks();
+    win32_chrome::ShutdownWin32ChromeHooks();
     Log("Translator: shutdown — decompress_calls=%d sn_bin_patched=%d "
         "jp_hits=%d skipped_too_long=%d render_calls=%d render_subs=%d",
         g_decompressCalls, g_snBinPatched, g_jpHits, g_jpTooLong,
