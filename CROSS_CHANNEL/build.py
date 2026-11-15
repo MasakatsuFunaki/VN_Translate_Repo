@@ -1,4 +1,4 @@
-"""CROSS-CHANNEL build driver — Conan 2 + CMake + MSVC.
+r"""CROSS-CHANNEL build driver — Conan 2 + CMake + MSVC.
 
     python build.py                    # build everything, tests included
     python build.py --test             # build, then run all the tests
@@ -25,14 +25,15 @@ runs them — the x64 GoogleTest suite of the pipeline and the UT/CT/SYSTEM
 tiers of the DLL.  When `--test` and `--deploy` are given together the tests
 gate the deploy, so a regression is never shipped.
 
-Deploying copies `xinput1_3.dll` (the XInput proxy that sits next to cc.exe)
-and `translations.tsv` into the game folder.  That folder comes from
-`--game-dir`, which has no default because the install path differs per
-machine.  Set VN_DIST_BUILD to skip the deploy, because a distribution build
-stages the artifacts itself and may run where no game is installed.
+Deploying copies `xinput1_3.dll` (the XInput proxy that sits next to cc.exe),
+`translations.tsv`, and `menu_patch.bin` (the keyless XOR-delta UI archive
+patch auto-applied to `data\sys.cpk` on first launch with a `data\sys.cpk.bak`
+backup) into the game folder.  That folder comes from `--game-dir`, which has
+no default because the install path differs per machine.  Set VN_DIST_BUILD to
+skip the deploy, because a distribution build stages the artifacts itself and
+may run where no game is installed.
 Nothing else ships: 03_find_narrative_cg re-renders
-narrative CGs into script_output/narrative_patched/, but CPK repacking is not
-implemented, so those BMPs are inspection-only and never reach the game.
+narrative CGs into script_output/narrative_patched/, which remain inspection-only.
 
 This script builds; it never runs the pipeline executables.  Translating calls
 a paid API, so that stays an explicit, separate action.
@@ -157,6 +158,16 @@ def build_table():
     run([exe, "--rebuild-table", "--dir", ROOT, "--game-dir", ROOT, "--out", tsv], ROOT)
 
 
+def stage_menu_patch():
+    src = os.path.join(ROOT, "menu_patch.bin")
+    if not os.path.isfile(src):
+        print(f"ERROR: missing {src}")
+        sys.exit(1)
+    dst = os.path.join(INSTALL_DIR, "game", "menu_patch.bin")
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copyfile(src, dst)
+
+
 def build():
     clean()
     # The root project configures and builds both halves: it runs Conan for
@@ -165,6 +176,7 @@ def build():
     run(["cmake", "--preset", PRESET], ROOT)
     run(["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
     build_table()
+    stage_menu_patch()
 
 
 def has_test_preset(source_dir, preset):
@@ -196,6 +208,7 @@ def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
     build_table()
+    stage_menu_patch()
 
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
@@ -233,6 +246,16 @@ def deploy(game_dir):
     else:
         print("WARN: translations.tsv not found — run 02_build_tsv.exe first.")
 
+    menu_patch = os.path.join(ROOT, "menu_patch.bin")
+    if not os.path.isfile(menu_patch):
+        print(f"ERROR: menu_patch.bin not found at {menu_patch}")
+        sys.exit(1)
+    try:
+        shutil.copyfile(menu_patch, os.path.join(game_dir, "menu_patch.bin"))
+    except OSError as exc:
+        print(f"COPY menu_patch.bin FAILED ({exc})")
+        sys.exit(1)
+
     print(f"\nDeployed to {game_dir}.")
 
 
@@ -244,7 +267,7 @@ def main():
     parser.add_argument("--install", action="store_true",
                         help="stage the user-facing artifacts into build/install")
     parser.add_argument("--deploy", action="store_true",
-                        help="copy xinput1_3.dll + translations.tsv to the game folder")
+                        help="copy xinput1_3.dll + translations.tsv + menu_patch.bin to the game folder")
     parser.add_argument("--game-dir",
                         help="game folder to deploy into; required with --deploy")
     parser.add_argument("--clean", action="store_true",

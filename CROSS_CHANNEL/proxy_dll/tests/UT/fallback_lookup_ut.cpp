@@ -143,3 +143,48 @@ TEST(FallbackLookup, KeyShorterThanPrefixIsNotMatched) {
     ASSERT_NE(en, nullptr);
     EXPECT_EQ(*en, "x-en");
 }
+
+TEST(FallbackLookup, SeededCaseFailureCardsBeatStrippedTsvFallback_Regression) {
+    // In translations.tsv, strip_control_prefix stripped leading "ＣＡＳＥ"
+    // so the TSV key became "　１　失敗" -> "1 - Failure". Seeding the full
+    // unstripped CP932 key must make LookupWithStrippedPrefix return
+    // "CASE 1 - Failure" while leaving the stripped TSV key intact.
+    const std::string stripped_key = translator_logic::Utf8ToCp932("　１　失敗");
+    const std::string full_key     = translator_logic::Utf8ToCp932("ＣＡＳＥ　１　失敗");
+
+    TranslationMap m{ {stripped_key, "1 - Failure"} };
+    ASSERT_GT(translator_logic::SeedScriptMenuTranslations(m), 0);
+
+    const std::string* hit = LookupWithStrippedPrefix(m, full_key);
+    ASSERT_NE(hit, nullptr);
+    EXPECT_EQ(*hit, "CASE 1 - Failure");
+    EXPECT_EQ(m.at(stripped_key), "1 - Failure");
+}
+
+TEST(FallbackLookup, SeededNumericAndAsciiPrefixedLinesPreserveSemanticPrefix) {
+    const std::string stripped_water = translator_logic::Utf8ToCp932("リットルの天然水。");
+    const std::string full_water     = translator_logic::Utf8ToCp932("２リットルの天然水。");
+    const std::string full_meal_a    = translator_logic::Utf8ToCp932(
+        "Ａ定食は三時間目には売り切れるから、確実に食べたい時は一時間目の終わりと同時に食堂に赴くことになる。");
+
+    TranslationMap m{ {stripped_water, "A liter of mineral water."} };
+    translator_logic::SeedScriptMenuTranslations(m);
+
+    const std::string* water_hit = LookupWithStrippedPrefix(m, full_water);
+    ASSERT_NE(water_hit, nullptr);
+    EXPECT_EQ(*water_hit, "Two liters of mineral water.");
+
+    const std::string* meal_hit = LookupWithStrippedPrefix(m, full_meal_a);
+    ASSERT_NE(meal_hit, nullptr);
+    EXPECT_NE(meal_hit->find("Set meal A"), std::string::npos);
+}
+
+TEST(FallbackLookup, SeedScriptMenuTranslationsDoesNotOverwriteExistingEntries) {
+    const std::string key = translator_logic::Utf8ToCp932("本編スタート");
+    TranslationMap m{ {key, "User Custom Start"} };
+    translator_logic::SeedScriptMenuTranslations(m);
+
+    const std::string* hit = LookupWithStrippedPrefix(m, key);
+    ASSERT_NE(hit, nullptr);
+    EXPECT_EQ(*hit, "User Custom Start");
+}
