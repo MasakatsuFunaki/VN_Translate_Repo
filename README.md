@@ -58,9 +58,17 @@ All reverse engineering, runtime hook development, UI/menu translation, and LLM 
 | `FRATERNITE_HD` | Copy everything inside `FRATERNITE_HD\game\` into your game's install directory (press `F1` in-game to toggle EN/JP). |
 | `SakuraMoyu` (*Sakura, Moyu.*) | Copy everything inside `SakuraMoyu\game\` into your game's install directory and run `SakuraMoyu\bin\03_patch_ui.exe --game-dir "C:\path\to\game"`. |
 | `kishin_hisho` | Copy everything inside `kishin_hisho\game\` into your game's install directory, then start the game via `launch.exe`. |
-| `Adieu` (*Sayonara o Oshiete ~comment te dire adieu~*) | Copy everything inside `Adieu\game\` (`winmm.dll`, `translation_table.tsv`, and `menu_patch.bin`) into your game's **`StartData\GameData\`** folder (next to `SiglusEngine.exe`, `Scene.pck`, and `Gameexe.dat` — **not** the outer `Start.exe` launcher folder). |
+| `Adieu` (*Sayonara o Oshiete ~comment te dire adieu~*) | Copy everything inside `Adieu\game\` into your game's `StartData\GameData\` folder. |
 
 3. Start the game as usual.
+
+## Customizing or Creating Your Own Translation
+
+You are not locked into the included English text — every game folder in the Release `.zip` comes with both `game\` (the ready-to-play patch) and `bin\` (standalone tools for editing or rebuilding the translation):
+
+1. **Edit lines by hand:** For most games, open the `.tsv` translation file inside your game folder with an editor like VS Code or Notepad++, edit the translated text after the tab, and save (keeping the file's existing encoding) — your changes show up the next time you start the game.
+2. **Use your own translation:** Each game's `bin\` folder includes command-line tools to export the script or rebuild the patch once you have translated it (pass `--help` to any tool in `bin\` to see its options).
+3. **Generate an AI translation via API:** Supported titles also include an automatic translator in `bin\` (`00_run_all.exe`) that uses a Google `GEMINI_API_KEY` and saves progress as it goes, so you can stop and resume anytime.
 
 ## License
 
