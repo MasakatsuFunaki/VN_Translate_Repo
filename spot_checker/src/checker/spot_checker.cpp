@@ -7,2035 +7,473 @@
 
 #include "checker/spot_checker.h"
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#endif
+#include "checker/fix_validator.h"
+#include "checker/prompt_codec.h"
+#include "checker/spot_check_checkpoint.h"
+#include "checker/window_planner.h"
+#include "client/argon_client.h"
+#include "common/utf8_text.h"
+#include "common/win32_cli_env.h"
+#include "detector/hotspot_detector.h"
+#include "domain/tone_glossary.h"
+#include "domain/vn_line_syntax.h"
+#include "ports/clock_and_logger.h"
+#include "ports/crypt_sync.h"
+#include "ports/file_store.h"
+#include "ports/llm_transport.h"
+#include "storage/script_repository.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <deque>
 #include <filesystem>
+#include <limits>
 #include <map>
+#include <memory>
 #include <set>
-#include <stdexcept>
+#include <string>
 #include <string_view>
-#include <unordered_map>
 #include <unordered_set>
-
-#include "client/argon_client.h"
-#include "common/util.h"
+#include <utility>
+#include <vector>
 
 namespace spot_checker {
-
-namespace bj = boost::json;
-namespace fs = std::filesystem;
-
 namespace {
 
-std::string json_str(const bj::object& obj, const char* key) {
-    if (const auto* v = obj.if_contains(key); v && v->is_string()) {
-        return std::string(v->as_string());
+namespace fs = std::filesystem;
+
+constexpr double kMinValidConfidenceExclusive = 0.0;
+constexpr double kMaxValidConfidenceInclusive = 1.0;
+constexpr double kMqmSortTieEpsilon = 1e-9;
+constexpr double kPercentMultiplier = 100.0;
+constexpr std::size_t kMinScaledNmsSeparation = 1;
+constexpr std::size_t kMinScaledBoundaryMargin = 1;
+constexpr double kMinScaledGaussianSigma = 1.0;
+constexpr std::size_t kBisectHalfDivisor = 2;
+constexpr std::size_t kProgressBufferBytes = 256;
+constexpr std::string_view kScriptOutputDir = "script_output";
+constexpr std::string_view kDefaultCheckpointFilename = "argon_spot_check.json";
+constexpr std::string_view kHotspotModeName = "hotspot";
+constexpr std::string_view kLinearModeName = "linear";
+constexpr std::string_view kDefaultBlockReason = "CONTENT_BLOCKED";
+
+struct WorkItem {
+    std::size_t offset = 0;
+    std::size_t length = 0;
+    bool force_no_context = false;
+};
+
+constexpr std::size_t saturated_add(std::size_t a, std::size_t b) noexcept {
+    constexpr std::size_t kMaxSize = std::numeric_limits<std::size_t>::max();
+    if (b > kMaxSize - a) {
+        return kMaxSize;
     }
-    return {};
+    return a + b;
 }
 
-bool is_excluded_entry_type(const std::string& type) {
-    return type == "COMMAND" || type == "INPUT" || type == "other" ||
-           type == "label" || type == "name" || type == "NAME";
-}
+std::vector<std::pair<std::size_t, std::size_t>> extract_uncovered_spans(
+    const IntervalTracker& tracker,
+    std::size_t offset,
+    std::size_t length) {
+    std::vector<std::pair<std::size_t, std::size_t>> uncovered;
+    if (length == 0) {
+        return uncovered;
+    }
+    const std::size_t span_end = saturated_add(offset, length);
+    if (span_end <= offset) {
+        return uncovered;
+    }
 
-bool has_binary_or_pua_noise(const std::string& s) {
-    for (unsigned char c : s) {
-        if (c < 0x20 && c != '\r' && c != '\n' && c != '\t') {
-            return true;
+    const auto& ivs = tracker.intervals();
+    auto it = std::lower_bound(
+        ivs.begin(),
+        ivs.end(),
+        offset,
+        [](const std::pair<std::size_t, std::size_t>& iv, std::size_t val) {
+            return iv.second <= val;
+        });
+
+    std::size_t cur = offset;
+    while (cur < span_end && it != ivs.end() && it->first < span_end) {
+        if (it->first > cur) {
+            uncovered.emplace_back(cur, it->first - cur);
         }
-    }
-    std::size_t i = 0;
-    while (i < s.size()) {
-        const char32_t cp = utf8_next(s, i);
-        if (cp >= 0xE000 && cp <= 0xF8FF) {
-            return true;
+        if (it->second >= span_end) {
+            cur = span_end;
+            break;
         }
+        cur = std::max(cur, it->second);
+        ++it;
     }
-    return false;
+    if (cur < span_end) {
+        uncovered.emplace_back(cur, span_end - cur);
+    }
+    return uncovered;
 }
 
-bool is_shingakkou_sprite_tag(const std::string& jp, const std::string& en) {
-    return jp == en && jp.find('@') != std::string::npos &&
-           jp.find('_') != std::string::npos && jp.find(' ') == std::string::npos;
-}
-
-bool is_standalone_speaker_tag(const std::string& jp, const std::string& en) {
-    if (has_binary_or_pua_noise(jp) || has_binary_or_pua_noise(en)) return false;
-    if (jp.find('\r') != std::string::npos || jp.find('\n') != std::string::npos) {
-        return false;
-    }
-    // Reject halfwidth katakana opcode fragments (e.g. "ﾀ", "ﾊ", "ﾉ")
-    std::size_t idx = 0;
-    while (idx < jp.size()) {
-        const char32_t cp = utf8_next(jp, idx);
-        if (cp >= 0xFF61 && cp <= 0xFF9F) return false;
-    }
-    const std::string cand = trim((!en.empty() && en[0] != '$') ? en : jp);
-    if (cand.empty() || cand[0] == '$' || utf8_char_len(cand) > 20) return false;
-    if (cand.rfind("「", 0) == 0 || cand.rfind("『", 0) == 0 ||
-        cand.rfind("（", 0) == 0 || cand.rfind("―", 0) == 0 ||
-        cand.find("。") != std::string::npos || cand.find("、") != std::string::npos) {
-        return false;
-    }
-    for (char c : cand) {
-        if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
-            c == ':' || c == '!' || c == '[' || c == '-') {
-            return false;
+class BlockedSpanBookkeeper {
+public:
+    void clear_span(std::size_t offset, std::size_t length) {
+        if (length == 0 || spans_.empty()) {
+            return;
         }
-    }
-    return true;
-}
-
-constexpr std::size_t kMaxCrlfSpeakerBytes = 35;
-constexpr std::size_t kMaxCrlfSpeakerChars = 20;
-constexpr std::size_t kMaxInlineSpeakerBytes = 45;
-constexpr std::size_t kMaxInlineSpeakerChars = 25;
-constexpr std::size_t kUtf8ThreeByteLen = 3;
-
-std::string extract_crlf_speaker_prefix(const std::string& text) {
-    const std::size_t crlf = text.find("\r\n");
-    if (crlf == std::string::npos || crlf == 0 || crlf > kMaxCrlfSpeakerBytes) return {};
-    const std::string rest = trim(text.substr(crlf + 2));
-    if (rest.empty()) return {};
-    // Real dialogue/thought lines after a speaker header open with a quote,
-    // parenthesis, asterisk, or Japanese bracket. Without this gate, a 2-line
-    // narrative sentence whose first line is <= 20 chars gets mis-tagged as a speaker.
-    const char r0 = rest.front();
-    const bool valid_body_open =
-        (r0 == '"' || r0 == '\'' || r0 == '(' || r0 == '*') ||
-        rest.rfind("「", 0) == 0 || rest.rfind("『", 0) == 0 ||
-        rest.rfind("（", 0) == 0;
-    if (!valid_body_open) return {};
-
-    const std::string prefix = trim(text.substr(0, crlf));
-    if (prefix.empty() || utf8_char_len(prefix) > kMaxCrlfSpeakerChars) return {};
-    for (char c : prefix) {
-        if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
-            c == ':' || c == '!' || c == '[' || c == '(') {
-            return {};
+        const std::size_t clear_begin = offset;
+        const std::size_t clear_end = saturated_add(offset, length);
+        if (clear_end <= clear_begin) {
+            return;
         }
-    }
-    // Reject Japanese dialogue brackets or ideographic spaces as speaker prefixes
-    if (prefix.rfind("「", 0) == 0 ||
-        prefix.rfind("『", 0) == 0 ||
-        prefix.rfind("　", 0) == 0 ||
-        prefix.rfind("（", 0) == 0) {
-        return {};
-    }
-    return prefix;
-}
 
-std::string extract_inline_kaku_raw_prefix(const std::string& text) {
-    const std::size_t pos = text.find("「");
-    if (pos == std::string::npos || pos == 0 || pos > kMaxInlineSpeakerBytes) return {};
-    const std::string rest = trim(text.substr(pos));
-    if (rest.find("」") != std::string::npos &&
-        (rest.size() < kUtf8ThreeByteLen ||
-         rest.compare(rest.size() - kUtf8ThreeByteLen, kUtf8ThreeByteLen, "」") != 0)) {
-        return {};
-    }
-    const std::string prefix = trim(text.substr(0, pos));
-    if (prefix.empty() || utf8_char_len(prefix) > kMaxInlineSpeakerChars) return {};
-    if (prefix.rfind("「", 0) == 0 ||
-        prefix.rfind("『", 0) == 0 ||
-        prefix.rfind("（", 0) == 0 ||
-        prefix.rfind("　", 0) == 0) {
-        return {};
-    }
-    if (prefix.find("。") != std::string::npos ||
-        prefix.find("、") != std::string::npos ||
-        prefix.find("！") != std::string::npos) {
-        return {};
-    }
-    for (char c : prefix) {
-        if (c == '"' || c == '\'' || c == '.' || c == ',' || c == ';' ||
-            c == ':' || c == '!' || c == '[' || c == '\r' || c == '\n') {
-            return {};
-        }
-    }
-    return prefix;
-}
-
-std::string strip_leading_fullwidth_slash(const std::string& s) {
-    if (s.rfind("／", 0) == 0) {
-        return trim(s.substr(kUtf8ThreeByteLen));
-    }
-    return s;
-}
-
-// Extracts speaker name from `Speaker\r\n"Quote"` or inline `Speaker「Quote」`.
-std::string extract_speaker_prefix(const std::string& text) {
-    const std::string crlf_prefix = extract_crlf_speaker_prefix(text);
-    if (!crlf_prefix.empty()) return crlf_prefix;
-    return strip_leading_fullwidth_slash(extract_inline_kaku_raw_prefix(text));
-}
-
-std::string strip_speaker_prefix_only(const std::string& text) {
-    if (!extract_crlf_speaker_prefix(text).empty()) {
-        const std::size_t crlf = text.find("\r\n");
-        return (crlf != std::string::npos) ? trim(text.substr(crlf + 2)) : trim(text);
-    }
-    if (!extract_inline_kaku_raw_prefix(text).empty()) {
-        const std::size_t pos = text.find("「");
-        return (pos != std::string::npos) ? trim(text.substr(pos)) : trim(text);
-    }
-    return trim(text);
-}
-
-std::string escape_for_prompt(const std::string& s) {
-    std::string out;
-    out.reserve(s.size());
-    for (std::size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '\r') {
-            out += "\\r\\n";
-            if (i + 1 < s.size() && s[i + 1] == '\n') ++i;
-        } else if (s[i] == '\n') {
-            out += "\\n";
-        } else {
-            out += s[i];
-        }
-    }
-    return out;
-}
-
-std::string strip_markdown_json_fences(const std::string& raw) {
-    std::string s = trim(raw);
-    if (s.rfind("```", 0) == 0) {
-        const std::size_t first_nl = s.find('\n');
-        if (first_nl != std::string::npos) {
-            s = s.substr(first_nl + 1);
-        }
-        const std::size_t last_fence = s.rfind("```");
-        if (last_fence != std::string::npos) {
-            s = s.substr(0, last_fence);
-        }
-        s = trim(s);
-    }
-    return s;
-}
-
-std::string unescape_prompt_newlines(const std::string& old_en,
-                                     const std::string& text) {
-    std::string raw = text;
-    const bool old_has_crlf = old_en.find("\r\n") != std::string::npos &&
-                              old_en.find("\\r\\n") == std::string::npos;
-    const bool old_has_lf = !old_has_crlf &&
-                            old_en.find('\n') != std::string::npos &&
-                            old_en.find("\\n") == std::string::npos;
-    const bool old_has_literal_bs_n = old_en.find("\\n") != std::string::npos;
-
-    if (old_has_crlf) {
-        for (;;) {
-            const std::size_t pos = raw.find("\\r\\n");
-            if (pos == std::string::npos) break;
-            raw.replace(pos, 4, "\r\n");
-        }
-        if (!old_has_literal_bs_n) {
-            for (;;) {
-                const std::size_t pos = raw.find("\\n");
-                if (pos == std::string::npos) break;
-                raw.replace(pos, 2, "\r\n");
+        std::vector<std::pair<std::size_t, std::size_t>> updated;
+        updated.reserve(spans_.size() + 1U);
+        for (const auto& [span_off, span_len] : spans_) {
+            const std::size_t span_begin = span_off;
+            const std::size_t span_end = saturated_add(span_off, span_len);
+            if (span_end <= span_begin) {
+                continue;
+            }
+            if (span_end <= clear_begin || span_begin >= clear_end) {
+                updated.emplace_back(span_begin, span_end - span_begin);
+                continue;
+            }
+            if (span_begin < clear_begin) {
+                updated.emplace_back(span_begin, clear_begin - span_begin);
+            }
+            if (clear_end < span_end) {
+                updated.emplace_back(clear_end, span_end - clear_end);
             }
         }
-    } else if (old_has_lf && !old_has_literal_bs_n) {
-        for (;;) {
-            const std::size_t pos = raw.find("\\r\\n");
-            if (pos == std::string::npos) break;
-            raw.replace(pos, 4, "\n");
-        }
-        for (;;) {
-            const std::size_t pos = raw.find("\\n");
-            if (pos == std::string::npos) break;
-            raw.replace(pos, 2, "\n");
-        }
+        spans_ = std::move(updated);
     }
-    return raw;
+
+    void record_blocked_leaf(std::size_t offset, std::size_t length) {
+        if (length == 0) {
+            return;
+        }
+        clear_span(offset, length);
+        const auto pos = std::lower_bound(
+            spans_.begin(),
+            spans_.end(),
+            offset,
+            [](const std::pair<std::size_t, std::size_t>& item,
+               std::size_t target_off) { return item.first < target_off; });
+        spans_.insert(pos, {offset, length});
+    }
+
+    const std::vector<std::pair<std::size_t, std::size_t>>& spans()
+        const noexcept {
+        return spans_;
+    }
+
+    void sync_to_report(SpotCheckReport& rep) const {
+        rep.blocked_spans = spans_;
+        rep.blocked_offsets.clear();
+        rep.blocked_offsets.reserve(spans_.size());
+        std::size_t total_blocked_lines = 0;
+        for (const auto& [off, len] : spans_) {
+            rep.blocked_offsets.push_back(off);
+            total_blocked_lines += len;
+        }
+        rep.windows_blocked = spans_.size();
+        rep.lines_blocked = total_blocked_lines;
+    }
+
+private:
+    std::vector<std::pair<std::size_t, std::size_t>> spans_;
+};
+
+fs::path path_from_utf8(std::string_view utf8_path) {
+    return fs::path(utf8_to_wide(utf8_path));
 }
 
-constexpr const char* kSoftWrapEscape = "\\n";
-constexpr std::size_t kSoftWrapEscapeLen = 2;
-constexpr const char* kPageBreakEscape = "\\@";
-constexpr std::size_t kPageBreakEscapeLen = 2;
-constexpr const char* kQuotedPageBreakSuffix = "\"\\@";
-constexpr std::size_t kQuotedPageBreakSuffixLen = 3;
-constexpr std::size_t kCrlfLen = 2;
-
-std::string normalize_restored_translation(const std::string& old_en,
-                                           const std::string& candidate_en) {
-    const std::string raw = unescape_prompt_newlines(old_en, candidate_en);
-    std::string clean = sanitize_ascii(trim(raw));
-    if (clean.empty()) return {};
-
-    // Restore Speaker\r\n prefix if `old_en` had one and `candidate_en` omitted it
-    const std::string old_crlf_prefix = extract_crlf_speaker_prefix(old_en);
-    if (!old_crlf_prefix.empty()) {
-        const std::string want_crlf = old_crlf_prefix + "\r\n";
-        const std::string want_lf = old_crlf_prefix + "\n";
-        if (clean.rfind(want_crlf, 0) == 0) {
-            // Already has exact Speaker\r\n
-        } else if (clean.rfind(want_lf, 0) == 0) {
-            clean = want_crlf + clean.substr(want_lf.size());
-        } else {
-            clean = want_crlf + clean;
-        }
-    } else {
-        const std::string inline_raw_prefix = extract_inline_kaku_raw_prefix(old_en);
-        const std::string old_left_trimmed = trim_left(old_en);
-        if (!inline_raw_prefix.empty() || old_left_trimmed.rfind("「", 0) == 0) {
-            const std::string old_right_trimmed = trim_right(old_en);
-            const bool old_ends_with_close_kaku =
-                old_right_trimmed.size() >= kUtf8ThreeByteLen &&
-                old_right_trimmed.compare(old_right_trimmed.size() - kUtf8ThreeByteLen,
-                                          kUtf8ThreeByteLen,
-                                          "」") == 0;
-            const std::string speaker_no_slash =
-                strip_leading_fullwidth_slash(inline_raw_prefix);
-            auto try_strip_speaker_head = [](std::string& s,
-                                             const std::string& spk) -> bool {
-                if (spk.empty() || s.rfind(spk, 0) != 0) return false;
-                const std::string rest = s.substr(spk.size());
-                if (rest.rfind("「", 0) == 0 || rest.rfind("\r\n", 0) == 0 ||
-                    rest.rfind("\n", 0) == 0) {
-                    s = trim(rest);
-                    return true;
-                }
-                if (!rest.empty() && rest.front() == ':') {
-                    s = trim(rest.substr(1));
-                    return true;
-                }
-                if (!rest.empty() && (rest.front() == ' ' || rest.front() == '\t')) {
-                    const std::string trimmed_rest = trim(rest);
-                    if (trimmed_rest.rfind("「", 0) == 0 ||
-                        (!trimmed_rest.empty() && trimmed_rest.front() == '"')) {
-                        s = trimmed_rest;
-                        return true;
-                    }
-                }
-                return false;
-            };
-            if (!try_strip_speaker_head(clean, inline_raw_prefix)) {
-                try_strip_speaker_head(clean, speaker_no_slash);
-            }
-            if (clean.rfind("「", 0) == 0) {
-                clean = clean.substr(kUtf8ThreeByteLen);
-            }
-            if (clean.size() >= kUtf8ThreeByteLen &&
-                clean.compare(clean.size() - kUtf8ThreeByteLen,
-                              kUtf8ThreeByteLen,
-                              "」") == 0) {
-                clean = clean.substr(0, clean.size() - kUtf8ThreeByteLen);
-            }
-            clean = trim(clean);
-            if (clean.size() >= 2 && clean.front() == '"' && clean.back() == '"') {
-                clean = clean.substr(1, clean.size() - 2);
-            } else if (!old_ends_with_close_kaku && !clean.empty() &&
-                       clean.front() == '"') {
-                clean = clean.substr(1);
-                if (!clean.empty() && clean.back() == '"') {
-                    clean.pop_back();
-                }
-            }
-            clean = trim(clean);
-            if (clean.empty()) return {};
-            clean = inline_raw_prefix + "「" + clean +
-                    (old_ends_with_close_kaku ? "」" : "");
-            if (old_en.size() >= kCrlfLen &&
-                old_en.compare(old_en.size() - kCrlfLen, kCrlfLen, "\r\n") == 0) {
-                clean = trim_right(clean) + "\r\n";
-            }
-            return clean;
-        }
-    }
-
-    // Preserve leading literal \n soft-wrap escape when present in `old_en`
-    if (old_en.rfind(kSoftWrapEscape, 0) == 0 &&
-        clean.rfind(kSoftWrapEscape, 0) != 0) {
-        clean = kSoftWrapEscape + clean;
-    }
-
-    // Preserve trailing literal \@ page-break escape when present in `old_en`
-    const bool old_ends_page_break =
-        old_en.size() >= kPageBreakEscapeLen &&
-        old_en.compare(old_en.size() - kPageBreakEscapeLen,
-                       kPageBreakEscapeLen,
-                       kPageBreakEscape) == 0;
-    if (old_ends_page_break &&
-        (clean.size() < kPageBreakEscapeLen ||
-         clean.compare(clean.size() - kPageBreakEscapeLen,
-                       kPageBreakEscapeLen,
-                       kPageBreakEscape) != 0)) {
-        clean = trim_right(clean) + kPageBreakEscape;
-    }
-
-    // Normalize split-dialogue quotes across CatSystem2 \@ / \n continuations
-    if (old_ends_page_break && old_en.front() == '"' &&
-        (old_en.size() < kQuotedPageBreakSuffixLen ||
-         old_en[old_en.size() - kQuotedPageBreakSuffixLen] != '"') &&
-        clean.size() >= kQuotedPageBreakSuffixLen &&
-        clean.compare(clean.size() - kQuotedPageBreakSuffixLen,
-                      kQuotedPageBreakSuffixLen,
-                      kQuotedPageBreakSuffix) == 0) {
-        clean.erase(clean.size() - kQuotedPageBreakSuffixLen, 1);
-    } else if (!old_en.empty() && old_en.back() == '"') {
-        const std::size_t old_body_pos =
-            (old_en.rfind(kSoftWrapEscape, 0) == 0) ? kSoftWrapEscapeLen : 0;
-        const std::size_t new_body_pos =
-            (clean.rfind(kSoftWrapEscape, 0) == 0) ? kSoftWrapEscapeLen : 0;
-        if (old_body_pos < old_en.size() && old_en[old_body_pos] != '"' &&
-            new_body_pos + 1 < clean.size() && clean[new_body_pos] == '"' &&
-            clean.back() == '"') {
-            clean.erase(new_body_pos, 1);
-        }
-    }
-
-    // Preserve trailing \r\n if `old_en` ended with \r\n
-    if (old_en.size() >= kCrlfLen &&
-        old_en.compare(old_en.size() - kCrlfLen, kCrlfLen, "\r\n") == 0) {
-        clean = trim_right(clean) + "\r\n";
-    }
-    return clean;
+std::string path_to_utf8(const fs::path& path) {
+    return wide_to_utf8(path.wstring());
 }
 
-std::size_t count_substring(const std::string& str, const std::string& sub) {
-    if (sub.empty()) return 0;
-    std::size_t count = 0;
-    std::size_t pos = 0;
-    while ((pos = str.find(sub, pos)) != std::string::npos) {
-        ++count;
-        pos += sub.size();
-    }
-    return count;
+std::string mode_to_string(SpotCheckMode mode) {
+    return (mode == SpotCheckMode::Hotspot) ? std::string(kHotspotModeName)
+                                            : std::string(kLinearModeName);
 }
 
-std::string to_lower_copy(const std::string& s) {
-    std::string out = s;
-    for (char& c : out) {
-        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+HotspotConfig make_hotspot_config(const SpotCheckConfig& cfg) {
+    HotspotConfig hcfg;
+    hcfg.window_size = cfg.window_size;
+    if (cfg.window_size < kDefaultWindowSize) {
+        hcfg.nms_min_separation = std::max<std::size_t>(
+            kMinScaledNmsSeparation,
+            (cfg.window_size * kDefaultNmsMinSeparation) / kDefaultWindowSize);
+        hcfg.boundary_margin = std::max<std::size_t>(
+            kMinScaledBoundaryMargin,
+            (cfg.window_size * kDefaultBoundaryMargin) / kDefaultWindowSize);
+        hcfg.gaussian_sigma = std::max(
+            kMinScaledGaussianSigma,
+            kDefaultGaussianSigma * static_cast<double>(cfg.window_size) /
+                static_cast<double>(kDefaultWindowSize));
     }
-    return out;
+    hcfg.z_threshold = cfg.z_threshold;
+    hcfg.skip_h_scenes = cfg.skip_h_scenes;
+    hcfg.fix_punctuation = cfg.fix_punctuation;
+    return hcfg;
 }
 
-bool has_romaji_gloss_or_tl_note(const std::string& s) {
-    const std::string lower = to_lower_copy(s);
-    if (lower.find("[tl") != std::string::npos ||
-        lower.find("(tl") != std::string::npos ||
-        lower.find("translator note") != std::string::npos) {
+bool is_locked_for_radar_unlock(const ScriptEntry& entry,
+                                bool skip_h_scenes,
+                                const std::set<std::size_t>& repaired_indices,
+                                const std::vector<bool>* h_scene_mask) {
+    if (repaired_indices.count(entry.global_index) != 0) {
         return true;
     }
-    const std::size_t open_p = lower.find('(');
-    const std::size_t close_p =
-        lower.find(')', open_p == std::string::npos ? 0 : open_p);
-    if (open_p != std::string::npos && close_p != std::string::npos &&
-        close_p > open_p + 2) {
-        const std::string inside =
-            trim(lower.substr(open_p + 1, close_p - open_p - 1));
-        if (!inside.empty() && inside.size() <= 18 &&
-            inside.find(' ') == std::string::npos && s.find('"') != std::string::npos) {
-            return true;
-        }
+    if (is_engine_asset_or_command_token(entry.jp_text, entry.current_en)) {
+        return true;
+    }
+    const std::string jp_body = strip_speaker_prefix_body(entry.jp_text);
+    if (!has_real_japanese(jp_body) || is_pure_silence_or_punctuation(jp_body)) {
+        return true;
+    }
+    const std::string en_body = strip_speaker_prefix_body(entry.current_en);
+    if (trim_ascii_view(en_body) == trim_ascii_view(jp_body) ||
+        trim_ascii_view(entry.current_en) == trim_ascii_view(entry.jp_text)) {
+        return true;
+    }
+    if (skip_h_scenes && h_scene_mask != nullptr &&
+        entry.global_index < h_scene_mask->size() &&
+        (*h_scene_mask)[entry.global_index]) {
+        return true;
     }
     return false;
 }
 
-std::vector<std::string> extract_alnum_words_lower(const std::string& s) {
-    std::vector<std::string> words;
-    std::string cur;
-    for (unsigned char c : s) {
-        if (c >= 'A' && c <= 'Z') {
-            cur += static_cast<char>(c - 'A' + 'a');
-        } else if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
-            cur += static_cast<char>(c);
-        } else if (!cur.empty()) {
-            words.push_back(std::move(cur));
-            cur.clear();
-        }
+std::pair<std::size_t, std::size_t> clip_left_expansion_at_h_barrier(
+    std::size_t left_offset,
+    std::size_t left_length,
+    const std::vector<bool>* h_scene_mask) noexcept {
+    if (left_length == 0 || h_scene_mask == nullptr) {
+        return {left_offset, left_length};
     }
-    if (!cur.empty()) {
-        words.push_back(std::move(cur));
-    }
-    return words;
-}
-
-bool is_passthrough_or_non_jp_entry(const ScriptEntry& e) {
-    const std::string jp_body = strip_speaker_prefix_only(e.jp_text);
-    const std::string en_body = strip_speaker_prefix_only(e.current_en);
-    if (!has_real_japanese(jp_body)) return true;
-    if (en_body == jp_body || trim(e.current_en) == trim(e.jp_text)) return true;
-    return false;
-}
-
-constexpr std::string_view kSiglusMacroStarPrefix = "＊";
-constexpr std::string_view kFormattingRulesOpenTag = "<formatting_rules>";
-constexpr std::string_view kFormattingRulesCloseTag = "</formatting_rules>";
-constexpr std::string_view kNameReferenceOpenTag = "<name_reference>";
-constexpr std::string_view kNameReferenceCloseTag = "</name_reference>";
-constexpr std::string_view kBoldMarker = "**";
-constexpr std::size_t kMinWrappedPairLen = 2;
-constexpr std::size_t kMinGlossaryJpChars = 2;
-constexpr std::size_t kMinGlossaryEnBytes = 4;
-constexpr std::size_t kMaxSpeakerKeyChars = 20;
-constexpr unsigned char kFirstNonAsciiByte = 0x80U;
-
-std::string strip_translator_formatting_rules(const std::string& md) {
-    std::string out = md;
-    for (;;) {
-        const std::size_t open_tag = out.find(kFormattingRulesOpenTag);
-        if (open_tag == std::string::npos) {
+    const std::size_t end = saturated_add(left_offset, left_length);
+    std::size_t clipped_begin = end;
+    while (clipped_begin > left_offset) {
+        const std::size_t prev_idx = clipped_begin - 1U;
+        if (prev_idx < h_scene_mask->size() && (*h_scene_mask)[prev_idx]) {
             break;
         }
-        const std::size_t close_tag = out.find(kFormattingRulesCloseTag, open_tag);
-        if (close_tag == std::string::npos) {
-            out.erase(open_tag);
+        clipped_begin = prev_idx;
+    }
+    return {clipped_begin, end - clipped_begin};
+}
+
+std::pair<std::size_t, std::size_t> clip_right_expansion_at_h_barrier(
+    std::size_t right_offset,
+    std::size_t right_length,
+    const std::vector<bool>* h_scene_mask) noexcept {
+    if (right_length == 0 || h_scene_mask == nullptr) {
+        return {right_offset, right_length};
+    }
+    const std::size_t max_end = saturated_add(right_offset, right_length);
+    std::size_t clipped_end = right_offset;
+    while (clipped_end < max_end) {
+        if (clipped_end < h_scene_mask->size() && (*h_scene_mask)[clipped_end]) {
             break;
         }
-        out.erase(open_tag, close_tag + kFormattingRulesCloseTag.size() - open_tag);
+        ++clipped_end;
     }
-    return trim(out);
+    return {right_offset, clipped_end - right_offset};
 }
 
-std::string normalize_tone_reference_tags(const std::string& md) {
-    std::string out = strip_translator_formatting_rules(md);
-    for (const std::string_view tag : {kNameReferenceOpenTag, kNameReferenceCloseTag}) {
-        std::size_t pos = 0;
-        while ((pos = out.find(tag, pos)) != std::string::npos) {
-            out.replace(pos, tag.size(), "\n");
-            ++pos;
+void sync_report_collections(
+    const std::set<std::size_t>& visited_offsets,
+    const IntervalTracker& checked_tracker,
+    const BlockedSpanBookkeeper& blocked_bookkeeper,
+    const std::map<std::size_t, Improvement>& merged,
+    SpotCheckReport& rep) {
+    rep.checked_offsets.assign(visited_offsets.begin(), visited_offsets.end());
+
+    rep.checked_spans.clear();
+    rep.checked_spans.reserve(checked_tracker.intervals().size());
+    for (const auto& [begin, end] : checked_tracker.intervals()) {
+        if (end > begin) {
+            rep.checked_spans.emplace_back(begin, end - begin);
         }
     }
-    return out;
+
+    blocked_bookkeeper.sync_to_report(rep);
+
+    rep.improvements.clear();
+    rep.improvements.reserve(merged.size());
+    for (const auto& [idx, imp] : merged) {
+        rep.improvements.push_back(imp);
+    }
+    rep.improvements_found = rep.improvements.size();
 }
 
-std::string strip_markdown_cell_decorations(std::string s) {
-    s = trim(s);
-    for (;;) {
-        if (s.size() >= kMinWrappedPairLen && s.front() == '`' && s.back() == '`') {
-            s = trim(s.substr(1, s.size() - kMinWrappedPairLen));
-            continue;
-        }
-        if (s.size() >= kBoldMarker.size() * kMinWrappedPairLen &&
-            s.rfind(kBoldMarker, 0) == 0 &&
-            s.compare(s.size() - kBoldMarker.size(),
-                      kBoldMarker.size(),
-                      kBoldMarker.data()) == 0) {
-            s = trim(s.substr(kBoldMarker.size(),
-                              s.size() - kBoldMarker.size() * kMinWrappedPairLen));
-            continue;
-        }
-        return s;
-    }
+CheckpointState build_checkpoint_state(
+    const SpotCheckConfig& cfg,
+    const SpotCheckReport& rep,
+    const std::vector<RadarPassageResult>& radar_results) {
+    CheckpointState state;
+    state.game_dir = cfg.game_dir;
+    state.model = cfg.model;
+    state.mode = mode_to_string(cfg.mode);
+    state.total_entries = rep.total_entries;
+    state.ols_slope = rep.ols_slope;
+    state.ols_intercept = rep.ols_intercept;
+    state.ols_sigma = rep.ols_sigma;
+    state.ols_valid = rep.ols_valid;
+    state.hotspots_detected = rep.hotspots_detected;
+    state.h_windows_skipped = rep.h_windows_skipped;
+    state.radar_calls_made = rep.radar_calls_made;
+    state.radar_passages_triaged = rep.radar_passages_triaged;
+    state.adaptive_expansions = rep.adaptive_expansions;
+    state.windows_checked = rep.windows_checked;
+    state.lines_checked = rep.lines_checked;
+    state.windows_blocked = rep.windows_blocked;
+    state.lines_blocked = rep.lines_blocked;
+    state.editable_lines_unlocked = rep.editable_lines_unlocked;
+    state.candidates_rejected_by_validator =
+        rep.candidates_rejected_by_validator;
+    state.script_entries_updated = rep.script_entries_updated;
+    state.cache_entries_updated = rep.cache_entries_updated;
+    state.token_usage = rep.token_usage;
+    state.checked_offsets = rep.checked_offsets;
+    state.checked_spans = rep.checked_spans;
+    state.blocked_offsets = rep.blocked_offsets;
+    state.blocked_spans = rep.blocked_spans;
+    state.radar_results = radar_results;
+    state.ranked_hotspots = rep.ranked_hotspots;
+    state.improvements = rep.improvements;
+    return state;
 }
 
-bool has_non_ascii_bytes(const std::string& s) {
-    return std::any_of(s.begin(), s.end(), [](unsigned char c) {
-        return c >= kFirstNonAsciiByte;
-    });
-}
-
-std::unordered_map<std::string, std::string> parse_speaker_reference_map(
-    const std::string& tone_markdown) {
-    std::unordered_map<std::string, std::string> out;
-    if (tone_markdown.empty()) {
-        return out;
+void record_llm_usage(const LlmResponse& resp,
+                      bool is_radar,
+                      std::size_t& run_api_calls,
+                      TokenUsageSummary& usage) noexcept {
+    ++run_api_calls;
+    ++usage.api_calls;
+    if (is_radar) {
+        ++usage.radar_calls_made;
+    } else {
+        ++usage.repair_calls_made;
     }
-
-    auto add_pair = [&out](std::string jp, std::string en) {
-        jp = strip_markdown_cell_decorations(std::move(jp));
-        en = strip_markdown_cell_decorations(std::move(en));
-        if (const std::size_t p = en.find('('); p != std::string::npos) {
-            en = trim(en.substr(0, p));
-        }
-        if (jp.empty() || en.empty()) {
-            return;
-        }
-        if (jp.front() == '#' || jp.front() == '-' || jp.front() == '*' ||
-            jp.front() == '<') {
-            return;
-        }
-        if (!has_non_ascii_bytes(jp) || has_binary_or_pua_noise(jp) ||
-            utf8_char_len(jp) > kMaxSpeakerKeyChars) {
-            return;
-        }
-        for (char c : jp) {
-            if (c == ':' || c == '(' || c == ')' || c == '"' || c == '\'' ||
-                c == ';') {
-                return;
-            }
-        }
-        if (en.front() == '(' || has_japanese(en) || has_binary_or_pua_noise(en)) {
-            return;
-        }
-        if (en.find('/') != std::string::npos || en.find(',') != std::string::npos ||
-            en.find('"') != std::string::npos) {
-            return;
-        }
-        out.emplace(std::move(jp), std::move(en));
-    };
-
-    const std::string normalized_md = normalize_tone_reference_tags(tone_markdown);
-    std::size_t pos = 0;
-    while (pos <= normalized_md.size()) {
-        const std::size_t nl = normalized_md.find('\n', pos);
-        std::string line = normalized_md.substr(
-            pos, nl == std::string::npos ? std::string::npos : nl - pos);
-        pos = nl == std::string::npos ? normalized_md.size() + 1 : nl + 1;
-        line = trim(line);
-        if (line.empty() || line.front() == '#') {
-            continue;
-        }
-
-        if (line.front() == '|' && line.back() == '|') {
-            const std::size_t p1 = line.find('|', 1);
-            if (p1 != std::string::npos && p1 + 1 < line.size()) {
-                const std::size_t p2 = line.find('|', p1 + 1);
-                if (p2 != std::string::npos) {
-                    add_pair(line.substr(1, p1 - 1),
-                             line.substr(p1 + 1, p2 - p1 - 1));
-                }
-            }
-            continue;
-        }
-
-        if (line.find('=') != std::string::npos) {
-            std::size_t start = 0;
-            while (start < line.size()) {
-                const std::size_t comma = line.find(',', start);
-                const std::string token = trim(line.substr(
-                    start, comma == std::string::npos ? std::string::npos : comma - start));
-                const std::size_t eq = token.find('=');
-                if (eq != std::string::npos) {
-                    add_pair(token.substr(0, eq), token.substr(eq + 1));
-                }
-                if (comma == std::string::npos) {
-                    break;
-                }
-                start = comma + 1;
-            }
-        }
-    }
-
-    return out;
-}
-
-std::string resolve_entry_speaker_tag(
-    const std::string& speaker,
-    const std::unordered_map<std::string, std::string>& speaker_ref_map,
-    const std::string& active_speaker) {
-    if (speaker.empty() || (!has_japanese(speaker) && !has_non_ascii_bytes(speaker))) {
-        return speaker;
-    }
-    if (const auto it = speaker_ref_map.find(speaker); it != speaker_ref_map.end()) {
-        return it->second;
-    }
-    if (!active_speaker.empty() && active_speaker != "NARRATION" &&
-        !has_japanese(active_speaker) && !has_non_ascii_bytes(active_speaker)) {
-        return active_speaker;
-    }
-    return speaker;
+    usage.prompt_tokens += resp.prompt_tokens;
+    usage.output_tokens += resp.output_tokens;
+    usage.thought_tokens += resp.thought_tokens;
 }
 
 }  // namespace
 
-std::string default_editorial_rules_prompt(bool fix_punctuation) {
-    std::string rules =
-        "<editorial_mandate>\n"
-        "You are a master Japanese-to-English literary translator and senior visual novel editor.\n"
-        "Your mission is to spot-check existing English translations against the original Japanese\n"
-        "and propose surgical fixes ONLY where the current English has a clear defect.\n\n"
-        "THE LITERARY SWEET SPOT (AVOID BOTH EXTREMES):\n"
-        "- AVOID EXTREME 1 -- WOODEN MECHANICAL LITERALISM ('TRANSLATIONESE'):\n"
-        "  Never force word-for-word Japanese syntax onto English. Fix robotic calques, stiff\n"
-        "  clauses ('As for...', 'It is that...'), unnatural noun repetition, and dictionary-literal\n"
-        "  dialogue. Take the natural syntactic leeway English needs so dialogue sounds genuinely\n"
-        "  spoken and narration reads like published literary fiction.\n"
-        "- AVOID EXTREME 2 -- TONE DRIFT & OVER-LOCALIZATION:\n"
-        "  Never invent new meanings, inject Western slang/memes, alter the emotional register\n"
-        "  (e.g. turning quiet deadpan into loud sarcasm), or rewrite lines that already read\n"
-        "  naturally.\n\n"
-        "CORE PILLARS (MANDATORY):\n"
-        "1. PROFESSIONAL LITERARY PROSE: Every improved line must read like an accomplished English\n"
-        "   author wrote it naturally -- vivid rhythm, natural spoken cadence, and sharp subtext.\n"
-        "2. STRICTLY AUTHOR-INTENDED: Preserve the Japanese author's exact psychological nuance,\n"
-        "   character voice tics (e.g. cat-puns like nya/meow, formal ojou-sama register, rough slang),\n"
-        "   and multi-line banter callbacks (when line B echoes a verb/noun from line A in Japanese,\n"
-        "   the English pair must preserve that verbal echo so the joke/callback lands).\n"
-        "   If current_en includes a short quoted phonetic reading specifically to make an explicit\n"
-        "   Japanese wordplay/pun intelligible when the following line reacts to that pun (e.g.\n"
-        "   \"'Shokai housou'... 'Shoka, ihou housou'--an early-summer illegal broadcast...\"\n"
-        "   followed by \"'let's leave out puns like that'\"), DO NOT strip the pun setup! Only\n"
-        "   remove parenthetical translator notes like (hippu) when they are not part of a spoken pun.\n"
-        "3. NOT WESTERNIZED: Never domesticate Japanese cultural concepts, honorific dynamics, or\n"
-        "   setting details into out-of-place Western internet slang, memes, or Americanized idioms.\n"
-        "4. NOT CENSORED: Never soften, bowdlerize, sanitize, or euphemize explicit adult/erotic\n"
-        "   content, visceral violence, dark psychological themes, or harsh insults. Match the\n"
-        "   exact intensity and register of the Japanese original.\n"
-        "5. DO NO HARM (SURGICAL PRECISION): If a line is already accurate, natural, and faithful,\n"
-        "   DO NOT touch it. Never make lateral synonym swaps or stylistic edits just for the sake\n"
-        "   of changing words. Only output a fix for lines marked [EDITABLE SUSPECT] when there is\n"
-        "   an objective improvement with confidence >= 0.85.\n"
-        "6. PURE ASCII FORMATTING: Use '--' for em-dashes, '...' for ellipses, and straight ASCII\n"
-        "   quotes (\" and '). Preserve outer quotation marks on spoken dialogue. Never include\n"
-        "   parenthetical romaji glosses or translator notes.\n";
-    if (!fix_punctuation) {
-        rules +=
-            "7. DO NOT FIX PUNCTUATION, DASHES, ELLIPSES, BRACKETS, OR PARENTHESES: Never output\n"
-            "   edits that merely change punctuation ('---' vs '--', '...' vs '......', quotes,\n"
-            "   tildes, or parenthetical notes). Focus strictly on substantive sentence\n"
-            "   improvements: semantic mistranslations, broken multi-line jokes/callbacks, wrong\n"
-            "   omitted pronouns/subjects, dropped character speech tics, and wooden/robotic\n"
-            "   sentence phrasing.\n";
-    }
-    rules +=
-        "</editorial_mandate>\n\n"
-        "<output_schema>\n"
-        "Return ONLY a valid JSON array of objects (or [] if no suspect lines require fixing):\n"
-        "[\n"
-        "  {\n"
-        "    \"id\": <integer 1..N from target_window, MUST be an [EDITABLE SUSPECT] line>,\n"
-        "    \"new_en\": \"<the improved English translation>\",\n"
-        "    \"error_span\": \"<optional exact substring in current EN that contained the defect>\",\n"
-        "    \"severity\": \"<critical|major|minor>\",\n"
-        "    \"category\": \"<mistranslation|broken_callback|artifact_or_note|character_voice|censored_or_westernized|stiff_translationese>\",\n"
-        "    \"confidence\": <number 0.0 to 1.0, must be >= 0.85>,\n"
-        "    \"reason\": \"<concise explanation of the defect fixed>\"\n"
-        "  }\n"
-        "]\n"
-        "</output_schema>";
-    return rules;
-}
-
-std::string build_system_prompt(const std::string& tone_markdown, bool fix_punctuation) {
-    std::string sys = default_editorial_rules_prompt(fix_punctuation);
-    const std::string cleaned_tone = strip_translator_formatting_rules(tone_markdown);
-    if (!cleaned_tone.empty()) {
-        sys += "\n\n<novel_tone_and_glossary>\n" + cleaned_tone +
-               "\n</novel_tone_and_glossary>";
-    }
-    return sys;
-}
-
-std::vector<std::pair<std::string, std::string>> parse_glossary_from_tone_md(
-    const std::string& tone_markdown) {
-    std::vector<std::pair<std::string, std::string>> out;
-    std::unordered_set<std::string> seen_jp;
-
-    static const std::unordered_set<std::string> ignored_common_jp = {
-        "みんな", "全員", "少女", "少年", "女", "男", "女子", "男子", "声",
-        "？？？", "？", "二人", "ふたり", "教師", "先生", "母", "父", "客",
-        "店員", "生徒", "部員", "男の子", "女の子", "女性", "男性",
-    };
-
-    auto add_pair = [&](std::string jp, std::string en) {
-        jp = strip_markdown_cell_decorations(std::move(jp));
-        en = strip_markdown_cell_decorations(std::move(en));
-        // Strip parenthetical annotations in glossary target (e.g. "Yuuhi (Girl)" -> "Yuuhi")
-        if (const std::size_t p = en.find('('); p != std::string::npos) {
-            en = trim(en.substr(0, p));
-        }
-        if (jp.empty() || en.empty() || !has_real_japanese(jp) || has_japanese(en)) {
-            return;
-        }
-        // Skip multi-option definitions (e.g. "Miki / Yamanobe", "Everyone, All")
-        if (en.find('/') != std::string::npos || en.find(',') != std::string::npos) {
-            return;
-        }
-        if (ignored_common_jp.count(jp) != 0) return;
-        // Avoid short 1-char kanji or <=2-char kana terms or <=3-char English substrings
-        // that cause false-positive substring collisions (e.g. "レン"="Ren" inside "different")
-        if (utf8_char_len(jp) < kMinGlossaryJpChars || en.size() < kMinGlossaryEnBytes) {
-            return;
-        }
-        if (seen_jp.insert(jp).second) {
-            out.emplace_back(std::move(jp), std::move(en));
-        }
-    };
-
-    const std::string normalized_md = normalize_tone_reference_tags(tone_markdown);
-    std::size_t pos = 0;
-    while (pos <= normalized_md.size()) {
-        const std::size_t nl = normalized_md.find('\n', pos);
-        std::string line = normalized_md.substr(
-            pos, nl == std::string::npos ? std::string::npos : nl - pos);
-        pos = nl == std::string::npos ? normalized_md.size() + 1 : nl + 1;
-        line = trim(line);
-        if (line.empty() || line.front() == '#') continue;
-
-        // Pattern 1: Markdown table row `| `JP` | `EN` |` or `| JP | EN |`
-        if (line.front() == '|' && line.back() == '|') {
-            const std::size_t p1 = line.find('|', 1);
-            if (p1 != std::string::npos && p1 + 1 < line.size()) {
-                const std::size_t p2 = line.find('|', p1 + 1);
-                if (p2 != std::string::npos) {
-                    add_pair(line.substr(1, p1 - 1), line.substr(p1 + 1, p2 - p1 - 1));
-                }
-            }
-            continue;
-        }
-
-        // Pattern 2: Comma-separated `JP=EN` items (e.g. inside <name_reference>)
-        if (line.find('=') != std::string::npos) {
-            std::size_t start = 0;
-            while (start < line.size()) {
-                const std::size_t comma = line.find(',', start);
-                const std::string token = trim(line.substr(
-                    start, comma == std::string::npos ? std::string::npos : comma - start));
-                const std::size_t eq = token.find('=');
-                if (eq != std::string::npos) {
-                    add_pair(token.substr(0, eq), token.substr(eq + 1));
-                }
-                if (comma == std::string::npos) break;
-                start = comma + 1;
-            }
-        }
-    }
-
-    return out;
-}
-
-std::vector<ScriptEntry> extract_script_entries(
-    const bj::value& root,
-    const std::string& tone_markdown) {
-    std::vector<ScriptEntry> out;
-    if (!root.is_object()) return out;
-
-    const auto speaker_ref_map = parse_speaker_reference_map(tone_markdown);
-
-    for (const auto& kv : root.as_object()) {
-        if (!kv.value().is_object()) continue;
-        const std::string script_name(kv.key());
-        const auto& script_obj = kv.value().as_object();
-
-        std::string array_key;
-        const bj::array* arr_ptr = nullptr;
-        if (const auto* s = script_obj.if_contains("strings"); s && s->is_array()) {
-            array_key = "strings";
-            arr_ptr = &s->as_array();
-        } else if (const auto* l = script_obj.if_contains("lines"); l && l->is_array()) {
-            array_key = "lines";
-            arr_ptr = &l->as_array();
-        }
-        if (!arr_ptr) continue;
-
-        std::string active_speaker = "NARRATION";
-        bool in_dialogue = false;
-        for (std::size_t i = 0; i < arr_ptr->size(); ++i) {
-            if (!(*arr_ptr)[i].is_object()) continue;
-            const auto& entry_obj = (*arr_ptr)[i].as_object();
-            const std::string type = json_str(entry_obj, "type");
-
-            std::string text_key = "text";
-            std::string jp_text = json_str(entry_obj, "text");
-            if (jp_text.empty() && entry_obj.if_contains("content")) {
-                text_key = "content";
-                jp_text = json_str(entry_obj, "content");
-            }
-            const std::string translated = json_str(entry_obj, "translated");
-
-            // Track standalone speaker definitions (e.g. amakano2pe / SakuraNoUta)
-            if (type == "NAME") {
-                if (is_standalone_speaker_tag(jp_text, translated)) {
-                    active_speaker = trim(!translated.empty() ? translated : jp_text);
-                } else {
-                    active_speaker = "NARRATION";
-                }
-                in_dialogue = false;
-                continue;
-            }
-            if (type == "name") {
-                if (is_standalone_speaker_tag(jp_text, translated)) {
-                    active_speaker = trim(!translated.empty() ? translated : jp_text);
-                    in_dialogue = false;
-                    continue;
-                }
-                // In .spt games (EXTRAVAGANZA_CE / Adieu), some short translated story
-                // lines or choices are mis-tagged as type=="name". Keep them if they are
-                // genuinely translated Japanese lines; skip binary/untranslated noise.
-                if (translated == jp_text || !has_real_japanese(jp_text) ||
-                    has_binary_or_pua_noise(jp_text)) {
-                    continue;
-                }
-            }
-            if (type == "COMMAND" && jp_text == "fw 0") {
-                active_speaker = "NARRATION";
-                in_dialogue = false;
-                continue;
-            }
-            if (type == "other" && trim(jp_text).rfind(kSiglusMacroStarPrefix, 0) == 0) {
-                active_speaker = "NARRATION";
-                in_dialogue = false;
-                continue;
-            }
-            if (is_excluded_entry_type(type) && type != "name") continue;
-
-            if (const auto* hj = entry_obj.if_contains("has_jp");
-                hj && hj->is_bool() && !hj->as_bool()) {
-                continue;
-            }
-            if (!has_japanese(jp_text) || translated.empty()) continue;
-            if (has_binary_or_pua_noise(jp_text) ||
-                is_shingakkou_sprite_tag(jp_text, translated)) {
-                continue;
-            }
-
-            std::string speaker = trim(json_str(entry_obj, "speaker"));
-            if (type == "narration" || type == "narrative" || type == "menu") {
-                active_speaker = "NARRATION";
-                in_dialogue = false;
-                if (speaker.empty()) {
-                    speaker = "NARRATION";
-                }
-            } else if (type == "MESSAGE" && speaker.empty()) {
-                std::string t_jp = trim(jp_text);
-                while (t_jp.rfind(kSoftWrapEscape, 0) == 0) {
-                    t_jp = trim(t_jp.substr(kSoftWrapEscapeLen));
-                }
-                const bool opens_spoken_or_thought =
-                    t_jp.rfind("「", 0) == 0 || t_jp.rfind("『", 0) == 0 ||
-                    t_jp.rfind("（", 0) == 0;
-                if (opens_spoken_or_thought) {
-                    in_dialogue = true;
-                }
-                if (!in_dialogue) {
-                    active_speaker = "NARRATION";
-                    speaker = "NARRATION";
-                } else {
-                    speaker = active_speaker;
-                }
-                if (jp_text.find("」") != std::string::npos ||
-                    jp_text.find("』") != std::string::npos ||
-                    jp_text.find("）") != std::string::npos) {
-                    in_dialogue = false;
-                }
-            }
-            speaker = resolve_entry_speaker_tag(speaker, speaker_ref_map, active_speaker);
-            if (speaker.empty()) {
-                speaker = extract_speaker_prefix(translated);
-            }
-            if (speaker.empty()) {
-                speaker = extract_speaker_prefix(jp_text);
-            }
-            if (speaker.empty()) {
-                speaker = active_speaker;
-            }
-
-            ScriptEntry se;
-            se.global_index = out.size();
-            se.script_name = script_name;
-            se.array_key = array_key;
-            se.entry_index = i;
-            se.text_key = text_key;
-            se.speaker = speaker;
-            se.jp_text = jp_text;
-            se.current_en = translated;
-            out.push_back(std::move(se));
-        }
-    }
-    return out;
-}
-
-WindowSlice build_window_slice(const std::vector<ScriptEntry>& entries,
-                               std::size_t offset,
-                               std::size_t window_size,
-                               std::size_t context_before,
-                               std::size_t context_after) {
-    WindowSlice slice;
-    if (entries.empty() || offset >= entries.size() || window_size == 0) {
-        slice.target_start = std::min(offset, entries.size());
-        return slice;
-    }
-
-    slice.target_start = offset;
-    const std::size_t target_end = std::min(entries.size(), offset + window_size);
-    const std::size_t before_start =
-        (offset > context_before) ? (offset - context_before) : 0;
-    const std::size_t after_end =
-        std::min(entries.size(), target_end + context_after);
-
-    slice.context_before.assign(
-        entries.begin() + static_cast<std::ptrdiff_t>(before_start),
-        entries.begin() + static_cast<std::ptrdiff_t>(offset));
-    slice.target.assign(
-        entries.begin() + static_cast<std::ptrdiff_t>(offset),
-        entries.begin() + static_cast<std::ptrdiff_t>(target_end));
-    slice.context_after.assign(
-        entries.begin() + static_cast<std::ptrdiff_t>(target_end),
-        entries.begin() + static_cast<std::ptrdiff_t>(after_end));
-    return slice;
-}
-
-std::set<int> compute_editable_ids(const WindowSlice& slice,
-                                   const std::vector<LineWeaknessScore>& novel_scores,
-                                   bool review_all_in_window,
-                                   bool skip_h_scenes,
-                                   const std::set<std::size_t>& repaired_indices) {
-    std::set<int> editable;
-    const int n = static_cast<int>(slice.target.size());
-    if (n == 0) return editable;
-
-    auto is_blocked_line = [&](int id) {
-        const auto& e = slice.target[static_cast<std::size_t>(id - 1)];
-        if (repaired_indices.count(e.global_index) != 0) return true;
-        if (is_passthrough_or_non_jp_entry(e)) return true;
-        if (skip_h_scenes && is_h_scene_line(e.jp_text, e.current_en)) return true;
-        return false;
-    };
-
-    if (review_all_in_window || novel_scores.empty()) {
-        for (int id = 1; id <= n; ++id) {
-            if (!is_blocked_line(id)) editable.insert(id);
-        }
-        return editable;
-    }
-
-    for (int id = 1; id <= n; ++id) {
-        if (is_blocked_line(id)) continue;
-        const std::size_t g_idx =
-            slice.target[static_cast<std::size_t>(id - 1)].global_index;
-        if (g_idx < novel_scores.size() && novel_scores[g_idx].raw_total > 0.0) {
-            if (id - 1 >= 1 && !is_blocked_line(id - 1)) editable.insert(id - 1);
-            editable.insert(id);
-            if (id + 1 <= n && !is_blocked_line(id + 1)) editable.insert(id + 1);
-        }
-    }
-    return editable;
-}
-
-std::string build_spot_check_user_prompt(const WindowSlice& slice,
-                                         bool fix_punctuation) {
-    std::string prompt;
-
-    if (!slice.context_before.empty()) {
-        prompt += "<context_before>\n";
-        for (const auto& e : slice.context_before) {
-            prompt += "[" + e.speaker + "] JP: " + escape_for_prompt(e.jp_text) +
-                      " | EN: " + escape_for_prompt(e.current_en) + "\n";
-        }
-        prompt += "</context_before>\n\n";
-    }
-
-    const bool has_lock_list = !slice.editable_ids.empty() &&
-                               slice.editable_ids.size() < slice.target.size();
-
-    prompt += "<target_window>\n";
-    for (std::size_t i = 0; i < slice.target.size(); ++i) {
-        const int id = static_cast<int>(i + 1);
-        const auto& e = slice.target[i];
-        const bool is_editable =
-            slice.editable_ids.empty() || slice.editable_ids.count(id) != 0;
-        const char* status_tag =
-            has_lock_list
-                ? (is_editable ? " [EDITABLE SUSPECT]" : " [READ-ONLY CONTEXT]")
-                : " [EDITABLE SUSPECT]";
-        prompt += std::to_string(id) + ". [" + e.speaker + "]" + status_tag + "\n";
-        prompt += "   JP: " + escape_for_prompt(e.jp_text) + "\n";
-        prompt += "   EN: " + escape_for_prompt(e.current_en) + "\n";
-    }
-    prompt += "</target_window>\n\n";
-
-    if (!slice.context_after.empty()) {
-        prompt += "<context_after>\n";
-        for (const auto& e : slice.context_after) {
-            prompt += "[" + e.speaker + "] JP: " + escape_for_prompt(e.jp_text) +
-                      " | EN: " + escape_for_prompt(e.current_en) + "\n";
-        }
-        prompt += "</context_after>\n\n";
-    }
-
-    prompt += "Review the " + std::to_string(slice.target.size()) +
-              " numbered lines inside <target_window> using <context_before> and "
-              "<context_after> for scene continuity, pronoun resolution, and banter callbacks.\n";
-    if (has_lock_list) {
-        prompt += "IMPORTANT LOCKING RULE: You may ONLY output fixes for IDs marked "
-                  "[EDITABLE SUSPECT] (allowed IDs:";
-        for (int id : slice.editable_ids) {
-            prompt += " " + std::to_string(id);
-        }
-        prompt += "). Lines marked [READ-ONLY CONTEXT] are locked for context only.\n";
-    }
-    if (!fix_punctuation) {
-        prompt += "PUNCTUATION NOISE FILTER: Do NOT output fixes that only change "
-                  "hyphens/dashes (--- vs --), ellipsis length (... vs ......), quotes, "
-                  "or parenthetical notes. Only output substantive lexical, grammatical, "
-                  "voice, or discourse repairs.\n";
-    }
-    prompt += "DO NO HARM: Only return an object when there is an objective defect with "
-              "confidence >= 0.85. Output a JSON array following <output_schema>.";
-    return prompt;
-}
-
-std::string build_radar_pack_prompt(const std::vector<WindowSlice>& passages) {
-    std::string prompt =
-        "<radar_triage_mandate>\n"
-        "STAGE 1 PACKED GEMBA-MQM RADAR PASS (Kocmi & Federmann WMT 2023):\n"
-        "Rapidly triage the following candidate visual novel passages for objective JP->EN "
-        "translation defects (mistranslation, broken banter callbacks, pronoun/benefactive "
-        "reversal, dropped role-language tics, or leftover CJK/romaji artifacts).\n"
-        "Score each passage using GEMBA-MQM severity weights: critical = 25, major = 5, "
-        "minor = 1 (0 if clean).\n"
-        "</radar_triage_mandate>\n\n";
-
-    for (std::size_t p = 0; p < passages.size(); ++p) {
-        const auto& slice = passages[p];
-        prompt += "<passage id=\"" + std::to_string(p + 1) + "\" offset=\"" +
-                  std::to_string(slice.target_start) + "\">\n";
-        for (std::size_t i = 0; i < slice.target.size(); ++i) {
-            const auto& e = slice.target[i];
-            prompt += std::to_string(i + 1) + ". [" + e.speaker + "] JP: " +
-                      escape_for_prompt(e.jp_text) + " | EN: " +
-                      escape_for_prompt(e.current_en) + "\n";
-        }
-        prompt += "</passage>\n\n";
-    }
-
-    prompt +=
-        "<radar_output_schema>\n"
-        "Return ONLY a valid JSON array with one entry per passage:\n"
-        "[\n"
-        "  {\n"
-        "    \"passage_id\": <integer 1.." + std::to_string(passages.size()) + ">,\n"
-        "    \"mqm_score\": <number: sum of critical*25 + major*5 + minor*1, 0 if clean>,\n"
-        "    \"suspect_ids\": [<1-based line IDs inside that passage needing repair>]\n"
-        "  }\n"
-        "]\n"
-        "</radar_output_schema>";
-    return prompt;
-}
-
-std::vector<RadarPassageResult> parse_radar_pack_response(
-    const std::string& raw_response,
-    const std::vector<WindowSlice>& passages) {
-    std::vector<RadarPassageResult> results;
-    if (passages.empty()) return results;
-
-    const std::string cleaned = strip_markdown_json_fences(raw_response);
-    if (cleaned.empty()) return results;
-
-    bj::value parsed;
-    try {
-        parsed = bj::parse(cleaned);
-    } catch (...) {
-        return results;
-    }
-    if (!parsed.is_array()) return results;
-
-    std::set<int> seen_passages;
-    for (const auto& item_v : parsed.as_array()) {
-        if (!item_v.is_object()) continue;
-        const auto& obj = item_v.as_object();
-
-        int pid = -1;
-        if (const auto* pv = obj.if_contains("passage_id")) {
-            if (pv->is_int64()) pid = static_cast<int>(pv->as_int64());
-            else if (pv->is_uint64()) pid = static_cast<int>(pv->as_uint64());
-        }
-        if (pid < 1 || static_cast<std::size_t>(pid) > passages.size()) continue;
-        if (!seen_passages.insert(pid).second) continue;
-
-        const WindowSlice& slice = passages[static_cast<std::size_t>(pid - 1)];
-        RadarPassageResult rpr;
-        rpr.passage_id = pid;
-        rpr.offset = slice.target_start;
-        rpr.length = slice.target.size();
-
-        if (const auto* mv = obj.if_contains("mqm_score")) {
-            if (mv->is_double()) rpr.mqm_score = mv->as_double();
-            else if (mv->is_int64()) rpr.mqm_score = static_cast<double>(mv->as_int64());
-            else if (mv->is_uint64()) rpr.mqm_score = static_cast<double>(mv->as_uint64());
-        } else {
-            // Optional fallback if model returned critical/major/minor counts
-            double crit = 0.0;
-            double maj = 0.0;
-            double minr = 0.0;
-            if (const auto* c = obj.if_contains("critical"); c && c->is_number()) {
-                crit = c->to_number<double>();
-            }
-            if (const auto* m = obj.if_contains("major"); m && m->is_number()) {
-                maj = m->to_number<double>();
-            }
-            if (const auto* n = obj.if_contains("minor"); n && n->is_number()) {
-                minr = n->to_number<double>();
-            }
-            rpr.mqm_score = 25.0 * crit + 5.0 * maj + 1.0 * minr;
-        }
-
-        if (const auto* s_arr = obj.if_contains("suspect_ids");
-            s_arr && s_arr->is_array()) {
-            const int max_id = static_cast<int>(slice.target.size());
-            for (const auto& sv : s_arr->as_array()) {
-                int sid = -1;
-                if (sv.is_int64()) sid = static_cast<int>(sv.as_int64());
-                else if (sv.is_uint64()) sid = static_cast<int>(sv.as_uint64());
-                if (sid >= 1 && sid <= max_id) {
-                    rpr.suspect_ids.insert(sid);
-                }
-            }
-        }
-        results.push_back(std::move(rpr));
-    }
-    return results;
-}
-
-bool is_valid_defect_category(const std::string& category) {
-    static const std::unordered_set<std::string> allowed = {
-        "mistranslation",
-        "broken_callback",
-        "artifact_or_note",
-        "character_voice",
-        "censored_or_westernized",
-        "stiff_translationese",
-    };
-    return allowed.count(category) != 0;
-}
-
-ValidationResult validate_proposed_fix(
-    const ScriptEntry& entry,
-    const std::string& candidate_en,
-    const std::vector<std::pair<std::string, std::string>>& glossary,
-    const OlsModel& ols,
-    const std::string& error_span,
-    bool fix_punctuation) {
-    ValidationResult res;
-    const std::string jp_body = strip_speaker_prefix_only(entry.jp_text);
-    const std::string old_body = strip_speaker_prefix_only(entry.current_en);
-    const std::string new_body = strip_speaker_prefix_only(candidate_en);
-
-    if (new_body.empty()) {
-        res.rejection_reason = "empty translation body";
-        return res;
-    }
-
-    // Never edit symbol-only / non-Japanese lines or untranslated passthrough lines
-    if (is_passthrough_or_non_jp_entry(entry)) {
-        res.rejection_reason =
-            "passthrough or symbol-only non-Japanese line cannot be edited";
-        return res;
-    }
-
-    const bool compressed_runaway =
-        old_body.size() > 500 && new_body.size() * 2 < old_body.size();
-
-    // When fix_punctuation == false (default), reject edits that only alter
-    // punctuation/hyphens/ellipses/quotes while keeping identical alphanumeric words
-    if (!fix_punctuation && !compressed_runaway && !has_real_japanese(old_body) &&
-        extract_alnum_words_lower(old_body) == extract_alnum_words_lower(new_body)) {
-        res.rejection_reason =
-            "punctuation-only change rejected (fix_punctuation is false)";
-        return res;
-    }
-
-    // 0. Stage 2 GEMBA-MQM Span-Grounded Surgical Verification:
-    // If the LLM specified an offending `error_span` present in `old_body`,
-    // `new_body` must actually modify/remove that span (unless compressing a
-    // runaway repetition loop where a short prefix of repeated chars remains).
-    const std::string span =
-        trim(unescape_prompt_newlines(entry.current_en, error_span));
-    if (!compressed_runaway && !span.empty() &&
-        old_body.find(span) != std::string::npos &&
-        new_body.find(span) != std::string::npos) {
-        res.rejection_reason =
-            "proposed fix left GEMBA-MQM error_span '" + span + "' unchanged";
-        return res;
-    }
-
-    // 1. Zero Leftover CJK / Full-Width Punctuation / Romaji Glosses
-    const bool old_uses_kaku = (old_body.rfind("「", 0) == 0);
-    if (old_uses_kaku ? has_real_japanese(new_body) : has_japanese(new_body)) {
-        res.rejection_reason = "contains leftover Japanese/CJK characters";
-        return res;
-    }
-    const bool has_disallowed_kaku =
-        !old_uses_kaku &&
-        (new_body.find("「") != std::string::npos ||
-         new_body.find("」") != std::string::npos);
-    if (has_disallowed_kaku ||
-        new_body.find("『") != std::string::npos ||
-        new_body.find("』") != std::string::npos ||
-        new_body.find("…") != std::string::npos ||
-        new_body.find("—") != std::string::npos ||
-        new_body.find("。") != std::string::npos ||
-        new_body.find("、") != std::string::npos) {
-        res.rejection_reason = "contains non-ASCII fullwidth punctuation";
-        return res;
-    }
-    if (has_romaji_gloss_or_tl_note(new_body) && !has_romaji_gloss_or_tl_note(old_body)) {
-        res.rejection_reason = "introduces parenthetical romaji gloss or translator note";
-        return res;
-    }
-
-    // 2. Quote Envelope Invariant
-    if (old_uses_kaku) {
-        if (new_body.rfind("「", 0) != 0) {
-            res.rejection_reason = "dropped spoken dialogue quotation marks";
-            return res;
-        }
-        const bool old_ends_kaku =
-            old_body.size() >= kUtf8ThreeByteLen &&
-            old_body.compare(old_body.size() - kUtf8ThreeByteLen,
-                             kUtf8ThreeByteLen,
-                             "」") == 0;
-        const bool new_ends_kaku =
-            new_body.size() >= kUtf8ThreeByteLen &&
-            new_body.compare(new_body.size() - kUtf8ThreeByteLen,
-                             kUtf8ThreeByteLen,
-                             "」") == 0;
-        if (old_ends_kaku != new_ends_kaku) {
-            res.rejection_reason =
-                "broke outer quotation mark envelope on spoken dialogue";
-            return res;
-        }
-        const std::size_t inner_len =
-            new_body.size() - kUtf8ThreeByteLen -
-            (new_ends_kaku ? kUtf8ThreeByteLen : 0);
-        const std::string inner =
-            trim(new_body.substr(kUtf8ThreeByteLen, inner_len));
-        if (inner.empty()) {
-            res.rejection_reason = "empty translation body";
-            return res;
-        }
-        if (inner.size() >= 2 && inner.front() == '"' && inner.back() == '"') {
-            res.rejection_reason =
-                "double-wrapped ASCII quotes inside corner brackets";
-            return res;
-        }
-    } else {
-        const bool jp_spoken =
-            jp_body.rfind("「", 0) == 0 ||
-            jp_body.rfind("『", 0) == 0;
-        const bool old_outer_quoted =
-            old_body.size() >= 2 && old_body.front() == '"' && old_body.back() == '"';
-        const bool new_has_quote = new_body.find('"') != std::string::npos;
-        const bool new_outer_quoted =
-            new_body.size() >= 2 && new_body.front() == '"' && new_body.back() == '"';
-
-        if ((jp_spoken || old_outer_quoted) && !new_has_quote) {
-            res.rejection_reason = "dropped spoken dialogue quotation marks";
-            return res;
-        }
-        if (old_outer_quoted && jp_spoken && !new_outer_quoted) {
-            res.rejection_reason = "broke outer quotation mark envelope on spoken dialogue";
-            return res;
-        }
-        const bool jp_has_any_quote =
-            jp_body.find("「") != std::string::npos ||
-            jp_body.find("『") != std::string::npos;
-        const bool old_has_any_quote = old_body.find('"') != std::string::npos;
-        if (!jp_has_any_quote && !old_has_any_quote && new_outer_quoted) {
-            res.rejection_reason = "invented outer spoken quotes on pure narration";
-            return res;
-        }
-    }
-
-    // 3. Engine Tag / Placeholder Preservation (%s, %d, literal \n and \@ escapes, $strNN vars)
-    for (const char* tag : {"%s", "%d", "\\n", "\\@", "$str10", "$str20"}) {
-        if (count_substring(old_body, tag) > count_substring(new_body, tag)) {
-            res.rejection_reason = std::string("dropped engine placeholder ") + tag;
-            return res;
-        }
-    }
-
-    // 4. Glossary Invariant Check
-    // Check `jp_body` (excluding the speaker prefix line) with word-boundary matching,
-    // and allow replacing a repeated character name with a natural English pronoun.
-    if (!glossary.empty()) {
-        const std::string old_lower = to_lower_copy(old_body);
-        const std::string new_lower = to_lower_copy(new_body);
-        const auto new_words = extract_alnum_words_lower(new_body);
-        bool has_pronoun = false;
-        for (const auto& w : new_words) {
-            if (w == "he" || w == "him" || w == "his" || w == "she" || w == "her" ||
-                w == "hers" || w == "they" || w == "them" || w == "their" ||
-                w == "you" || w == "your" || w == "i" || w == "me" || w == "my") {
-                has_pronoun = true;
-                break;
-            }
-        }
-        auto contains_word_bound = [](const std::string& hay, const std::string& needle) {
-            std::size_t pos = 0;
-            while ((pos = hay.find(needle, pos)) != std::string::npos) {
-                const bool left_ok =
-                    (pos == 0) || !(hay[pos - 1] >= 'a' && hay[pos - 1] <= 'z');
-                const std::size_t end = pos + needle.size();
-                const bool right_ok =
-                    (end >= hay.size()) || !(hay[end] >= 'a' && hay[end] <= 'z');
-                if (left_ok && right_ok) return true;
-                pos = end;
-            }
-            return false;
-        };
-        for (const auto& [jp_term, en_term] : glossary) {
-            if (jp_term.empty() || en_term.empty()) continue;
-            if (jp_body.find(jp_term) != std::string::npos) {
-                const std::string en_lower = to_lower_copy(en_term);
-                if (contains_word_bound(old_lower, en_lower) &&
-                    !contains_word_bound(new_lower, en_lower) && !has_pronoun) {
-                    res.rejection_reason =
-                        "dropped canonical glossary term '" + en_term + "' for '" + jp_term + "'";
-                    return res;
-                }
-            }
-        }
-    }
-
-    // 5. Strict Mathematical Improvement Check (Do-No-Harm non-regression)
-    HotspotConfig hcfg;
-    hcfg.fix_punctuation = fix_punctuation;
-    HotspotDetector detector(hcfg);
-    const LineWeaknessScore old_score =
-        detector.score_single_line(entry.jp_text, entry.current_en, ols);
-    const LineWeaknessScore new_score =
-        detector.score_single_line(entry.jp_text, candidate_en, ols);
-    const double old_non_len =
-        old_score.artifact_score + old_score.coupling_score + old_score.style_score;
-    const double new_non_len =
-        new_score.artifact_score + new_score.coupling_score + new_score.style_score;
-    if (new_non_len > old_non_len + 1e-6) {
-        res.rejection_reason = "intrinsic defect score worsened (" +
-                               std::to_string(new_non_len) + " > " +
-                               std::to_string(old_non_len) + ")";
-        return res;
-    }
-    const bool extreme_len_change =
-        new_body.size() > 140 || (old_body.size() >= 20 && new_body.size() * 2 < old_body.size());
-    if (extreme_len_change && new_score.length_z > old_score.length_z + 1e-6) {
-        res.rejection_reason = "mathematical length residual score worsened (" +
-                               std::to_string(new_score.length_z) + " > " +
-                               std::to_string(old_score.length_z) + ")";
-        return res;
-    }
-
-    res.accepted = true;
-    return res;
-}
-
-std::vector<Improvement> parse_spot_check_response(
-    const std::string& raw_response,
-    const WindowSlice& slice,
-    double min_confidence,
-    const std::vector<std::pair<std::string, std::string>>& glossary,
-    const OlsModel& ols,
-    std::size_t* out_rejected_count,
-    bool fix_punctuation) {
-    std::vector<Improvement> improvements;
-    if (out_rejected_count) *out_rejected_count = 0;
-    if (slice.target.empty()) return improvements;
-
-    const std::string cleaned = strip_markdown_json_fences(raw_response);
-    if (cleaned.empty()) return improvements;
-
-    bj::value parsed;
-    try {
-        parsed = bj::parse(cleaned);
-    } catch (...) {
-        return improvements;
-    }
-    if (!parsed.is_array()) return improvements;
-
-    std::set<int> seen_ids;
-    for (const auto& item_v : parsed.as_array()) {
-        if (!item_v.is_object()) continue;
-        const auto& obj = item_v.as_object();
-
-        int id = -1;
-        if (const auto* id_v = obj.if_contains("id")) {
-            if (id_v->is_int64()) id = static_cast<int>(id_v->as_int64());
-            else if (id_v->is_uint64()) id = static_cast<int>(id_v->as_uint64());
-        }
-        if (id < 1 || static_cast<std::size_t>(id) > slice.target.size()) {
-            if (out_rejected_count) ++(*out_rejected_count);
-            continue;
-        }
-
-        // Trick 1: Enforce editable_ids allowlist when populated
-        if (!slice.editable_ids.empty() && slice.editable_ids.count(id) == 0) {
-            if (out_rejected_count) ++(*out_rejected_count);
-            continue;
-        }
-        if (!seen_ids.insert(id).second) continue;
-
-        // Trick 2: Defect category taxonomy & confidence gate
-        std::string category = "mistranslation";
-        if (const auto* cat_v = obj.if_contains("category"); cat_v && cat_v->is_string()) {
-            category = trim(std::string(cat_v->as_string()));
-            if (!is_valid_defect_category(category)) {
-                if (out_rejected_count) ++(*out_rejected_count);
-                continue;
-            }
-        }
-
-        std::string severity = trim(json_str(obj, "severity"));
-        if (severity != "critical" && severity != "major" && severity != "minor") {
-            severity = "major";
-        }
-        const std::string error_span = trim(json_str(obj, "error_span"));
-
-        double confidence = 1.0;
-        if (const auto* conf_v = obj.if_contains("confidence")) {
-            if (conf_v->is_double()) confidence = conf_v->as_double();
-            else if (conf_v->is_int64()) confidence = static_cast<double>(conf_v->as_int64());
-            else if (conf_v->is_uint64()) confidence = static_cast<double>(conf_v->as_uint64());
-        }
-        if (confidence < min_confidence) {
-            if (out_rejected_count) ++(*out_rejected_count);
-            continue;
-        }
-
-        std::string raw_improved = json_str(obj, "new_en");
-        if (raw_improved.empty()) {
-            raw_improved = json_str(obj, "improved_en");
-        }
-        const std::string reason = trim(json_str(obj, "reason"));
-        const ScriptEntry& target_entry =
-            slice.target[static_cast<std::size_t>(id - 1)];
-
-        const std::string normalized =
-            normalize_restored_translation(target_entry.current_en, raw_improved);
-        if (normalized.empty() || normalized == target_entry.current_en) {
-            continue;
-        }
-
-        // Trick 3: Deterministic C++ Do-No-Harm post-edit validator + GEMBA-MQM error_span check
-        const ValidationResult val = validate_proposed_fix(
-            target_entry, normalized, glossary, ols, error_span, fix_punctuation);
-        if (!val.accepted) {
-            if (out_rejected_count) ++(*out_rejected_count);
-            continue;
-        }
-
-        Improvement imp;
-        imp.global_index = target_entry.global_index;
-        imp.script_name = target_entry.script_name;
-        imp.entry_index = target_entry.entry_index;
-        imp.speaker = target_entry.speaker;
-        imp.jp_text = target_entry.jp_text;
-        imp.old_en = target_entry.current_en;
-        imp.improved_en = normalized;
-        imp.category = category;
-        imp.severity = severity;
-        imp.error_span = error_span;
-        imp.confidence = confidence;
-        imp.reason = reason;
-        improvements.push_back(std::move(imp));
-    }
-    return improvements;
-}
-
-std::vector<std::pair<std::string, std::string>> load_ordered_cache(
-    const std::string& cache_path) {
-    std::vector<std::pair<std::string, std::string>> items;
-    if (!fs::exists(fs::u8path(cache_path))) return items;
-    const bj::value root = json_parse_file(cache_path);
-    if (!root.is_object()) {
-        throw std::runtime_error("cache file is not a JSON object: " + cache_path);
-    }
-    items.reserve(root.as_object().size());
-    for (const auto& kv : root.as_object()) {
-        if (kv.value().is_string()) {
-            items.emplace_back(std::string(kv.key()),
-                               std::string(kv.value().as_string()));
-        }
-    }
-    return items;
-}
-
-void save_ordered_cache(
-    const std::vector<std::pair<std::string, std::string>>& items,
-    const std::string& cache_path) {
-    bj::object obj;
-    for (const auto& [jp, en] : items) {
-        obj[jp] = en;
-    }
-    write_json_preserving_style(cache_path, bj::value(std::move(obj)), 2, true);
-}
-
-#ifdef _WIN32
-fs::path find_batch_script(const fs::path& game_dir, const char* script_name) {
-    const fs::path local_script = game_dir / script_name;
-    if (fs::exists(local_script)) {
-        return local_script;
-    }
-    const fs::path parent_script = game_dir.parent_path() / script_name;
-    if (fs::exists(parent_script)) {
-        return parent_script;
-    }
-    return {};
-}
-
-bool run_batch_script_in_dir(const fs::path& dir, const std::wstring& cmd_line) {
-    STARTUPINFOW si{};
-    si.cb = sizeof(si);
-    PROCESS_INFORMATION pi{};
-    std::wstring mutable_cmd = cmd_line;
-    const std::wstring work_dir = dir.wstring();
-    if (!CreateProcessW(nullptr,
-                        mutable_cmd.data(),
-                        nullptr,
-                        nullptr,
-                        FALSE,
-                        0,
-                        nullptr,
-                        work_dir.c_str(),
-                        &si,
-                        &pi)) {
-        return false;
-    }
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    DWORD exit_code = 1;
-    GetExitCodeProcess(pi.hProcess, &exit_code);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    return exit_code == 0;
-}
-#endif
-
 struct SpotChecker::Impl {
-    SpotCheckConfig cfg;
-    ModelCallback callback;
-    std::string tone_md;
-    std::string sys_prompt;
-    std::vector<std::pair<std::string, std::string>> glossary;
-    std::vector<ScriptEntry> script_entries;
-    OlsModel ols_model;
-    ApplyReport checkpoint_applied_;
+    SpotCheckConfig config;
+    std::string output_json_path;
+    ToneGlossary glossary;
+    std::string system_prompt;
+    std::vector<ScriptEntry> entries;
 
-    void maybe_decrypt_game_scripts() const {
-#ifdef _WIN32
-        if (cfg.game_dir.empty()) {
-            return;
+    std::unique_ptr<IClock> owned_clock;
+    std::unique_ptr<ILogSink> owned_log_sink;
+    std::unique_ptr<IFileStore> owned_file_store;
+    std::unique_ptr<ICryptSync> owned_crypt_sync;
+    std::unique_ptr<ILlmTransport> owned_transport;
+
+    IClock* clock = nullptr;
+    ILogSink* log_sink = nullptr;
+    IFileStore* file_store = nullptr;
+    ICryptSync* crypt_sync = nullptr;
+    ILlmTransport* transport = nullptr;
+
+    ILlmTransport& ensure_transport() {
+        if (transport != nullptr) {
+            return *transport;
         }
-        const fs::path game_root = fs::u8path(cfg.game_dir);
-        const fs::path translated_path =
-            game_root / "script_output" / "translated_text.json";
-        const fs::path enc_path =
-            game_root / "script_output" / "translated_text.json.enc";
-        const fs::path dec_bat =
-            find_batch_script(game_root, "decrypt_translations.bat");
-        if (!fs::exists(translated_path) && fs::exists(enc_path) &&
-            !dec_bat.empty()) {
-            const std::wstring cmd =
-                L"cmd.exe /s /c \"\"" + dec_bat.wstring() +
-                L"\" --dir \"" + game_root.wstring() + L"\"\"";
-            run_batch_script_in_dir(game_root, cmd);
-        }
-#endif
+        ArgonClientOptions opts;
+        opts.model = config.model;
+        opts.clock = clock;
+        opts.log_sink = log_sink;
+        owned_transport = std::make_unique<ArgonClient>(std::move(opts));
+        transport = owned_transport.get();
+        return *transport;
     }
 
-    void maybe_encrypt_game_scripts() const {
-#ifdef _WIN32
-        if (cfg.game_dir.empty()) {
-            return;
-        }
-        const fs::path game_root = fs::u8path(cfg.game_dir);
-        const fs::path enc_path =
-            game_root / "script_output" / "translated_text.json.enc";
-        const fs::path enc_bat =
-            find_batch_script(game_root, "encrypt_translations.bat");
-        if (!enc_bat.empty() && fs::exists(enc_path)) {
-            const std::wstring cmd =
-                L"cmd.exe /s /c \"\"" + enc_bat.wstring() +
-                L"\" --encrypt --dir \"" + game_root.wstring() + L"\"\"";
-            run_batch_script_in_dir(game_root, cmd);
-        }
-#endif
+    Result<LlmResponse> invoke_llm(std::string user_prompt) {
+        LlmRequest req;
+        req.system_prompt = system_prompt;
+        req.user_prompt = std::move(user_prompt);
+        req.thinking_budget = kDefaultThinkingBudgetTokens;
+        req.max_output_tokens = kDefaultMaxOutputTokens;
+        req.json_mode = true;
+        return ensure_transport().generate(req);
     }
 
-    Impl(SpotCheckConfig c, ModelCallback cb)
-        : cfg(std::move(c)), callback(std::move(cb)) {
-        if (cfg.window_size == 0) cfg.window_size = 40;
-        if (cfg.out_path.empty()) {
-            cfg.out_path =
-                (fs::u8path(cfg.game_dir) / "script_output" / "argon_spot_check.json")
-                    .u8string();
+    fs::path default_checkpoint_path() const {
+        if (!output_json_path.empty()) {
+            return path_from_utf8(output_json_path);
         }
-
-        const fs::path tone_path = fs::u8path(cfg.game_dir) / "TONE_OF_NOVEL.md";
-        const fs::path fallback_tone_path = fs::u8path(cfg.game_dir) / "TONE.md";
-        if (fs::exists(tone_path)) {
-            tone_md = read_file_text(tone_path.u8string());
-        } else if (fs::exists(fallback_tone_path)) {
-            tone_md = read_file_text(fallback_tone_path.u8string());
-        }
-        sys_prompt = build_system_prompt(tone_md, cfg.fix_punctuation);
-        glossary = parse_glossary_from_tone_md(tone_md);
-
-        maybe_decrypt_game_scripts();
-        const fs::path translated_path =
-            fs::u8path(cfg.game_dir) / "script_output" / "translated_text.json";
-        if (fs::exists(translated_path)) {
-            const bj::value root = json_parse_file(translated_path.u8string());
-            script_entries = extract_script_entries(root, tone_md);
-            HotspotConfig hcfg;
-            hcfg.skip_h_scenes = cfg.skip_h_scenes;
-            hcfg.fix_punctuation = cfg.fix_punctuation;
-            HotspotDetector det(hcfg);
-            ols_model = det.fit_length_regression(script_entries);
-        }
+        return path_from_utf8(config.game_dir) / kScriptOutputDir /
+               kDefaultCheckpointFilename;
     }
 
-    std::string invoke_model(const std::string& user_prompt) {
-        if (callback) {
-            return callback(sys_prompt, user_prompt);
-        }
-        ArgonClient client;
-        const ArgonResponse resp = client.generate(sys_prompt, user_prompt);
-        return resp.text;
-    }
-
-    std::map<std::size_t, Improvement> load_existing_improvements() const {
-        std::map<std::size_t, Improvement> map;
-        if (!fs::exists(fs::u8path(cfg.out_path))) return map;
-        try {
-            const bj::value v = json_parse_file(cfg.out_path);
-            if (!v.is_object()) return map;
-            const auto* arr = v.as_object().if_contains("improvements");
-            if (!arr || !arr->is_array()) return map;
-            for (const auto& item : arr->as_array()) {
-                if (!item.is_object()) continue;
-                const auto& o = item.as_object();
-                Improvement imp;
-                if (const auto* gi = o.if_contains("global_index"); gi && gi->is_int64()) {
-                    imp.global_index = static_cast<std::size_t>(gi->as_int64());
-                }
-                if (const auto* ei = o.if_contains("entry_index"); ei && ei->is_int64()) {
-                    imp.entry_index = static_cast<std::size_t>(ei->as_int64());
-                }
-                imp.script_name = json_str(o, "script");
-                imp.speaker = json_str(o, "speaker");
-                imp.jp_text = json_str(o, "jp");
-                imp.old_en = json_str(o, "old_en");
-                imp.improved_en = json_str(o, "new_en");
-                if (imp.improved_en.empty()) {
-                    imp.improved_en = json_str(o, "improved_en");
-                }
-                imp.category = json_str(o, "category");
-                if (imp.category.empty()) imp.category = "mistranslation";
-                imp.severity = json_str(o, "severity");
-                if (imp.severity.empty()) imp.severity = "major";
-                imp.error_span = json_str(o, "error_span");
-                if (const auto* cf = o.if_contains("confidence")) {
-                    if (cf->is_double()) imp.confidence = cf->as_double();
-                    else if (cf->is_int64()) imp.confidence = static_cast<double>(cf->as_int64());
-                }
-                imp.reason = json_str(o, "reason");
-                if (!imp.improved_en.empty()) {
-                    map[imp.global_index] = std::move(imp);
-                }
-            }
-        } catch (...) {
-        }
-        return map;
-    }
-
-    struct CheckpointCounters {
-        std::size_t h_windows_skipped = 0;
-        std::size_t radar_calls_made = 0;
-        std::size_t radar_passages_triaged = 0;
-        std::size_t adaptive_expansions = 0;
-        std::size_t windows_checked = 0;
-        std::size_t lines_checked = 0;
-        std::size_t editable_lines_unlocked = 0;
-        std::size_t candidates_rejected_by_validator = 0;
-        std::size_t script_entries_updated = 0;
-        std::size_t cache_entries_updated = 0;
-    };
-
-    CheckpointCounters load_existing_counters() const {
-        CheckpointCounters c;
-        if (!fs::exists(fs::u8path(cfg.out_path))) return c;
-        try {
-            const bj::value v = json_parse_file(cfg.out_path);
-            if (!v.is_object()) return c;
-            const auto& o = v.as_object();
-            auto get_sz = [&o](const char* key) -> std::size_t {
-                if (const auto* f = o.if_contains(key)) {
-                    if (f->is_int64() && f->as_int64() >= 0) {
-                        return static_cast<std::size_t>(f->as_int64());
-                    }
-                    if (f->is_uint64()) {
-                        return static_cast<std::size_t>(f->as_uint64());
-                    }
-                }
-                return 0;
-            };
-            c.h_windows_skipped = get_sz("h_windows_skipped");
-            c.radar_calls_made = get_sz("radar_calls_made");
-            c.radar_passages_triaged = get_sz("radar_passages_triaged");
-            c.adaptive_expansions = get_sz("adaptive_expansions");
-            c.windows_checked = get_sz("windows_checked");
-            c.lines_checked = get_sz("lines_checked");
-            c.editable_lines_unlocked = get_sz("editable_lines_unlocked");
-            c.candidates_rejected_by_validator =
-                get_sz("candidates_rejected_by_validator");
-            c.script_entries_updated = get_sz("script_entries_updated");
-            c.cache_entries_updated = get_sz("cache_entries_updated");
-        } catch (...) {
-        }
-        return c;
-    }
-
-    std::set<std::size_t> load_existing_checked_offsets() const {
-        std::set<std::size_t> offsets;
-        if (!fs::exists(fs::u8path(cfg.out_path))) return offsets;
-        try {
-            const bj::value v = json_parse_file(cfg.out_path);
-            if (!v.is_object()) return offsets;
-            const auto* arr = v.as_object().if_contains("checked_offsets");
-            if (!arr || !arr->is_array()) return offsets;
-            for (const auto& item : arr->as_array()) {
-                if (item.is_int64() && item.as_int64() >= 0) {
-                    offsets.insert(static_cast<std::size_t>(item.as_int64()));
-                } else if (item.is_uint64()) {
-                    offsets.insert(static_cast<std::size_t>(item.as_uint64()));
-                }
-            }
-        } catch (...) {
-        }
-        return offsets;
-    }
-
-    void save_report_file(const SpotCheckReport& rep) const {
-        bj::object root;
-        root["game_dir"] = cfg.game_dir;
-        root["model"] = "gemini-4-argon";
-        root["mode"] = (cfg.mode == SpotCheckMode::Hotspot) ? "hotspot" : "linear";
-        root["total_entries"] = static_cast<std::int64_t>(rep.total_entries);
-        root["hotspots_detected"] = static_cast<std::int64_t>(rep.hotspots_detected);
-        root["h_windows_skipped"] = static_cast<std::int64_t>(rep.h_windows_skipped);
-        root["radar_calls_made"] = static_cast<std::int64_t>(rep.radar_calls_made);
-        root["radar_passages_triaged"] =
-            static_cast<std::int64_t>(rep.radar_passages_triaged);
-        root["adaptive_expansions"] = static_cast<std::int64_t>(rep.adaptive_expansions);
-        root["windows_checked"] = static_cast<std::int64_t>(rep.windows_checked);
-        root["lines_checked"] = static_cast<std::int64_t>(rep.lines_checked);
-        root["editable_lines_unlocked"] =
-            static_cast<std::int64_t>(rep.editable_lines_unlocked);
-        root["candidates_rejected_by_validator"] =
-            static_cast<std::int64_t>(rep.candidates_rejected_by_validator);
-        root["improvements_count"] = static_cast<std::int64_t>(rep.improvements.size());
-        root["script_entries_updated"] =
-            static_cast<std::int64_t>(rep.script_entries_updated);
-        root["cache_entries_updated"] =
-            static_cast<std::int64_t>(rep.cache_entries_updated);
-
-        bj::array co_arr;
-        for (std::size_t off : rep.checked_offsets) {
-            co_arr.push_back(static_cast<std::int64_t>(off));
-        }
-        root["checked_offsets"] = std::move(co_arr);
-
-        bj::array hs_arr;
-        for (const auto& hw : rep.ranked_hotspots) {
-            hs_arr.push_back(bj::object{
-                {"offset", static_cast<std::int64_t>(hw.offset)},
-                {"length", static_cast<std::int64_t>(hw.length)},
-                {"energy", hw.energy},
-                {"z_score", hw.z_score},
-                {"cusum_peak", hw.cusum_peak},
-                {"peak_index", static_cast<std::int64_t>(hw.peak_index)},
-                {"peak_line_score", hw.peak_line_score},
-                {"dominant_signal", hw.dominant_signal},
-            });
-        }
-        root["ranked_hotspots"] = std::move(hs_arr);
-
-        bj::array imp_arr;
-        for (const auto& imp : rep.improvements) {
-            imp_arr.push_back(bj::object{
-                {"global_index", static_cast<std::int64_t>(imp.global_index)},
-                {"script", imp.script_name},
-                {"entry_index", static_cast<std::int64_t>(imp.entry_index)},
-                {"speaker", imp.speaker},
-                {"jp", imp.jp_text},
-                {"old_en", imp.old_en},
-                {"improved_en", imp.improved_en},
-                {"new_en", imp.improved_en},
-                {"error_span", imp.error_span},
-                {"severity", imp.severity},
-                {"category", imp.category},
-                {"confidence", imp.confidence},
-                {"reason", imp.reason},
-            });
-        }
-        root["improvements"] = std::move(imp_arr);
-        write_file_atomic(cfg.out_path, json_pretty(bj::value(std::move(root)), 2));
-    }
-
-    ApplyReport sync_improvements_to_disk(
-        const std::map<std::size_t, Improvement>& improvements_map) {
-        ApplyReport report;
-        report.improvements_loaded = improvements_map.size();
-        if (improvements_map.empty()) return report;
-
-        const std::string translated_path =
-            (fs::u8path(cfg.game_dir) / "script_output" / "translated_text.json")
-                .u8string();
-        if (!fs::exists(fs::u8path(translated_path))) return report;
-
-        bj::value root = json_parse_file(translated_path);
-        if (!root.is_object()) {
-            throw std::runtime_error("translated_text.json is not a JSON object");
-        }
-        auto& root_obj = root.as_object();
-
-        std::unordered_map<std::string, std::string> jp_to_improved;
-        for (const auto& [g_idx, imp] : improvements_map) {
-            jp_to_improved[imp.jp_text] = imp.improved_en;
-            if (g_idx < script_entries.size()) {
-                script_entries[g_idx].current_en = imp.improved_en;
-            }
-            if (auto* script_v = root_obj.if_contains(imp.script_name);
-                script_v && script_v->is_object()) {
-                auto& script_obj = script_v->as_object();
-                bj::array* arr = nullptr;
-                if (auto* s = script_obj.if_contains("strings"); s && s->is_array()) {
-                    arr = &s->as_array();
-                } else if (auto* l = script_obj.if_contains("lines"); l && l->is_array()) {
-                    arr = &l->as_array();
-                }
-                if (arr && imp.entry_index < arr->size() &&
-                    (*arr)[imp.entry_index].is_object()) {
-                    auto& entry_obj = (*arr)[imp.entry_index].as_object();
-                    if (json_str(entry_obj, "translated") != imp.improved_en) {
-                        entry_obj["translated"] = imp.improved_en;
-                        ++report.script_entries_updated;
-                    }
-                }
-            }
-        }
-
-        // Also update any duplicate occurrences of the same JP string across scripts
-        for (auto& kv : root_obj) {
-            if (!kv.value().is_object()) continue;
-            auto& script_obj = kv.value().as_object();
-            bj::array* arr = nullptr;
-            if (auto* s = script_obj.if_contains("strings"); s && s->is_array()) {
-                arr = &s->as_array();
-            } else if (auto* l = script_obj.if_contains("lines"); l && l->is_array()) {
-                arr = &l->as_array();
-            }
-            if (!arr) continue;
-            for (auto& ev : *arr) {
-                if (!ev.is_object()) continue;
-                auto& entry_obj = ev.as_object();
-                std::string jp = json_str(entry_obj, "text");
-                if (jp.empty()) jp = json_str(entry_obj, "content");
-                auto it = jp_to_improved.find(jp);
-                if (it != jp_to_improved.end() &&
-                    json_str(entry_obj, "translated") != it->second) {
-                    entry_obj["translated"] = it->second;
-                    ++report.script_entries_updated;
-                }
-            }
-        }
-
-        if (report.script_entries_updated > 0) {
-            write_json_preserving_style(translated_path, root, 1, true);
-        }
-
-        // Update translation_cache_anthropic.json and translation_cache_gemini.json
-        // preserving exact insertion order and NEVER inserting new keys!
-        for (const char* cache_name : {"translation_cache_anthropic.json",
-                                       "translation_cache_gemini.json"}) {
-            const std::string cache_path =
-                (fs::u8path(cfg.game_dir) / "script_output" / cache_name).u8string();
-            if (!fs::exists(fs::u8path(cache_path))) continue;
-            auto cache_items = load_ordered_cache(cache_path);
-            std::unordered_map<std::string, std::size_t> key_index;
-            key_index.reserve(cache_items.size());
-            for (std::size_t i = 0; i < cache_items.size(); ++i) {
-                key_index[cache_items[i].first] = i;
-            }
-            bool cache_dirty = false;
-            for (const auto& [jp, new_en] : jp_to_improved) {
-                auto it = key_index.find(jp);
-                if (it != key_index.end()) {
-                    if (cache_items[it->second].second != new_en) {
-                        cache_items[it->second].second = new_en;
-                        ++report.cache_entries_updated;
-                        cache_dirty = true;
-                    }
-                }
-            }
-            if (cache_dirty) {
-                save_ordered_cache(cache_items, cache_path);
-            }
-        }
-
-        return report;
-    }
-
-    static bool is_h_scene_window(const WindowSlice& slice,
-                                  std::size_t max_h_lines = 2) {
-        std::size_t h_count = 0;
-        for (const auto& e : slice.target) {
-            if (e.current_en.size() > 500 &&
-                e.current_en.size() > 4 * std::max<std::size_t>(1, e.jp_text.size())) {
-                return false;
-            }
-            if (is_h_scene_line(e.jp_text, e.current_en)) {
-                ++h_count;
-            }
-        }
-        return h_count >= max_h_lines;
-    }
-
-    static void sanitize_slice_for_non_h_prompt(WindowSlice& slice) {
-        slice.context_before.erase(
-            std::remove_if(slice.context_before.begin(),
-                           slice.context_before.end(),
-                           [](const ScriptEntry& e) {
-                               return is_h_scene_line(e.jp_text, e.current_en);
-                           }),
-            slice.context_before.end());
-        slice.context_after.erase(
-            std::remove_if(slice.context_after.begin(),
-                           slice.context_after.end(),
-                           [](const ScriptEntry& e) {
-                               return is_h_scene_line(e.jp_text, e.current_en);
-                           }),
-            slice.context_after.end());
-        for (std::size_t i = 0; i < slice.target.size(); ++i) {
-            const int id = static_cast<int>(i + 1);
-            if (slice.editable_ids.count(id) == 0 &&
-                is_h_scene_line(slice.target[i].jp_text, slice.target[i].current_en)) {
-                slice.target[i].speaker = "NARRATION";
-                slice.target[i].jp_text = "……";
-                slice.target[i].current_en = "...";
-            }
-        }
-    }
-
-    SpotCheckReport run() {
+    Result<SpotCheckReport> run_scan_only() {
+        const HotspotDetector detector(make_hotspot_config(config));
         SpotCheckReport rep;
-        checkpoint_applied_ = {};
-        rep.total_entries = script_entries.size();
-        if (script_entries.empty()) {
-            save_report_file(rep);
-            return rep;
+        rep.total_entries = entries.size();
+
+        if (!entries.empty()) {
+            const OlsModel ols = detector.fit_length_regression(entries);
+            rep.ols_slope = ols.beta;
+            rep.ols_intercept = ols.alpha;
+            rep.ols_sigma = ols.sigma;
+            rep.ols_valid = ols.valid;
+            rep.ranked_hotspots = detector.select_hotspots(entries, nullptr);
+            rep.hotspots_detected = rep.ranked_hotspots.size();
         }
 
-        std::map<std::size_t, Improvement> merged = load_existing_improvements();
-        std::set<std::size_t> visited_offsets = load_existing_checked_offsets();
-        const CheckpointCounters prev = load_existing_counters();
-        std::set<std::size_t> repaired_indices;
-        for (const auto& [g_idx, imp] : merged) {
-            repaired_indices.insert(g_idx);
-            if (g_idx < script_entries.size()) {
-                script_entries[g_idx].current_en = imp.improved_en;
+        if (!output_json_path.empty()) {
+            const CheckpointState state =
+                build_checkpoint_state(config, rep, {});
+            const Status save_st = save_checkpoint_atomic(
+                *file_store, path_from_utf8(output_json_path), state);
+            if (!save_st.is_ok()) {
+                return Result<SpotCheckReport>::failure(save_st);
             }
         }
 
-        const bool resuming_incomplete_checkpoint =
-            (prev.windows_checked > 0 || prev.radar_calls_made > 0) &&
-            (cfg.max_windows == 0 || prev.windows_checked < cfg.max_windows);
-        if (resuming_incomplete_checkpoint) {
+        log_sink->info("Scan-only complete: " +
+                       std::to_string(rep.total_entries) + " entries, " +
+                       std::to_string(rep.hotspots_detected) +
+                       " hotspots detected (0 API calls)");
+        return Result<SpotCheckReport>::success(std::move(rep));
+    }
+
+    Result<SpotCheckReport> run() {
+        if (config.scan_only) {
+            return run_scan_only();
+        }
+
+        const fs::path ckpt_path = default_checkpoint_path();
+        const fs::path game_root = path_from_utf8(config.game_dir);
+
+        Result<std::optional<CheckpointState>> prev_res =
+            load_checkpoint_if_exists(*file_store, ckpt_path, config.window_size);
+        if (!prev_res.is_ok()) {
+            return Result<SpotCheckReport>::failure(prev_res.status());
+        }
+
+        std::vector<ScriptEntry> working_entries = entries;
+        SpotCheckReport rep;
+        rep.total_entries = working_entries.size();
+
+        std::map<std::size_t, Improvement> merged;
+        std::set<std::size_t> repaired_indices;
+        std::set<std::size_t> visited_offsets;
+        IntervalTracker checked_tracker;
+        IntervalTracker skip_tracker;
+        BlockedSpanBookkeeper blocked_bookkeeper;
+        std::vector<std::pair<std::size_t, std::size_t>> requeue_blocked_spans;
+        std::vector<RadarPassageResult> radar_results;
+        bool needs_artifact_sync = false;
+
+        if (prev_res.value().has_value()) {
+            const CheckpointState& prev = *prev_res.value();
             rep.h_windows_skipped = prev.h_windows_skipped;
             rep.radar_calls_made = prev.radar_calls_made;
             rep.radar_passages_triaged = prev.radar_passages_triaged;
@@ -2045,349 +483,997 @@ struct SpotChecker::Impl {
             rep.editable_lines_unlocked = prev.editable_lines_unlocked;
             rep.candidates_rejected_by_validator =
                 prev.candidates_rejected_by_validator;
-            checkpoint_applied_.improvements_loaded = merged.size();
-            checkpoint_applied_.script_entries_updated = prev.script_entries_updated;
-            checkpoint_applied_.cache_entries_updated = prev.cache_entries_updated;
             rep.script_entries_updated = prev.script_entries_updated;
             rep.cache_entries_updated = prev.cache_entries_updated;
+            rep.token_usage = prev.token_usage;
+
+            for (std::size_t off : prev.checked_offsets) {
+                visited_offsets.insert(off);
+            }
+            for (const auto& [span_off, span_len] : prev.checked_spans) {
+                checked_tracker.mark_visited(span_off, span_len);
+                skip_tracker.mark_visited(span_off, span_len);
+            }
+
+            for (const auto& [b_off, b_len] : prev.blocked_spans) {
+                if (b_len == 0) {
+                    continue;
+                }
+                if (!working_entries.empty()) {
+                    if (b_off >= working_entries.size()) {
+                        continue;
+                    }
+                    const std::size_t clamped_len =
+                        std::min(b_len, working_entries.size() - b_off);
+                    blocked_bookkeeper.record_blocked_leaf(b_off, clamped_len);
+                } else {
+                    blocked_bookkeeper.record_blocked_leaf(b_off, b_len);
+                }
+            }
+            for (const auto& [span_off, span_len] : prev.checked_spans) {
+                blocked_bookkeeper.clear_span(span_off, span_len);
+            }
+
+            if (prev.model == config.model) {
+                for (const auto& [b_off, b_len] : blocked_bookkeeper.spans()) {
+                    skip_tracker.mark_visited(b_off, b_len);
+                }
+            } else {
+                requeue_blocked_spans = blocked_bookkeeper.spans();
+            }
+
+            radar_results = prev.radar_results;
+
+            for (const Improvement& imp : prev.improvements) {
+                merged[imp.global_index] = imp;
+                repaired_indices.insert(imp.global_index);
+                if (imp.global_index < working_entries.size() &&
+                    working_entries[imp.global_index].jp_text == imp.jp_text) {
+                    working_entries[imp.global_index].current_en = imp.improved_en;
+                    entries[imp.global_index].current_en = imp.improved_en;
+                }
+            }
+            needs_artifact_sync = !merged.empty();
         }
 
-        HotspotConfig hcfg;
-        hcfg.window_size = cfg.window_size;
-        hcfg.z_threshold = cfg.z_threshold;
-        hcfg.skip_h_scenes = cfg.skip_h_scenes;
-        hcfg.fix_punctuation = cfg.fix_punctuation;
-        HotspotDetector detector(hcfg);
+        if (working_entries.empty()) {
+            sync_report_collections(
+                visited_offsets, checked_tracker, blocked_bookkeeper, merged, rep);
+            const Status save_st = save_checkpoint_atomic(
+                *file_store,
+                ckpt_path,
+                build_checkpoint_state(config, rep, radar_results));
+            if (!save_st.is_ok()) {
+                return Result<SpotCheckReport>::failure(save_st);
+            }
+            return Result<SpotCheckReport>::success(std::move(rep));
+        }
+
+        std::vector<bool> h_scene_mask;
+        IntervalTracker h_scene_tracker;
+        if (config.skip_h_scenes) {
+            const auto h_spans = detect_h_scene_spans(working_entries);
+            h_scene_mask.assign(working_entries.size(), false);
+            for (const auto& [h_off, h_len] : h_spans) {
+                h_scene_tracker.mark_visited(h_off, h_len);
+                const std::size_t h_end = std::min(
+                    working_entries.size(), saturated_add(h_off, h_len));
+                for (std::size_t idx = h_off; idx < h_end; ++idx) {
+                    h_scene_mask[idx] = true;
+                }
+            }
+        }
+        const std::vector<bool>* const h_mask_ptr =
+            config.skip_h_scenes ? &h_scene_mask : nullptr;
+
+        const HotspotDetector detector(make_hotspot_config(config));
+        const OlsModel ols_model =
+            detector.fit_length_regression(working_entries);
+        rep.ols_slope = ols_model.beta;
+        rep.ols_intercept = ols_model.alpha;
+        rep.ols_sigma = ols_model.sigma;
+        rep.ols_valid = ols_model.valid;
 
         std::vector<LineWeaknessScore> novel_scores;
-        std::deque<std::pair<std::size_t, std::size_t>> work_queue;
-        std::unordered_map<std::size_t, std::set<int>> radar_suspect_overrides;
+        std::deque<WorkItem> work_queue;
 
-        const bool live_log = !static_cast<bool>(callback);
-
-        if (cfg.mode == SpotCheckMode::Hotspot) {
+        if (config.mode == SpotCheckMode::Hotspot) {
             rep.ranked_hotspots =
-                detector.select_hotspots(script_entries, 0, &novel_scores);
+                detector.select_hotspots(working_entries, &novel_scores);
             rep.hotspots_detected = rep.ranked_hotspots.size();
-            for (const auto& hw : rep.ranked_hotspots) {
-                if (visited_offsets.count(hw.offset) == 0) {
-                    work_queue.emplace_back(hw.offset, hw.length);
+            for (const HotspotWindow& hw : rep.ranked_hotspots) {
+                const auto uncovered =
+                    extract_uncovered_spans(skip_tracker, hw.offset, hw.length);
+                for (const auto& [u_off, u_len] : uncovered) {
+                    work_queue.push_back(WorkItem{u_off, u_len, false});
                 }
             }
-            if (live_log) {
-                log_info("Hotspot scan complete: " +
-                         std::to_string(rep.hotspots_detected) +
-                         " candidate windows (" +
-                         std::to_string(visited_offsets.size()) +
-                         " previously checked, " +
-                         std::to_string(repaired_indices.size()) +
-                         " lines already repaired)");
-                if (resuming_incomplete_checkpoint) {
-                    log_info("Resuming checkpoint:   " +
-                             std::to_string(rep.windows_checked) + "/" +
-                             std::to_string(cfg.max_windows) +
-                             " windows checked, " +
-                             std::to_string(rep.radar_calls_made) + "/" +
-                             std::to_string(cfg.radar_calls) +
-                             " radar calls made");
-                }
-            }
+            log_sink->info(
+                "Hotspot scan complete: " +
+                std::to_string(rep.hotspots_detected) +
+                " candidate windows (" +
+                std::to_string(visited_offsets.size()) +
+                " previously checked, " +
+                std::to_string(repaired_indices.size()) +
+                " lines already repaired)");
         } else {
-            novel_scores = detector.score_entries(script_entries);
-            for (std::size_t off = cfg.offset; off < script_entries.size();
-                 off += cfg.window_size) {
-                if (visited_offsets.count(off) != 0) continue;
-                const std::size_t len =
-                    std::min(cfg.window_size, script_entries.size() - off);
-                work_queue.emplace_back(off, len);
+            novel_scores = detector.score_entries(working_entries);
+            const bool has_step_cap = (config.max_windows > 0);
+            const std::size_t linear_step_budget =
+                (config.max_windows > rep.windows_checked)
+                    ? (config.max_windows - rep.windows_checked)
+                    : 0U;
+            std::size_t queued_linear_steps = 0;
+            std::size_t off = config.offset;
+            while (off < working_entries.size()) {
+                if (has_step_cap && queued_linear_steps >= linear_step_budget) {
+                    break;
+                }
+                const std::size_t remaining = working_entries.size() - off;
+                const std::size_t len = std::min(config.window_size, remaining);
+                const auto uncovered =
+                    extract_uncovered_spans(skip_tracker, off, len);
+                if (!uncovered.empty()) {
+                    for (const auto& [u_off, u_len] : uncovered) {
+                        work_queue.push_back(WorkItem{u_off, u_len, false});
+                    }
+                    ++queued_linear_steps;
+                }
+                if (remaining <= config.window_size) {
+                    break;
+                }
+                off += config.window_size;
             }
         }
 
-        // Stage 1 Packed LLM Radar Pass (Kocmi & Federmann WMT 2023):
-        // Pack up to 6 candidate passages per Radar API call and prioritize high-MQM
-        // passages for Stage 2 repair without discarding or marking unflagged passages
-        // as visited before Stage 2 actually reviews them.
-        if (cfg.radar_calls > rep.radar_calls_made && !work_queue.empty()) {
-            constexpr std::size_t kPassagesPerRadarCall = 6;
-            std::vector<RadarPassageResult> flagged_passages;
+        std::unordered_set<std::size_t> radar_suspect_globals;
+        std::set<std::size_t> triaged_offsets;
+        std::vector<RadarPassageResult> flagged_passages;
+        for (const RadarPassageResult& rpr : radar_results) {
+            triaged_offsets.insert(rpr.offset);
+            for (int sid : rpr.suspect_ids) {
+                if (sid >= 1) {
+                    const std::size_t g_idx =
+                        rpr.offset + static_cast<std::size_t>(sid - 1);
+                    if (g_idx < working_entries.size()) {
+                        radar_suspect_globals.insert(g_idx);
+                    }
+                }
+            }
+            if ((rpr.mqm_score > 0.0 || !rpr.suspect_ids.empty()) &&
+                !skip_tracker.is_fully_covered(rpr.offset, rpr.length)) {
+                flagged_passages.push_back(rpr);
+            }
+        }
+
+        ScriptRepository repo(*file_store, *crypt_sync);
+        const auto flush_pending_sync_on_abort = [&]() {
+            if (!config.auto_apply || merged.empty() || !needs_artifact_sync) {
+                return;
+            }
+            sync_report_collections(
+                visited_offsets, checked_tracker, blocked_bookkeeper, merged, rep);
+            Result<SyncCounts> sync_res =
+                repo.apply_improvements_to_artifacts(game_root, rep.improvements);
+            if (!sync_res.is_ok()) {
+                return;
+            }
+            rep.script_entries_updated +=
+                sync_res.value().script_entries_updated;
+            rep.cache_entries_updated +=
+                sync_res.value().cache_entries_updated;
+            needs_artifact_sync = false;
+            (void)save_checkpoint_atomic(
+                *file_store,
+                ckpt_path,
+                build_checkpoint_state(config, rep, radar_results));
+        };
+        const auto persist_checkpoint_only = [&]() -> Status {
+            sync_report_collections(
+                visited_offsets, checked_tracker, blocked_bookkeeper, merged, rep);
+            return save_checkpoint_atomic(
+                *file_store,
+                ckpt_path,
+                build_checkpoint_state(config, rep, radar_results));
+        };
+        const auto persist_window_progress = [&]() -> Status {
+            Status save_st = persist_checkpoint_only();
+            if (!save_st.is_ok()) {
+                return save_st;
+            }
+            if (config.auto_apply && config.periodic_sync_interval > 0 &&
+                needs_artifact_sync && rep.windows_checked > 0 &&
+                (rep.windows_checked % config.periodic_sync_interval == 0)) {
+                Result<SyncCounts> sync_res =
+                    repo.apply_improvements_to_artifacts(game_root,
+                                                         rep.improvements);
+                if (!sync_res.is_ok()) {
+                    return sync_res.status();
+                }
+                rep.script_entries_updated +=
+                    sync_res.value().script_entries_updated;
+                rep.cache_entries_updated +=
+                    sync_res.value().cache_entries_updated;
+                needs_artifact_sync = false;
+                save_st = persist_checkpoint_only();
+                if (!save_st.is_ok()) {
+                    return save_st;
+                }
+            }
+            return Status::ok();
+        };
+
+        std::size_t run_api_calls = 0;
+        const bool window_budget_open =
+            (config.max_windows == 0 || rep.windows_checked < config.max_windows);
+
+        if (window_budget_open &&
+            config.radar_calls > rep.radar_calls_made &&
+            !work_queue.empty()) {
             std::vector<std::pair<std::size_t, std::size_t>> unflagged_passages;
 
             for (std::size_t r = rep.radar_calls_made;
-                 r < cfg.radar_calls && !work_queue.empty();
+                 r < config.radar_calls && !work_queue.empty();
                  ++r) {
-                std::vector<WindowSlice> pack;
-                pack.reserve(kPassagesPerRadarCall);
-                while (pack.size() < kPassagesPerRadarCall && !work_queue.empty()) {
-                    const auto [off, len] = work_queue.front();
+                if (config.max_api_calls > 0 &&
+                    run_api_calls >= config.max_api_calls) {
+                    break;
+                }
+
+                std::vector<WindowSlice> raw_pack;
+                std::vector<WindowSlice> prompt_pack;
+                raw_pack.reserve(config.radar_pack_size);
+                prompt_pack.reserve(config.radar_pack_size);
+
+                while (raw_pack.size() < config.radar_pack_size &&
+                       !work_queue.empty()) {
+                    const WorkItem cand = work_queue.front();
                     work_queue.pop_front();
-                    if (visited_offsets.count(off) != 0) continue;
-                    WindowSlice ws = build_window_slice(script_entries, off, len, 0, 0);
-                    if (cfg.skip_h_scenes && is_h_scene_window(ws)) {
-                        visited_offsets.insert(off);
-                        ++rep.h_windows_skipped;
+
+                    const auto uncovered = extract_uncovered_spans(
+                        skip_tracker, cand.offset, cand.length);
+                    if (uncovered.empty()) {
                         continue;
                     }
-                    if (cfg.skip_h_scenes) {
-                        sanitize_slice_for_non_h_prompt(ws);
+                    for (std::size_t u = uncovered.size(); u > 1U; --u) {
+                        work_queue.push_front(WorkItem{
+                            uncovered[u - 1U].first,
+                            uncovered[u - 1U].second,
+                            cand.force_no_context});
                     }
-                    if (!ws.target.empty()) {
-                        pack.push_back(std::move(ws));
+                    auto [off, len] = uncovered.front();
+                    if (off >= working_entries.size()) {
+                        continue;
                     }
-                }
-                if (pack.empty()) break;
+                    len = std::min(len, working_entries.size() - off);
+                    if (len == 0) {
+                        continue;
+                    }
 
-                if (live_log) {
-                    log_info("[Radar " + std::to_string(r + 1) + "/" +
-                             std::to_string(cfg.radar_calls) + "] Triaging " +
-                             std::to_string(pack.size()) + " candidate passages...");
+                    if (config.skip_h_scenes) {
+                        if (h_scene_tracker.is_fully_covered(off, len)) {
+                            skip_tracker.mark_visited(off, len);
+                            ++rep.h_windows_skipped;
+                            continue;
+                        }
+                        const auto non_h =
+                            extract_uncovered_spans(h_scene_tracker, off, len);
+                        if (non_h.empty()) {
+                            continue;
+                        }
+                        for (std::size_t u = non_h.size(); u > 1U; --u) {
+                            work_queue.push_front(WorkItem{
+                                non_h[u - 1U].first,
+                                non_h[u - 1U].second,
+                                cand.force_no_context});
+                        }
+                        off = non_h.front().first;
+                        len = non_h.front().second;
+                    }
+
+                    if (triaged_offsets.count(off) != 0) {
+                        bool is_flagged = false;
+                        for (const RadarPassageResult& fp : flagged_passages) {
+                            if (fp.offset == off) {
+                                is_flagged = true;
+                                break;
+                            }
+                        }
+                        if (!is_flagged) {
+                            unflagged_passages.emplace_back(off, len);
+                        }
+                        continue;
+                    }
+
+                    WindowSlice ws = build_window_slice(
+                        working_entries, off, len, 0, 0, h_mask_ptr);
+                    if (ws.target.empty()) {
+                        continue;
+                    }
+
+                    WindowSlice p_ws = config.skip_h_scenes
+                                           ? redact_h_lines_for_prompt(
+                                                 ws, h_scene_mask)
+                                           : ws;
+                    raw_pack.push_back(std::move(ws));
+                    prompt_pack.push_back(std::move(p_ws));
                 }
-                const std::string radar_prompt = build_radar_pack_prompt(pack);
-                const std::string raw_radar = invoke_model(radar_prompt);
+
+                if (raw_pack.empty()) {
+                    break;
+                }
+
+                log_sink->info("[Radar " + std::to_string(r + 1) + "/" +
+                               std::to_string(config.radar_calls) +
+                               "] Triaging " + std::to_string(raw_pack.size()) +
+                               " candidate passages...");
+
+                Result<LlmResponse> llm_res =
+                    invoke_llm(build_radar_pack_prompt(prompt_pack, glossary));
+                if (!llm_res.is_ok()) {
+                    flush_pending_sync_on_abort();
+                    return Result<SpotCheckReport>::failure(llm_res.status());
+                }
+                record_llm_usage(
+                    llm_res.value(), true, run_api_calls, rep.token_usage);
                 ++rep.radar_calls_made;
-                rep.radar_passages_triaged += pack.size();
+                rep.radar_passages_triaged += raw_pack.size();
 
-                const auto batch_res = parse_radar_pack_response(raw_radar, pack);
+                if (llm_res.value().content_blocked) {
+                    const std::string_view reason =
+                        llm_res.value().finish_reason.empty()
+                            ? kDefaultBlockReason
+                            : std::string_view(llm_res.value().finish_reason);
+                    log_sink->warn(
+                        "[Radar " + std::to_string(r + 1) + "/" +
+                        std::to_string(config.radar_calls) +
+                        "] Content blocked (" + std::string(reason) +
+                        "); falling back to statistical hotspot order");
+                    for (const WindowSlice& ws : raw_pack) {
+                        triaged_offsets.insert(ws.target_start);
+                        unflagged_passages.emplace_back(
+                            ws.target_start, ws.target.size());
+                    }
+                    const Status blocked_save_st = persist_checkpoint_only();
+                    if (!blocked_save_st.is_ok()) {
+                        return Result<SpotCheckReport>::failure(blocked_save_st);
+                    }
+                    continue;
+                }
+
+                Result<std::vector<RadarPassageResult>> batch_res =
+                    parse_radar_pack_response(llm_res.value().text, raw_pack);
+                if (!batch_res.is_ok()) {
+                    flush_pending_sync_on_abort();
+                    return Result<SpotCheckReport>::failure(batch_res.status());
+                }
+
                 std::set<std::size_t> flagged_in_batch;
-                for (const auto& rpr : batch_res) {
+                for (const RadarPassageResult& rpr : batch_res.value()) {
+                    radar_results.push_back(rpr);
+                    triaged_offsets.insert(rpr.offset);
+
+                    const WindowSlice& orig_ws =
+                        raw_pack[static_cast<std::size_t>(rpr.passage_id - 1)];
+                    for (int sid : rpr.suspect_ids) {
+                        if (sid >= 1 &&
+                            static_cast<std::size_t>(sid) <= orig_ws.target.size()) {
+                            radar_suspect_globals.insert(
+                                orig_ws.target[static_cast<std::size_t>(sid - 1)]
+                                    .global_index);
+                        }
+                    }
+
                     if (rpr.mqm_score > 0.0 || !rpr.suspect_ids.empty()) {
                         flagged_in_batch.insert(rpr.offset);
                         flagged_passages.push_back(rpr);
-                        if (!rpr.suspect_ids.empty()) {
-                            radar_suspect_overrides[rpr.offset] = rpr.suspect_ids;
-                        }
                     }
                 }
-                // Preserve unflagged statistical hotspots in their original rank order
-                // behind the Radar-flagged passages so they are still reviewed by Stage 2
-                // when max_windows permits, and NEVER mark them visited prematurely!
-                for (const auto& ws : pack) {
+
+                for (const WindowSlice& ws : raw_pack) {
+                    triaged_offsets.insert(ws.target_start);
                     if (flagged_in_batch.count(ws.target_start) == 0) {
-                        unflagged_passages.emplace_back(ws.target_start, ws.target.size());
+                        unflagged_passages.emplace_back(
+                            ws.target_start, ws.target.size());
                     }
+                }
+
+                const Status save_st = persist_checkpoint_only();
+                if (!save_st.is_ok()) {
+                    return Result<SpotCheckReport>::failure(save_st);
                 }
             }
 
-            for (auto it = unflagged_passages.rbegin(); it != unflagged_passages.rend(); ++it) {
-                work_queue.emplace_front(it->first, it->second);
+            for (auto it = unflagged_passages.rbegin();
+                 it != unflagged_passages.rend();
+                 ++it) {
+                work_queue.push_front(WorkItem{it->first, it->second, false});
             }
-            std::sort(flagged_passages.begin(), flagged_passages.end(),
-                      [](const RadarPassageResult& a, const RadarPassageResult& b) {
-                          if (std::abs(a.mqm_score - b.mqm_score) > 1e-9) {
+        }
+
+        if (!flagged_passages.empty()) {
+            std::sort(flagged_passages.begin(),
+                      flagged_passages.end(),
+                      [](const RadarPassageResult& a,
+                         const RadarPassageResult& b) {
+                          if (std::abs(a.mqm_score - b.mqm_score) >
+                              kMqmSortTieEpsilon) {
                               return a.mqm_score > b.mqm_score;
                           }
                           return a.offset < b.offset;
                       });
-            for (auto it = flagged_passages.rbegin(); it != flagged_passages.rend(); ++it) {
-                work_queue.emplace_front(it->offset, it->length);
+            for (auto it = flagged_passages.rbegin();
+                 it != flagged_passages.rend();
+                 ++it) {
+                const auto uncovered = extract_uncovered_spans(
+                    skip_tracker, it->offset, it->length);
+                for (auto uit = uncovered.rbegin();
+                     uit != uncovered.rend();
+                     ++uit) {
+                    work_queue.push_front(
+                        WorkItem{uit->first, uit->second, false});
+                }
             }
         }
 
+        if (!requeue_blocked_spans.empty()) {
+            for (auto it = requeue_blocked_spans.rbegin();
+                 it != requeue_blocked_spans.rend();
+                 ++it) {
+                const auto uncovered = extract_uncovered_spans(
+                    skip_tracker, it->first, it->second);
+                for (auto uit = uncovered.rbegin();
+                     uit != uncovered.rend();
+                     ++uit) {
+                    work_queue.push_front(
+                        WorkItem{uit->first, uit->second, false});
+                }
+            }
+        }
+
+        const ValidatorOptions validator_opts{
+            config.min_confidence, config.fix_punctuation};
+
         while (!work_queue.empty()) {
-            if (cfg.max_windows > 0 && rep.windows_checked >= cfg.max_windows) {
+            if (config.max_windows > 0 &&
+                rep.windows_checked >= config.max_windows) {
                 break;
             }
-            const auto [cur_offset, cur_len] = work_queue.front();
+
+            const WorkItem item = work_queue.front();
             work_queue.pop_front();
 
-            if (!visited_offsets.insert(cur_offset).second) continue;
+            const auto uncovered = extract_uncovered_spans(
+                skip_tracker, item.offset, item.length);
+            if (uncovered.empty()) {
+                continue;
+            }
+            for (std::size_t u = uncovered.size(); u > 1U; --u) {
+                work_queue.push_front(WorkItem{
+                    uncovered[u - 1U].first,
+                    uncovered[u - 1U].second,
+                    item.force_no_context});
+            }
+            auto [cur_offset, cur_len] = uncovered.front();
+            if (cur_offset >= working_entries.size()) {
+                continue;
+            }
+            cur_len = std::min(cur_len, working_entries.size() - cur_offset);
+            if (cur_len == 0) {
+                continue;
+            }
 
-            WindowSlice slice = build_window_slice(
-                script_entries, cur_offset, cur_len, cfg.context_before, cfg.context_after);
-            if (slice.target.empty()) continue;
+            if (config.skip_h_scenes) {
+                if (h_scene_tracker.is_fully_covered(cur_offset, cur_len)) {
+                    skip_tracker.mark_visited(cur_offset, cur_len);
+                    ++rep.h_windows_skipped;
+                    continue;
+                }
+                const auto non_h = extract_uncovered_spans(
+                    h_scene_tracker, cur_offset, cur_len);
+                if (non_h.empty()) {
+                    continue;
+                }
+                for (std::size_t u = non_h.size(); u > 1U; --u) {
+                    work_queue.push_front(WorkItem{
+                        non_h[u - 1U].first,
+                        non_h[u - 1U].second,
+                        item.force_no_context});
+                }
+                cur_offset = non_h.front().first;
+                cur_len = non_h.front().second;
+            }
 
-            if (cfg.skip_h_scenes && is_h_scene_window(slice)) {
-                ++rep.h_windows_skipped;
+            const std::size_t req_before =
+                item.force_no_context ? 0U : config.context_before;
+            const std::size_t req_after =
+                item.force_no_context ? 0U : config.context_after;
+
+            WindowSlice slice = build_window_slice(working_entries,
+                                                   cur_offset,
+                                                   cur_len,
+                                                   req_before,
+                                                   req_after,
+                                                   h_mask_ptr);
+            if (slice.target.empty()) {
                 continue;
             }
 
             slice.editable_ids = compute_editable_ids(slice,
                                                       novel_scores,
-                                                      cfg.review_all_in_window,
-                                                      cfg.skip_h_scenes,
-                                                      repaired_indices);
-            if (auto it = radar_suspect_overrides.find(cur_offset);
-                it != radar_suspect_overrides.end() && !cfg.review_all_in_window) {
-                const int max_id = static_cast<int>(slice.target.size());
-                for (int sid : it->second) {
-                    for (int cand : {sid - 1, sid, sid + 1}) {
-                        if (cand >= 1 && cand <= max_id) {
-                            const auto& ce = slice.target[static_cast<std::size_t>(cand - 1)];
-                            if (repaired_indices.count(ce.global_index) == 0 &&
-                                !is_passthrough_or_non_jp_entry(ce) &&
-                                (!cfg.skip_h_scenes ||
-                                 !is_h_scene_line(ce.jp_text, ce.current_en))) {
-                                slice.editable_ids.insert(cand);
-                            }
-                        }
+                                                      config.review_all_in_window,
+                                                      config.skip_h_scenes,
+                                                      repaired_indices,
+                                                      h_mask_ptr);
+
+            if (!config.review_all_in_window && !radar_suspect_globals.empty()) {
+                const std::size_t target_count = slice.target.size();
+                for (std::size_t i = 0; i < target_count; ++i) {
+                    if (radar_suspect_globals.count(
+                            slice.target[i].global_index) == 0) {
+                        continue;
+                    }
+                    if (is_locked_for_radar_unlock(slice.target[i],
+                                                   config.skip_h_scenes,
+                                                   repaired_indices,
+                                                   h_mask_ptr)) {
+                        continue;
+                    }
+                    if (i > 0 &&
+                        !is_locked_for_radar_unlock(slice.target[i - 1],
+                                                    config.skip_h_scenes,
+                                                    repaired_indices,
+                                                    h_mask_ptr)) {
+                        slice.editable_ids.insert(static_cast<int>(i));
+                    }
+                    slice.editable_ids.insert(static_cast<int>(i + 1));
+                    if (i + 1 < target_count &&
+                        !is_locked_for_radar_unlock(slice.target[i + 1],
+                                                    config.skip_h_scenes,
+                                                    repaired_indices,
+                                                    h_mask_ptr)) {
+                        slice.editable_ids.insert(static_cast<int>(i + 2));
                     }
                 }
             }
-            if (cfg.skip_h_scenes) {
-                sanitize_slice_for_non_h_prompt(slice);
-            }
-            rep.editable_lines_unlocked += slice.editable_ids.size();
 
-            // If Pinpointed Suspect-Only Locking finds zero mathematical suspects in
-            // this window (and review_all_in_window is false), skip the API call!
-            if (!cfg.review_all_in_window && slice.editable_ids.empty()) {
+            WindowSlice prompt_slice =
+                config.skip_h_scenes
+                    ? redact_h_lines_for_prompt(slice, h_scene_mask)
+                    : slice;
+            slice.editable_ids = prompt_slice.editable_ids;
+
+            if (slice.editable_ids.empty()) {
+                checked_tracker.mark_visited(cur_offset, slice.target.size());
+                skip_tracker.mark_visited(cur_offset, slice.target.size());
+                blocked_bookkeeper.clear_span(cur_offset, slice.target.size());
+                visited_offsets.insert(cur_offset);
                 continue;
             }
 
-            const std::string user_prompt =
-                build_spot_check_user_prompt(slice, cfg.fix_punctuation);
-            const std::string raw_resp = invoke_model(user_prompt);
+            if (config.max_api_calls > 0 &&
+                run_api_calls >= config.max_api_calls) {
+                break;
+            }
 
-            std::size_t rejected = 0;
-            const std::vector<Improvement> found = parse_spot_check_response(
-                raw_resp,
-                slice,
-                cfg.min_confidence,
-                glossary,
-                ols_model,
-                &rejected,
-                cfg.fix_punctuation);
-            rep.candidates_rejected_by_validator += rejected;
+            Result<LlmResponse> llm_res = invoke_llm(
+                build_spot_check_user_prompt(prompt_slice, config.fix_punctuation));
+            if (!llm_res.is_ok()) {
+                flush_pending_sync_on_abort();
+                return Result<SpotCheckReport>::failure(llm_res.status());
+            }
+            record_llm_usage(
+                llm_res.value(), false, run_api_calls, rep.token_usage);
+
+            if (llm_res.value().content_blocked &&
+                (!prompt_slice.context_before.empty() ||
+                 !prompt_slice.context_after.empty())) {
+                const std::string_view ctx_reason =
+                    llm_res.value().finish_reason.empty()
+                        ? kDefaultBlockReason
+                        : std::string_view(llm_res.value().finish_reason);
+                if (config.max_api_calls > 0 &&
+                    run_api_calls >= config.max_api_calls) {
+                    log_sink->warn(
+                        "[Window offset=" + std::to_string(cur_offset) +
+                        ", len=" + std::to_string(slice.target.size()) +
+                        "] Content blocked with context (" +
+                        std::string(ctx_reason) +
+                        "); max_api_calls reached before context-stripped retry");
+                    break;
+                }
+                log_sink->warn(
+                    "[Window offset=" + std::to_string(cur_offset) +
+                    ", len=" + std::to_string(slice.target.size()) +
+                    "] Content blocked with context (" +
+                    std::string(ctx_reason) +
+                    "); retrying target window without surrounding context");
+                slice.context_before.clear();
+                slice.context_after.clear();
+                prompt_slice.context_before.clear();
+                prompt_slice.context_after.clear();
+
+                llm_res = invoke_llm(build_spot_check_user_prompt(
+                    prompt_slice, config.fix_punctuation));
+                if (!llm_res.is_ok()) {
+                    flush_pending_sync_on_abort();
+                    return Result<SpotCheckReport>::failure(llm_res.status());
+                }
+                record_llm_usage(
+                    llm_res.value(), false, run_api_calls, rep.token_usage);
+            }
+
+            if (llm_res.value().content_blocked) {
+                const std::string_view reason =
+                    llm_res.value().finish_reason.empty()
+                        ? kDefaultBlockReason
+                        : std::string_view(llm_res.value().finish_reason);
+                const std::size_t target_len = slice.target.size();
+                if (target_len > kDefaultMinBlockedSplitLines) {
+                    const std::size_t left_len =
+                        target_len / kBisectHalfDivisor;
+                    const std::size_t right_offset = cur_offset + left_len;
+                    const std::size_t right_len = target_len - left_len;
+                    log_sink->warn(
+                        "[Window offset=" + std::to_string(cur_offset) +
+                        ", len=" + std::to_string(target_len) +
+                        "] Content blocked without context (" +
+                        std::string(reason) + "); bisecting into [" +
+                        std::to_string(cur_offset) + ", +" +
+                        std::to_string(left_len) + ") and [" +
+                        std::to_string(right_offset) + ", +" +
+                        std::to_string(right_len) + ")");
+                    work_queue.push_front(
+                        WorkItem{right_offset, right_len, true});
+                    work_queue.push_front(
+                        WorkItem{cur_offset, left_len, true});
+                    const Status split_save_st = persist_checkpoint_only();
+                    if (!split_save_st.is_ok()) {
+                        return Result<SpotCheckReport>::failure(split_save_st);
+                    }
+                    continue;
+                }
+
+                log_sink->warn(
+                    "[Window offset=" + std::to_string(cur_offset) +
+                    ", len=" + std::to_string(target_len) +
+                    "] Leaf span persistently content-blocked (" +
+                    std::string(reason) + "); recording in blocked_spans");
+                blocked_bookkeeper.record_blocked_leaf(cur_offset, target_len);
+                skip_tracker.mark_visited(cur_offset, target_len);
+                const Status blocked_save_st = persist_checkpoint_only();
+                if (!blocked_save_st.is_ok()) {
+                    return Result<SpotCheckReport>::failure(blocked_save_st);
+                }
+                continue;
+            }
+
+            rep.editable_lines_unlocked += slice.editable_ids.size();
+
+            Result<ParsedSpotCheckBatch> parsed_batch =
+                parse_spot_check_response(
+                    llm_res.value().text, slice, config.min_confidence);
+            if (!parsed_batch.is_ok()) {
+                flush_pending_sync_on_abort();
+                return Result<SpotCheckReport>::failure(parsed_batch.status());
+            }
+            rep.candidates_rejected_by_validator +=
+                parsed_batch.value().rejected_in_parse;
 
             std::vector<Improvement> accepted_new;
-            for (const auto& imp : found) {
-                if (repaired_indices.count(imp.global_index) != 0) {
+            for (Improvement& candidate : parsed_batch.value().candidates) {
+                if (candidate.global_index >= working_entries.size() ||
+                    repaired_indices.count(candidate.global_index) != 0) {
                     ++rep.candidates_rejected_by_validator;
                     continue;
                 }
-                if (imp.global_index < script_entries.size()) {
-                    script_entries[imp.global_index].current_en = imp.improved_en;
+
+                const ScriptEntry& orig_entry =
+                    working_entries[candidate.global_index];
+                const ValidationResult val = validate_proposed_fix(
+                    orig_entry, candidate, glossary, ols_model, validator_opts);
+                if (!val.accepted) {
+                    ++rep.candidates_rejected_by_validator;
+                    continue;
                 }
-                merged[imp.global_index] = imp;
-                repaired_indices.insert(imp.global_index);
-                accepted_new.push_back(imp);
+
+                working_entries[candidate.global_index].current_en =
+                    candidate.improved_en;
+                merged[candidate.global_index] = candidate;
+                repaired_indices.insert(candidate.global_index);
+                accepted_new.push_back(std::move(candidate));
+                needs_artifact_sync = true;
             }
 
+            checked_tracker.mark_visited(cur_offset, slice.target.size());
+            skip_tracker.mark_visited(cur_offset, slice.target.size());
+            blocked_bookkeeper.clear_span(cur_offset, slice.target.size());
+            visited_offsets.insert(cur_offset);
             ++rep.windows_checked;
             rep.lines_checked += slice.target.size();
 
-            // Hybrid Adaptive Contagion: expand to adjacent windows when defect density is high
-            if (cfg.mode == SpotCheckMode::Hotspot && !accepted_new.empty()) {
-                const NeighborExpansion exp = detector.evaluate_contagion(
-                    cur_offset, slice.target.size(), script_entries.size(), accepted_new);
-                if (exp.expand_right && visited_offsets.count(exp.right_offset) == 0) {
-                    work_queue.emplace_front(exp.right_offset, exp.right_length);
-                    ++rep.adaptive_expansions;
+            if (config.mode == SpotCheckMode::Hotspot && !accepted_new.empty()) {
+                const NeighborExpansion exp =
+                    detector.evaluate_contagion(cur_offset,
+                                                slice.target.size(),
+                                                working_entries.size(),
+                                                accepted_new);
+                if (exp.expand_right) {
+                    const auto [r_off, r_len] =
+                        clip_right_expansion_at_h_barrier(
+                            exp.right_offset, exp.right_length, h_mask_ptr);
+                    const auto r_uncovered =
+                        extract_uncovered_spans(skip_tracker, r_off, r_len);
+                    if (!r_uncovered.empty()) {
+                        for (auto uit = r_uncovered.rbegin();
+                             uit != r_uncovered.rend();
+                             ++uit) {
+                            work_queue.push_front(
+                                WorkItem{uit->first, uit->second, false});
+                        }
+                        ++rep.adaptive_expansions;
+                    }
                 }
-                if (exp.expand_left && visited_offsets.count(exp.left_offset) == 0) {
-                    work_queue.emplace_front(exp.left_offset, exp.left_length);
-                    ++rep.adaptive_expansions;
+                if (exp.expand_left) {
+                    const auto [l_off, l_len] =
+                        clip_left_expansion_at_h_barrier(
+                            exp.left_offset, exp.left_length, h_mask_ptr);
+                    const auto l_uncovered =
+                        extract_uncovered_spans(skip_tracker, l_off, l_len);
+                    if (!l_uncovered.empty()) {
+                        for (auto uit = l_uncovered.rbegin();
+                             uit != l_uncovered.rend();
+                             ++uit) {
+                            work_queue.push_front(
+                                WorkItem{uit->first, uit->second, false});
+                        }
+                        ++rep.adaptive_expansions;
+                    }
                 }
             }
 
-            // Sync multi-megabyte translated_text.json and cache files every 25 windows
-            // (and at completion below) instead of after every single window so background
-            // runs do not cause CPU/SSD spikes every 4 seconds.
-            if (cfg.auto_apply && !merged.empty() && (rep.windows_checked % 25 == 0)) {
-                const ApplyReport step_app = sync_improvements_to_disk(merged);
-                checkpoint_applied_.improvements_loaded = step_app.improvements_loaded;
-                checkpoint_applied_.script_entries_updated +=
-                    step_app.script_entries_updated;
-                checkpoint_applied_.cache_entries_updated +=
-                    step_app.cache_entries_updated;
-                rep.script_entries_updated = checkpoint_applied_.script_entries_updated;
-                rep.cache_entries_updated = checkpoint_applied_.cache_entries_updated;
+            const Status window_save_st = persist_window_progress();
+            if (!window_save_st.is_ok()) {
+                return Result<SpotCheckReport>::failure(window_save_st);
             }
 
-            rep.checked_offsets.assign(visited_offsets.begin(), visited_offsets.end());
-            rep.improvements.clear();
-            rep.improvements.reserve(merged.size());
-            for (const auto& [idx, imp] : merged) {
-                rep.improvements.push_back(imp);
-            }
-            rep.improvements_found = rep.improvements.size();
-            save_report_file(rep);
-
-            if (live_log) {
-                char pbuf[256];
-                if (cfg.max_windows > 0) {
-                    const double pct =
-                        100.0 * static_cast<double>(rep.windows_checked) /
-                        static_cast<double>(cfg.max_windows);
-                    std::snprintf(
-                        pbuf, sizeof(pbuf),
-                        "[Window %zu/%zu (%.1f%%)] offset=%zu unlocked=%zu -> +%zu fixes (total=%zu)",
-                        rep.windows_checked, cfg.max_windows, pct, cur_offset,
-                        slice.editable_ids.size(), accepted_new.size(),
-                        rep.improvements_found);
-                } else {
-                    std::snprintf(
-                        pbuf, sizeof(pbuf),
-                        "[Window %zu] offset=%zu unlocked=%zu -> +%zu fixes (total=%zu)",
-                        rep.windows_checked, cur_offset, slice.editable_ids.size(),
-                        accepted_new.size(), rep.improvements_found);
+            for (const Improvement& imp : accepted_new) {
+                if (imp.global_index < entries.size()) {
+                    entries[imp.global_index].current_en = imp.improved_en;
                 }
-                log_info(pbuf);
             }
+
+            char progress_buf[kProgressBufferBytes]{};
+            if (config.max_windows > 0) {
+                const double pct =
+                    kPercentMultiplier *
+                    static_cast<double>(rep.windows_checked) /
+                    static_cast<double>(config.max_windows);
+                std::snprintf(
+                    progress_buf,
+                    sizeof(progress_buf),
+                    "[Window %zu/%zu (%.1f%%)] offset=%zu unlocked=%zu -> +%zu fixes (total=%zu)",
+                    rep.windows_checked,
+                    config.max_windows,
+                    pct,
+                    cur_offset,
+                    slice.editable_ids.size(),
+                    accepted_new.size(),
+                    rep.improvements_found);
+            } else {
+                std::snprintf(
+                    progress_buf,
+                    sizeof(progress_buf),
+                    "[Window %zu] offset=%zu unlocked=%zu -> +%zu fixes (total=%zu)",
+                    rep.windows_checked,
+                    cur_offset,
+                    slice.editable_ids.size(),
+                    accepted_new.size(),
+                    rep.improvements_found);
+            }
+            log_sink->info(progress_buf);
         }
 
-        if (cfg.auto_apply && !merged.empty()) {
-            const ApplyReport final_app = sync_improvements_to_disk(merged);
-            checkpoint_applied_.improvements_loaded = final_app.improvements_loaded;
-            checkpoint_applied_.script_entries_updated +=
-                final_app.script_entries_updated;
-            checkpoint_applied_.cache_entries_updated +=
-                final_app.cache_entries_updated;
-            rep.script_entries_updated = checkpoint_applied_.script_entries_updated;
-            rep.cache_entries_updated = checkpoint_applied_.cache_entries_updated;
-        }
-        if (rep.script_entries_updated > 0 || rep.cache_entries_updated > 0) {
-            maybe_encrypt_game_scripts();
+        sync_report_collections(
+            visited_offsets, checked_tracker, blocked_bookkeeper, merged, rep);
+
+        if (config.auto_apply && !merged.empty() && needs_artifact_sync) {
+            Result<SyncCounts> sync_res =
+                repo.apply_improvements_to_artifacts(game_root, rep.improvements);
+            if (!sync_res.is_ok()) {
+                return Result<SpotCheckReport>::failure(sync_res.status());
+            }
+            rep.script_entries_updated +=
+                sync_res.value().script_entries_updated;
+            rep.cache_entries_updated +=
+                sync_res.value().cache_entries_updated;
+            needs_artifact_sync = false;
         }
 
-        rep.checked_offsets.assign(visited_offsets.begin(), visited_offsets.end());
-        rep.improvements.clear();
-        rep.improvements.reserve(merged.size());
-        for (const auto& [idx, imp] : merged) {
-            rep.improvements.push_back(imp);
+        const Status final_save_st = save_checkpoint_atomic(
+            *file_store,
+            ckpt_path,
+            build_checkpoint_state(config, rep, radar_results));
+        if (!final_save_st.is_ok()) {
+            return Result<SpotCheckReport>::failure(final_save_st);
         }
-        rep.improvements_found = rep.improvements.size();
-        save_report_file(rep);
-        return rep;
+
+        return Result<SpotCheckReport>::success(std::move(rep));
     }
 
-    ApplyReport apply_improvements() {
-        const auto improvements_map = load_existing_improvements();
-        ApplyReport report = sync_improvements_to_disk(improvements_map);
-        report.script_entries_updated += checkpoint_applied_.script_entries_updated;
-        report.cache_entries_updated += checkpoint_applied_.cache_entries_updated;
-        checkpoint_applied_ = {};
-        if (report.script_entries_updated > 0 || report.cache_entries_updated > 0) {
-            maybe_encrypt_game_scripts();
+    Result<ApplyReport> apply_improvements() {
+        const fs::path ckpt_path = default_checkpoint_path();
+        if (!file_store->exists(ckpt_path)) {
+            return Result<ApplyReport>::failure(
+                ErrorCode::IoError,
+                "Checkpoint file does not exist: " + path_to_utf8(ckpt_path));
         }
-        return report;
+
+        Result<std::optional<CheckpointState>> ckpt_res =
+            load_checkpoint_if_exists(*file_store, ckpt_path, config.window_size);
+        if (!ckpt_res.is_ok()) {
+            return Result<ApplyReport>::failure(ckpt_res.status());
+        }
+        if (!ckpt_res.value().has_value()) {
+            return Result<ApplyReport>::failure(
+                ErrorCode::IoError,
+                "Checkpoint file disappeared: " + path_to_utf8(ckpt_path));
+        }
+
+        CheckpointState ckpt = std::move(*ckpt_res.value());
+        ApplyReport report;
+        report.improvements_loaded = ckpt.improvements.size();
+        if (ckpt.improvements.empty()) {
+            return Result<ApplyReport>::success(report);
+        }
+
+        ScriptRepository repo(*file_store, *crypt_sync);
+        const fs::path game_root = path_from_utf8(config.game_dir);
+        Result<SyncCounts> sync_res =
+            repo.apply_improvements_to_artifacts(game_root, ckpt.improvements);
+        if (!sync_res.is_ok()) {
+            return Result<ApplyReport>::failure(sync_res.status());
+        }
+
+        for (const Improvement& imp : ckpt.improvements) {
+            if (imp.global_index < entries.size() &&
+                entries[imp.global_index].jp_text == imp.jp_text) {
+                entries[imp.global_index].current_en = imp.improved_en;
+            }
+        }
+
+        report.script_entries_updated = sync_res.value().script_entries_updated;
+        report.cache_entries_updated = sync_res.value().cache_entries_updated;
+
+        if (report.script_entries_updated > 0 ||
+            report.cache_entries_updated > 0) {
+            ckpt.script_entries_updated += report.script_entries_updated;
+            ckpt.cache_entries_updated += report.cache_entries_updated;
+            const Status save_st =
+                save_checkpoint_atomic(*file_store, ckpt_path, ckpt);
+            if (!save_st.is_ok()) {
+                return Result<ApplyReport>::failure(save_st);
+            }
+        }
+
+        return Result<ApplyReport>::success(report);
     }
 };
 
-SpotChecker::SpotChecker(SpotCheckConfig config, ModelCallback callback)
-    : impl_(std::make_unique<Impl>(std::move(config), std::move(callback))) {}
+SpotChecker::SpotChecker(std::unique_ptr<Impl> impl) noexcept
+    : impl_(std::move(impl)) {}
+
+Result<SpotChecker> SpotChecker::create(SpotCheckConfig config,
+                                        SpotCheckerDependencies deps) {
+    if (trim_ascii_view(config.game_dir).empty()) {
+        return Result<SpotChecker>::failure(
+            ErrorCode::InvalidArgument, "game_dir must not be empty");
+    }
+    if (config.window_size == 0) {
+        return Result<SpotChecker>::failure(
+            ErrorCode::InvalidArgument, "window_size must be >= 1");
+    }
+    if (config.radar_calls > 0 && config.radar_pack_size == 0) {
+        return Result<SpotChecker>::failure(
+            ErrorCode::InvalidArgument, "radar_pack_size must be >= 1");
+    }
+    if (!std::isfinite(config.min_confidence) ||
+        config.min_confidence <= kMinValidConfidenceExclusive ||
+        config.min_confidence > kMaxValidConfidenceInclusive) {
+        return Result<SpotChecker>::failure(
+            ErrorCode::InvalidArgument,
+            "min_confidence must be finite and in (0.0, 1.0]");
+    }
+    if (!std::isfinite(config.z_threshold)) {
+        return Result<SpotChecker>::failure(
+            ErrorCode::InvalidArgument, "z_threshold must be finite");
+    }
+
+    if (trim_ascii_view(config.model).empty()) {
+        config.model = std::string(kDefaultArgonModel);
+    }
+
+    auto impl = std::make_unique<Impl>();
+    if (!config.scan_only && trim_ascii_view(config.out_path).empty()) {
+        const fs::path default_out =
+            path_from_utf8(config.game_dir) / kScriptOutputDir /
+            kDefaultCheckpointFilename;
+        config.out_path = path_to_utf8(default_out);
+    }
+    impl->output_json_path = config.out_path;
+    impl->config = std::move(config);
+
+    if (deps.clock != nullptr) {
+        impl->clock = deps.clock;
+    } else {
+        impl->owned_clock = std::make_unique<SystemClock>();
+        impl->clock = impl->owned_clock.get();
+    }
+
+    if (deps.log_sink != nullptr) {
+        impl->log_sink = deps.log_sink;
+    } else {
+        impl->owned_log_sink = std::make_unique<ConsoleLogSink>();
+        impl->log_sink = impl->owned_log_sink.get();
+    }
+
+    if (deps.file_store != nullptr) {
+        impl->file_store = deps.file_store;
+    } else {
+        impl->owned_file_store = std::make_unique<DiskFileStore>();
+        impl->file_store = impl->owned_file_store.get();
+    }
+
+    if (deps.crypt_sync != nullptr) {
+        impl->crypt_sync = deps.crypt_sync;
+    } else {
+        impl->owned_crypt_sync = make_batch_crypt_sync({}, find_repo_root());
+        impl->crypt_sync = impl->owned_crypt_sync.get();
+    }
+
+    impl->transport = deps.transport;
+
+    const ScriptRepository repo(*impl->file_store, *impl->crypt_sync);
+    Result<LoadedCorpus> loaded =
+        repo.load_from_game_dir(path_from_utf8(impl->config.game_dir));
+    if (!loaded.is_ok()) {
+        return Result<SpotChecker>::failure(loaded.status());
+    }
+
+    impl->entries = std::move(loaded.value().entries);
+    impl->glossary = std::move(loaded.value().glossary);
+    impl->system_prompt =
+        build_system_prompt(impl->glossary, impl->config.fix_punctuation);
+
+    return Result<SpotChecker>::success(SpotChecker(std::move(impl)));
+}
 
 SpotChecker::~SpotChecker() = default;
 SpotChecker::SpotChecker(SpotChecker&& other) noexcept = default;
 SpotChecker& SpotChecker::operator=(SpotChecker&& other) noexcept = default;
 
-SpotCheckReport SpotChecker::run() {
+Result<SpotCheckReport> SpotChecker::run() {
     return impl_->run();
 }
 
-ApplyReport SpotChecker::apply_improvements() {
+Result<ApplyReport> SpotChecker::apply_improvements() {
     return impl_->apply_improvements();
 }
 
-const std::vector<ScriptEntry>& SpotChecker::entries() const {
-    return impl_->script_entries;
+const SpotCheckConfig& SpotChecker::config() const noexcept {
+    return impl_->config;
 }
 
-const std::string& SpotChecker::system_prompt() const {
-    return impl_->sys_prompt;
+const std::vector<ScriptEntry>& SpotChecker::entries() const noexcept {
+    return impl_->entries;
 }
 
-std::string SpotChecker::output_json_path() const {
-    return impl_->cfg.out_path;
+const std::string& SpotChecker::system_prompt() const noexcept {
+    return impl_->system_prompt;
+}
+
+const std::string& SpotChecker::output_json_path() const noexcept {
+    return impl_->output_json_path;
 }
 
 }  // namespace spot_checker

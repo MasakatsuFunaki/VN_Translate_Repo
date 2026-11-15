@@ -81,6 +81,7 @@ spot_checker/build/
 **/helper_dll/build/
 # Conan rewrites this on every `conan install`
 **/CMakeUserPresets.json
+**/cmake_test_discovery_*.json
 **/proxy_dll/_build_log.txt
 **/proxy_dll/build.log
 
@@ -150,4 +151,13 @@ Adieu/menu_assets/
 Adieu/**/g00_extracted/
 Adieu/**/g00_rendered/
 Adieu/**/contact_sheets/
+
+# Per-game tone & glossary guides used locally by spot_checker.
+# Oretachi_ni_Tsubasa_wa_Nai loads its speaker nameplate table from
+# TONE_OF_NOVEL.md during 02_build_tsv and CTest, so its copy stays tracked.
+**/TONE_OF_NOVEL.md
+**/TONE.md
+!Oretachi_ni_Tsubasa_wa_Nai/TONE_OF_NOVEL.md
+!spot_checker/tests/**/tone_of_novel.md
+!spot_checker/tests/**/*tone_of_novel.md
 
