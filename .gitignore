@@ -95,8 +95,12 @@ amakano2pe/map_images/
 **/_debug_title_originals/
 **/script_output/extracted_text.json
 **/script_output/argon_spot_check.json
+**/script_output/narrative_candidates.json
+**/script_output/narrative_scanned.json
+**/script_output/*_report.txt
 **/script_output/last_gemini_translate/
 **/script_output/last_anthropic_translate/
+EXTRAVAGANZA_02_MUSHIGURUI_HD10/choices/
 **/translations.tsv
 **/translation_table.tsv
 # Restored on demand by EXTRAVAGANZA_02_MUSHIGURUI_HD10/analysys/retired_py.py
