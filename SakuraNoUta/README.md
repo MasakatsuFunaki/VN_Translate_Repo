@@ -1,75 +1,52 @@
-# Sakura no Uta — English Translation
+# Sakura no Uta (サクラノ詩)
 
-An English patch for **桜の詩** (Sakura no Uta) by SCA-DI / Makura. A proxy
-`winmm.dll` replaces each Japanese line with its English translation while the
-game draws it. The game's own files stay unchanged.
+English translation patch for **サクラノ詩 －櫻の森の上を舞う－** (*Sakura no Uta*) by **SCA-DI / Makura**.
 
-The finished translation, `translations.tsv`, and the translation cache are
-already in this folder.
+| | |
+|---|---|
+| **Engine** | BGI / Buriko General Interpreter (Ethornell) |
+| **Delivery** | Deployed into `<install>`. Copies `winmm.dll`, `translations.tsv`, and `menu_patch.bin` to translate story dialogue, menus, startup splash screens, confirmation dialogs, Extra Music tracks, choice options, and Win32 window/dialog chrome at runtime (`sysgrp.arc` is backed up to `sysgrp.arc.bak` automatically on first launch). |
 
-## What you need
+## Patching the Game
 
-- The game, installed.
-- Python 3, CMake 3.23 or later, Conan 2, Ninja, and the MSVC C++ toolchain
-  (Visual Studio 2022 or its Build Tools).
+Close the game, then build and deploy the patch into your game folder `<install>`:
 
-## Patching the game
-
-Close the game. Then build the patch and copy it into the game folder:
-
-```bat
+```powershell
 cd SakuraNoUta
-python build.py --deploy --game-dir C:\SakuraNoUta
+python build.py --deploy --game-dir <install>
 ```
 
-Replace `C:\SakuraNoUta` with your game folder. The command copies
-`winmm.dll` and `translations.tsv` into it. Start the game as usual.
+Start the game as usual. On first launch, `winmm.dll` atomically backs up `sysgrp.arc` to `sysgrp.arc.bak`, applies `menu_patch.bin` (menus, `att01`/`att02` startup splash screens, and all 34 `select01-1..select17-2` choice plates), and writes `menu_patch.applied`.
 
-### Choice menus
-
-The game draws each choice option as a picture, so the DLL cannot translate
-it. This command writes 34 English pictures into the game folder:
+## Removing the Patch
 
 ```bat
-python analysys\make_option_image.py --all --format bmp32 --game-dir C:\SakuraNoUta --deploy
+move /Y "<install>\sysgrp.arc.bak" "<install>\sysgrp.arc"
+del "<install>\winmm.dll" "<install>\translations.tsv" "<install>\menu_patch.bin" "<install>\menu_patch.applied"
+del "<install>\att01" "<install>\att02" "<install>\select??-?"
 ```
 
-## Removing the patch
+## Pipeline & Rebuilding Artifacts
 
-Delete these files from the game folder:
-
-```bat
-del C:\SakuraNoUta\winmm.dll C:\SakuraNoUta\translations.tsv
-del C:\SakuraNoUta\select??-?
+```
+01_extract.exe           → script_output/extracted_text.json
+02_build_tsv.exe         → speaker gate, translated_text.json, and translations.tsv
+03_find_narrative_cg.exe → renders & repacks translated narrative CG overlays
+04_patch_menus.exe       → builds keyless XOR-delta menu_patch.bin from <install>
+00_run_all.exe           → extracts, builds translations.tsv, and deploys
 ```
 
-The second line removes the 34 choice pictures.
-
-## Rebuilding the translation table
-
-```bat
+```powershell
 cd SakuraNoUta
-python build.py --install
-build\install\bin\00_run_all.exe --game-dir C:\SakuraNoUta
+python build.py --test --install
+
+build\install\bin\00_run_all.exe --game-dir <install>
+build\install\bin\02_build_tsv.exe --rebuild-table
+build\install\bin\04_patch_menus.exe --game-dir <install>
+build\install\bin\03_find_narrative_cg.exe --game-dir <install> --repack
+python build.py --deploy --game-dir <install>
 ```
 
-`00_run_all.exe` extracts the Japanese text, applies the cached translations,
-writes `translations.tsv` and copies the patch into the game folder.
+### Encrypted Script Storage (`*.json.enc`)
 
-To run the steps one at a time:
-
-```bat
-cd build\install\bin
-01_extract.exe   --game-dir C:\SakuraNoUta
-02_build_tsv.exe
-cd ..\..\..
-python build.py --deploy --game-dir C:\SakuraNoUta
-```
-
-### Options
-
-```bat
-02_build_tsv.exe --rebuild-table     :: rebuild translations.tsv from translated_text.json
-02_build_tsv.exe --out <path>        :: write translations.tsv to a custom path
-03_find_narrative_cg.exe --game-dir C:\SakuraNoUta --repack :: repack narrative CGs
-```
+`script_output/translated_text.json` and `script_output/translation_cache_anthropic.json` are tracked in git as `VNE2`-encrypted `.json.enc` files (`TRANSLATIONS_KEY` in CI or git-ignored `translations_key.txt` locally) and synced automatically by `python build.py`.

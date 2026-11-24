@@ -29,6 +29,12 @@ struct ArcEntry {
 // magic or malformed Huffman code lengths.
 Bytes dsc_decompress(const Bytes& data);
 
+inline constexpr std::uint32_t kDefaultDscHashKey = 0x0007D4C2u;
+
+// Compress `raw` into a DSC FORMAT 1.00 blob (canonical Huffman + LZ77) with
+// exact header `dec_count` matching the number of emitted Huffman tokens.
+Bytes dsc_compress(const Bytes& raw, std::uint32_t key = kDefaultDscHashKey);
+
 inline bool is_dsc(const Bytes& raw) {
     static const char magic[] = "DSC FORMAT 1.00";
     return raw.size() >= 16 && std::memcmp(raw.data(), magic, 16) == 0;

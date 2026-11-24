@@ -185,6 +185,7 @@ def collect(game):
             "EXTRAVAGANZA_07_REN_MUSHI_CE",
             "EXTRAVAGANZA_08_MIZUNA_CE",
             "Adieu",
+            "SakuraNoUta",
         ):
             patch_bin = os.path.join(game_dir, "menu_patch.bin")
             if not os.path.isfile(patch_bin) or os.path.getsize(patch_bin) == 0:

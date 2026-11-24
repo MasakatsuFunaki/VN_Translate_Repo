@@ -9,13 +9,19 @@
 // LoadLibraryW the proxy DLL, then assert the expected banner appears in the
 // generated log file.
 
+#include "menu_patch_format.h"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 
 #include <gtest/gtest.h>
 
+#include <array>
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -24,6 +30,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #ifndef PROXY_DLL_PATH
 #  define PROXY_DLL_PATH ""
@@ -206,4 +213,174 @@ TEST(ProxyDllSystem, DriverLoadsDllAndDllMainWritesBanner) {
         << "  expected substring: " << EXPECTED_BANNER << "\n"
         << "  log path:           " << LOG_FILE_PATH << "\n"
         << "  log contents:\n" << log;
+}
+
+namespace {
+
+constexpr std::size_t kStOrigSliceBytes = 96u;
+constexpr std::size_t kStNewPayloadBytes = 84u;
+constexpr unsigned int kStBitsPerByte = 8u;
+constexpr std::size_t kStU32Bytes = 4u;
+constexpr std::uint32_t kStByteMask = 0xFFu;
+
+class ScopedSystemSandbox {
+public:
+    ScopedSystemSandbox() {
+        static std::atomic<unsigned int> seq{0u};
+        path_ = fs::temp_directory_path() /
+                fs::u8path("snu_proxy_st_" + std::to_string(++seq));
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+        fs::create_directories(path_, ec);
+    }
+
+    ~ScopedSystemSandbox() {
+        std::error_code ec;
+        fs::remove_all(path_, ec);
+    }
+
+    ScopedSystemSandbox(const ScopedSystemSandbox&) = delete;
+    ScopedSystemSandbox& operator=(const ScopedSystemSandbox&) = delete;
+
+    const fs::path& path() const noexcept { return path_; }
+
+private:
+    fs::path path_;
+};
+
+void WriteVecFile(const fs::path& path, const std::vector<std::uint8_t>& bytes) {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(static_cast<bool>(out)) << path.u8string();
+    if (!bytes.empty()) {
+        out.write(reinterpret_cast<const char*>(bytes.data()),
+                  static_cast<std::streamsize>(bytes.size()));
+    }
+    ASSERT_TRUE(static_cast<bool>(out)) << path.u8string();
+}
+
+std::vector<std::uint8_t> ReadVecFile(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    if (!in) {
+        return {};
+    }
+    const auto sz = static_cast<std::size_t>(in.tellg());
+    std::vector<std::uint8_t> buf(sz, 0u);
+    in.seekg(0);
+    if (sz > 0u) {
+        in.read(reinterpret_cast<char*>(buf.data()),
+                static_cast<std::streamsize>(sz));
+    }
+    return buf;
+}
+
+std::vector<std::uint8_t> BuildSingleEntryArc20(
+    std::string_view name,
+    const std::array<std::uint8_t, menu_patch_format::kArc20ExtraFieldBytes>& extra,
+    const std::vector<std::uint8_t>& payload) {
+    std::vector<std::uint8_t> arc;
+    arc.insert(arc.end(), menu_patch_format::kArc20Magic,
+               menu_patch_format::kArc20Magic + menu_patch_format::kArc20MagicBytes);
+    auto append_le32 = [&](std::uint32_t v) {
+        for (unsigned int i = 0u; i < kStU32Bytes; ++i) {
+            arc.push_back(static_cast<std::uint8_t>(
+                (v >> (i * kStBitsPerByte)) & kStByteMask));
+        }
+    };
+    append_le32(1u);
+    std::array<std::uint8_t, menu_patch_format::kArc20NameFieldBytes> name_slot{};
+    std::memcpy(name_slot.data(), name.data(), name.size());
+    arc.insert(arc.end(), name_slot.begin(), name_slot.end());
+    append_le32(0u);
+    append_le32(static_cast<std::uint32_t>(payload.size()));
+    arc.insert(arc.end(), extra.begin(), extra.end());
+    arc.insert(arc.end(), payload.begin(), payload.end());
+    return arc;
+}
+
+}  // namespace
+
+TEST(ProxyDllSystem,
+     DriverAppliesStagedMenuPatchBinAndFastPathsSecondLaunchEndToEnd) {
+    ScopedSystemSandbox sandbox;
+    const fs::path staged_driver = sandbox.path() / "sakuranouta_driver.exe";
+    const fs::path staged_dll = sandbox.path() / "winmm.dll";
+    fs::copy_file(fs::u8path(DRIVER_EXE_PATH), staged_driver);
+    fs::copy_file(fs::u8path(PROXY_DLL_PATH), staged_dll);
+
+    std::array<std::uint8_t, menu_patch_format::kArc20ExtraFieldBytes> extra{};
+    extra.fill(0x4Du);
+    std::vector<std::uint8_t> orig_sysgrp_entry(kStOrigSliceBytes, 0u);
+    std::vector<std::uint8_t> new_sysgrp_entry(kStNewPayloadBytes, 0u);
+    std::vector<std::uint8_t> orig_att01(kStOrigSliceBytes, 0u);
+    std::vector<std::uint8_t> new_att01(kStNewPayloadBytes, 0u);
+    for (std::size_t i = 0u; i < kStOrigSliceBytes; ++i) {
+        orig_sysgrp_entry[i] = static_cast<std::uint8_t>((i * 7u + 0x13u) & 0xFFu);
+        orig_att01[i] = static_cast<std::uint8_t>((i * 11u + 0x29u) & 0xFFu);
+    }
+    for (std::size_t i = 0u; i < kStNewPayloadBytes; ++i) {
+        new_sysgrp_entry[i] = static_cast<std::uint8_t>((i * 17u + 0x51u) & 0xFFu);
+        new_att01[i] = static_cast<std::uint8_t>((i * 23u + 0x67u) & 0xFFu);
+    }
+
+    const std::vector<std::uint8_t> orig_sysgrp =
+        BuildSingleEntryArc20("SGTitle990000", extra, orig_sysgrp_entry);
+    const std::vector<std::uint8_t> expected_sysgrp =
+        BuildSingleEntryArc20("SGTitle990000", extra, new_sysgrp_entry);
+    const std::vector<std::uint8_t> orig_data02501 =
+        BuildSingleEntryArc20("att01", extra, orig_att01);
+
+    std::uint64_t sysgrp_off = 0u;
+    std::uint64_t sysgrp_sz = 0u;
+    std::uint64_t att01_off = 0u;
+    std::uint64_t att01_sz = 0u;
+    ASSERT_EQ(menu_patch_format::FindArc20EntrySlice(
+                  menu_patch_format::ByteSpan(orig_sysgrp), "SGTitle990000",
+                  sysgrp_off, sysgrp_sz),
+              menu_patch_format::ArcStatus::kOk);
+    ASSERT_EQ(menu_patch_format::FindArc20EntrySlice(
+                  menu_patch_format::ByteSpan(orig_data02501), "att01",
+                  att01_off, att01_sz),
+              menu_patch_format::ArcStatus::kOk);
+
+    std::vector<std::uint8_t> patch_blob;
+    ASSERT_EQ(menu_patch_format::SerializeMenuPatchManifest(
+                  {
+                      {"sysgrp.arc", "sysgrp.arc", "SGTitle990000", sysgrp_off,
+                       orig_sysgrp_entry, new_sysgrp_entry,
+                       menu_patch_format::kFlagArchiveEntry},
+                      {"data02501.arc", "att01", "att01", att01_off, orig_att01,
+                       new_att01, menu_patch_format::kFlagBackupStandalone},
+                  },
+                  patch_blob),
+              menu_patch_format::ManifestStatus::kOk);
+
+    WriteVecFile(sandbox.path() / "sysgrp.arc", orig_sysgrp);
+    WriteVecFile(sandbox.path() / "data02501.arc", orig_data02501);
+    WriteVecFile(sandbox.path() / "menu_patch.bin", patch_blob);
+
+    // Launch 1: compiled winmm.dll applies menu_patch.bin under DllMain.
+    DWORD exit_code_1 = kInitialExitCodeSentinel;
+    ASSERT_TRUE(RunDriverExe(staged_driver.u8string(), staged_dll.u8string(),
+                             &exit_code_1));
+    EXPECT_EQ(exit_code_1, 0u);
+
+    const fs::path sandbox_log = sandbox.path() / "proxy_log.txt";
+    const std::string log1 = ReadAllBytes(sandbox_log.u8string());
+    EXPECT_NE(log1.find("[MenuAutoPatch] Outcome: kApplied"), std::string::npos)
+        << log1;
+    EXPECT_EQ(ReadVecFile(sandbox.path() / "sysgrp.arc"), expected_sysgrp);
+    EXPECT_EQ(ReadVecFile(sandbox.path() / "sysgrp.arc.bak"), orig_sysgrp);
+    EXPECT_EQ(ReadVecFile(sandbox.path() / "att01"), new_att01);
+    EXPECT_TRUE(fs::is_regular_file(sandbox.path() / "menu_patch.applied"));
+
+    // Launch 2: compiled winmm.dll hits sentinel fast-path (`kAlreadyApplied`).
+    fs::remove(sandbox_log);
+    DWORD exit_code_2 = kInitialExitCodeSentinel;
+    ASSERT_TRUE(RunDriverExe(staged_driver.u8string(), staged_dll.u8string(),
+                             &exit_code_2));
+    EXPECT_EQ(exit_code_2, 0u);
+    const std::string log2 = ReadAllBytes(sandbox_log.u8string());
+    EXPECT_NE(log2.find("[MenuAutoPatch] Outcome: kAlreadyApplied"),
+              std::string::npos)
+        << log2;
 }

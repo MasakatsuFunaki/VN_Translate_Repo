@@ -24,10 +24,11 @@ A bare run builds every binary including the test executables; `--test` also
 runs them, every tier of both halves.  When `--test` and `--deploy` are given
 together the tests gate the deploy, so a regression is never shipped.
 
-Deploying copies `winmm.dll` and `translations.tsv` into the game folder named
-by `--game-dir`, which has no default because the install path differs per
-machine.  Set VN_DIST_BUILD to skip the deploy, because a distribution build
-stages the artifacts itself and may run where no game is installed.
+Deploying copies `winmm.dll`, `translations.tsv`, and `menu_patch.bin` into
+the game folder named by `--game-dir`, which has no default because the install
+path differs per machine.  Set VN_DIST_BUILD to skip the deploy, because a
+distribution build stages the artifacts itself and may run where no game is
+installed.
 
 This script builds; it never runs the pipeline executables.  Translating calls
 a paid API, so that stays an explicit, separate action.
@@ -36,6 +37,7 @@ a paid API, so that stays an explicit, separate action.
 import os
 import sys
 import shutil
+import hashlib
 import argparse
 import subprocess
 
@@ -44,6 +46,7 @@ BUILD_DIR = os.path.join(ROOT, "build")
 INSTALL_DIR = os.path.join(BUILD_DIR, "install")
 CONFIG = "Release"
 PRESET = "windows-release"
+MENU_PATCH = os.path.join(ROOT, "menu_patch.bin")
 
 # The halves, for the steps CMake does not own.  ctest is per sub-build:
 # each half has its own binary dir and its own test preset, and a single
@@ -146,13 +149,14 @@ def build_table():
 
 
 def build():
-    clean()
     # The root project configures and builds both halves: it runs Conan for
     # each, configures each through its own preset, and builds each in its
     # own binary dir under build/.
     run(["cmake", "--preset", PRESET], ROOT)
     run(["cmake", "--build", "--preset", PRESET, "--config", CONFIG], ROOT)
     build_table()
+    if os.path.isfile(MENU_PATCH) and os.path.getsize(MENU_PATCH) > 0:
+        stage_menu_patch()
 
 
 def test():
@@ -165,10 +169,38 @@ def test():
             sys.exit(rc)
 
 
+def files_identical(path_a, path_b):
+    if not os.path.isfile(path_a) or not os.path.isfile(path_b):
+        return False
+    if os.path.getsize(path_a) != os.path.getsize(path_b):
+        return False
+    digest_a = hashlib.sha256()
+    digest_b = hashlib.sha256()
+    with open(path_a, "rb") as fa, open(path_b, "rb") as fb:
+        for chunk in iter(lambda: fa.read(65536), b""):
+            digest_a.update(chunk)
+        for chunk in iter(lambda: fb.read(65536), b""):
+            digest_b.update(chunk)
+    return digest_a.digest() == digest_b.digest()
+
+
+def stage_menu_patch():
+    """Copy the committed menu_patch.bin beside winmm.dll in build/install/game."""
+    if not os.path.isfile(MENU_PATCH) or os.path.getsize(MENU_PATCH) == 0:
+        sys.exit(
+            f"missing or empty {MENU_PATCH} -- run "
+            f"04_patch_menus.exe --game-dir <install> first"
+        )
+    dst = os.path.join(INSTALL_DIR, "game", os.path.basename(MENU_PATCH))
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copy2(MENU_PATCH, dst)
+
+
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
     build_table()
+    stage_menu_patch()
 
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
@@ -184,13 +216,17 @@ def deploy(game_dir):
 
     print(f"\nDeploying to {game_dir}...")
 
+    run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
+    build_table()
+    stage_menu_patch()
+
     # From the build tree, not the install tree: --deploy has to work whether
     # or not --install was asked for, and the build tree is always the fresher
     # of the two.
     # The DLL is a hard failure: the usual cause is the game holding it open.
     dll = os.path.join(BUILD_DIR, "proxy", CONFIG, "winmm.dll")
     try:
-        shutil.copyfile(dll, os.path.join(game_dir, "winmm.dll"))
+        shutil.copy2(dll, os.path.join(game_dir, "winmm.dll"))
     except OSError as exc:
         print(f"COPY winmm.dll FAILED ({exc}) — is the game running? Close it and retry.")
         sys.exit(1)
@@ -199,12 +235,36 @@ def deploy(game_dir):
     tsv = os.path.join(INSTALL_DIR, "game", "translations.tsv")
     if os.path.exists(tsv):
         try:
-            shutil.copyfile(tsv, os.path.join(game_dir, "translations.tsv"))
+            shutil.copy2(tsv, os.path.join(game_dir, "translations.tsv"))
         except OSError as exc:
             print(f"COPY translations.tsv FAILED ({exc})")
             sys.exit(1)
     else:
         print("WARN: translations.tsv not found — run 02_build_tsv.exe first.")
+
+    src_patch = MENU_PATCH
+    if not os.path.isfile(src_patch) or os.path.getsize(src_patch) == 0:
+        src_patch = os.path.join(INSTALL_DIR, "game", "menu_patch.bin")
+    if not os.path.isfile(src_patch) or os.path.getsize(src_patch) == 0:
+        print("COPY menu_patch.bin FAILED (missing or empty menu_patch.bin)")
+        sys.exit(1)
+
+    dst_patch = os.path.join(game_dir, "menu_patch.bin")
+    patch_changed = not files_identical(src_patch, dst_patch)
+    try:
+        shutil.copy2(src_patch, dst_patch)
+    except OSError as exc:
+        print(f"COPY menu_patch.bin FAILED ({exc})")
+        sys.exit(1)
+
+    applied_marker = os.path.join(game_dir, "menu_patch.applied")
+    if os.path.exists(applied_marker) and patch_changed:
+        try:
+            os.remove(applied_marker)
+            print("Removed stale menu_patch.applied so updated menu_patch.bin re-applies on next launch.")
+        except OSError as exc:
+            print(f"REMOVE menu_patch.applied FAILED ({exc})")
+            sys.exit(1)
 
     print(f"\nDeployed to {game_dir}.")
 
@@ -217,7 +277,7 @@ def main():
     parser.add_argument("--install", action="store_true",
                         help="stage the user-facing artifacts into build/install")
     parser.add_argument("--deploy", action="store_true",
-                        help="copy winmm.dll + translations.tsv to the game folder")
+                        help="copy winmm.dll, translations.tsv, and menu_patch.bin to the game folder")
     parser.add_argument("--game-dir",
                         help="game folder to deploy into; required with --deploy")
     parser.add_argument("--clean", action="store_true",

@@ -9,8 +9,10 @@
 
 #include "iat_hook.h"
 #include "log.h"
+#include "menu_autopatch.h"
 #include "text_display_abi.h"
 #include "translator_logic.h"
+#include "win32_chrome.h"
 
 #include <windows.h>
 
@@ -85,9 +87,16 @@ constexpr ULONG kFirstHandlerPriority = 1;
 
 static size_t g_rectsPerWireByte = translator_logic::RECTS_PER_WIRE_BYTE;
 
+static DWORD g_exeSize = 0;
+
 static bool PatchRectArraySites(BYTE* base) {
     const size_t n = sizeof(RECT_ARRAY_SITES) / sizeof(*RECT_ARRAY_SITES);
     for (size_t i = 0; i < n; ++i) {
+        if (RECT_ARRAY_SITES[i] + sizeof(RECT_ARRAY_EXPECTED) > g_exeSize) {
+            Log("RectArray: RVA 0x%X exceeds host image size 0x%X -- leaving every site alone",
+                RECT_ARRAY_SITES[i], g_exeSize);
+            return false;
+        }
         BYTE* site = base + RECT_ARRAY_SITES[i];
         if (memcmp(site, RECT_ARRAY_EXPECTED, sizeof(RECT_ARRAY_EXPECTED)) != 0) {
             Log("RectArray: RVA 0x%X is not the allocation this expects -- got "
@@ -176,9 +185,38 @@ static std::atomic<int> g_rectOverruns { 0 };
 // Per-box line count, surviving across the chain of calls that fill one box.
 static translator_logic::BoxLineBudget g_boxLines;
 
-// TSV loading.
+// TSV loading and built-in UI fallback seeding.
 
-static std::string ResolveSiblingTsvPathUtf8() {
+struct BuiltinUiFallbackPair {
+    const char* jp_utf8;
+    const char* en_utf8;
+};
+
+constexpr BuiltinUiFallbackPair kBuiltinUiFallbacks[] = {
+    {"選択肢", "Choice"},
+    {"終了しますか？", "Exit the game?"},
+    {"タイトル画面へ戻りますか？", "Return to the title screen?"},
+    {"セーブを行いますか？", "Save your progress?"},
+    {"データを上書きしますか？", "Overwrite this save data?"},
+    {"データを読み込みますか？", "Load this save data?"},
+    {"セーブデータを消去しますか？", "Delete this save data?"},
+    {"ゲームに戻りますか？", "Return to the game?"},
+    {"クイックセーブを行いました。", "Quick save complete."},
+    {"クイックロードしますか？", "Quick load save data?"},
+};
+
+static void SeedBuiltinFallbackTranslations(
+    translator_logic::TranslationMap& translations) {
+    for (const auto& pair : kBuiltinUiFallbacks) {
+        const std::string key = translator_logic::Utf8ToCp932(pair.jp_utf8);
+        const std::string val = translator_logic::EnglishToCp932(pair.en_utf8);
+        if (!key.empty() && !val.empty()) {
+            translations.emplace(key, val);
+        }
+    }
+}
+
+static std::wstring ResolveExecutableDirectoryWide() {
     try {
         std::wstring wbuf(kInitialModulePathChars, L'\0');
         for (;;) {
@@ -199,9 +237,20 @@ static std::string ResolveSiblingTsvPathUtf8() {
                          kMaxModulePathChars),
                 L'\0');
         }
+        return std::filesystem::path(wbuf).parent_path().wstring();
+    } catch (...) {
+        return {};
+    }
+}
+
+static std::string ResolveSiblingTsvPathUtf8() {
+    try {
+        const std::wstring exe_dir = ResolveExecutableDirectoryWide();
+        if (exe_dir.empty()) {
+            return {};
+        }
         const std::wstring tsv_wide =
-            (std::filesystem::path(wbuf).parent_path() / L"translations.tsv")
-                .wstring();
+            (std::filesystem::path(exe_dir) / L"translations.tsv").wstring();
         if (tsv_wide.empty()) {
             return {};
         }
@@ -228,8 +277,10 @@ static std::string ResolveSiblingTsvPathUtf8() {
 static bool LoadTranslations() {
     const std::string tsv_path = ResolveSiblingTsvPathUtf8();
     if (tsv_path.empty()) {
-        Log("Translator: failed to resolve translations.tsv path -- JP passthrough");
-        return false;
+        SeedBuiltinFallbackTranslations(g_translations);
+        Log("Translator: failed to resolve translations.tsv path -- seeded %zu built-in UI rows",
+            g_translations.size());
+        return !g_translations.empty();
     }
 
     // Collect characters that have no CP932 form, so the log can name them.
@@ -238,11 +289,14 @@ static bool LoadTranslations() {
     const bool ok = translator_logic::LoadTsvFile(
         tsv_path, g_translations, &unmappable, &markup_rows);
     if (!ok) {
-        Log("Translator: translations.tsv NOT FOUND at %s -- JP passthrough",
-            tsv_path.c_str());
-        return false;
+        SeedBuiltinFallbackTranslations(g_translations);
+        Log("Translator: translations.tsv NOT FOUND at %s -- seeded %zu built-in UI rows",
+            tsv_path.c_str(), g_translations.size());
+        return !g_translations.empty();
     }
-    Log("Translator: loaded %zu entries from translations.tsv", g_translations.size());
+    SeedBuiltinFallbackTranslations(g_translations);
+    Log("Translator: loaded %zu entries from translations.tsv (with built-in UI fallbacks)",
+        g_translations.size());
 
     // Log rows whose English carried engine markup (stripped at load time).
     for (size_t i = 0; i < markup_rows.size() && i < kMaxLoggedMarkupRows; ++i)
@@ -364,7 +418,6 @@ static void LogSegmentBudget(int call_n, const void* header,
 // SEH around the trampoline only covers the render.  This names the faulting
 // instruction and passes the exception on, so it changes nothing.  Faults
 // raised by this DLL's own guarded reads are skipped by the address test.
-static DWORD g_exeSize = 0;
 static std::atomic<int> g_engineFaults { 0 };
 
 static LONG CALLBACK LogFirstChance(EXCEPTION_POINTERS* ep) {
@@ -603,6 +656,11 @@ static DWORD __cdecl HookedTextDisplay(
 // Inline trampoline installation.
 
 static bool InstallTextDisplayHook(BYTE* base) {
+    if (TEXT_DISPLAY_RVA + STOLEN_LEN > g_exeSize) {
+        Log("Hook: RVA 0x%X exceeds host image size 0x%X -- skipping",
+            TEXT_DISPLAY_RVA, g_exeSize);
+        return false;
+    }
     BYTE* site = base + TEXT_DISPLAY_RVA;
     if (memcmp(site, EXPECTED_BYTES, STOLEN_LEN) != 0) {
         Log("Hook: prologue mismatch at RVA 0x%X -- got %02X %02X %02X %02X %02X %02X",
@@ -810,6 +868,16 @@ void TranslatorInit() {
     g_exeSize = nt->OptionalHeader.SizeOfImage;
     AddVectoredExceptionHandler(kFirstHandlerPriority, &LogFirstChance);
     Log("Translator: BGI.exe base = %p, image 0x%X bytes", g_exeBase, g_exeSize);
+
+    const std::wstring game_dir = ResolveExecutableDirectoryWide();
+    if (!game_dir.empty()) {
+        const menu_autopatch::MenuPatchOutcome patch_outcome =
+            menu_autopatch::EnsureMenuAssetsPatched(game_dir.c_str());
+        Log("[MenuAutoPatch] Outcome: %s",
+            menu_autopatch::MenuPatchOutcomeName(patch_outcome));
+    }
+    win32_chrome::InstallWindowChromeHooks(g_exeBase);
+
     g_translationsLoaded = LoadTranslations();
     if (PatchRectArraySites(g_exeBase))
         g_rectsPerWireByte =
@@ -824,5 +892,6 @@ void TranslatorInit() {
 }
 
 void TranslatorShutdown() {
+    win32_chrome::Win32ChromeShutdown();
     LogCounters("shutdown");
 }

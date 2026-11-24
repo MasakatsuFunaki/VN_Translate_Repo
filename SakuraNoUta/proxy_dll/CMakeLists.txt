@@ -41,6 +41,32 @@ target_compile_definitions(translator_logic PRIVATE
 )
 
 # --------------------------------------------------------------------
+# menu_patch_format: pure (OS-independent) "SNUMENU1"/"SNUMAPL1" wire
+# codec, MurmurHash2, and BURIKO ARC20 slice lookup & repacker.
+# --------------------------------------------------------------------
+add_library(menu_patch_format OBJECT
+    src/menu_patch_format.cpp
+    src/menu_patch_format.h
+)
+target_include_directories(menu_patch_format PUBLIC src)
+target_compile_definitions(menu_patch_format PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
+
+# --------------------------------------------------------------------
+# chrome_text_logic: pure (OS-independent) UTF-16 window caption,
+# menu, and BGI RT_DIALOG translation dictionary.
+# --------------------------------------------------------------------
+add_library(chrome_text_logic OBJECT
+    src/chrome_text_logic.cpp
+    src/chrome_text_logic.h
+)
+target_include_directories(chrome_text_logic PUBLIC src)
+target_compile_definitions(chrome_text_logic PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
+
+# --------------------------------------------------------------------
 # text_display_abi: the two naked thunks that carry the engine's calling
 # convention across the hook.  x86 inline assembly and nothing else, so
 # the test binary can link and exercise the very code the DLL ships.
@@ -59,7 +85,8 @@ target_compile_definitions(text_display_abi PRIVATE
 # --------------------------------------------------------------------
 # proxy DLL: the actual winmm.dll dropped next to BGI.exe.  Forwards
 # every winmm export to the real System32 winmm.dll while installing
-# an IAT hook on GDI32.TextOutA in the host EXE.
+# inline renderer hooks, USER32 chrome IAT hooks, and first-launch
+# menu_patch.bin auto-patching.
 # --------------------------------------------------------------------
 add_library(proxy SHARED
     src/dllmain.cpp
@@ -67,11 +94,17 @@ add_library(proxy SHARED
     src/proxy.h
     src/iat_hook.cpp
     src/iat_hook.h
+    src/menu_autopatch.cpp
+    src/menu_autopatch.h
+    src/win32_chrome.cpp
+    src/win32_chrome.h
     src/translator.cpp
     src/translator.h
     src/log.h
     src/winmm.def
     $<TARGET_OBJECTS:translator_logic>
+    $<TARGET_OBJECTS:menu_patch_format>
+    $<TARGET_OBJECTS:chrome_text_logic>
     $<TARGET_OBJECTS:text_display_abi>
 )
 
@@ -89,7 +122,7 @@ set_target_properties(proxy PROPERTIES
     SUFFIX ".dll"
 )
 
-target_link_libraries(proxy PRIVATE gdi32 user32)
+target_link_libraries(proxy PRIVATE gdi32 user32 comctl32)
 target_include_directories(proxy PRIVATE src)
 
 # --------------------------------------------------------------------
@@ -106,7 +139,8 @@ target_include_directories(proxy PRIVATE src)
 install(TARGETS proxy RUNTIME DESTINATION game)
 
 # --------------------------------------------------------------------
-# Tests: gtest suites for translator_logic.  Gated on ENABLE_TESTS
+# Tests: gtest suites for translator_logic, menu_patch_format,
+# chrome_text_logic, and menu_autopatch.  Gated on ENABLE_TESTS
 # because gtest (pulled via Conan or vcpkg) is a dev-time-only dep.
 # --------------------------------------------------------------------
 if(ENABLE_TESTS)
