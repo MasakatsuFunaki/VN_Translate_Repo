@@ -16,7 +16,11 @@ target_compile_definitions(sakuranouta_driver PRIVATE
 )
 add_dependencies(sakuranouta_driver proxy)
 
-add_executable(sakuranouta_dll sakuranouta_dll.cpp)
+add_executable(sakuranouta_dll
+    sakuranouta_dll.cpp
+    $<TARGET_OBJECTS:menu_patch_format>
+)
+target_include_directories(sakuranouta_dll PRIVATE ../../src)
 target_link_libraries(sakuranouta_dll PRIVATE GTest::gtest GTest::gtest_main)
 target_compile_definitions(sakuranouta_dll PRIVATE
     _CRT_SECURE_NO_WARNINGS

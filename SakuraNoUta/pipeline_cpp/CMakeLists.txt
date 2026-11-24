@@ -33,6 +33,8 @@ get_filename_component(SNU_RUNTIME_TEXT_DIR
 add_library(snu_core STATIC
     ${SNU_RUNTIME_TEXT_DIR}/translator_logic.cpp
     ${SNU_RUNTIME_TEXT_DIR}/translator_logic.h
+    ${SNU_RUNTIME_TEXT_DIR}/menu_patch_format.cpp
+    ${SNU_RUNTIME_TEXT_DIR}/menu_patch_format.h
     src/common/util.cpp
     src/common/util.h
     src/common/coverage.cpp
@@ -41,6 +43,8 @@ add_library(snu_core STATIC
     src/bgi/bgi_archive.h
     src/bgi/bgi_cbg.cpp
     src/bgi/bgi_cbg.h
+    src/bgi/bgi_sysgrp.cpp
+    src/bgi/bgi_sysgrp.h
     src/extract/extractor.cpp
     src/extract/extractor.h
     src/build_tsv/build_tsv.cpp
@@ -59,6 +63,16 @@ add_library(snu_core STATIC
     src/cg/text_render.h
     src/cg/cg_pipeline.cpp
     src/cg/cg_pipeline.h
+    src/menu/bgra_image.cpp
+    src/menu/bgra_image.h
+    src/menu/sprite_canvas.cpp
+    src/menu/sprite_canvas.h
+    src/menu/menu_catalog.cpp
+    src/menu/menu_catalog.h
+    src/menu/menu_renderer.cpp
+    src/menu/menu_renderer.h
+    src/menu/menu_patch_builder.cpp
+    src/menu/menu_patch_builder.h
 )
 target_include_directories(snu_core PUBLIC src ${SNU_RUNTIME_TEXT_DIR})
 target_compile_definitions(snu_core PUBLIC
@@ -72,6 +86,7 @@ target_link_libraries(snu_core PUBLIC
     openssl::openssl
     Freetype::Freetype
     stb::stb
+    gdi32
     ws2_32
     crypt32
 )
@@ -85,8 +100,9 @@ snu_app(00_run_all              src/apps/run_all_main.cpp)
 snu_app(01_extract              src/apps/extract_main.cpp)
 snu_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 snu_app(03_find_narrative_cg    src/apps/find_narrative_cg_main.cpp)
+snu_app(04_patch_menus          src/apps/patch_menus_main.cpp)
 
-install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg
+install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg 04_patch_menus
         RUNTIME DESTINATION bin)
 
 if(ENABLE_TESTS)

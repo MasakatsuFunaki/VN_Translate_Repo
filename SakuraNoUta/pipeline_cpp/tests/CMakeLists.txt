@@ -31,10 +31,12 @@ snu_test(ut_extract)
 snu_test(ut_cache)
 snu_test(ut_build_tsv)
 snu_test(ut_cache_io)
+snu_test(ut_sprite_canvas)
 
 add_executable(ut_paths ut_paths.cpp ../src/apps/paths.cpp)
 target_link_libraries(ut_paths PRIVATE snu_core Boost::program_options shell32 GTest::gtest GTest::gtest_main)
 gtest_discover_tests(ut_paths PROPERTIES LABELS "UT")
 
 snu_ct_test(ct_corpus)
+snu_ct_test(ct_menu_patch)
 snu_st_test(st_bgi_system)

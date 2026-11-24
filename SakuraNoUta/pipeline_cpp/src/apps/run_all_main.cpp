@@ -88,15 +88,57 @@ bool deploy(const std::string& project, const std::string& game) {
     }
     if (tsv.empty()) {
         log_info("  WARN: translations.tsv not found -- 02_build_tsv produces it.");
+    } else {
+        fs::copy_file(tsv, fs::u8path(game + "\\translations.tsv"),
+                      fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            log_info("[ERROR] copying translations.tsv failed (" + ec.message() + ")");
+            return false;
+        }
+        log_info("  translations.tsv -> " + game);
+    }
+
+    fs::path menu_patch;
+    for (const auto& candidate : {project + "\\menu_patch.bin",
+                                  project + "\\build\\install\\game\\menu_patch.bin",
+                                  apps::exe_dir() + "\\..\\game\\menu_patch.bin"}) {
+        if (fs::exists(fs::u8path(candidate), ec)) {
+            menu_patch = fs::u8path(candidate);
+            break;
+        }
+        if (ec) {
+            log_info("  WARN: cannot check " + candidate + ": " + ec.message());
+        }
+    }
+    if (menu_patch.empty()) {
+        log_info("  WARN: menu_patch.bin not found -- 04_patch_menus produces it.");
         return true;
     }
-    fs::copy_file(tsv, fs::u8path(game + "\\translations.tsv"),
-                  fs::copy_options::overwrite_existing, ec);
+
+    const fs::path dst_patch = fs::u8path(game + "\\menu_patch.bin");
+    bool patch_changed = true;
+    if (fs::exists(dst_patch, ec) && !ec) {
+        try {
+            patch_changed = (read_file(menu_patch.u8string()) !=
+                             read_file(dst_patch.u8string()));
+        } catch (...) {
+            patch_changed = true;
+        }
+    }
+    fs::copy_file(menu_patch, dst_patch, fs::copy_options::overwrite_existing, ec);
     if (ec) {
-        log_info("[ERROR] copying translations.tsv failed (" + ec.message() + ")");
+        log_info("[ERROR] copying menu_patch.bin failed (" + ec.message() + ")");
         return false;
     }
-    log_info("  translations.tsv -> " + game);
+    log_info("  menu_patch.bin -> " + game);
+
+    const fs::path applied_sentinel = fs::u8path(game + "\\menu_patch.applied");
+    if (patch_changed && fs::exists(applied_sentinel, ec) && !ec) {
+        fs::remove(applied_sentinel, ec);
+        if (!ec) {
+            log_info("  removed stale menu_patch.applied");
+        }
+    }
     return true;
 }
 

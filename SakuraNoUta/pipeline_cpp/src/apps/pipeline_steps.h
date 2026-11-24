@@ -23,7 +23,7 @@ inline const std::array<PipelineStep, 3>& pipeline_steps() {
     static const std::array<PipelineStep, 3> steps = {{
         {"01_extract", "Extract text from BGI/Buriko .arc archives"},
         {"02_build_tsv", "Speaker gate, apply cached translations, build translations.tsv"},
-        {"deploy", "Deploy winmm.dll and translations.tsv to the game folder"},
+        {"deploy", "Deploy winmm.dll, translations.tsv, and menu_patch.bin to the game folder"},
     }};
     return steps;
 }
