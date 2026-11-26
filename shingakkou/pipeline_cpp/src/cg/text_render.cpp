@@ -176,6 +176,48 @@ TextBBox Font::measure(const std::string& utf8, int stroke_width) const {
     return bb;
 }
 
+void blend_pixel_over(std::uint8_t* dst, int channels,
+                      const std::array<std::uint8_t, 4>& ink,
+                      std::uint8_t coverage) noexcept {
+    if (dst == nullptr || coverage == 0u || ink[3] == 0u) {
+        return;
+    }
+    const unsigned sa = muldiv255(coverage, ink[3]);
+    if (sa == 0u) {
+        return;
+    }
+    const unsigned inv_sa = 255u - sa;
+    if (channels == 3) {
+        for (int ch = 0; ch < 3; ++ch) {
+            dst[ch] = static_cast<std::uint8_t>(
+                muldiv255(dst[ch], inv_sa) + muldiv255(ink[ch], sa));
+        }
+        return;
+    }
+    if (channels != 4) {
+        return;
+    }
+
+    // Exact Porter-Duff straight-alpha source-over:
+    //   a_out = a_s + a_d * (1 - a_s)
+    //   c_out = (c_s * a_s + c_d * a_d * (1 - a_s)) / a_out
+    const unsigned da = dst[3];
+    const unsigned src_weight = sa * 255u;
+    const unsigned dst_weight = da * inv_sa;
+    const unsigned out_a_255 = src_weight + dst_weight;
+    if (out_a_255 == 0u) {
+        return;
+    }
+    const unsigned half = out_a_255 / 2u;
+    for (int ch = 0; ch < 3; ++ch) {
+        const unsigned num =
+            static_cast<unsigned>(ink[ch]) * src_weight +
+            static_cast<unsigned>(dst[ch]) * dst_weight;
+        dst[ch] = static_cast<std::uint8_t>((num + half) / out_a_255);
+    }
+    dst[3] = static_cast<std::uint8_t>((out_a_255 + 127u) / 255u);
+}
+
 void Font::draw(Image& img, int x, int y, const std::string& utf8,
                 const std::array<std::uint8_t, 4>& rgba, int stroke_width,
                 const std::array<std::uint8_t, 4>& stroke_rgba) const {
@@ -190,12 +232,10 @@ void Font::draw(Image& img, int x, int y, const std::string& utf8,
                 for (unsigned c = 0; c < g.width; ++c) {
                     const int px_x = x + g.left + static_cast<int>(c);
                     if (px_x < 0 || px_x >= img.width) continue;
-                    const unsigned a = g.gray[static_cast<std::size_t>(r) * g.width + c];
-                    if (a == 0) continue;
-                    std::uint8_t* d = img.at(px_x, py);
-                    for (int ch = 0; ch < img.channels; ++ch)
-                        d[ch] = static_cast<std::uint8_t>(muldiv255(d[ch], 255 - a) +
-                                                          muldiv255(ink[ch], a));
+                    const std::uint8_t a =
+                        g.gray[static_cast<std::size_t>(r) * g.width + c];
+                    if (a == 0u) continue;
+                    blend_pixel_over(img.at(px_x, py), img.channels, ink, a);
                 }
             }
         }

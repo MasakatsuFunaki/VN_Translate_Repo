@@ -10,10 +10,51 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace menu_autopatch {
+
+enum class PatchStatus {
+    kApplied,
+    kAlreadyUpToDate,
+    kSkippedMissingInput,
+    kFailed,
+};
+
+struct PatchResult {
+    PatchStatus status = PatchStatus::kFailed;
+    std::uint64_t patched_sin_sysd_bytes = 0u;
+    std::uint64_t patched_bootup_bytes = 0u;
+};
+
+// Synchronized, idempotent SHINMENU v1 auto-patcher for Data\sin_sysd.dat
+// and Bootup.dat. Creates atomic .bak backups, tracks applied patch identity
+// via <game_dir>\menu_patch.applied so v2 updates re-apply cleanly from .bak,
+// and recovers missing live archives from .bak.
+class MenuAutoPatcher {
+public:
+    static constexpr const wchar_t* kDefaultMutexName =
+        L"Local\\ShingakkouMenuPatchMutex";
+    static constexpr std::uint32_t kDefaultMutexTimeoutMs = 10000u;
+
+    explicit MenuAutoPatcher(
+        std::wstring mutex_name = kDefaultMutexName,
+        std::uint32_t mutex_timeout_ms = kDefaultMutexTimeoutMs);
+    ~MenuAutoPatcher();
+
+    MenuAutoPatcher(const MenuAutoPatcher&) = delete;
+    MenuAutoPatcher& operator=(const MenuAutoPatcher&) = delete;
+    MenuAutoPatcher(MenuAutoPatcher&&) noexcept;
+    MenuAutoPatcher& operator=(MenuAutoPatcher&&) noexcept;
+
+    PatchResult Apply(const std::wstring& game_dir) const;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
 
 // Applies a SHINMENU v1 XOR-delta patch blob to unpatched DDP2 archives
 // (Data\sin_sysd.dat and Bootup.dat) in memory.
@@ -28,7 +69,7 @@ bool ApplyXorMenuPatchInMemory(
 
 // Synchronizes via Local\ShingakkouMenuPatchMutex, backs up Data\sin_sysd.dat
 // and Bootup.dat to .bak if needed, and atomically patches them from
-// <game_dir>\menu_patch.bin when either archive is still unpatched.
+// <game_dir>\menu_patch.bin when not yet up to date with menu_patch.applied.
 bool EnsureMenuArchivePatchedInDir(const std::wstring& game_dir);
 
 // Startup entrypoint called from TranslatorInit() before the engine opens

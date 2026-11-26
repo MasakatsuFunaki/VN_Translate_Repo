@@ -41,4 +41,5 @@ target_link_libraries(ut_paths PRIVATE shin_core Boost::program_options shell32 
 gtest_discover_tests(ut_paths PROPERTIES LABELS "UT")
 
 shin_ct_test(ct_shin_artifacts)
+shin_ct_test(ct_cg_repack)
 shin_st_test(st_shin_live_game)

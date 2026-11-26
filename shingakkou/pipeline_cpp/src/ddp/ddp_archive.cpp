@@ -511,8 +511,10 @@ std::vector<ArchiveEntry> list_archive(const std::string& path) {
 }
 
 void repack_ddp2(const std::string& in_path, const std::string& out_path,
-                 const Replacements& replacements) {
-    const Ddp2Index idx = read_ddp2_index(read_ddp2_head(in_path), archive_stem(in_path));
+                 const Replacements& replacements,
+                 const std::string& entry_stem) {
+    const std::string stem = entry_stem.empty() ? archive_stem(in_path) : entry_stem;
+    const Ddp2Index idx = read_ddp2_index(read_ddp2_head(in_path), stem);
     const std::size_t count = idx.entries.size();
     const std::uint32_t data_start =
         static_cast<std::uint32_t>(kHeaderSize + count * kDdp2IndexEntrySize);
@@ -661,10 +663,11 @@ void repack_ddp3(const std::string& in_path, const std::string& out_path,
 }
 
 void repack(const std::string& in_path, const std::string& out_path,
-            const Replacements& replacements) {
+            const Replacements& replacements,
+            const std::string& entry_stem) {
     const Bytes magic = read_magic(in_path);
     if (magic.size() >= 4 && std::equal(magic.begin(), magic.begin() + 4, "DDP2"))
-        repack_ddp2(in_path, out_path, replacements);
+        repack_ddp2(in_path, out_path, replacements, entry_stem);
     else if (magic.size() >= 4 && std::equal(magic.begin(), magic.begin() + 4, "DDP3"))
         repack_ddp3(in_path, out_path, replacements);
     else

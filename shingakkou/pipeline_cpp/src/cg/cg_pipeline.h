@@ -140,6 +140,11 @@ std::array<std::uint8_t, 4> parse_hex(const std::string& hex, const std::string&
 // even count and truncating -- NOT nth_element, which returns the upper middle.
 std::array<std::uint8_t, 3> sample_bg(const Image& img, int x1, int y1, int x2, int y2);
 
+// Straight-alpha variant of sample_bg: preserves the border's median alpha on
+// 4-channel RGBA images (returning {0,0,0,0} over transparent regions instead
+// of forcing alpha 255) and returns alpha 255 on 3-channel RGB images.
+std::array<std::uint8_t, 4> sample_bg_rgba(const Image& img, int x1, int y1, int x2, int y2);
+
 std::unique_ptr<Font> fit_font(const std::string& text, const std::string& font_path,
                                int max_w, int max_h);
 

@@ -96,13 +96,17 @@ std::vector<ArchiveEntry> list_archive(const std::string& path);
 // Rebuild `in_path` into `out_path`, substituting the named entries.  Entries
 // that are not replaced keep their original compressed bytes verbatim; the
 // section structure, entry sizes, names and padding are all preserved, so only
-// the offset/size fields move.
+// the offset/size fields move.  For DDP2, `entry_stem` optionally overrides
+// the synthesised "<stem>#00000" stem (required when `in_path` is a `.backup`
+// file whose basename no longer matches the live archive stem).
 void repack_ddp2(const std::string& in_path, const std::string& out_path,
-                 const Replacements& replacements);
+                 const Replacements& replacements,
+                 const std::string& entry_stem = {});
 void repack_ddp3(const std::string& in_path, const std::string& out_path,
                  const Replacements& replacements);
 // Dispatches on the 4-byte magic.
 void repack(const std::string& in_path, const std::string& out_path,
-            const Replacements& replacements);
+            const Replacements& replacements,
+            const std::string& entry_stem = {});
 
 }  // namespace shin::ddp

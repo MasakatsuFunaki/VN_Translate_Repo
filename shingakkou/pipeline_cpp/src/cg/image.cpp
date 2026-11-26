@@ -39,8 +39,8 @@ int pil_channels(const Bytes& d) {
     if (d.size() >= 30 && d[0] == 'B' && d[1] == 'M') {
         const int bpp = d[0x1C] | (d[0x1D] << 8);
         switch (bpp) {
-        case 1: case 4: case 8: return 4;   // '1' / 'P' -> convert('RGBA')
-        case 16: case 24: case 32: return 3;  // 'RGB' (32bpp BGRX drops alpha)
+        case 1: case 4: case 8: case 32: return 4;  // preserve 32-bpp straight alpha
+        case 16: case 24: return 3;
         default: return 0;
         }
     }
@@ -137,12 +137,68 @@ Bytes encode_png(const Image& img) {
 }
 
 Bytes encode_bmp(const Image& img) {
+    if (img.empty() || (img.channels != 3 && img.channels != 4)) {
+        return {};
+    }
+    constexpr std::uint32_t kFileHeaderSize = 14u;
+    constexpr std::uint32_t kInfoHeaderSize = 40u;
+    constexpr std::uint32_t kPixelDataOffset = kFileHeaderSize + kInfoHeaderSize;
+    const std::uint16_t bpp = static_cast<std::uint16_t>(img.channels * 8);
+    const std::size_t raw_row = static_cast<std::size_t>(img.width) * img.channels;
+    const std::size_t stride = (raw_row + 3u) & ~std::size_t{3u};
+    const std::size_t pad = stride - raw_row;
+    const std::uint32_t image_size =
+        static_cast<std::uint32_t>(stride * static_cast<std::size_t>(img.height));
+    const std::uint32_t file_size = kPixelDataOffset + image_size;
+
     Bytes out;
-    // The 24-bit BMP the game reads has no alpha channel; the caller is
-    // expected to have dropped it already.
-    const Image rgb = img.channels == 4 ? drop_alpha(img) : img;
-    stbi_write_bmp_to_func(append_bytes, &out, rgb.width, rgb.height, 3,
-                           rgb.px.data());
+    out.reserve(file_size);
+    const auto put_u16 = [&](std::uint16_t v) {
+        out.push_back(static_cast<std::uint8_t>(v & 0xFFu));
+        out.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFu));
+    };
+    const auto put_u32 = [&](std::uint32_t v) {
+        out.push_back(static_cast<std::uint8_t>(v & 0xFFu));
+        out.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFu));
+        out.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFFu));
+        out.push_back(static_cast<std::uint8_t>((v >> 24) & 0xFFu));
+    };
+
+    // BITMAPFILEHEADER (14 bytes)
+    out.push_back('B');
+    out.push_back('M');
+    put_u32(file_size);
+    put_u16(0u);
+    put_u16(0u);
+    put_u32(kPixelDataOffset);
+
+    // BITMAPINFOHEADER (40 bytes, BI_RGB, positive height = bottom-up rows)
+    put_u32(kInfoHeaderSize);
+    put_u32(static_cast<std::uint32_t>(img.width));
+    put_u32(static_cast<std::uint32_t>(img.height));
+    put_u16(1u);
+    put_u16(bpp);
+    put_u32(0u);
+    put_u32(image_size);
+    put_u32(0u);
+    put_u32(0u);
+    put_u32(0u);
+    put_u32(0u);
+
+    for (int y = img.height - 1; y >= 0; --y) {
+        for (int x = 0; x < img.width; ++x) {
+            const std::uint8_t* p = img.at(x, y);
+            out.push_back(p[2]);
+            out.push_back(p[1]);
+            out.push_back(p[0]);
+            if (img.channels == 4) {
+                out.push_back(p[3]);
+            }
+        }
+        for (std::size_t k = 0; k < pad; ++k) {
+            out.push_back(0u);
+        }
+    }
     return out;
 }
 
