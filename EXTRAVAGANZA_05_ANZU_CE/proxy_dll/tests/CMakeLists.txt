@@ -9,3 +9,9 @@ function(add_proxy_ut name)
 endfunction()
 
 add_proxy_ut(ut_translator)
+
+add_executable(ct_menu_autopatch ct_menu_autopatch.cpp $<TARGET_OBJECTS:translator_logic>)
+target_link_libraries(ct_menu_autopatch PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(ct_menu_autopatch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(ct_menu_autopatch PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+gtest_discover_tests(ct_menu_autopatch PROPERTIES LABELS "CT")

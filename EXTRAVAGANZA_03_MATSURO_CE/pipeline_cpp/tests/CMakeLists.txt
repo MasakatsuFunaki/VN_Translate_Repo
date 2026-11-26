@@ -26,6 +26,7 @@ exm_test(ut_cache)
 exm_test(ut_build_tsv)
 exm_test(ut_cp932)
 exm_test(ut_cache_io)
+exm_test(ut_xtx)
 exm_test(ut_menu_patcher)
 
 add_executable(ut_paths ut_paths.cpp ../src/apps/paths.cpp)

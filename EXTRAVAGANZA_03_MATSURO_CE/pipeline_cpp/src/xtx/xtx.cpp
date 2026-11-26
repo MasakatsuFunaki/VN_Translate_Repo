@@ -49,20 +49,33 @@ std::string join(const std::vector<std::string>& v, char sep) {
 int translate_xtx_file(const std::string& filepath,
                        const std::vector<std::pair<std::string, std::string>>& translations,
                        const std::string& backup_dir, int name_field) {
-    if (!fs::exists(fs::u8path(filepath))) {
+    const fs::path live_path = fs::u8path(filepath);
+    const fs::path bak_path = fs::u8path(filepath + ".bak");
+    const std::string fname = live_path.filename().u8string();
+    const fs::path backup_dir_path = fs::u8path(backup_dir);
+    const fs::path backup_path = backup_dir_path / fs::u8path(fname);
+    const fs::path nested_backup_path = backup_dir_path / "spt" / fs::u8path(fname);
+
+    const bool has_backup = fs::exists(backup_path);
+    const bool has_nested_backup = fs::exists(nested_backup_path);
+    const bool has_bak = fs::exists(bak_path);
+    const bool has_live = fs::exists(live_path);
+    if (!has_backup && !has_nested_backup && !has_bak && !has_live) {
         log_info("  SKIP: " + filepath + " not found");
         return 0;
     }
 
-    const Bytes raw = read_file(filepath);
+    fs::create_directories(backup_dir_path);
+    if (!has_backup) {
+        const fs::path seed = has_nested_backup ? nested_backup_path
+                                                : (has_bak ? bak_path : live_path);
+        fs::copy_file(seed, backup_path);
+    }
+
+    const Bytes raw = read_file(backup_path.u8string());
     auto strict = cp932_to_utf8_strict(raw);
     const std::string content =
         strict ? *strict : cp932_to_utf8_replace(raw.data(), raw.size());
-
-    const std::string fname = fs::u8path(filepath).filename().u8string();
-    const std::string backup_path = backup_dir + "\\" + fname;
-    if (!fs::exists(fs::u8path(backup_path)))
-        fs::copy_file(fs::u8path(filepath), fs::u8path(backup_path));
 
     std::unordered_map<std::string, std::string> map;
     for (const auto& [jp, en] : translations) map.emplace(jp, en);
@@ -75,7 +88,7 @@ int translate_xtx_file(const std::string& filepath,
         std::string stripped = had_cr ? line.substr(0, line.size() - 1) : line;
         if (stripped.find(',') != std::string::npos) {
             auto fields = split(stripped, ',');
-            if (static_cast<int>(fields.size()) > name_field) {
+            if (name_field >= 0 && static_cast<int>(fields.size()) > name_field) {
                 auto it = map.find(fields[static_cast<std::size_t>(name_field)]);
                 if (it != map.end()) {
                     fields[static_cast<std::size_t>(name_field)] = it->second;
@@ -88,6 +101,9 @@ int translate_xtx_file(const std::string& filepath,
     }
 
     const std::string new_content = join(new_lines, '\n');
+    if (live_path.has_parent_path()) {
+        fs::create_directories(live_path.parent_path());
+    }
     write_file(filepath, utf8_to_cp932_replace(new_content));
     return changes;
 }

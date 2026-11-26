@@ -503,4 +503,85 @@ TEST(MenuPatcherTest, MenuArchivePatcherSyntheticGpkGtbRoundTrip) {
     EXPECT_EQ(reloaded.decode_entry_rgba(kSyntheticEntryIndex0).pixels, img1.pixels);
 }
 
+TEST(MenuPatcherTest, EncodeDwqFromPngBytesValidatesColorTypeAndSignature) {
+    constexpr std::size_t kRedPatternMul = 11u;
+    constexpr std::uint8_t kGreenPatternBase = 0x80u;
+    constexpr std::uint8_t kBluePatternBase = 0xFFu;
+    constexpr std::size_t kPngIhdrTagOffset = 12u;
+    constexpr std::size_t kPngIhdrColorTypeOffset = 25u;
+    constexpr std::size_t kPngMinHeaderBytes = 26u;
+    constexpr std::uint8_t kPngColorTypeRgba = 6u;
+
+    RgbaImage img;
+    img.width = kSyntheticSpriteDim;
+    img.height = kSyntheticSpriteDim;
+    img.bpp = kBpp32;
+    img.has_alpha = true;
+    img.pixels.assign(
+        static_cast<std::size_t>(img.width) * img.height * kRgbaChannels, 0u);
+    for (std::size_t i = 0; i < static_cast<std::size_t>(img.width) * img.height; ++i) {
+        img.pixels[i * kRgbaChannels + kRgbaRedIndex] =
+            static_cast<std::uint8_t>(i * kRedPatternMul);
+        img.pixels[i * kRgbaChannels + kRgbaGreenIndex] =
+            static_cast<std::uint8_t>(kGreenPatternBase + i);
+        img.pixels[i * kRgbaChannels + kRgbaBlueIndex] =
+            static_cast<std::uint8_t>(kBluePatternBase - i);
+        img.pixels[i * kRgbaChannels + kRgbaAlphaIndex] = kOpaqueAlpha;
+    }
+
+    const auto png_rgba = encode_rgba_to_png_bytes(img, true);
+    const auto png_rgb = encode_rgba_to_png_bytes(img, false);
+
+    auto orig_rgba_dwq = make_dwq_header(img.width, img.height, kBpp32, "PNG             ",
+                                         "    PACKTYPE=8A     ",
+                                         static_cast<std::uint32_t>(png_rgba.size()));
+    orig_rgba_dwq.insert(orig_rgba_dwq.end(), png_rgba.begin(), png_rgba.end());
+
+    auto orig_rgb_dwq = make_dwq_header(img.width, img.height, kBpp24, "PNG             ",
+                                        "    PACKTYPE=8A     ",
+                                        static_cast<std::uint32_t>(png_rgb.size()));
+    orig_rgb_dwq.insert(orig_rgb_dwq.end(), png_rgb.begin(), png_rgb.end());
+
+    const auto ok_rgba = encode_dwq_from_png_bytes(
+        orig_rgba_dwq.data(), orig_rgba_dwq.size(), png_rgba, true);
+    ASSERT_EQ(ok_rgba.size(), kDwqHeaderSize + png_rgba.size());
+    EXPECT_EQ(std::memcmp(ok_rgba.data() + kDwqHeaderSize, png_rgba.data(), png_rgba.size()), 0);
+
+    const auto ok_rgb = encode_dwq_from_png_bytes(
+        orig_rgb_dwq.data(), orig_rgb_dwq.size(), png_rgb, true);
+    ASSERT_EQ(ok_rgb.size(), kDwqHeaderSize + png_rgb.size());
+    EXPECT_EQ(std::memcmp(ok_rgb.data() + kDwqHeaderSize, png_rgb.data(), png_rgb.size()), 0);
+
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(orig_rgba_dwq.data(), orig_rgba_dwq.size(), png_rgb, true),
+        std::runtime_error);
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(orig_rgb_dwq.data(), orig_rgb_dwq.size(), png_rgba, true),
+        std::runtime_error);
+
+    std::vector<std::uint8_t> non_png_matching_color(kPngMinHeaderBytes + 2u, 0u);
+    non_png_matching_color[kByteIndex0] = 'B';
+    non_png_matching_color[kByteIndex1] = 'M';
+    non_png_matching_color[kPngIhdrColorTypeOffset] = kPngColorTypeRgba;
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(
+            orig_rgba_dwq.data(), orig_rgba_dwq.size(), non_png_matching_color, true),
+        std::runtime_error);
+
+    std::vector<std::uint8_t> bad_chunk_tag = png_rgba;
+    bad_chunk_tag[kPngIhdrTagOffset] = 'X';
+    ASSERT_EQ(bad_chunk_tag[kPngIhdrColorTypeOffset], kPngColorTypeRgba);
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(
+            orig_rgba_dwq.data(), orig_rgba_dwq.size(), bad_chunk_tag, true),
+        std::runtime_error);
+
+    const std::vector<std::uint8_t> truncated_png(
+        png_rgba.begin(), png_rgba.begin() + static_cast<std::ptrdiff_t>(kPngMinHeaderBytes - 1u));
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(
+            orig_rgba_dwq.data(), orig_rgba_dwq.size(), truncated_png, true),
+        std::runtime_error);
+}
+
 }  // namespace
