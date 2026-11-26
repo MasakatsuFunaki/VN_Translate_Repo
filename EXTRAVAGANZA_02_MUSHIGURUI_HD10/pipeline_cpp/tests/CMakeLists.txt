@@ -24,10 +24,15 @@ mgi_test(ut_cg_resume)
 mgi_test(ut_choices)
 mgi_test(ut_cache_io)
 mgi_test(ut_menu_patcher)
+mgi_test(ut_xtx)
 
 add_executable(ct_menu_patcher ct_menu_patcher.cpp)
 target_link_libraries(ct_menu_patcher PRIVATE mgi_core GTest::gtest GTest::gtest_main)
 gtest_discover_tests(ct_menu_patcher PROPERTIES LABELS "CT")
+
+add_executable(ct_cg_pipeline ct_cg_pipeline.cpp)
+target_link_libraries(ct_cg_pipeline PRIVATE mgi_core GTest::gtest GTest::gtest_main)
+gtest_discover_tests(ct_cg_pipeline PROPERTIES LABELS "CT")
 
 add_executable(st_menu_patcher st_menu_patcher.cpp)
 target_link_libraries(st_menu_patcher PRIVATE mgi_core GTest::gtest GTest::gtest_main)

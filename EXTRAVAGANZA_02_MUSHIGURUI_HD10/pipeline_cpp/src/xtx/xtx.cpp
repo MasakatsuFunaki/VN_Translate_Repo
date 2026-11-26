@@ -49,20 +49,27 @@ std::string join(const std::vector<std::string>& v, char sep) {
 int translate_xtx_file(const std::string& filepath,
                        const std::vector<std::pair<std::string, std::string>>& translations,
                        const std::string& backup_dir, int name_field) {
-    if (!fs::exists(fs::u8path(filepath))) {
+    const fs::path live_path = fs::u8path(filepath);
+    const fs::path bak_path = fs::u8path(filepath + ".bak");
+    const std::string fname = live_path.filename().u8string();
+    const fs::path backup_dir_path = fs::u8path(backup_dir);
+    const fs::path legacy_backup_path = backup_dir_path / fs::u8path(fname);
+
+    std::error_code ec;
+    const bool has_bak = fs::is_regular_file(bak_path, ec);
+    const bool has_legacy_backup = fs::is_regular_file(legacy_backup_path, ec);
+    const bool has_live = fs::is_regular_file(live_path, ec);
+    if (!has_bak && !has_legacy_backup && !has_live) {
         log_info("  SKIP: " + filepath + " not found");
         return 0;
     }
 
-    const Bytes raw = read_file(filepath);
+    const fs::path pristine_src =
+        has_bak ? bak_path : (has_legacy_backup ? legacy_backup_path : live_path);
+    const Bytes raw = read_file(pristine_src.u8string());
     auto strict = cp932_to_utf8_strict(raw);
     const std::string content =
         strict ? *strict : cp932_to_utf8_replace(raw.data(), raw.size());
-
-    const std::string fname = fs::u8path(filepath).filename().u8string();
-    const std::string backup_path = backup_dir + "\\" + fname;
-    if (!fs::exists(fs::u8path(backup_path)))
-        fs::copy_file(fs::u8path(filepath), fs::u8path(backup_path));
 
     std::unordered_map<std::string, std::string> map;
     for (const auto& [jp, en] : translations) map.emplace(jp, en);
@@ -87,8 +94,36 @@ int translate_xtx_file(const std::string& filepath,
         new_lines.push_back(stripped + (had_cr ? "\r" : ""));
     }
 
-    const std::string new_content = join(new_lines, '\n');
-    write_file(filepath, utf8_to_cp932_replace(new_content));
+    const Bytes encoded = utf8_to_cp932_replace(join(new_lines, '\n'));
+    const fs::path live_tmp = fs::u8path(filepath + ".tmp");
+    const fs::path bak_tmp = fs::u8path(legacy_backup_path.u8string() + ".tmp");
+    const auto clear_ro = [](const fs::path& p) noexcept {
+        std::error_code perm_ec;
+        fs::permissions(p, fs::perms::owner_write, fs::perm_options::add, perm_ec);
+    };
+    try {
+        if (!has_legacy_backup) {
+            fs::create_directories(backup_dir_path);
+            clear_ro(bak_tmp);
+            fs::copy_file(pristine_src, bak_tmp, fs::copy_options::overwrite_existing);
+            clear_ro(bak_tmp);
+        }
+        clear_ro(live_tmp);
+        write_file(live_tmp.u8string(), encoded);
+        if (!has_legacy_backup) {
+            clear_ro(legacy_backup_path);
+            fs::rename(bak_tmp, legacy_backup_path);
+        }
+        clear_ro(live_path);
+        fs::rename(live_tmp, live_path);
+    } catch (...) {
+        std::error_code rm_ec;
+        clear_ro(live_tmp);
+        clear_ro(bak_tmp);
+        fs::remove(live_tmp, rm_ec);
+        fs::remove(bak_tmp, rm_ec);
+        throw;
+    }
     return changes;
 }
 

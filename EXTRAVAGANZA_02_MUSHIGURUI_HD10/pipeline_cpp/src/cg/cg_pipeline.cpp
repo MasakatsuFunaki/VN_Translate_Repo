@@ -46,6 +46,10 @@ const std::vector<std::string> SCAN_ARCS = {"ev0.gpk", "ta0.gpk", "sys0.gpk"};
 
 constexpr int MIN_WIDTH = 180;
 constexpr int MIN_HEIGHT = 60;
+constexpr std::size_t kFileCompareChunkBytes = 64u * 1024u;
+constexpr int kRgbaChannels = 4;
+constexpr std::size_t kBackupSuffixLen = 7u;      // ".backup"
+constexpr std::size_t kGpkBackupSuffixLen = 11u;  // ".gpk.backup"
 
 // ---------------------------------------------------------------------------
 // Prompts.  Wrapped fragments are joined with NO space inserted -- the line
@@ -105,6 +109,11 @@ Respond with a JSON array and nothing else:
 bool path_exists(const std::string& p) {
     std::error_code ec;
     return fs::exists(fs::u8path(p), ec);
+}
+
+void clear_readonly_attr(const fs::path& p) noexcept {
+    std::error_code ec;
+    fs::permissions(p, fs::perms::owner_write, fs::perm_options::add, ec);
 }
 
 // os.path.splitext: split at the last '.' of the final path component, unless
@@ -184,10 +193,87 @@ private:
     std::map<std::string, std::size_t> pos_;
 };
 
+struct PristineArchivePair {
+    std::string gpk_path;
+    std::string gtb_path;
+    bool has_backup_pair = false;
+};
+
+PristineArchivePair resolve_pristine_archive_pair(const std::string& dwq_dir,
+                                                  const std::string& arc_name) {
+    const std::string live_gpk = dwq_dir + "\\" + arc_name;
+    const std::string live_gtb = splitext(live_gpk).first + ".gtb";
+    const std::string bak_gpk = live_gpk + ".backup";
+    const std::string bak_gtb = live_gtb + ".backup";
+
+    const bool has_bak_gpk = path_exists(bak_gpk);
+    const bool has_bak_gtb = path_exists(bak_gtb);
+    if (has_bak_gpk != has_bak_gtb) {
+        throw std::runtime_error(
+            "incomplete .backup pair for " + arc_name + ": missing " +
+            (has_bak_gpk ? bak_gtb : bak_gpk));
+    }
+    if (has_bak_gpk && has_bak_gtb) {
+        return {bak_gpk, bak_gtb, true};
+    }
+
+    const std::string dot_bak_gpk = live_gpk + ".bak";
+    const std::string dot_bak_gtb = live_gtb + ".bak";
+    const bool has_dot_bak_gpk = path_exists(dot_bak_gpk);
+    const bool has_dot_bak_gtb = path_exists(dot_bak_gtb);
+    if (has_dot_bak_gpk != has_dot_bak_gtb) {
+        throw std::runtime_error(
+            "incomplete .bak pair for " + arc_name + ": missing " +
+            (has_dot_bak_gpk ? dot_bak_gtb : dot_bak_gpk));
+    }
+    if (has_dot_bak_gpk && has_dot_bak_gtb) {
+        return {dot_bak_gpk, dot_bak_gtb, false};
+    }
+
+    return {live_gpk, live_gtb, false};
+}
+
+bool archive_exists_any(const std::string& dwq_dir, const std::string& arc_name) {
+    const std::string live_gpk = dwq_dir + "\\" + arc_name;
+    return path_exists(live_gpk) || path_exists(live_gpk + ".backup") ||
+           path_exists(live_gpk + ".bak");
+}
+
+bool files_byte_equal(const std::string& path_a, const std::string& path_b) {
+    std::error_code ec;
+    const fs::path pa = fs::u8path(path_a);
+    const fs::path pb = fs::u8path(path_b);
+    if (!fs::is_regular_file(pa, ec) || !fs::is_regular_file(pb, ec)) {
+        return false;
+    }
+    if (fs::file_size(pa, ec) != fs::file_size(pb, ec) || ec) {
+        return false;
+    }
+    std::ifstream fa(pa, std::ios::binary);
+    std::ifstream fb(pb, std::ios::binary);
+    if (!fa || !fb) {
+        return false;
+    }
+    std::vector<char> buf_a(kFileCompareChunkBytes);
+    std::vector<char> buf_b(kFileCompareChunkBytes);
+    while (fa && fb) {
+        fa.read(buf_a.data(), static_cast<std::streamsize>(buf_a.size()));
+        fb.read(buf_b.data(), static_cast<std::streamsize>(buf_b.size()));
+        const std::streamsize na = fa.gcount();
+        const std::streamsize nb = fb.gcount();
+        if (na != nb) {
+            return false;
+        }
+        if (na > 0 && std::memcmp(buf_a.data(), buf_b.data(), static_cast<std::size_t>(na)) != 0) {
+            return false;
+        }
+    }
+    return fa.eof() && fb.eof();
+}
+
 ArchiveIndex extract_archive(const CgOptions& opt, const std::string& arc_name,
                              bool force = false) {
     const Paths paths = make_paths(opt);
-    const std::string arc_path = paths.dwq_dir + "\\" + arc_name;
     const std::string arc_stem = splitext(arc_name).first;
     const std::string out_dir = paths.extract_dir + "\\" + arc_stem;
     const std::string index_path = out_dir + "\\_index.json";
@@ -208,15 +294,31 @@ ArchiveIndex extract_archive(const CgOptions& opt, const std::string& arc_name,
     }
 
     fs::create_directories(fs::u8path(out_dir));
-    const std::string gtb_path = splitext(arc_path).first + ".gtb";
-    const gpk::Archive arc = gpk::read_archive(arc_path, gtb_path);
+    const PristineArchivePair src = resolve_pristine_archive_pair(paths.dwq_dir, arc_name);
+    const gpk::Archive arc = gpk::read_archive(src.gpk_path, src.gtb_path);
 
-    for (const auto& e : arc.entries) {
+    for (std::size_t i = 0; i < arc.entries.size(); ++i) {
+        const auto& e = arc.entries[i];
         const std::string ext = detail::ext_for_type_tag(e.type_tag);
         if (ext.empty()) continue;  // non-image entry (conditional preambles, ...)
         if (e.width < 1 || e.height < 1) continue;
 
-        const Bytes payload = gpk::extract_entry(arc.gpk_buf, e.offset);
+        if (gpk::is_masked_bmp_packtype(e)) {
+            const Bytes raw_entry = gpk::extract_entry_raw(arc, i);
+            const gpk::DwqRgbaImage decoded =
+                gpk::decode_dwq_masked_rgba(raw_entry.data(), raw_entry.size());
+            Image rgba_img;
+            rgba_img.width = decoded.width;
+            rgba_img.height = decoded.height;
+            rgba_img.channels = kRgbaChannels;
+            rgba_img.px = decoded.pixels;
+            const std::string out_path = out_dir + "\\" + detail::safe_name(e.name) + ".png";
+            write_file(out_path, encode_png(rgba_img));
+            index.upsert(e.name, {decoded.width, decoded.height, out_path});
+            continue;
+        }
+
+        const Bytes payload = gpk::extract_entry(arc.gpk_buf, static_cast<std::size_t>(e.offset));
         const std::string out_path = out_dir + "\\" + detail::safe_name(e.name) + ext;
         write_file(out_path, payload);
         index.upsert(e.name, {static_cast<int>(e.width), static_cast<int>(e.height),
@@ -382,7 +484,7 @@ std::size_t extract_all_assets(const CgOptions& opt) {
     std::size_t total = 0;
     log_info("=== Extracting all assets ===");
     for (const auto& arc_name : SCAN_ARCS) {
-        if (!path_exists(paths.dwq_dir + "\\" + arc_name)) {
+        if (!archive_exists_any(paths.dwq_dir, arc_name)) {
             log_info("[skip] " + arc_name + " — not found");
             continue;
         }
@@ -467,7 +569,7 @@ bj::array run_scan(const CgOptions& opt, bool resume) {
     std::vector<ArcEntries> arcs;
     std::vector<detail::ScanKey> targets;
     for (const auto& arc_name : SCAN_ARCS) {
-        if (!path_exists(paths.dwq_dir + "\\" + arc_name)) {
+        if (!archive_exists_any(paths.dwq_dir, arc_name)) {
             log_info("[skip] " + arc_name + " — not found");
             continue;
         }
@@ -638,7 +740,7 @@ void run_translate(const CgOptions& opt, bj::array& candidates) {
         if (lower_ext == ".png")
             write_file(out_img, encode_png(patched));
         else if (lower_ext == ".bmp")
-            write_file(out_img, encode_bmp(drop_alpha(patched)));
+            write_file(out_img, encode_bmp(patched));
         else
             write_file(out_img, encode_jpg(patched, 75));  // quality 75
         c["patched_img"] = out_img;
@@ -683,54 +785,199 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
             entry_map.emplace_back(entry, p);
     }
 
-    if (by_arc.empty()) {
-        log_info("Nothing to repack (no patched images found).");
-        return;
+    // Phase 1: validate every archive and stage all repacks + backup restores
+    // to .tmp files before mutating any live archive (strict all-or-nothing).
+    struct StagedArchiveCommit {
+        std::string arc_name;
+        std::string arc_path;
+        std::string gtb_path;
+        std::string tmp_gpk;
+        std::string tmp_gtb;
+        std::string bak_gpk;
+        std::string bak_gtb;
+        std::string bak_tmp_gpk;
+        std::string bak_tmp_gtb;
+        bool need_create_backup = false;
+        bool is_restore = false;
+    };
+
+    std::vector<StagedArchiveCommit> staged;
+    std::set<std::string> active_arcs;
+
+    const auto cleanup_all_staged = [&]() noexcept {
+        std::error_code ec;
+        for (const auto& s : staged) {
+            clear_readonly_attr(fs::u8path(s.tmp_gpk));
+            clear_readonly_attr(fs::u8path(s.tmp_gtb));
+            fs::remove(fs::u8path(s.tmp_gpk), ec);
+            fs::remove(fs::u8path(s.tmp_gtb), ec);
+            if (s.need_create_backup) {
+                clear_readonly_attr(fs::u8path(s.bak_tmp_gpk));
+                clear_readonly_attr(fs::u8path(s.bak_tmp_gtb));
+                fs::remove(fs::u8path(s.bak_tmp_gpk), ec);
+                fs::remove(fs::u8path(s.bak_tmp_gtb), ec);
+            }
+        }
+    };
+
+    try {
+        for (const auto& [arc_name, entry_map] : by_arc) {
+            active_arcs.insert(ascii_lower(arc_name));
+            const std::string arc_path = paths.dwq_dir + "\\" + arc_name;
+            const std::string gtb_path = splitext(arc_path).first + ".gtb";
+            const std::string bak_gpk = arc_path + ".backup";
+            const std::string bak_gtb = gtb_path + ".backup";
+            const std::string tmp_gpk = arc_path + ".tmp";
+            const std::string tmp_gtb = gtb_path + ".tmp";
+
+            std::vector<std::pair<std::string, Bytes>> replacements;
+            for (const auto& [entry_name, img_path] : entry_map) {
+                replacements.emplace_back(entry_name, read_file(img_path));
+            }
+
+            const PristineArchivePair src = resolve_pristine_archive_pair(paths.dwq_dir, arc_name);
+
+            StagedArchiveCommit commit;
+            commit.arc_name = arc_name;
+            commit.arc_path = arc_path;
+            commit.gtb_path = gtb_path;
+            commit.tmp_gpk = tmp_gpk;
+            commit.tmp_gtb = tmp_gtb;
+            commit.bak_gpk = bak_gpk;
+            commit.bak_gtb = bak_gtb;
+            commit.bak_tmp_gpk = bak_gpk + ".tmp";
+            commit.bak_tmp_gtb = bak_gtb + ".tmp";
+            commit.need_create_backup = !src.has_backup_pair;
+            commit.is_restore = false;
+            staged.push_back(std::move(commit));
+
+            log_info("\nRepacking " + arc_name + " (" + std::to_string(replacements.size()) +
+                     " entries)...");
+            clear_readonly_attr(fs::u8path(tmp_gpk));
+            clear_readonly_attr(fs::u8path(tmp_gtb));
+            gpk::repack(src.gpk_path, src.gtb_path, tmp_gpk, tmp_gtb, replacements);
+            if (!src.has_backup_pair) {
+                const fs::path bak_tmp_gpk_p = fs::u8path(bak_gpk + ".tmp");
+                const fs::path bak_tmp_gtb_p = fs::u8path(bak_gtb + ".tmp");
+                clear_readonly_attr(bak_tmp_gpk_p);
+                clear_readonly_attr(bak_tmp_gtb_p);
+                fs::copy_file(fs::u8path(src.gpk_path), bak_tmp_gpk_p,
+                              fs::copy_options::overwrite_existing);
+                clear_readonly_attr(bak_tmp_gpk_p);
+                fs::last_write_time(bak_tmp_gpk_p,
+                                    fs::last_write_time(fs::u8path(src.gpk_path)));
+                fs::copy_file(fs::u8path(src.gtb_path), bak_tmp_gtb_p,
+                              fs::copy_options::overwrite_existing);
+                clear_readonly_attr(bak_tmp_gtb_p);
+                fs::last_write_time(bak_tmp_gtb_p,
+                                    fs::last_write_time(fs::u8path(src.gtb_path)));
+            }
+        }
+
+        // Shrinking-set safety: stage restores for any previously backed-up
+        // archive whose candidates were all removed.
+        std::vector<std::string> candidate_restore_arcs;
+        std::set<std::string> seen_restore_arcs_lower;
+        for (const std::string& arc : SCAN_ARCS) {
+            if (seen_restore_arcs_lower.insert(ascii_lower(arc)).second) {
+                candidate_restore_arcs.push_back(arc);
+            }
+        }
+        std::error_code dir_ec;
+        for (const auto& de : fs::directory_iterator(fs::u8path(paths.dwq_dir), dir_ec)) {
+            if (!de.is_regular_file(dir_ec)) {
+                continue;
+            }
+            const std::string fname = de.path().filename().u8string();
+            const std::string lower = ascii_lower(fname);
+            if (lower.size() > kGpkBackupSuffixLen &&
+                lower.compare(lower.size() - kGpkBackupSuffixLen, kGpkBackupSuffixLen,
+                              ".gpk.backup") == 0) {
+                const std::string arc_name =
+                    fname.substr(0u, fname.size() - kBackupSuffixLen);
+                if (seen_restore_arcs_lower.insert(ascii_lower(arc_name)).second) {
+                    candidate_restore_arcs.push_back(arc_name);
+                }
+            }
+        }
+
+        for (const std::string& arc_name : candidate_restore_arcs) {
+            if (active_arcs.count(ascii_lower(arc_name)) != 0u) {
+                continue;
+            }
+            const std::string arc_path = paths.dwq_dir + "\\" + arc_name;
+            const std::string gtb_path = splitext(arc_path).first + ".gtb";
+            const std::string bak_gpk = arc_path + ".backup";
+            const std::string bak_gtb = gtb_path + ".backup";
+            const bool has_bak_gpk = path_exists(bak_gpk);
+            const bool has_bak_gtb = path_exists(bak_gtb);
+            if (has_bak_gpk != has_bak_gtb) {
+                throw std::runtime_error(
+                    "incomplete .backup pair for " + arc_name + ": missing " +
+                    (has_bak_gpk ? bak_gtb : bak_gpk));
+            }
+            if (!has_bak_gpk) {
+                continue;
+            }
+            if (files_byte_equal(arc_path, bak_gpk) && files_byte_equal(gtb_path, bak_gtb)) {
+                continue;
+            }
+
+            const std::string tmp_gpk = arc_path + ".tmp";
+            const std::string tmp_gtb = gtb_path + ".tmp";
+
+            StagedArchiveCommit commit;
+            commit.arc_name = arc_name;
+            commit.arc_path = arc_path;
+            commit.gtb_path = gtb_path;
+            commit.tmp_gpk = tmp_gpk;
+            commit.tmp_gtb = tmp_gtb;
+            commit.bak_gpk = bak_gpk;
+            commit.bak_gtb = bak_gtb;
+            commit.is_restore = true;
+            staged.push_back(std::move(commit));
+
+            clear_readonly_attr(fs::u8path(tmp_gpk));
+            clear_readonly_attr(fs::u8path(tmp_gtb));
+            fs::copy_file(fs::u8path(bak_gpk), fs::u8path(tmp_gpk),
+                          fs::copy_options::overwrite_existing);
+            fs::copy_file(fs::u8path(bak_gtb), fs::u8path(tmp_gtb),
+                          fs::copy_options::overwrite_existing);
+        }
+
+        // Phase 2: atomically commit all staged pristine backups first, then
+        // atomically swap all staged .tmp archives into place.
+        for (const auto& s : staged) {
+            if (s.need_create_backup) {
+                clear_readonly_attr(fs::u8path(s.bak_tmp_gpk));
+                clear_readonly_attr(fs::u8path(s.bak_tmp_gtb));
+                clear_readonly_attr(fs::u8path(s.bak_gpk));
+                clear_readonly_attr(fs::u8path(s.bak_gtb));
+                fs::rename(fs::u8path(s.bak_tmp_gpk), fs::u8path(s.bak_gpk));
+                fs::rename(fs::u8path(s.bak_tmp_gtb), fs::u8path(s.bak_gtb));
+                log_info("  backup -> " + s.bak_gpk);
+            }
+        }
+        for (const auto& s : staged) {
+            clear_readonly_attr(fs::u8path(s.tmp_gpk));
+            clear_readonly_attr(fs::u8path(s.tmp_gtb));
+            clear_readonly_attr(fs::u8path(s.arc_path));
+            clear_readonly_attr(fs::u8path(s.gtb_path));
+            fs::rename(fs::u8path(s.tmp_gpk), fs::u8path(s.arc_path));
+            fs::rename(fs::u8path(s.tmp_gtb), fs::u8path(s.gtb_path));
+            if (s.is_restore) {
+                log_info("  restored from backup -> " + s.arc_path);
+            } else {
+                log_info("  deployed -> " + s.arc_path);
+            }
+        }
+    } catch (...) {
+        cleanup_all_staged();
+        throw;
     }
 
-    for (const auto& [arc_name, entry_map] : by_arc) {
-        const std::string arc_path = paths.dwq_dir + "\\" + arc_name;
-        const std::string gtb_path = splitext(arc_path).first + ".gtb";
-        const std::string bak_gpk = arc_path + ".backup";
-        const std::string bak_gtb = gtb_path + ".backup";
-        const std::string tmp_gpk = arc_path + ".tmp";
-        const std::string tmp_gtb = gtb_path + ".tmp";
-
-        std::vector<std::pair<std::string, Bytes>> replacements;
-        for (const auto& [entry_name, img_path] : entry_map)
-            replacements.emplace_back(entry_name, read_file(img_path));
-
-        // Always repack from the backup so repeated runs never compound.
-        const std::string src_gpk = path_exists(bak_gpk) ? bak_gpk : arc_path;
-        const std::string src_gtb = path_exists(bak_gtb) ? bak_gtb : gtb_path;
-
-        log_info("\nRepacking " + arc_name + " (" + std::to_string(replacements.size()) +
-                 " entries)...");
-        try {
-            gpk::repack(src_gpk, src_gtb, tmp_gpk, tmp_gtb, replacements);
-        } catch (const std::exception& ex) {
-            log_info(std::string("  ERROR: ") + ex.what());
-            std::error_code ec;
-            fs::remove(fs::u8path(tmp_gpk), ec);
-            fs::remove(fs::u8path(tmp_gtb), ec);
-            continue;
-        }
-
-        if (!path_exists(bak_gpk)) {
-            // shutil.copy2 preserves mtime.
-            fs::copy_file(fs::u8path(arc_path), fs::u8path(bak_gpk),
-                          fs::copy_options::overwrite_existing);
-            fs::last_write_time(fs::u8path(bak_gpk),
-                                fs::last_write_time(fs::u8path(arc_path)));
-            fs::copy_file(fs::u8path(gtb_path), fs::u8path(bak_gtb),
-                          fs::copy_options::overwrite_existing);
-            fs::last_write_time(fs::u8path(bak_gtb),
-                                fs::last_write_time(fs::u8path(gtb_path)));
-            log_info("  backup -> " + bak_gpk);
-        }
-        fs::rename(fs::u8path(tmp_gpk), fs::u8path(arc_path));
-        fs::rename(fs::u8path(tmp_gtb), fs::u8path(gtb_path));
-        log_info("  deployed -> " + arc_path);
+    if (staged.empty()) {
+        log_info("Nothing to repack (no patched images found).");
     }
 }
 
@@ -977,8 +1224,7 @@ std::array<std::uint8_t, 4> parse_hex(const std::string& hex,
 
 std::array<std::uint8_t, 3> sample_bg(const Image& img, int x1, int y1, int x2,
                                       int y2) {
-    Image c = crop(img, x1, y1, x2, y2);
-    if (c.channels == 4) c = drop_alpha(c);
+    const Image c = crop(img, x1, y1, x2, y2);
 
     // Order and duplication matter: the border is sampled as top 2 rows,
     // bottom 2 rows, left 2 columns, right 2 columns, so each of the four
@@ -1021,6 +1267,84 @@ std::array<std::uint8_t, 3> sample_bg(const Image& img, int x1, int y1, int x2,
                                  : (static_cast<double>(ch[n / 2 - 1]) +
                                     static_cast<double>(ch[n / 2])) / 2.0;
         med[static_cast<std::size_t>(k)] = static_cast<std::uint8_t>(static_cast<int>(m));
+    }
+    return med;
+}
+
+std::array<std::uint8_t, 4> sample_bg_rgba(const Image& img, int x1, int y1, int x2,
+                                           int y2) {
+    if (img.channels < kRgbaChannels) {
+        const auto rgb = sample_bg(img, x1, y1, x2, y2);
+        return {rgb[0], rgb[1], rgb[2], kOpaqueAlpha};
+    }
+
+    const Image c = crop(img, x1, y1, x2, y2);
+    std::vector<std::array<std::uint8_t, 4>> edges;
+    const auto push_row = [&](int y) {
+        for (int x = 0; x < c.width; ++x) {
+            const std::uint8_t* p = c.at(x, y);
+            edges.push_back({p[0], p[1], p[2], p[3]});
+        }
+    };
+    const auto push_col = [&](int x) {
+        for (int y = 0; y < c.height; ++y) {
+            const std::uint8_t* p = c.at(x, y);
+            edges.push_back({p[0], p[1], p[2], p[3]});
+        }
+    };
+    if (c.height > 4) {
+        push_row(0);
+        push_row(1);
+        push_row(c.height - 2);
+        push_row(c.height - 1);
+    }
+    if (c.width > 4) {
+        push_col(0);
+        push_col(1);
+        push_col(c.width - 2);
+        push_col(c.width - 1);
+    }
+    if (edges.empty()) {
+        for (int y = 0; y < c.height; ++y) {
+            for (int x = 0; x < c.width; ++x) {
+                const std::uint8_t* p = c.at(x, y);
+                edges.push_back({p[0], p[1], p[2], p[3]});
+            }
+        }
+    }
+    if (edges.empty()) {
+        return {255u, 255u, 255u, kOpaqueAlpha};
+    }
+
+    const auto median_truncated = [](std::vector<std::uint8_t>& values) -> std::uint8_t {
+        std::sort(values.begin(), values.end());
+        const std::size_t n = values.size();
+        const double m = (n % 2u) ? static_cast<double>(values[n / 2u])
+                                  : (static_cast<double>(values[n / 2u - 1u]) +
+                                     static_cast<double>(values[n / 2u])) /
+                                        2.0;
+        return static_cast<std::uint8_t>(static_cast<int>(m));
+    };
+
+    std::vector<std::uint8_t> ch;
+    ch.reserve(edges.size());
+    for (const auto& e : edges) {
+        ch.push_back(e[3]);
+    }
+    const std::uint8_t med_a = median_truncated(ch);
+    if (med_a == 0u) {
+        return {0u, 0u, 0u, 0u};
+    }
+
+    std::array<std::uint8_t, 4> med{0u, 0u, 0u, med_a};
+    for (std::size_t k = 0u; k < 3u; ++k) {
+        ch.clear();
+        for (const auto& e : edges) {
+            if (e[3] > 0u) {
+                ch.push_back(e[k]);
+            }
+        }
+        med[k] = ch.empty() ? 0u : median_truncated(ch);
     }
     return med;
 }
@@ -1132,8 +1456,8 @@ Image render_translation(const Image& img, const bj::array& regions) {
         if (bw < 4 || bh < 4) continue;
 
         if (bbox.size() >= 4) {
-            const auto bg = sample_bg(result, x1, y1, x2, y2);
-            fill_rect(result, x1, y1, x2, y2, {bg[0], bg[1], bg[2], 255});
+            const auto bg = sample_bg_rgba(result, x1, y1, x2, y2);
+            fill_rect(result, x1, y1, x2, y2, bg);
         }
 
         const auto tc = parse_hex(txt_hex, bg_tone);

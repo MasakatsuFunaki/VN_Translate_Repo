@@ -14,9 +14,11 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -45,6 +47,21 @@ inline constexpr std::uint16_t kBmp24BitDepth = 24;
 inline constexpr std::uint16_t kBmp8BitDepth = 8;
 inline constexpr std::uint32_t kMaskPaletteColorCount = 256;
 
+inline constexpr std::size_t kBmpFileSizeOffset = 2;
+inline constexpr std::size_t kBmpOffBitsOffset = 10;
+inline constexpr std::size_t kBmpInfoSizeOffset = 14;
+inline constexpr std::size_t kBmpWidthOffset = 18;
+inline constexpr std::size_t kBmpHeightOffset = 22;
+inline constexpr std::size_t kBmpPlanesOffset = 26;
+inline constexpr std::size_t kBmpBitCountOffset = 28;
+inline constexpr std::size_t kBmpClrUsedOffset = 46;
+inline constexpr std::size_t kBmpClrImportantOffset = 50;
+inline constexpr std::size_t kPaletteEntryBytes = 4;
+inline constexpr std::size_t kPaletteBlueOffset = 0;
+inline constexpr std::size_t kPaletteGreenOffset = 1;
+inline constexpr std::size_t kPaletteRedOffset = 2;
+inline constexpr std::size_t kPaletteReservedOffset = 3;
+
 inline constexpr std::int32_t kDefaultInitialCropMargin = 1;
 
 void put_u16_le(Bytes& b, std::uint16_t v) {
@@ -63,12 +80,124 @@ void put_i32_le(Bytes& b, std::int32_t v) {
     put_u32_le(b, static_cast<std::uint32_t>(v));
 }
 
+std::uint16_t rd_u16_le(const Bytes& b, std::size_t off) {
+    return static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(b[off + kByteIndex0]) |
+        (static_cast<std::uint16_t>(b[off + kByteIndex1]) << kByte1Shift));
+}
+
+std::uint32_t rd_u32_le(const Bytes& b, std::size_t off) {
+    return static_cast<std::uint32_t>(b[off + kByteIndex0]) |
+           (static_cast<std::uint32_t>(b[off + kByteIndex1]) << kByte1Shift) |
+           (static_cast<std::uint32_t>(b[off + kByteIndex2]) << kByte2Shift) |
+           (static_cast<std::uint32_t>(b[off + kByteIndex3]) << kByte3Shift);
+}
+
 std::int32_t rd_i32_le(const Bytes& b, std::size_t off) {
-    return static_cast<std::int32_t>(
-        static_cast<std::uint32_t>(b[off + kByteIndex0]) |
-        (static_cast<std::uint32_t>(b[off + kByteIndex1]) << kByte1Shift) |
-        (static_cast<std::uint32_t>(b[off + kByteIndex2]) << kByte2Shift) |
-        (static_cast<std::uint32_t>(b[off + kByteIndex3]) << kByte3Shift));
+    return static_cast<std::int32_t>(rd_u32_le(b, off));
+}
+
+void wr_u32_le(Bytes& b, std::size_t off, std::uint32_t v) {
+    b[off + kByteIndex0] = static_cast<std::uint8_t>(v & kByteMask);
+    b[off + kByteIndex1] = static_cast<std::uint8_t>((v >> kByte1Shift) & kByteMask);
+    b[off + kByteIndex2] = static_cast<std::uint8_t>((v >> kByte2Shift) & kByteMask);
+    b[off + kByteIndex3] = static_cast<std::uint8_t>((v >> kByte3Shift) & kByteMask);
+}
+
+Bytes make_synthetic_sparse_dwq_2a(int width, int height,
+                                   const Bytes& rgba_rgb_source,
+                                   const Bytes& mask_indices,
+                                   const Bytes& sparse_palette_values,
+                                   mn::CropMargins initial_crops) {
+    const std::size_t align = static_cast<std::size_t>(mn::kBmpRowAlignment);
+    const std::size_t stride =
+        (static_cast<std::size_t>(width) * mn::kBgrChannels + (align - 1)) & ~(align - 1);
+    const std::size_t bmp_px_bytes = stride * static_cast<std::size_t>(height);
+    const std::size_t bmp_total_bytes = mn::kBmpHeaderSize + bmp_px_bytes;
+
+    Bytes dwq(mn::kDwqHeaderSize, kDwqHeaderPadByte);
+    std::memcpy(dwq.data(), "BMP+MASK        ", kDwqSignatureLength);
+    std::memcpy(dwq.data() + kDwqPackTypeBlockOffset, "    PACKTYPE=2A     ",
+                kDwqPackTypeBlockLength);
+    std::memcpy(dwq.data() + mn::kDwqCropTopOffset, &initial_crops.top, kInt32ByteSize);
+    std::memcpy(dwq.data() + mn::kDwqCropLeftOffset, &initial_crops.left, kInt32ByteSize);
+    std::memcpy(dwq.data() + mn::kDwqCropRightOffset, &initial_crops.right, kInt32ByteSize);
+    std::memcpy(dwq.data() + mn::kDwqCropBottomOffset, &initial_crops.bottom, kInt32ByteSize);
+    const std::int32_t ds = static_cast<std::int32_t>(bmp_total_bytes);
+    std::memcpy(dwq.data() + mn::kDwqDataSizeOffset, &ds, kInt32ByteSize);
+    const std::int32_t w32 = width;
+    const std::int32_t h32 = height;
+    std::memcpy(dwq.data() + mn::kDwqWidthOffset, &w32, kInt32ByteSize);
+    std::memcpy(dwq.data() + mn::kDwqHeightOffset, &h32, kInt32ByteSize);
+
+    dwq.push_back('B');
+    dwq.push_back('M');
+    put_u32_le(dwq, static_cast<std::uint32_t>(bmp_total_bytes));
+    put_u16_le(dwq, 0);
+    put_u16_le(dwq, 0);
+    put_u32_le(dwq, static_cast<std::uint32_t>(mn::kBmpHeaderSize));
+    put_u32_le(dwq, static_cast<std::uint32_t>(mn::kBmpInfoHeaderSize));
+    put_i32_le(dwq, width);
+    put_i32_le(dwq, height);
+    put_u16_le(dwq, kBmpPlanes);
+    put_u16_le(dwq, kBmp24BitDepth);
+    put_u32_le(dwq, 0);
+    put_u32_le(dwq, static_cast<std::uint32_t>(bmp_px_bytes));
+    put_i32_le(dwq, 0);
+    put_i32_le(dwq, 0);
+    put_u32_le(dwq, 0);
+    put_u32_le(dwq, 0);
+
+    Bytes bgr_rows(bmp_px_bytes, 0);
+    for (int y = 0; y < height; ++y) {
+        std::uint8_t* dst = bgr_rows.data() + static_cast<std::size_t>(y) * stride;
+        const std::uint8_t* src =
+            rgba_rgb_source.data() + static_cast<std::size_t>(y) * width * mn::kRgbaChannels;
+        for (int x = 0; x < width; ++x) {
+            dst[x * mn::kBgrChannels + mn::kBgrBlueIndex] =
+                src[x * mn::kRgbaChannels + mn::kBlueChannel];
+            dst[x * mn::kBgrChannels + mn::kBgrGreenIndex] =
+                src[x * mn::kRgbaChannels + mn::kGreenChannel];
+            dst[x * mn::kBgrChannels + mn::kBgrRedIndex] =
+                src[x * mn::kRgbaChannels + mn::kRedChannel];
+        }
+    }
+    dwq.insert(dwq.end(), bgr_rows.begin(), bgr_rows.end());
+
+    const std::size_t total_px = static_cast<std::size_t>(width) * height;
+    const Bytes rle = mn::encode_rle_xor_mask(mask_indices.data(), width, height);
+    const std::uint32_t palette_count =
+        static_cast<std::uint32_t>(sparse_palette_values.size());
+    const std::uint32_t mask_bf_off = static_cast<std::uint32_t>(
+        mn::kBmpHeaderSize + palette_count * kPaletteEntryBytes);
+
+    dwq.push_back('B');
+    dwq.push_back('M');
+    put_u32_le(dwq, static_cast<std::uint32_t>(mask_bf_off + total_px));
+    put_u16_le(dwq, 0);
+    put_u16_le(dwq, 0);
+    put_u32_le(dwq, mask_bf_off);
+    put_u32_le(dwq, static_cast<std::uint32_t>(mn::kBmpInfoHeaderSize));
+    put_i32_le(dwq, width);
+    put_i32_le(dwq, height);
+    put_u16_le(dwq, kBmpPlanes);
+    put_u16_le(dwq, kBmp8BitDepth);
+    put_u32_le(dwq, 0);
+    put_u32_le(dwq, static_cast<std::uint32_t>(total_px));
+    put_i32_le(dwq, 0);
+    put_i32_le(dwq, 0);
+    put_u32_le(dwq, palette_count);
+    put_u32_le(dwq, palette_count);
+
+    for (std::uint8_t gray : sparse_palette_values) {
+        dwq.push_back(gray);
+        dwq.push_back(gray);
+        dwq.push_back(gray);
+        dwq.push_back(0);
+    }
+    dwq.insert(dwq.end(), rle.begin(), rle.end());
+
+    return dwq;
 }
 
 Bytes make_synthetic_dwq(const mn::RgbaImage& img, bool with_mask,
@@ -438,4 +567,263 @@ TEST(MenuPatcher, MurmurHash2AndXorMaskPayloadRoundTrip) {
     mn::XorMaskPayload(buf.data(), buf.size(), orig.data(), orig.size(), orig_hash);
     EXPECT_EQ(buf, patched);
     EXPECT_EQ(mn::ComputeMurmurHash2(buf.data(), buf.size()), new_hash);
+}
+
+TEST(MenuPatcher, DwqPackType2ASparsePaletteDecodeAndReencodeExpandsToFullGrayscale) {
+    constexpr int kWidth = 10;
+    constexpr int kHeight = 6;
+    constexpr std::size_t kTotalPixels = static_cast<std::size_t>(kWidth) * kHeight;
+    constexpr std::uint8_t kAlphaZero = 0x00u;
+    constexpr std::uint8_t kAlphaMaxSigned = 0x7Fu;
+    constexpr std::uint8_t kAlphaMinUnsignedHigh = 0x80u;
+    constexpr std::uint8_t kAlphaOpaque = 0xFFu;
+    constexpr std::uint8_t kPaletteIndexZero = 0u;
+    constexpr std::uint8_t kPaletteIndexMaxSigned = 1u;
+    constexpr std::uint8_t kPaletteIndexOpaque = 2u;
+    constexpr std::uint8_t kPaletteIndexMinHigh = 3u;
+
+    constexpr std::uint8_t kHidden0Red = 0x99u;
+    constexpr std::uint8_t kHidden0Green = 0x66u;
+    constexpr std::uint8_t kHidden0Blue = 0x33u;
+    constexpr std::uint8_t kHiddenTailRed = 0xC3u;
+    constexpr std::uint8_t kHiddenTailGreen = 0x5Au;
+    constexpr std::uint8_t kHiddenTailBlue = 0xA5u;
+
+    constexpr int kOrigPx1X = 2;
+    constexpr int kOrigPx1Y = 1;
+    constexpr int kOrigPx2X = 4;
+    constexpr int kOrigPx2Y = 2;
+    constexpr int kOrigPx3X = 6;
+    constexpr int kOrigPx3Y = 3;
+    constexpr int kOrigPx4X = 7;
+    constexpr int kOrigPx4Y = 4;
+
+    constexpr int kModMinX = 1;
+    constexpr int kModMinY = 1;
+    constexpr int kModMaxX = 8;
+    constexpr int kModMaxY = 4;
+
+    // Non-monotonic 4-entry sparse palette (bfOffBits = 54 + 4 * 4 = 70 < 1078)
+    // covering all four sign-bit byte boundaries so palette lookup cannot be
+    // faked by raw index pass-through or linear scaling.
+    const Bytes sparse_palette = {
+        kAlphaZero, kAlphaMaxSigned, kAlphaOpaque, kAlphaMinUnsignedHigh};
+
+    Bytes orig_rgb_rgba(kTotalPixels * mn::kRgbaChannels, 0u);
+    Bytes orig_mask_indices(kTotalPixels, kPaletteIndexZero);
+
+    auto set_rgba_pixel = [](Bytes& buf, int width, int x, int y,
+                             std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+        const std::size_t off =
+            (static_cast<std::size_t>(y) * width + static_cast<std::size_t>(x)) * mn::kRgbaChannels;
+        buf[off + mn::kRedChannel] = r;
+        buf[off + mn::kGreenChannel] = g;
+        buf[off + mn::kBlueChannel] = b;
+        buf[off + mn::kAlphaChannel] = a;
+    };
+
+    // Transparent border pixels carry non-zero hidden BGR bytes.
+    set_rgba_pixel(orig_rgb_rgba, kWidth, 0, 0,
+                   kHidden0Red, kHidden0Green, kHidden0Blue, kAlphaZero);
+    set_rgba_pixel(orig_rgb_rgba, kWidth, kWidth - 1, kHeight - 1,
+                   kHiddenTailRed, kHiddenTailGreen, kHiddenTailBlue, kAlphaZero);
+
+    set_rgba_pixel(orig_rgb_rgba, kWidth, kOrigPx1X, kOrigPx1Y,
+                   0x12u, 0x34u, 0x56u, kAlphaMaxSigned);
+    orig_mask_indices[static_cast<std::size_t>(kOrigPx1Y) * kWidth + kOrigPx1X] =
+        kPaletteIndexMaxSigned;
+
+    set_rgba_pixel(orig_rgb_rgba, kWidth, kOrigPx2X, kOrigPx2Y,
+                   0x78u, 0x9Au, 0xBCu, kAlphaMinUnsignedHigh);
+    orig_mask_indices[static_cast<std::size_t>(kOrigPx2Y) * kWidth + kOrigPx2X] =
+        kPaletteIndexMinHigh;
+
+    set_rgba_pixel(orig_rgb_rgba, kWidth, kOrigPx3X, kOrigPx3Y,
+                   0xDEu, 0xF0u, 0x21u, kAlphaOpaque);
+    orig_mask_indices[static_cast<std::size_t>(kOrigPx3Y) * kWidth + kOrigPx3X] =
+        kPaletteIndexOpaque;
+
+    set_rgba_pixel(orig_rgb_rgba, kWidth, kOrigPx4X, kOrigPx4Y,
+                   0x43u, 0x65u, 0x87u, kAlphaMaxSigned);
+    orig_mask_indices[static_cast<std::size_t>(kOrigPx4Y) * kWidth + kOrigPx4X] =
+        kPaletteIndexMaxSigned;
+
+    constexpr mn::CropMargins kOrigSparseCrops = {
+        kOrigPx1Y, kOrigPx1X, kWidth - 1 - kOrigPx4X, kHeight - 1 - kOrigPx4Y};
+    const Bytes orig_dwq = make_synthetic_sparse_dwq_2a(
+        kWidth, kHeight, orig_rgb_rgba, orig_mask_indices, sparse_palette, kOrigSparseCrops);
+
+    const std::size_t align = static_cast<std::size_t>(mn::kBmpRowAlignment);
+    const std::size_t expected_stride24 =
+        (static_cast<std::size_t>(kWidth) * mn::kBgrChannels + (align - 1u)) & ~(align - 1u);
+    const std::size_t expected_bmp24_size =
+        mn::kBmpHeaderSize + expected_stride24 * static_cast<std::size_t>(kHeight);
+    const std::size_t expected_mask_off = mn::kDwqHeaderSize + expected_bmp24_size;
+    ASSERT_EQ(rd_u32_le(orig_dwq, expected_mask_off + kBmpOffBitsOffset),
+              static_cast<std::uint32_t>(
+                  mn::kBmpHeaderSize + sparse_palette.size() * kPaletteEntryBytes));
+
+    const mn::RgbaImage decoded = mn::decode_dwq_to_rgba(orig_dwq.data(), orig_dwq.size());
+    ASSERT_EQ(decoded.width, kWidth);
+    ASSERT_EQ(decoded.height, kHeight);
+    ASSERT_EQ(decoded.pixels.size(), orig_rgb_rgba.size());
+    EXPECT_EQ(decoded.pixels, orig_rgb_rgba);
+
+    // Re-encode with (0,0,0,0) on the transparent pixels and new alpha values
+    // completely outside the original 4-entry sparse palette.
+    mn::RgbaImage mod_img;
+    mod_img.width = kWidth;
+    mod_img.height = kHeight;
+    mod_img.pixels.assign(kTotalPixels * mn::kRgbaChannels, 0u);
+
+    set_rgba_pixel(mod_img.pixels, kWidth, kModMinX, kModMinY, 0x11u, 0x22u, 0x33u, 0x01u);
+    set_rgba_pixel(mod_img.pixels, kWidth, 3, 2, 0x44u, 0x55u, 0x66u, 0x42u);
+    set_rgba_pixel(mod_img.pixels, kWidth, 5, 3, 0x77u, 0x88u, 0x99u, 0x7Eu);
+    set_rgba_pixel(mod_img.pixels, kWidth, 6, 3, 0xAAu, 0xBBu, 0xCCu, 0x81u);
+    set_rgba_pixel(mod_img.pixels, kWidth, kModMaxX, kModMaxY, 0xDDu, 0xEEu, 0x12u, 0xFEu);
+    set_rgba_pixel(mod_img.pixels, kWidth, 2, 2, 0x21u, 0x43u, 0x65u, kAlphaOpaque);
+
+    const Bytes reencoded =
+        mn::encode_dwq_from_rgba(orig_dwq.data(), orig_dwq.size(), mod_img, true);
+
+    ASSERT_GE(reencoded.size(), expected_mask_off + mn::kMaskHeaderTotalSize);
+    EXPECT_EQ(rd_i32_le(reencoded, mn::kDwqDataSizeOffset),
+              static_cast<std::int32_t>(expected_bmp24_size));
+    EXPECT_EQ(rd_i32_le(reencoded, mn::kDwqCropTopOffset), kModMinY);
+    EXPECT_EQ(rd_i32_le(reencoded, mn::kDwqCropLeftOffset), kModMinX);
+    EXPECT_EQ(rd_i32_le(reencoded, mn::kDwqCropRightOffset), kWidth - 1 - kModMaxX);
+    EXPECT_EQ(rd_i32_le(reencoded, mn::kDwqCropBottomOffset), kHeight - 1 - kModMaxY);
+
+    // Hidden BGR bytes on pixels that remained alpha == 0 survive re-encoding.
+    const std::size_t px0_bgr_off = mn::kDwqHeaderSize + mn::kBmpHeaderSize;
+    EXPECT_EQ(reencoded[px0_bgr_off + mn::kBgrBlueIndex], kHidden0Blue);
+    EXPECT_EQ(reencoded[px0_bgr_off + mn::kBgrGreenIndex], kHidden0Green);
+    EXPECT_EQ(reencoded[px0_bgr_off + mn::kBgrRedIndex], kHidden0Red);
+
+    const std::size_t tail_bgr_off =
+        mn::kDwqHeaderSize + mn::kBmpHeaderSize +
+        static_cast<std::size_t>(kHeight - 1) * expected_stride24 +
+        static_cast<std::size_t>(kWidth - 1) * mn::kBgrChannels;
+    EXPECT_EQ(reencoded[tail_bgr_off + mn::kBgrBlueIndex], kHiddenTailBlue);
+    EXPECT_EQ(reencoded[tail_bgr_off + mn::kBgrGreenIndex], kHiddenTailGreen);
+    EXPECT_EQ(reencoded[tail_bgr_off + mn::kBgrRedIndex], kHiddenTailRed);
+
+    // Mask BMP header rewritten for the full 256-entry identity grayscale palette.
+    // BLACKCyc PACKTYPE=2A stores the uncompressed 8-bpp BMP bfSize (bfOffBits + pixel bytes),
+    // so expanding the sparse palette to 256 entries updates bfSize to 1078 + total_px.
+    EXPECT_EQ(reencoded[expected_mask_off], static_cast<std::uint8_t>('B'));
+    EXPECT_EQ(reencoded[expected_mask_off + 1u], static_cast<std::uint8_t>('M'));
+    EXPECT_EQ(rd_u32_le(reencoded, expected_mask_off + kBmpFileSizeOffset),
+              static_cast<std::uint32_t>(mn::kMaskHeaderTotalSize + kTotalPixels));
+    EXPECT_EQ(rd_u32_le(reencoded, expected_mask_off + kBmpOffBitsOffset),
+              static_cast<std::uint32_t>(mn::kMaskHeaderTotalSize));
+    EXPECT_EQ(rd_u32_le(reencoded, expected_mask_off + kBmpInfoSizeOffset),
+              static_cast<std::uint32_t>(mn::kBmpInfoHeaderSize));
+    EXPECT_EQ(rd_i32_le(reencoded, expected_mask_off + kBmpWidthOffset), kWidth);
+    EXPECT_EQ(rd_i32_le(reencoded, expected_mask_off + kBmpHeightOffset), kHeight);
+    EXPECT_EQ(rd_u16_le(reencoded, expected_mask_off + kBmpPlanesOffset), kBmpPlanes);
+    EXPECT_EQ(rd_u16_le(reencoded, expected_mask_off + kBmpBitCountOffset), kBmp8BitDepth);
+    EXPECT_EQ(rd_u32_le(reencoded, expected_mask_off + kBmpClrUsedOffset),
+              kMaskPaletteColorCount);
+    EXPECT_EQ(rd_u32_le(reencoded, expected_mask_off + kBmpClrImportantOffset), 0u);
+
+    const std::size_t pal_base = expected_mask_off + mn::kBmpHeaderSize;
+    ASSERT_GE(reencoded.size(), pal_base + mn::kMaskPaletteSize);
+    for (std::uint32_t i = 0; i < kMaskPaletteColorCount; ++i) {
+        const std::size_t entry_off = pal_base + static_cast<std::size_t>(i) * kPaletteEntryBytes;
+        const std::uint8_t expected_val = static_cast<std::uint8_t>(i);
+        EXPECT_EQ(reencoded[entry_off + kPaletteBlueOffset], expected_val) << "idx=" << i;
+        EXPECT_EQ(reencoded[entry_off + kPaletteGreenOffset], expected_val) << "idx=" << i;
+        EXPECT_EQ(reencoded[entry_off + kPaletteRedOffset], expected_val) << "idx=" << i;
+        EXPECT_EQ(reencoded[entry_off + kPaletteReservedOffset], 0u) << "idx=" << i;
+    }
+
+    Bytes expected_redecoded = mod_img.pixels;
+    set_rgba_pixel(expected_redecoded, kWidth, 0, 0,
+                   kHidden0Red, kHidden0Green, kHidden0Blue, kAlphaZero);
+    set_rgba_pixel(expected_redecoded, kWidth, kWidth - 1, kHeight - 1,
+                   kHiddenTailRed, kHiddenTailGreen, kHiddenTailBlue, kAlphaZero);
+
+    const mn::RgbaImage redecoded = mn::decode_dwq_to_rgba(reencoded.data(), reencoded.size());
+    ASSERT_EQ(redecoded.width, kWidth);
+    ASSERT_EQ(redecoded.height, kHeight);
+    EXPECT_EQ(redecoded.pixels, expected_redecoded);
+}
+
+TEST(MenuPatcher, DwqPackType2ACorruptSparseMaskHeaderThrowsCleanly) {
+    constexpr int kWidth = 8;
+    constexpr int kHeight = 4;
+    constexpr std::size_t kTotalPixels = static_cast<std::size_t>(kWidth) * kHeight;
+    constexpr std::uint32_t kBfOffZero = 0u;
+    constexpr std::uint32_t kBfOffBelowHeaderSeam =
+        static_cast<std::uint32_t>(mn::kBmpHeaderSize - 1u);
+    constexpr std::uint32_t kBfOffZeroPaletteEntries =
+        static_cast<std::uint32_t>(mn::kBmpHeaderSize);
+    constexpr std::uint32_t kBfOffSubEntryPalette =
+        static_cast<std::uint32_t>(mn::kBmpHeaderSize + kPaletteEntryBytes - 1u);
+    constexpr std::uint32_t kBfOffMisalignedNonEmptyPalette =
+        static_cast<std::uint32_t>(mn::kBmpHeaderSize + kPaletteEntryBytes + 1u);
+    constexpr std::uint32_t kBfOffOverflowSentinel = 0xFFFFFFFFu;
+    constexpr std::size_t kTruncatedPaletteBytes = 8u;
+
+    const Bytes sparse_palette = {0x00u, 0xFFu};
+    Bytes orig_rgba(kTotalPixels * mn::kRgbaChannels, 0u);
+    Bytes orig_indices(kTotalPixels, 1u);
+    for (std::size_t i = 0; i < kTotalPixels; ++i) {
+        orig_rgba[i * mn::kRgbaChannels + mn::kRedChannel] = 0x20u;
+        orig_rgba[i * mn::kRgbaChannels + mn::kAlphaChannel] = 0xFFu;
+    }
+
+    const Bytes valid_dwq = make_synthetic_sparse_dwq_2a(
+        kWidth, kHeight, orig_rgba, orig_indices, sparse_palette, {0, 0, 0, 0});
+    const std::size_t align = static_cast<std::size_t>(mn::kBmpRowAlignment);
+    const std::size_t stride24 =
+        (static_cast<std::size_t>(kWidth) * mn::kBgrChannels + (align - 1u)) & ~(align - 1u);
+    const std::size_t mask_off =
+        mn::kDwqHeaderSize + mn::kBmpHeaderSize + stride24 * static_cast<std::size_t>(kHeight);
+
+    mn::RgbaImage mod_img{kWidth, kHeight, orig_rgba};
+
+    struct CorruptCase {
+        const char* name;
+        std::uint32_t bf_off_bits;
+        bool truncate_mask;
+    };
+    constexpr std::array<CorruptCase, 7> kCases = {{
+        {"bfOffBits_zero", kBfOffZero, false},
+        {"bfOffBits_below_54_seam", kBfOffBelowHeaderSeam, false},
+        {"bfOffBits_zero_palette_entries", kBfOffZeroPaletteEntries, false},
+        {"bfOffBits_partial_palette_entry", kBfOffSubEntryPalette, false},
+        {"bfOffBits_misaligned_non_empty_palette", kBfOffMisalignedNonEmptyPalette, false},
+        {"bfOffBits_u32_max_overflow", kBfOffOverflowSentinel, false},
+        {"truncated_before_bfOffBits",
+         static_cast<std::uint32_t>(mn::kBmpHeaderSize + 4u * kPaletteEntryBytes), true},
+    }};
+
+    for (const CorruptCase& tc : kCases) {
+        SCOPED_TRACE(tc.name);
+        Bytes corrupt = valid_dwq;
+        wr_u32_le(corrupt, mask_off + kBmpOffBitsOffset, tc.bf_off_bits);
+        if (tc.truncate_mask) {
+            corrupt.resize(mask_off + mn::kBmpHeaderSize + kTruncatedPaletteBytes);
+        }
+        EXPECT_THROW(mn::decode_dwq_to_rgba(corrupt.data(), corrupt.size()), std::runtime_error);
+        EXPECT_THROW(
+            mn::encode_dwq_from_rgba(corrupt.data(), corrupt.size(), mod_img, true),
+            std::runtime_error);
+    }
+
+    // Negative DWQ data_size (-64 == 0xFFFFFFC0) must not wrap kDwqHeaderSize + data_size.
+    Bytes neg_data_size_dwq = valid_dwq;
+    wr_u32_le(neg_data_size_dwq, mn::kDwqDataSizeOffset,
+              static_cast<std::uint32_t>(-static_cast<std::int32_t>(mn::kDwqHeaderSize)));
+    EXPECT_THROW(mn::decode_dwq_to_rgba(neg_data_size_dwq.data(), neg_data_size_dwq.size()),
+                 std::runtime_error);
+    EXPECT_THROW(mn::encode_dwq_from_rgba(neg_data_size_dwq.data(), neg_data_size_dwq.size(),
+                                          mod_img, true),
+                 std::runtime_error);
+
+    // Valid -> failing -> valid seam: subsequent valid decode/encode succeeds cleanly.
+    const mn::RgbaImage after = mn::decode_dwq_to_rgba(valid_dwq.data(), valid_dwq.size());
+    EXPECT_EQ(after.pixels, orig_rgba);
 }

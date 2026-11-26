@@ -13,15 +13,18 @@
 // offset regeneration and the whole GTB writer in one assertion.
 #include "gpk/gpk_archive.h"
 
+#include "cg/image.h"
 #include "common/util.h"
 #include "scoped_temp_dir.h"
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -388,4 +391,591 @@ TEST(GpkRepack, repack_duplicate_offsets) {
     EXPECT_EQ(extract_entry(arc.gpk_buf, arc.entries[0].offset),
               extract_entry(arc.gpk_buf, arc.entries[1].offset));
     EXPECT_EQ(arc.entries[2].width, 7u);
+}
+
+namespace {
+
+void put_u16_local(Bytes& b, std::uint16_t v) {
+    b.push_back(static_cast<std::uint8_t>(v));
+    b.push_back(static_cast<std::uint8_t>(v >> kByteShift1));
+}
+
+void put_i32_local(Bytes& b, std::int32_t v) {
+    put_u32(b, static_cast<std::uint32_t>(v));
+}
+
+std::uint16_t rd_u16_local(const Bytes& b, std::size_t off) {
+    return static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(b[off]) |
+        (static_cast<std::uint16_t>(b[off + 1u]) << kByteShift1));
+}
+
+std::uint32_t rd_u32_local(const Bytes& b, std::size_t off) {
+    return static_cast<std::uint32_t>(b[off]) |
+           (static_cast<std::uint32_t>(b[off + 1u]) << kByteShift1) |
+           (static_cast<std::uint32_t>(b[off + 2u]) << kByteShift2) |
+           (static_cast<std::uint32_t>(b[off + 3u]) << kByteShift3);
+}
+
+std::int32_t rd_i32_local(const Bytes& b, std::size_t off) {
+    return static_cast<std::int32_t>(rd_u32_local(b, off));
+}
+
+// Synthetic PACKTYPE=2A DWQ with configurable sparse mask palette.
+Bytes make_sparse_2a_dwq(const DwqRgbaImage& img,
+                         const std::vector<std::uint8_t>& mask_pal_values,
+                         std::uint16_t bpp_field = 24u) {
+    constexpr std::size_t kBmpHdrBytes = 54u;
+    const std::size_t stride = ((static_cast<std::size_t>(img.width) * 3u) + 3u) & ~std::size_t(3u);
+    const std::size_t bmp_px = stride * static_cast<std::size_t>(img.height);
+    const std::size_t bmp_total = kBmpHdrBytes + bmp_px;
+
+    Bytes dwq(GPK_HEADER_SIZE, ' ');
+    std::memcpy(dwq.data(), "BMP+MASK        ", 16u);
+    for (std::size_t m = 0; m < 4u; ++m) {
+        const std::size_t o = 0x10u + m * 4u;
+        dwq[o] = 1u;
+        dwq[o + 1u] = 0u;
+        dwq[o + 2u] = 0u;
+        dwq[o + 3u] = 0u;
+    }
+    const auto wr32 = [&](std::size_t o, std::uint32_t v) {
+        dwq[o] = static_cast<std::uint8_t>(v);
+        dwq[o + 1u] = static_cast<std::uint8_t>(v >> kByteShift1);
+        dwq[o + 2u] = static_cast<std::uint8_t>(v >> kByteShift2);
+        dwq[o + 3u] = static_cast<std::uint8_t>(v >> kByteShift3);
+    };
+    const auto wr16 = [&](std::size_t o, std::uint16_t v) {
+        dwq[o] = static_cast<std::uint8_t>(v);
+        dwq[o + 1u] = static_cast<std::uint8_t>(v >> kByteShift1);
+    };
+    wr32(0x20u, static_cast<std::uint32_t>(bmp_total));
+    wr32(0x24u, static_cast<std::uint32_t>(img.width));
+    wr16(0x28u, static_cast<std::uint16_t>(img.height));
+    wr16(0x2Au, bpp_field);
+    std::memcpy(dwq.data() + 0x30u, "PACKTYPE=2A     ", 16u);
+
+    // 24-bit top-down BMP payload.
+    dwq.push_back('B');
+    dwq.push_back('M');
+    put_u32(dwq, static_cast<std::uint32_t>(bmp_total));
+    put_u16_local(dwq, 0u);
+    put_u16_local(dwq, 0u);
+    put_u32(dwq, static_cast<std::uint32_t>(kBmpHdrBytes));
+    put_u32(dwq, 40u);
+    put_i32_local(dwq, img.width);
+    put_i32_local(dwq, img.height);
+    put_u16_local(dwq, 1u);
+    put_u16_local(dwq, 24u);
+    put_u32(dwq, 0u);
+    put_u32(dwq, static_cast<std::uint32_t>(bmp_px));
+    put_i32_local(dwq, 0);
+    put_i32_local(dwq, 0);
+    put_u32(dwq, 0u);
+    put_u32(dwq, 0u);
+
+    Bytes bgr(bmp_px, 0u);
+    for (int y = 0; y < img.height; ++y) {
+        for (int x = 0; x < img.width; ++x) {
+            const std::size_t si = (static_cast<std::size_t>(y) * img.width + x) * 4u;
+            const std::size_t di = static_cast<std::size_t>(y) * stride + x * 3u;
+            bgr[di + 0u] = img.pixels[si + 2u];
+            bgr[di + 1u] = img.pixels[si + 1u];
+            bgr[di + 2u] = img.pixels[si + 0u];
+        }
+    }
+    dwq.insert(dwq.end(), bgr.begin(), bgr.end());
+
+    // Sparse-palette 8-bit mask BMP + RLE-XOR alpha index stream.
+    const std::size_t total_px =
+        static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height);
+    Bytes alpha_indices(total_px, 0u);
+    for (std::size_t i = 0; i < total_px; ++i) {
+        const std::uint8_t a = img.pixels[i * 4u + 3u];
+        for (std::size_t p = 0; p < mask_pal_values.size(); ++p) {
+            if (mask_pal_values[p] == a) {
+                alpha_indices[i] = static_cast<std::uint8_t>(p);
+                break;
+            }
+        }
+    }
+    const Bytes rle = encode_rle_xor_mask(alpha_indices.data(), img.width, img.height);
+    const std::size_t pal_bytes = mask_pal_values.size() * 4u;
+    const std::uint32_t mask_bf_off = static_cast<std::uint32_t>(kBmpHdrBytes + pal_bytes);
+
+    dwq.push_back('B');
+    dwq.push_back('M');
+    put_u32(dwq, static_cast<std::uint32_t>(mask_bf_off + total_px));
+    put_u16_local(dwq, 0u);
+    put_u16_local(dwq, 0u);
+    put_u32(dwq, mask_bf_off);
+    put_u32(dwq, 40u);
+    put_i32_local(dwq, img.width);
+    put_i32_local(dwq, img.height);
+    put_u16_local(dwq, 1u);
+    put_u16_local(dwq, 8u);
+    put_u32(dwq, 0u);
+    put_u32(dwq, static_cast<std::uint32_t>(total_px));
+    put_i32_local(dwq, 0);
+    put_i32_local(dwq, 0);
+    put_u32(dwq, static_cast<std::uint32_t>(mask_pal_values.size()));
+    put_u32(dwq, 0u);
+    for (std::uint8_t v : mask_pal_values) {
+        dwq.push_back(v);
+        dwq.push_back(v);
+        dwq.push_back(v);
+        dwq.push_back(0u);
+    }
+    dwq.insert(dwq.end(), rle.begin(), rle.end());
+    return dwq;
+}
+
+Bytes make_3a_dwq(const DwqRgbaImage& img) {
+    constexpr std::size_t kBmpHdrBytes = 54u;
+    const std::size_t total_px =
+        static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height);
+
+    // 4-color palette: {0,0,0}, {200,40,20}, {10,180,90}, {50,60,220}
+    const std::array<std::array<std::uint8_t, 3>, 4> pal = {{
+        {0u, 0u, 0u},
+        {200u, 40u, 20u},
+        {10u, 180u, 90u},
+        {50u, 60u, 220u},
+    }};
+    Bytes color_indices(total_px, 0u);
+    Bytes alpha(total_px, 0u);
+    for (std::size_t i = 0; i < total_px; ++i) {
+        const std::uint8_t r = img.pixels[i * 4u + 0u];
+        const std::uint8_t g = img.pixels[i * 4u + 1u];
+        const std::uint8_t b = img.pixels[i * 4u + 2u];
+        alpha[i] = img.pixels[i * 4u + 3u];
+        for (std::size_t p = 0; p < pal.size(); ++p) {
+            if (pal[p][0] == r && pal[p][1] == g && pal[p][2] == b) {
+                color_indices[i] = static_cast<std::uint8_t>(p);
+                break;
+            }
+        }
+    }
+    const Bytes color_rle = encode_rle_xor_mask(color_indices.data(), img.width, img.height);
+    const std::uint32_t color_bf_off = static_cast<std::uint32_t>(kBmpHdrBytes + pal.size() * 4u);
+    const std::uint32_t color_section = color_bf_off + static_cast<std::uint32_t>(color_rle.size());
+
+    Bytes dwq(GPK_HEADER_SIZE, ' ');
+    std::memcpy(dwq.data(), "PACKBMP         ", 16u);
+    for (std::size_t i = 0x10u; i < 0x20u; ++i) {
+        dwq[i] = 0u;
+    }
+    const auto wr32 = [&](std::size_t o, std::uint32_t v) {
+        dwq[o] = static_cast<std::uint8_t>(v);
+        dwq[o + 1u] = static_cast<std::uint8_t>(v >> kByteShift1);
+        dwq[o + 2u] = static_cast<std::uint8_t>(v >> kByteShift2);
+        dwq[o + 3u] = static_cast<std::uint8_t>(v >> kByteShift3);
+    };
+    const auto wr16 = [&](std::size_t o, std::uint16_t v) {
+        dwq[o] = static_cast<std::uint8_t>(v);
+        dwq[o + 1u] = static_cast<std::uint8_t>(v >> kByteShift1);
+    };
+    wr32(0x20u, color_section);
+    wr32(0x24u, static_cast<std::uint32_t>(img.width));
+    wr16(0x28u, static_cast<std::uint16_t>(img.height));
+    wr16(0x2Au, 8u);
+    std::memcpy(dwq.data() + 0x30u, "PACKTYPE=3A     ", 16u);
+
+    // 8-bit palettized RLE-XOR color BMP.
+    dwq.push_back('B');
+    dwq.push_back('M');
+    put_u32(dwq, color_section);
+    put_u16_local(dwq, 0u);
+    put_u16_local(dwq, 0u);
+    put_u32(dwq, color_bf_off);
+    put_u32(dwq, 40u);
+    put_i32_local(dwq, img.width);
+    put_i32_local(dwq, img.height);
+    put_u16_local(dwq, 1u);
+    put_u16_local(dwq, 8u);
+    put_u32(dwq, 0u);
+    put_u32(dwq, static_cast<std::uint32_t>(total_px));
+    put_i32_local(dwq, 0);
+    put_i32_local(dwq, 0);
+    put_u32(dwq, static_cast<std::uint32_t>(pal.size()));
+    put_u32(dwq, 0u);
+    for (const auto& c : pal) {
+        dwq.push_back(c[2]);
+        dwq.push_back(c[1]);
+        dwq.push_back(c[0]);
+        dwq.push_back(0u);
+    }
+    dwq.insert(dwq.end(), color_rle.begin(), color_rle.end());
+
+    // 256-entry identity mask BMP.
+    const Bytes mask_rle = encode_rle_xor_mask(alpha.data(), img.width, img.height);
+    dwq.push_back('B');
+    dwq.push_back('M');
+    put_u32(dwq, static_cast<std::uint32_t>(kBmpHdrBytes + 1024u + total_px));
+    put_u16_local(dwq, 0u);
+    put_u16_local(dwq, 0u);
+    put_u32(dwq, static_cast<std::uint32_t>(kBmpHdrBytes + 1024u));
+    put_u32(dwq, 40u);
+    put_i32_local(dwq, img.width);
+    put_i32_local(dwq, img.height);
+    put_u16_local(dwq, 1u);
+    put_u16_local(dwq, 8u);
+    put_u32(dwq, 0u);
+    put_u32(dwq, static_cast<std::uint32_t>(total_px));
+    put_i32_local(dwq, 0);
+    put_i32_local(dwq, 0);
+    put_u32(dwq, 256u);
+    put_u32(dwq, 0u);
+    for (std::uint32_t i = 0; i < 256u; ++i) {
+        const auto g = static_cast<std::uint8_t>(i);
+        dwq.push_back(g);
+        dwq.push_back(g);
+        dwq.push_back(g);
+        dwq.push_back(0u);
+    }
+    dwq.insert(dwq.end(), mask_rle.begin(), mask_rle.end());
+    return dwq;
+}
+
+}  // namespace
+
+TEST(GpkEntry, header_preserves_u16_height_u16_bpp_type_raw_and_png_crop_margins) {
+    Bytes raw(GPK_HEADER_SIZE, 0u);
+    std::memcpy(raw.data(), "BMP+MASK        ", 16u);
+    for (std::size_t m = 0; m < 4u; ++m) {
+        const std::size_t o = 0x10u + m * 4u;
+        raw[o] = 99u;
+    }
+    raw[0x20u] = 4u;  // packed_size = 4
+    raw[0x24u] = 10u; // width = 10
+    raw[0x28u] = 8u;  // u16 height = 8
+    raw[0x2Au] = 32u; // u16 bpp = 32 (non-zero!)
+    raw[0x2Cu] = 'X';
+    raw[0x2Du] = 'Y';
+    raw[0x2Eu] = 'Z';
+    raw[0x2Fu] = 'W';
+    std::memcpy(raw.data() + 0x30u, PACKTYPE_DEFAULT.data(), 16u);
+
+    const EntryHeader parsed = read_entry_header(raw, 0u);
+    EXPECT_EQ(parsed.type_tag, "BMP+MASK");
+    EXPECT_EQ(parsed.width, 10u);
+    EXPECT_EQ(parsed.height, 8u);
+    EXPECT_EQ(parsed.bpp, 32u);
+
+    // Real 4-channel RGBA PNG with active pixels only at (x=3..5, y=2..6) in 10x8:
+    // expected margins = {top=2, left=3, right=4, bottom=1}.
+    cg::Image rgba;
+    rgba.width = 10;
+    rgba.height = 8;
+    rgba.channels = 4;
+    rgba.px.assign(10u * 8u * 4u, 0u);
+    for (int y = 2; y <= 6; ++y) {
+        for (int x = 3; x <= 5; ++x) {
+            std::uint8_t* p = rgba.at(x, y);
+            p[0] = 120u;
+            p[1] = 200u;
+            p[2] = 60u;
+            p[3] = 255u;
+        }
+    }
+    const Bytes png = cg::encode_png(rgba);
+    const Bytes built = build_entry(parsed, png);
+
+    EXPECT_EQ(std::memcmp(built.data(), "BMP+MASK        ", 16u), 0);
+    EXPECT_EQ(rd_i32_local(built, 0x10u), 2);
+    EXPECT_EQ(rd_i32_local(built, 0x14u), 3);
+    EXPECT_EQ(rd_i32_local(built, 0x18u), 4);
+    EXPECT_EQ(rd_i32_local(built, 0x1Cu), 1);
+    EXPECT_EQ(rd_u16_local(built, 0x28u), 8u);
+    EXPECT_EQ(rd_u16_local(built, 0x2Au), 32u);
+    EXPECT_EQ(built[0x2Cu], 'X');
+    EXPECT_EQ(built[0x2Fu], 'W');
+
+    const EntryHeader back = read_entry_header(built, 0u);
+    EXPECT_EQ(back.height, 8u);
+    EXPECT_EQ(back.bpp, 32u);
+}
+
+TEST(GpkGtb, over2g_u64_offsets_above_4gib_round_trip_without_truncation) {
+    const test_util::ScopedTempDir temp_dir("mgi_ut_gtb_over2g_u64");
+    const std::string p = temp_dir.join_u8("big.gtb");
+    constexpr std::uint64_t kOff1 = 0x100000480ull;
+    constexpr std::uint64_t kOff2 = 0x200001200ull;
+
+    const std::vector<GtbEntry> entries = {
+        {"first", 0ull},
+        {"above_4g", kOff1},
+        {"above_8g", kOff2},
+    };
+    write_gtb(p, entries, true);
+
+    const Gtb back = read_gtb(p);
+    ASSERT_TRUE(back.has_64bit);
+    ASSERT_EQ(back.entries.size(), 3u);
+    EXPECT_EQ(back.entries[0].offset, 0ull);
+    EXPECT_EQ(back.entries[1].offset, kOff1);
+    EXPECT_EQ(back.entries[2].offset, kOff2);
+
+    // Reject writing >4GiB offsets without over2G! 64-bit table.
+    const std::string bad_no64 = temp_dir.join_u8("no64.gtb");
+    EXPECT_THROW(write_gtb(bad_no64, entries, false), std::runtime_error);
+
+    // Reject desynced low-32 bits between u32 and u64 tables.
+    Bytes tampered = read_file(p);
+    const std::size_t u64_entry1_pos = tampered.size() - 16u - 2u * 8u;
+    tampered[u64_entry1_pos] ^= 0xFFu;
+    const std::string bad_desync = temp_dir.join_u8("desync.gtb");
+    write_file(bad_desync, tampered);
+    EXPECT_THROW(read_gtb(bad_desync), std::runtime_error);
+}
+
+TEST(GpkEntry, packtype_2a_sparse_mask_and_3a_preserve_alpha_masks_and_headers) {
+    // 1. Sparse-palette PACKTYPE=2A (4-entry mask palette: bfOffBits = 70 < 1078)
+    // exercising sign-bit alpha values 0x00, 0x7F, 0x80, 0xFF and hidden BGR.
+    DwqRgbaImage orig_2a;
+    orig_2a.width = 8;
+    orig_2a.height = 6;
+    orig_2a.pixels.assign(8u * 6u * 4u, 0u);
+    // Transparent pixel (0,0) carries hidden BGR (11,22,33).
+    orig_2a.pixels[0] = 33u;
+    orig_2a.pixels[1] = 22u;
+    orig_2a.pixels[2] = 11u;
+    orig_2a.pixels[3] = 0x00u;
+    // Active block (x=2..5, y=1..4) with boundary alpha values.
+    const std::vector<std::uint8_t> sparse_pal = {0x00u, 0x7Fu, 0x80u, 0xFFu};
+    for (int y = 1; y <= 4; ++y) {
+        for (int x = 2; x <= 5; ++x) {
+            const std::size_t p = (static_cast<std::size_t>(y) * 8u + x) * 4u;
+            orig_2a.pixels[p + 0u] = static_cast<std::uint8_t>(20u + x * 10u);
+            orig_2a.pixels[p + 1u] = static_cast<std::uint8_t>(50u + y * 15u);
+            orig_2a.pixels[p + 2u] = 190u;
+            orig_2a.pixels[p + 3u] = sparse_pal[static_cast<std::size_t>((x + y) % 3 + 1)];
+        }
+    }
+
+    const Bytes raw_2a = make_sparse_2a_dwq(orig_2a, sparse_pal, 24u);
+    const DwqRgbaImage decoded_2a = decode_dwq_masked_rgba(raw_2a.data(), raw_2a.size());
+    EXPECT_EQ(decoded_2a.width, orig_2a.width);
+    EXPECT_EQ(decoded_2a.height, orig_2a.height);
+    EXPECT_EQ(decoded_2a.pixels, orig_2a.pixels);
+
+    // Replace with 32-bpp RGBA PNG introducing new alpha values (0x33, 0xFE)
+    // outside the original 4-entry sparse palette and expanded bounds (x=1..6, y=0..5).
+    cg::Image repl_rgba;
+    repl_rgba.width = 8;
+    repl_rgba.height = 6;
+    repl_rgba.channels = 4;
+    repl_rgba.px.assign(8u * 6u * 4u, 0u);
+    for (int y = 0; y <= 5; ++y) {
+        for (int x = 1; x <= 6; ++x) {
+            std::uint8_t* p = repl_rgba.at(x, y);
+            p[0] = 240u;
+            p[1] = 80u;
+            p[2] = 40u;
+            p[3] = (x == 1) ? 0x33u : ((x == 6) ? 0xFEu : 0xFFu);
+        }
+    }
+    const Bytes repl_png = cg::encode_png(repl_rgba);
+    const Bytes rebuilt_2a = build_entry_from_raw(raw_2a.data(), raw_2a.size(), repl_png);
+
+    const EntryHeader hdr_2a = read_entry_header(rebuilt_2a, 0u);
+    EXPECT_EQ(hdr_2a.type_tag, "BMP+MASK");
+    EXPECT_EQ(packtype_char(hdr_2a), '2');
+    EXPECT_EQ(hdr_2a.bpp, 24u);
+    EXPECT_EQ(rd_i32_local(rebuilt_2a, 0x10u), 0);  // top
+    EXPECT_EQ(rd_i32_local(rebuilt_2a, 0x14u), 1);  // left
+    EXPECT_EQ(rd_i32_local(rebuilt_2a, 0x18u), 1);  // right (8 - 1 - 6)
+    EXPECT_EQ(rd_i32_local(rebuilt_2a, 0x1Cu), 0);  // bottom
+
+    // Mask BMP header rewritten for 256-entry grayscale palette.
+    const std::size_t mask_off = GPK_HEADER_SIZE + hdr_2a.packed_size;
+    ASSERT_GT(rebuilt_2a.size(), mask_off + 1078u);
+    EXPECT_EQ(rebuilt_2a[mask_off], 'B');
+    EXPECT_EQ(rebuilt_2a[mask_off + 1u], 'M');
+    EXPECT_EQ(rd_u32_local(rebuilt_2a, mask_off + 2u), 1078u + 8u * 6u);  // bfSize
+    EXPECT_EQ(rd_u32_local(rebuilt_2a, mask_off + 10u), 1078u);           // bfOffBits
+    EXPECT_EQ(rd_u32_local(rebuilt_2a, mask_off + 46u), 256u);            // biClrUsed
+    EXPECT_EQ(rd_u32_local(rebuilt_2a, mask_off + 50u), 0u);              // biClrImportant
+    for (std::uint32_t pal_idx : {0u, 1u, 127u, 128u, 254u, 255u}) {
+        const std::size_t p_off = mask_off + 54u + static_cast<std::size_t>(pal_idx) * 4u;
+        EXPECT_EQ(rebuilt_2a[p_off + 0u], static_cast<std::uint8_t>(pal_idx));
+        EXPECT_EQ(rebuilt_2a[p_off + 1u], static_cast<std::uint8_t>(pal_idx));
+        EXPECT_EQ(rebuilt_2a[p_off + 2u], static_cast<std::uint8_t>(pal_idx));
+        EXPECT_EQ(rebuilt_2a[p_off + 3u], 0u);
+    }
+
+    const DwqRgbaImage redecoded_2a = decode_dwq_masked_rgba(rebuilt_2a.data(), rebuilt_2a.size());
+    ASSERT_EQ(redecoded_2a.width, 8);
+    ASSERT_EQ(redecoded_2a.height, 6);
+    ASSERT_EQ(redecoded_2a.pixels.size(), 8u * 6u * 4u);
+    EXPECT_EQ(redecoded_2a.pixels[0], 33u);  // hidden BGR preserved on (0,0,0,0)
+    EXPECT_EQ(redecoded_2a.pixels[1], 22u);
+    EXPECT_EQ(redecoded_2a.pixels[2], 11u);
+    EXPECT_EQ(redecoded_2a.pixels[3], 0u);
+    EXPECT_EQ(redecoded_2a.pixels[(0u * 8u + 1u) * 4u + 3u], 0x33u);
+    EXPECT_EQ(redecoded_2a.pixels[(5u * 8u + 6u) * 4u + 3u], 0xFEu);
+
+    // 2. Passing 3-channel RGB BMP to build_entry_from_raw on a 2A entry must
+    // preserve the original alpha mask verbatim rather than dropping it.
+    cg::Image rgb_only = cg::drop_alpha(repl_rgba);
+    const Bytes rebuilt_2a_from_rgb =
+        build_entry_from_raw(raw_2a.data(), raw_2a.size(), cg::encode_bmp(rgb_only));
+    const DwqRgbaImage from_rgb_decoded =
+        decode_dwq_masked_rgba(rebuilt_2a_from_rgb.data(), rebuilt_2a_from_rgb.size());
+    ASSERT_EQ(from_rgb_decoded.pixels.size(), orig_2a.pixels.size());
+    for (std::size_t i = 0; i < 8u * 6u; ++i) {
+        EXPECT_EQ(from_rgb_decoded.pixels[i * 4u + 3u], orig_2a.pixels[i * 4u + 3u]);
+    }
+
+    // 3. PACKTYPE=3A (8-bit palettized RLE-XOR color + 8-bit RLE-XOR mask).
+    DwqRgbaImage orig_3a;
+    orig_3a.width = 6;
+    orig_3a.height = 4;
+    orig_3a.pixels.assign(6u * 4u * 4u, 0u);
+    for (int y = 1; y <= 2; ++y) {
+        for (int x = 1; x <= 4; ++x) {
+            const std::size_t p = (static_cast<std::size_t>(y) * 6u + x) * 4u;
+            orig_3a.pixels[p + 0u] = 200u;
+            orig_3a.pixels[p + 1u] = 40u;
+            orig_3a.pixels[p + 2u] = 20u;
+            orig_3a.pixels[p + 3u] = (x == 1) ? 0x80u : 0xFFu;
+        }
+    }
+    const Bytes raw_3a = make_3a_dwq(orig_3a);
+    const DwqRgbaImage decoded_3a = decode_dwq_masked_rgba(raw_3a.data(), raw_3a.size());
+    EXPECT_EQ(decoded_3a.pixels, orig_3a.pixels);
+
+    cg::Image repl_3a;
+    repl_3a.width = 6;
+    repl_3a.height = 4;
+    repl_3a.channels = 4;
+    repl_3a.px = orig_3a.pixels;
+    repl_3a.at(0, 0)[0] = 50u;
+    repl_3a.at(0, 0)[1] = 60u;
+    repl_3a.at(0, 0)[2] = 220u;
+    repl_3a.at(0, 0)[3] = 0x7Fu;
+    const Bytes rebuilt_3a =
+        build_entry_from_raw(raw_3a.data(), raw_3a.size(), cg::encode_png(repl_3a));
+    const EntryHeader hdr_3a = read_entry_header(rebuilt_3a, 0u);
+    EXPECT_EQ(hdr_3a.type_tag, "PACKBMP");
+    EXPECT_EQ(packtype_char(hdr_3a), '3');
+    EXPECT_EQ(hdr_3a.bpp, 8u);
+    const DwqRgbaImage redecoded_3a = decode_dwq_masked_rgba(rebuilt_3a.data(), rebuilt_3a.size());
+    EXPECT_EQ(redecoded_3a.pixels, repl_3a.px);
+
+    // 4. build_entry updates 0x10..0x1F crop margins for 32-bpp RGBA BMP payloads too.
+    EntryHeader bmp32_hdr{};
+    bmp32_hdr.type_raw = {'B', 'M', 'P', ' ', ' ', ' ', ' ', ' ',
+                          ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+    bmp32_hdr.bpp = 32u;
+    bmp32_hdr.packtype = {'P', 'A', 'C', 'K', 'T', 'Y', 'P', 'E',
+                          '=', '5', 'A', ' ', ' ', ' ', ' ', ' '};
+    const Bytes bmp32_payload = cg::encode_bmp(repl_rgba);
+    const Bytes built_bmp32 = build_entry(bmp32_hdr, bmp32_payload);
+    EXPECT_EQ(rd_i32_local(built_bmp32, 0x10u), 0);  // top
+    EXPECT_EQ(rd_i32_local(built_bmp32, 0x14u), 1);  // left
+    EXPECT_EQ(rd_i32_local(built_bmp32, 0x18u), 1);  // right
+    EXPECT_EQ(rd_i32_local(built_bmp32, 0x1Cu), 0);  // bottom
+}
+
+TEST(GpkEntry, corrupt_mask_headers_dimensions_and_over2g_name_collisions_throw_cleanly) {
+    DwqRgbaImage base_img;
+    base_img.width = 4;
+    base_img.height = 4;
+    base_img.pixels.assign(4u * 4u * 4u, 0u);
+    base_img.pixels[3] = 0xFFu;
+    const std::vector<std::uint8_t> sparse_pal = {0x00u, 0xFFu};
+    const Bytes valid_2a = make_sparse_2a_dwq(base_img, sparse_pal, 24u);
+    const EntryHeader valid_hdr = read_entry_header(valid_2a, 0u);
+    const std::size_t mask_off = GPK_HEADER_SIZE + valid_hdr.packed_size;
+
+    // Valid baseline before corrupt inputs (valid -> error -> valid seam).
+    const DwqRgbaImage pre_ok = decode_dwq_masked_rgba(valid_2a.data(), valid_2a.size());
+    EXPECT_EQ(pre_ok.pixels, base_img.pixels);
+
+    // Table-driven invalid MASK bfOffBits values (0, <54, 54 empty pal, misaligned 57/59, UINT32_MAX).
+    for (std::uint32_t bad_off : {0u, 53u, 54u, 57u, 59u, 0xFFFFFFFFu}) {
+        Bytes bad = valid_2a;
+        bad[mask_off + 10u] = static_cast<std::uint8_t>(bad_off & 0xFFu);
+        bad[mask_off + 11u] = static_cast<std::uint8_t>((bad_off >> 8u) & 0xFFu);
+        bad[mask_off + 12u] = static_cast<std::uint8_t>((bad_off >> 16u) & 0xFFu);
+        bad[mask_off + 13u] = static_cast<std::uint8_t>((bad_off >> 24u) & 0xFFu);
+        EXPECT_THROW(decode_dwq_masked_rgba(bad.data(), bad.size()), std::runtime_error)
+            << "bad_off=" << bad_off;
+    }
+
+    // Truncated mask section.
+    EXPECT_THROW(decode_dwq_masked_rgba(valid_2a.data(), mask_off + 20u), std::runtime_error);
+
+    // packed_size < bmp_needed (claims color BMP is smaller than 54 + 4*12).
+    {
+        Bytes bad_packed = valid_2a;
+        const std::uint32_t tiny = 60u;
+        bad_packed[0x20u] = static_cast<std::uint8_t>(tiny & 0xFFu);
+        bad_packed[0x21u] = 0u;
+        bad_packed[0x22u] = 0u;
+        bad_packed[0x23u] = 0u;
+        EXPECT_THROW(decode_dwq_masked_rgba(bad_packed.data(), bad_packed.size()),
+                     std::runtime_error);
+    }
+
+    // INT32_MIN BMP height must throw cleanly (no signed abs UB).
+    {
+        Bytes bad_h = valid_2a;
+        bad_h[GPK_HEADER_SIZE + 22u] = 0x00u;
+        bad_h[GPK_HEADER_SIZE + 23u] = 0x00u;
+        bad_h[GPK_HEADER_SIZE + 24u] = 0x00u;
+        bad_h[GPK_HEADER_SIZE + 25u] = 0x80u;
+        EXPECT_THROW(decode_dwq_masked_rgba(bad_h.data(), bad_h.size()), std::runtime_error);
+
+        cg::Image repl;
+        repl.width = 4;
+        repl.height = 4;
+        repl.channels = 4;
+        repl.px = base_img.pixels;
+        EXPECT_THROW(build_entry_from_raw(bad_h.data(), bad_h.size(), cg::encode_png(repl)),
+                     std::runtime_error);
+    }
+
+    // height > 65535 exceeds DWQ u16 height field and must throw.
+    {
+        EntryHeader tall_hdr{};
+        tall_hdr.width = 16u;
+        tall_hdr.height = 65535u;
+        tall_hdr.bpp = 24u;
+        // Synthetic PNG header with width=16, height=65536 (0x00010000).
+        Bytes tall_png = {
+            0x89u, 'P', 'N', 'G', 0x0Du, 0x0Au, 0x1Au, 0x0Au,
+            0x00u, 0x00u, 0x00u, 0x0Du, 'I', 'H', 'D', 'R',
+            0x00u, 0x00u, 0x00u, 0x10u,
+            0x00u, 0x01u, 0x00u, 0x00u,
+        };
+        EXPECT_THROW(build_entry(tall_hdr, tall_png), std::runtime_error);
+    }
+
+    // GTB entry literally named "over2G!" without an EOF over2G! trailer must
+    // parse cleanly as a standard 32-bit GTB (has_64bit == false).
+    const test_util::ScopedTempDir temp_dir("mgi_ut_gtb_corrupt_over2g");
+    {
+        const std::string gtb_path = temp_dir.join_u8("named_over2g.gtb");
+        const std::vector<GtbEntry> entries = {{"over2G!", 0u}, {"tail_entry", 64u}};
+        write_gtb(gtb_path, entries, false);
+        const Gtb parsed = read_gtb(gtb_path);
+        EXPECT_FALSE(parsed.has_64bit);
+        ASSERT_EQ(parsed.entries.size(), 2u);
+        EXPECT_EQ(parsed.entries[0].name, "over2G!");
+        EXPECT_EQ(parsed.entries[1].name, "tail_entry");
+        EXPECT_EQ(parsed.entries[1].offset, 64ull);
+    }
+
+    // Corrupt GTB with huge entry count must throw cleanly without bad_alloc.
+    {
+        const std::string corrupt_gtb = temp_dir.join_u8("huge_count.gtb");
+        write_file(corrupt_gtb, Bytes{0xFFu, 0xFFu, 0xFFu, 0x7Fu, 0u, 0u, 0u, 0u});
+        EXPECT_THROW(read_gtb(corrupt_gtb), std::runtime_error);
+    }
+
+    // Valid input still succeeds cleanly after all error paths (seam check).
+    const DwqRgbaImage post_ok = decode_dwq_masked_rgba(valid_2a.data(), valid_2a.size());
+    EXPECT_EQ(post_ok.pixels, base_img.pixels);
 }

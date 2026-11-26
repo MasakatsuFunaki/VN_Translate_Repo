@@ -52,7 +52,7 @@ Image crop(const Image& img, int x1, int y1, int x2, int y2);
 Image resize(const Image& img, int new_w, int new_h);
 
 Bytes encode_png(const Image& img);  // colour type 2 for 3ch, 6 for 4ch
-Bytes encode_bmp(const Image& img);  // 24-bit; caller drops alpha first
+Bytes encode_bmp(const Image& img);  // 24-bit BGR for 3ch, 32-bit straight BGRA for 4ch
 Bytes encode_jpg(const Image& img, int quality);
 
 // RGBA -> RGB: DISCARDS alpha, does not composite onto a matte.

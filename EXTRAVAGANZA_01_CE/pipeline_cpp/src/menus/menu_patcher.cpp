@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -46,13 +47,18 @@ namespace {
 inline constexpr std::size_t kGtbCountFieldSize = 4;
 inline constexpr std::size_t kGtbOffsetElemSize = 4;
 inline constexpr std::size_t kGtbOffsetTableCount = 2;
+inline constexpr std::size_t kBmpFileSizeFieldOffset = 2;
+inline constexpr std::size_t kBmpOffBitsFieldOffset = 10;
 inline constexpr std::size_t kBmpWidthFieldOffset = 18;
 inline constexpr std::size_t kBmpHeightFieldOffset = 22;
 inline constexpr std::size_t kBmpBitCountFieldOffset = 28;
+inline constexpr std::size_t kBmpClrUsedFieldOffset = 46;
+inline constexpr std::size_t kBmpClrImportantFieldOffset = 50;
 inline constexpr std::uint16_t kBmp24BitCount = 24;
 inline constexpr std::uint8_t kOpaqueAlpha = 255;
 inline constexpr std::uint8_t kTransparentAlpha = 0;
 inline constexpr std::size_t kMaskPaletteEntrySize = 4;
+inline constexpr std::size_t kMaskPaletteColorCount = kMaskPaletteSize / kMaskPaletteEntrySize;
 inline constexpr std::size_t kMaskPaletteRedChannelIndex = 2;
 inline constexpr std::size_t kRleInitialReserveDivisor = 2;
 inline constexpr std::size_t kFxfHeaderReservePadding = 128;
@@ -233,6 +239,49 @@ void ensure_bak_backup_file(const fs::path& target_path, const Bytes& orig_bytes
     write_file(bak_path.u8string(), orig_bytes);
 }
 
+void clear_readonly_attribute(const fs::path& p) noexcept {
+    const DWORD attrs = GetFileAttributesW(p.c_str());
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY) != 0u) {
+        SetFileAttributesW(p.c_str(), attrs & ~FILE_ATTRIBUTE_READONLY);
+    }
+}
+
+Bytes decode_mask_alpha_from_bmp(const std::uint8_t* mask_hdr,
+                                 std::size_t avail_bytes,
+                                 int width,
+                                 int height,
+                                 std::uint32_t* out_mask_bf_off = nullptr) {
+    if (avail_bytes < kBmpHeaderSize) {
+        throw std::runtime_error("decode_mask_alpha_from_bmp: truncated MASK header");
+    }
+    const std::uint32_t mask_bf_off = read_u32_le(mask_hdr + kBmpOffBitsFieldOffset);
+    if (mask_bf_off < kBmpHeaderSize || avail_bytes < mask_bf_off ||
+        (mask_bf_off - kBmpHeaderSize) % kMaskPaletteEntrySize != 0u) {
+        throw std::runtime_error("decode_mask_alpha_from_bmp: invalid MASK bfOffBits");
+    }
+    const std::size_t pal_entries = (mask_bf_off - kBmpHeaderSize) / kMaskPaletteEntrySize;
+    if (pal_entries == 0 || pal_entries > kMaskPaletteColorCount) {
+        throw std::runtime_error("decode_mask_alpha_from_bmp: empty or oversized MASK palette");
+    }
+    if (out_mask_bf_off != nullptr) {
+        *out_mask_bf_off = mask_bf_off;
+    }
+
+    const std::uint8_t* mask_palette = mask_hdr + kBmpHeaderSize;
+    const std::uint8_t* mask_stream = mask_hdr + mask_bf_off;
+    const std::size_t mask_stream_size = avail_bytes - mask_bf_off;
+    const Bytes alpha_indices =
+        decode_rle_xor_mask(mask_stream, mask_stream_size, width, height);
+
+    const std::size_t total_px = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    Bytes alpha(total_px, 0);
+    for (std::size_t i = 0; i < total_px; ++i) {
+        const std::size_t idx = std::min<std::size_t>(alpha_indices[i], pal_entries - 1);
+        alpha[i] = mask_palette[idx * kMaskPaletteEntrySize + kMaskPaletteRedChannelIndex];
+    }
+    return alpha;
+}
+
 std::string to_lower_ascii(std::string s) {
     for (char& ch : s) {
         if (ch >= 'A' && ch <= 'Z') {
@@ -392,13 +441,16 @@ RgbaImage decode_dwq_to_rgba(const std::uint8_t* dwq_data, std::size_t dwq_size)
     const int raw_height = static_cast<int>(read_i32_le(bmp_hdr + kBmpHeightFieldOffset));
     const int height = std::abs(raw_height);
     const std::uint16_t bit_count = read_u16_le(bmp_hdr + kBmpBitCountFieldOffset);
+    const std::uint32_t color_bf_off = read_u32_le(bmp_hdr + kBmpOffBitsFieldOffset);
 
-    if (width <= 0 || height <= 0 || bit_count != kBmp24BitCount) {
+    if (width <= 0 || height <= 0 || bit_count != kBmp24BitCount ||
+        color_bf_off < kBmpHeaderSize) {
         throw std::runtime_error("decode_dwq_to_rgba: expected 24-bit BMP payload");
     }
 
     const std::size_t stride = bmp_row_stride_24(width);
-    const std::size_t bmp_bytes_needed = kBmpHeaderSize + stride * static_cast<std::size_t>(height);
+    const std::size_t bmp_bytes_needed =
+        static_cast<std::size_t>(color_bf_off) + stride * static_cast<std::size_t>(height);
     if (dwq_size < kDwqHeaderSize + bmp_bytes_needed) {
         throw std::runtime_error("decode_dwq_to_rgba: truncated BMP pixel data");
     }
@@ -408,7 +460,7 @@ RgbaImage decode_dwq_to_rgba(const std::uint8_t* dwq_data, std::size_t dwq_size)
     img.height = height;
     img.pixels.resize(static_cast<std::size_t>(width) * height * kRgbaChannels, kOpaqueAlpha);
 
-    const std::uint8_t* bmp_pixels = bmp_hdr + kBmpHeaderSize;
+    const std::uint8_t* bmp_pixels = bmp_hdr + color_bf_off;
     for (int y = 0; y < height; ++y) {
         const std::uint8_t* src_row = bmp_pixels + static_cast<std::size_t>(y) * stride;
         std::uint8_t* dst_row =
@@ -424,23 +476,15 @@ RgbaImage decode_dwq_to_rgba(const std::uint8_t* dwq_data, std::size_t dwq_size)
     if (pack_type == kPackTypeBmpWithMask) {
         const std::int32_t data_size = read_i32_le(dwq_data + kDwqDataSizeOffset);
         if (data_size <= 0 ||
-            dwq_size < kDwqHeaderSize + static_cast<std::size_t>(data_size) + kMaskHeaderTotalSize) {
+            dwq_size < kDwqHeaderSize + static_cast<std::size_t>(data_size) + kBmpHeaderSize) {
             throw std::runtime_error("decode_dwq_to_rgba: truncated MASK section");
         }
         const std::size_t mask_offset = kDwqHeaderSize + static_cast<std::size_t>(data_size);
-        const std::uint8_t* mask_palette = dwq_data + mask_offset + kBmpHeaderSize;
-        const std::uint8_t* mask_stream = dwq_data + mask_offset + kMaskHeaderTotalSize;
-        const std::size_t mask_stream_size =
-            dwq_size - (mask_offset + kMaskHeaderTotalSize);
-
-        const Bytes alpha_indices =
-            decode_rle_xor_mask(mask_stream, mask_stream_size, width, height);
+        const Bytes alpha = decode_mask_alpha_from_bmp(
+            dwq_data + mask_offset, dwq_size - mask_offset, width, height);
         const std::size_t total_px = static_cast<std::size_t>(width) * height;
         for (std::size_t i = 0; i < total_px; ++i) {
-            const std::uint8_t idx = alpha_indices[i];
-            img.pixels[i * kRgbaChannels + kAlphaChannel] =
-                mask_palette[static_cast<std::size_t>(idx) * kMaskPaletteEntrySize +
-                             kMaskPaletteRedChannelIndex];
+            img.pixels[i * kRgbaChannels + kAlphaChannel] = alpha[i];
         }
     }
 
@@ -468,18 +512,26 @@ Bytes encode_dwq_from_rgba(const std::uint8_t* orig_dwq, std::size_t orig_size,
     const int orig_w = static_cast<int>(read_i32_le(bmp_hdr + kBmpWidthFieldOffset));
     const int orig_h = std::abs(static_cast<int>(read_i32_le(bmp_hdr + kBmpHeightFieldOffset)));
     const std::uint16_t bit_count = read_u16_le(bmp_hdr + kBmpBitCountFieldOffset);
+    const std::uint32_t color_bf_off = read_u32_le(bmp_hdr + kBmpOffBitsFieldOffset);
 
-    if (orig_w != img.width || orig_h != img.height || bit_count != kBmp24BitCount) {
+    if (orig_w != img.width || orig_h != img.height || bit_count != kBmp24BitCount ||
+        color_bf_off < kBmpHeaderSize) {
         throw std::runtime_error("encode_dwq_from_rgba: image dimensions do not match DWQ header");
     }
 
     const std::size_t stride = bmp_row_stride_24(img.width);
-    const std::size_t bmp_section_size =
-        (pack_type == kPackTypeBmpWithMask)
-            ? static_cast<std::size_t>(read_i32_le(orig_dwq + kDwqDataSizeOffset))
-            : (orig_size - kDwqHeaderSize);
-    if (bmp_section_size < kBmpHeaderSize + stride * static_cast<std::size_t>(img.height) ||
-        orig_size < kDwqHeaderSize + bmp_section_size) {
+    std::size_t bmp_section_size = orig_size - kDwqHeaderSize;
+    if (pack_type == kPackTypeBmpWithMask) {
+        const std::int32_t raw_data_size = read_i32_le(orig_dwq + kDwqDataSizeOffset);
+        if (raw_data_size <= 0) {
+            throw std::runtime_error("encode_dwq_from_rgba: invalid DWQ data_size");
+        }
+        bmp_section_size = static_cast<std::size_t>(raw_data_size);
+    }
+    const std::size_t min_bmp_bytes =
+        static_cast<std::size_t>(color_bf_off) + stride * static_cast<std::size_t>(img.height);
+    if (bmp_section_size < min_bmp_bytes ||
+        bmp_section_size > orig_size - kDwqHeaderSize) {
         throw std::runtime_error("encode_dwq_from_rgba: corrupt original BMP section size");
     }
 
@@ -487,26 +539,22 @@ Bytes encode_dwq_from_rgba(const std::uint8_t* orig_dwq, std::size_t orig_size,
     // the original and replacement images keep their original hidden BGR bytes
     // when the PNG carries (0, 0, 0, 0).
     Bytes orig_alpha;
+    std::uint32_t orig_mask_bf_off = static_cast<std::uint32_t>(kMaskHeaderTotalSize);
     if (pack_type == kPackTypeBmpWithMask) {
         const std::size_t mask_offset = kDwqHeaderSize + bmp_section_size;
-        if (orig_size < mask_offset + kMaskHeaderTotalSize) {
+        if (orig_size < mask_offset + kBmpHeaderSize) {
             throw std::runtime_error("encode_dwq_from_rgba: corrupt original MASK section");
         }
-        const std::uint8_t* orig_mask_palette = orig_dwq + mask_offset + kBmpHeaderSize;
-        const Bytes orig_indices = decode_rle_xor_mask(
-            orig_dwq + mask_offset + kMaskHeaderTotalSize,
-            orig_size - (mask_offset + kMaskHeaderTotalSize), img.width, img.height);
-        orig_alpha.resize(orig_indices.size());
-        for (std::size_t i = 0; i < orig_indices.size(); ++i) {
-            const std::uint8_t idx = orig_indices[i];
-            orig_alpha[i] = orig_mask_palette[static_cast<std::size_t>(idx) * kMaskPaletteEntrySize +
-                                              kMaskPaletteRedChannelIndex];
-        }
+        orig_alpha = decode_mask_alpha_from_bmp(orig_dwq + mask_offset,
+                                                orig_size - mask_offset,
+                                                img.width,
+                                                img.height,
+                                                &orig_mask_bf_off);
     }
 
     Bytes out(orig_dwq, orig_dwq + kDwqHeaderSize + bmp_section_size);
-    std::uint8_t* dst_bmp_pixels = out.data() + kDwqHeaderSize + kBmpHeaderSize;
-    const std::uint8_t* orig_bmp_pixels = orig_dwq + kDwqHeaderSize + kBmpHeaderSize;
+    std::uint8_t* dst_bmp_pixels = out.data() + kDwqHeaderSize + color_bf_off;
+    const std::uint8_t* orig_bmp_pixels = orig_dwq + kDwqHeaderSize + color_bf_off;
 
     for (int y = 0; y < img.height; ++y) {
         std::uint8_t* dst_row = dst_bmp_pixels + static_cast<std::size_t>(y) * stride;
@@ -554,14 +602,33 @@ Bytes encode_dwq_from_rgba(const std::uint8_t* orig_dwq, std::size_t orig_size,
         }
 
         const std::size_t mask_offset = kDwqHeaderSize + bmp_section_size;
+        const std::size_t mask_hdr_pos = out.size();
         out.insert(out.end(), orig_dwq + mask_offset,
                    orig_dwq + mask_offset + kBmpHeaderSize);
 
-        // Write a full 256-entry identity grayscale palette (pal[i] = {i, i, i, 0})
-        // so every 8-bit alpha value (0..255) in the re-encoded mask maps 1:1 in
-        // FUN_00554240 even when the original sprite had a sparse indexed palette.
-        constexpr std::size_t kMaskPaletteColorCount =
-            kMaskPaletteSize / kMaskPaletteEntrySize;
+        // Rewrite mask BMP header for the full 256-entry identity grayscale palette
+        // so sparse-palette PACKTYPE=2A sprites (bfOffBits < 1078) encode cleanly.
+        const std::size_t total_px = static_cast<std::size_t>(img.width) * img.height;
+        const std::uint32_t orig_mask_bf_size =
+            read_u32_le(orig_dwq + mask_offset + kBmpFileSizeFieldOffset);
+        const std::uint64_t expanded_mask_bf_size =
+            (orig_mask_bf_size >= orig_mask_bf_off)
+                ? (static_cast<std::uint64_t>(orig_mask_bf_size) -
+                   static_cast<std::uint64_t>(orig_mask_bf_off) +
+                   static_cast<std::uint64_t>(kMaskHeaderTotalSize))
+                : (static_cast<std::uint64_t>(kMaskHeaderTotalSize) +
+                   static_cast<std::uint64_t>(total_px));
+        const std::uint32_t new_mask_bf_size =
+            (expanded_mask_bf_size <= std::numeric_limits<std::uint32_t>::max())
+                ? static_cast<std::uint32_t>(expanded_mask_bf_size)
+                : static_cast<std::uint32_t>(kMaskHeaderTotalSize + total_px);
+        write_u32_le(out.data() + mask_hdr_pos + kBmpFileSizeFieldOffset, new_mask_bf_size);
+        write_u32_le(out.data() + mask_hdr_pos + kBmpOffBitsFieldOffset,
+                     static_cast<std::uint32_t>(kMaskHeaderTotalSize));
+        write_u32_le(out.data() + mask_hdr_pos + kBmpClrUsedFieldOffset,
+                     static_cast<std::uint32_t>(kMaskPaletteColorCount));
+        write_u32_le(out.data() + mask_hdr_pos + kBmpClrImportantFieldOffset, 0u);
+
         for (std::size_t i = 0; i < kMaskPaletteColorCount; ++i) {
             const auto gray = static_cast<std::uint8_t>(i);
             out.push_back(gray);
@@ -570,7 +637,6 @@ Bytes encode_dwq_from_rgba(const std::uint8_t* orig_dwq, std::size_t orig_size,
             out.push_back(0);
         }
 
-        const std::size_t total_px = static_cast<std::size_t>(img.width) * img.height;
         Bytes new_alpha(total_px, 0);
         for (std::size_t i = 0; i < total_px; ++i) {
             new_alpha[i] = img.pixels[i * kRgbaChannels + kAlphaChannel];
@@ -1418,14 +1484,94 @@ MenuBuildSummary run_build_menus(const MenuBuildOptions& opt) {
     const Bytes patched_backlog = patch_backlog_fxf(read_file(backlog_bak.u8string()));
 
     if (!opt.test_mode) {
-        log_info("Writing repacked dwq\\sys0.gpk and dwq\\sys0.gtb (" +
-                 std::to_string(summary.patched_sprite_entries) + " translated, " +
-                 std::to_string(summary.untouched_sprite_entries) + " untouched)...");
-        archive.save(live_gtb.u8string(), live_gpk.u8string());
+        // Phase 1: stage all outputs (.tmp) and all missing pristine backups
+        // (.bak.tmp) before mutating any .bak or live file (strict all-or-nothing).
+        const auto [new_gtb, new_gpk] = archive.serialize();
+        struct StagedBackup {
+            fs::path bak_path;
+            fs::path bak_tmp_path;
+            fs::path orig_source;
+            bool needed = false;
+        };
+        std::array<StagedBackup, 4u> backups = {{
+            {fs::u8path(live_gtb.u8string() + ".bak"),
+             fs::u8path(live_gtb.u8string() + ".bak.tmp"), backup_gtb, false},
+            {fs::u8path(live_gpk.u8string() + ".bak"),
+             fs::u8path(live_gpk.u8string() + ".bak.tmp"), backup_gpk, false},
+            {fs::u8path(main_ctrl_live.u8string() + ".bak"),
+             fs::u8path(main_ctrl_live.u8string() + ".bak.tmp"), main_ctrl_bak, false},
+            {fs::u8path(backlog_live.u8string() + ".bak"),
+             fs::u8path(backlog_live.u8string() + ".bak.tmp"), backlog_bak, false},
+        }};
+        const fs::path tmp_gtb = fs::u8path(live_gtb.u8string() + ".tmp");
+        const fs::path tmp_gpk = fs::u8path(live_gpk.u8string() + ".tmp");
+        const fs::path tmp_main = fs::u8path(main_ctrl_live.u8string() + ".tmp");
+        const fs::path tmp_backlog = fs::u8path(backlog_live.u8string() + ".tmp");
+        try {
+            clear_readonly_attribute(tmp_gpk);
+            clear_readonly_attribute(tmp_gtb);
+            clear_readonly_attribute(tmp_main);
+            clear_readonly_attribute(tmp_backlog);
+            write_file(tmp_gpk.u8string(), new_gpk);
+            write_file(tmp_gtb.u8string(), new_gtb);
+            write_file(tmp_main.u8string(), patched_main_ctrl);
+            write_file(tmp_backlog.u8string(), patched_backlog);
 
-        log_info("Writing patched init2\\mainControl.fxf and init2\\backlog.fxf...");
-        write_file(main_ctrl_live.u8string(), patched_main_ctrl);
-        write_file(backlog_live.u8string(), patched_backlog);
+            for (StagedBackup& b : backups) {
+                std::error_code bak_ec;
+                if (!fs::is_regular_file(b.bak_path, bak_ec)) {
+                    b.needed = true;
+                    clear_readonly_attribute(b.bak_tmp_path);
+                    fs::copy_file(b.orig_source, b.bak_tmp_path,
+                                  fs::copy_options::overwrite_existing);
+                    clear_readonly_attribute(b.bak_tmp_path);
+                }
+            }
+
+            // Phase 2: atomically commit all staged .bak backups first, then
+            // atomically swap all staged live targets into place.
+            for (const StagedBackup& b : backups) {
+                if (b.needed) {
+                    clear_readonly_attribute(b.bak_path);
+                    fs::rename(b.bak_tmp_path, b.bak_path);
+                }
+            }
+
+            log_info("Writing repacked dwq\\sys0.gpk and dwq\\sys0.gtb (" +
+                     std::to_string(summary.patched_sprite_entries) + " translated, " +
+                     std::to_string(summary.untouched_sprite_entries) + " untouched)...");
+            clear_readonly_attribute(tmp_gpk);
+            clear_readonly_attribute(tmp_gtb);
+            clear_readonly_attribute(live_gpk);
+            clear_readonly_attribute(live_gtb);
+            fs::rename(tmp_gpk, live_gpk);
+            fs::rename(tmp_gtb, live_gtb);
+
+            log_info("Writing patched init2\\mainControl.fxf and init2\\backlog.fxf...");
+            clear_readonly_attribute(tmp_main);
+            clear_readonly_attribute(tmp_backlog);
+            clear_readonly_attribute(main_ctrl_live);
+            clear_readonly_attribute(backlog_live);
+            fs::rename(tmp_main, main_ctrl_live);
+            fs::rename(tmp_backlog, backlog_live);
+        } catch (...) {
+            std::error_code rm_ec;
+            clear_readonly_attribute(tmp_gpk);
+            clear_readonly_attribute(tmp_gtb);
+            clear_readonly_attribute(tmp_main);
+            clear_readonly_attribute(tmp_backlog);
+            fs::remove(tmp_gpk, rm_ec);
+            fs::remove(tmp_gtb, rm_ec);
+            fs::remove(tmp_main, rm_ec);
+            fs::remove(tmp_backlog, rm_ec);
+            for (const StagedBackup& b : backups) {
+                if (b.needed) {
+                    clear_readonly_attribute(b.bak_tmp_path);
+                    fs::remove(b.bak_tmp_path, rm_ec);
+                }
+            }
+            throw;
+        }
 
         if (!opt.write_patch_bin_path.empty()) {
             log_info("Writing keyless XOR-delta container -> " + opt.write_patch_bin_path);

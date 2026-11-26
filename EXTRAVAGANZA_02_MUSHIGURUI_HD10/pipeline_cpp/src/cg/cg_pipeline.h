@@ -141,6 +141,11 @@ std::array<std::uint8_t, 4> parse_hex(const std::string& hex,
 std::array<std::uint8_t, 3> sample_bg(const Image& img, int x1, int y1,
                                       int x2, int y2);
 
+// Straight-alpha RGBA border median for inpainting RGBA overlays without
+// stamping opaque alpha over transparent or semi-transparent pixels.
+std::array<std::uint8_t, 4> sample_bg_rgba(const Image& img, int x1, int y1,
+                                           int x2, int y2);
+
 std::unique_ptr<Font> fit_font(const std::string& text, const std::string& font_path,
                                int max_w, int max_h);
 
