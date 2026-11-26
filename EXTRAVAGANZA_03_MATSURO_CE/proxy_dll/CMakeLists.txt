@@ -21,6 +21,8 @@ endif()
 add_library(translator_logic OBJECT
     src/translator_logic.cpp
     src/patcher_logic.cpp
+    src/menu_autopatch.cpp
+    src/menu_autopatch.h
 )
 target_include_directories(translator_logic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(translator_logic PRIVATE
@@ -35,8 +37,6 @@ add_library(proxy SHARED
     src/proxy.h
     src/patcher.cpp
     src/patcher.h
-    src/menu_autopatch.cpp
-    src/menu_autopatch.h
     src/translator.cpp
     src/translator.h
     src/log.h

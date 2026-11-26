@@ -434,10 +434,13 @@ bool is_orig_png_rgba(const uint8_t* orig_dwq, size_t orig_size) {
 
 constexpr uint8_t kPackTypeIndexedRle = '3';
 constexpr size_t kBmpHeaderSize = 54;
+constexpr size_t kBmpFileSizeFieldOffset = 2;
 constexpr size_t kBmpOffBitsFieldOffset = 10;
 constexpr size_t kBmpWidthFieldOffset = 18;
 constexpr size_t kBmpHeightFieldOffset = 22;
 constexpr size_t kBmpBitCountFieldOffset = 28;
+constexpr size_t kBmpClrUsedFieldOffset = 46;
+constexpr size_t kBmpClrImportantFieldOffset = 50;
 constexpr uint16_t kBmp8BitCount = 8;
 constexpr uint16_t kBmp24BitCount = 24;
 constexpr size_t kBmpRowAlignment = 4;
@@ -1067,7 +1070,8 @@ RgbaImage decode_dwq_to_rgba(const uint8_t* dwq, size_t size) {
             }
             const size_t mask_bf_off =
                 static_cast<size_t>(read_u32_le(dwq + mask_offset + kBmpOffBitsFieldOffset));
-            if (mask_bf_off < kBmpHeaderSize || mask_bf_off > kMaskHeaderTotalSize ||
+            if (mask_bf_off < kBmpHeaderSize + kMaskPaletteEntrySize ||
+                mask_bf_off > kMaskHeaderTotalSize ||
                 size < mask_offset + mask_bf_off) {
                 throw std::runtime_error("decode_dwq_to_rgba: truncated MASK section");
             }
@@ -1079,8 +1083,7 @@ RgbaImage decode_dwq_to_rgba(const uint8_t* dwq, size_t size) {
                 decode_rle_xor_mask(mask_stream, mask_stream_size, bm_w, bm_h);
             const size_t total_px = static_cast<size_t>(bm_w) * bm_h;
             for (size_t i = 0; i < total_px; ++i) {
-                const size_t idx = std::min<size_t>(
-                    alpha_indices[i], mask_pal_entries > 0 ? mask_pal_entries - 1 : 0);
+                const size_t idx = std::min<size_t>(alpha_indices[i], mask_pal_entries - 1);
                 img.pixels[i * kRgbaChannels + kRgbaAlphaIndex] =
                     mask_palette[idx * kMaskPaletteEntrySize +
                                  kMaskPaletteRedChannelIndex];
@@ -1236,6 +1239,23 @@ std::vector<uint8_t> encode_dwq_from_png_bytes(const uint8_t* orig_dwq, size_t o
     if (orig_dwq[kDwqPackTypeCharOffset] != kPackTypePng) {
         throw std::runtime_error("encode_dwq_from_png_bytes requires PACKTYPE=8A entry");
     }
+    constexpr std::array<uint8_t, 8> kPngFileSignature = {
+        0x89u, 'P', 'N', 'G', 0x0Du, 0x0Au, 0x1Au, 0x0Au};
+    constexpr std::array<uint8_t, 4> kPngIhdrTag = {'I', 'H', 'D', 'R'};
+    constexpr size_t kPngIhdrTagOffset = 12;
+    if (png_bytes.size() < kPngMinHeaderBytes ||
+        std::memcmp(png_bytes.data(), kPngFileSignature.data(),
+                    kPngFileSignature.size()) != 0 ||
+        std::memcmp(png_bytes.data() + kPngIhdrTagOffset, kPngIhdrTag.data(),
+                    kPngIhdrTag.size()) != 0) {
+        throw std::runtime_error("Replacement buffer is not a valid PNG");
+    }
+    const uint8_t expected_color_type =
+        is_orig_png_rgba(orig_dwq, orig_size) ? kPngColorTypeRgba : kPngColorTypeRgb;
+    if (png_bytes[kPngIhdrColorTypeOffset] != expected_color_type) {
+        throw std::runtime_error(
+            "Replacement PNG color type does not match original DWQ format (RGB vs RGBA)");
+    }
     uint16_t orig_w = read_u16_le(orig_dwq + kDwqWidthOffset);
     uint16_t orig_h = read_u16_le(orig_dwq + kDwqHeightOffset);
 
@@ -1304,14 +1324,16 @@ std::vector<uint8_t> encode_dwq_from_rgba(const uint8_t* orig_dwq, size_t orig_s
         }
 
         std::vector<uint8_t> orig_alpha;
+        size_t orig_mask_bf_off = kMaskHeaderTotalSize;
         if (pack_char == kPackTypeLzss) {
             const size_t mask_offset = kDwqHeaderSize + bmp_section_size;
             if (orig_size < mask_offset + kBmpHeaderSize) {
                 throw std::runtime_error("encode_dwq_from_rgba: corrupt original MASK header");
             }
-            const size_t orig_mask_bf_off = static_cast<size_t>(
+            orig_mask_bf_off = static_cast<size_t>(
                 read_u32_le(orig_dwq + mask_offset + kBmpOffBitsFieldOffset));
-            if (orig_mask_bf_off < kBmpHeaderSize || orig_mask_bf_off > kMaskHeaderTotalSize ||
+            if (orig_mask_bf_off < kBmpHeaderSize + kMaskPaletteEntrySize ||
+                orig_mask_bf_off > kMaskHeaderTotalSize ||
                 orig_size < mask_offset + orig_mask_bf_off) {
                 throw std::runtime_error("encode_dwq_from_rgba: corrupt original MASK section");
             }
@@ -1324,9 +1346,8 @@ std::vector<uint8_t> encode_dwq_from_rgba(const uint8_t* orig_dwq, size_t orig_s
                 img.width, img.height);
             orig_alpha.resize(orig_indices.size());
             for (size_t i = 0; i < orig_indices.size(); ++i) {
-                const size_t idx = std::min<size_t>(
-                    orig_indices[i],
-                    orig_mask_pal_entries > 0 ? orig_mask_pal_entries - 1 : 0);
+                const size_t idx =
+                    std::min<size_t>(orig_indices[i], orig_mask_pal_entries - 1);
                 orig_alpha[i] =
                     orig_mask_palette[idx * kMaskPaletteEntrySize +
                                       kMaskPaletteRedChannelIndex];
@@ -1371,17 +1392,12 @@ std::vector<uint8_t> encode_dwq_from_rgba(const uint8_t* orig_dwq, size_t orig_s
 
         if (pack_char == kPackTypeLzss) {
             const size_t mask_offset = kDwqHeaderSize + bmp_section_size;
+            const size_t mask_hdr_pos = out.size();
             out.insert(out.end(), orig_dwq + mask_offset,
                        orig_dwq + mask_offset + kBmpHeaderSize);
+
             constexpr size_t kMaskPaletteColorCount =
                 kMaskPaletteSize / kMaskPaletteEntrySize;
-            for (size_t i = 0; i < kMaskPaletteColorCount; ++i) {
-                const auto gray = static_cast<uint8_t>(i);
-                out.push_back(gray);
-                out.push_back(gray);
-                out.push_back(gray);
-                out.push_back(0);
-            }
             const size_t total_px = static_cast<size_t>(img.width) * img.height;
             std::vector<uint8_t> new_alpha(total_px, 0);
             for (size_t i = 0; i < total_px; ++i) {
@@ -1389,6 +1405,29 @@ std::vector<uint8_t> encode_dwq_from_rgba(const uint8_t* orig_dwq, size_t orig_s
             }
             const auto encoded_mask =
                 encode_rle_xor_mask(new_alpha.data(), img.width, img.height);
+
+            const uint32_t orig_mask_bf_size =
+                read_u32_le(orig_dwq + mask_offset + kBmpFileSizeFieldOffset);
+            const uint32_t new_mask_bf_size =
+                (orig_mask_bf_size >= orig_mask_bf_off)
+                    ? static_cast<uint32_t>(orig_mask_bf_size - orig_mask_bf_off +
+                                            kMaskHeaderTotalSize)
+                    : static_cast<uint32_t>(kMaskHeaderTotalSize + encoded_mask.size());
+            write_u32_le(out.data() + mask_hdr_pos + kBmpFileSizeFieldOffset,
+                         new_mask_bf_size);
+            write_u32_le(out.data() + mask_hdr_pos + kBmpOffBitsFieldOffset,
+                         static_cast<uint32_t>(kMaskHeaderTotalSize));
+            write_u32_le(out.data() + mask_hdr_pos + kBmpClrUsedFieldOffset,
+                         static_cast<uint32_t>(kMaskPaletteColorCount));
+            write_u32_le(out.data() + mask_hdr_pos + kBmpClrImportantFieldOffset, 0u);
+
+            for (size_t i = 0; i < kMaskPaletteColorCount; ++i) {
+                const auto gray = static_cast<uint8_t>(i);
+                out.push_back(gray);
+                out.push_back(gray);
+                out.push_back(gray);
+                out.push_back(0);
+            }
             out.insert(out.end(), encoded_mask.begin(), encoded_mask.end());
         }
         return out;
@@ -2122,21 +2161,32 @@ int run_patch_menus(const PatchMenusOptions& opt) {
         }
     }
 
+    const fs::path gpk_bak = dwq_dir / "sys0.gpk.bak";
+    const fs::path gtb_bak = dwq_dir / "sys0.gtb.bak";
+    const fs::path gpk_seed = fs::exists(gpk_bak) ? gpk_bak : gpk_live;
+    const fs::path gtb_seed = fs::exists(gtb_bak) ? gtb_bak : gtb_live;
+
     if (!fs::exists(gpk_backup) || !fs::exists(gtb_backup)) {
-        if (!fs::exists(gpk_live) || !fs::exists(gtb_live)) {
-            std::cerr << "ERROR: Neither dwq_backup\\sys0.{gpk,gtb} nor dwq\\sys0.{gpk,gtb} found in "
+        if ((!fs::exists(gpk_backup) && !fs::exists(gpk_seed)) ||
+            (!fs::exists(gtb_backup) && !fs::exists(gtb_seed))) {
+            std::cerr << "ERROR: Neither dwq_backup\\sys0.{gpk,gtb}, dwq\\sys0.{gpk,gtb}.bak, "
+                         "nor dwq\\sys0.{gpk,gtb} found in "
                       << opt.game_dir.u8string() << "\n";
             return 1;
         }
         if (!opt.test_mode && !opt.extract_only) {
             fs::create_directories(dwq_backup_dir);
-            fs::copy_file(gpk_live, gpk_backup, fs::copy_options::overwrite_existing);
-            fs::copy_file(gtb_live, gtb_backup, fs::copy_options::overwrite_existing);
+            if (!fs::exists(gpk_backup)) {
+                fs::copy_file(gpk_seed, gpk_backup, fs::copy_options::overwrite_existing);
+            }
+            if (!fs::exists(gtb_backup)) {
+                fs::copy_file(gtb_seed, gtb_backup, fs::copy_options::overwrite_existing);
+            }
         }
     }
 
-    const fs::path src_gpk = fs::exists(gpk_backup) ? gpk_backup : gpk_live;
-    const fs::path src_gtb = fs::exists(gtb_backup) ? gtb_backup : gtb_live;
+    const fs::path src_gpk = fs::exists(gpk_backup) ? gpk_backup : gpk_seed;
+    const fs::path src_gtb = fs::exists(gtb_backup) ? gtb_backup : gtb_seed;
 
     MenuArchivePatcher patcher;
     patcher.load(src_gpk, src_gtb);
@@ -2240,13 +2290,15 @@ int run_patch_menus(const PatchMenusOptions& opt) {
 
     const auto patch_fxf_file = [&](const std::string& filename,
                                     std::string (*patch_fn)(const std::string&)) {
-        fs::path live_path = init2_dir / filename;
-        fs::path backup_path = init2_backup_dir / filename;
-        if (!fs::exists(backup_path) && fs::exists(live_path)) {
+        const fs::path live_path = init2_dir / filename;
+        const fs::path bak_path = init2_dir / (filename + ".bak");
+        const fs::path backup_path = init2_backup_dir / filename;
+        const fs::path seed_path = fs::exists(bak_path) ? bak_path : live_path;
+        if (!fs::exists(backup_path) && fs::exists(seed_path)) {
             fs::create_directories(init2_backup_dir);
-            fs::copy_file(live_path, backup_path, fs::copy_options::overwrite_existing);
+            fs::copy_file(seed_path, backup_path, fs::copy_options::overwrite_existing);
         }
-        fs::path src_path = fs::exists(backup_path) ? backup_path : live_path;
+        const fs::path src_path = fs::exists(backup_path) ? backup_path : seed_path;
         if (!fs::exists(src_path)) {
             return;
         }
@@ -2261,8 +2313,17 @@ int run_patch_menus(const PatchMenusOptions& opt) {
     patch_fxf_file("mainControl.fxf", &patch_main_control_fxf);
     patch_fxf_file("backlog.fxf", &patch_backlog_fxf);
 
-    if (fs::exists(opt.game_dir / "spt" / "charaname.xtx") ||
-        fs::exists(opt.game_dir / "xtx_backup" / "charaname.xtx")) {
+    const fs::path xtx_live = opt.game_dir / "spt" / "charaname.xtx";
+    const fs::path xtx_bak = opt.game_dir / "spt" / "charaname.xtx.bak";
+    const fs::path xtx_backup_dir = opt.game_dir / "xtx_backup";
+    const fs::path xtx_backup = xtx_backup_dir / "charaname.xtx";
+    const fs::path xtx_nested_backup = xtx_backup_dir / "spt" / "charaname.xtx";
+    if (!fs::exists(xtx_backup) && !fs::exists(xtx_nested_backup) && fs::exists(xtx_bak)) {
+        fs::create_directories(xtx_backup_dir);
+        fs::copy_file(xtx_bak, xtx_backup, fs::copy_options::overwrite_existing);
+    }
+    if (fs::exists(xtx_live) || fs::exists(xtx_bak) ||
+        fs::exists(xtx_backup) || fs::exists(xtx_nested_backup)) {
         exm::xtx::run_translate_xtx(opt.game_dir.u8string());
     }
 

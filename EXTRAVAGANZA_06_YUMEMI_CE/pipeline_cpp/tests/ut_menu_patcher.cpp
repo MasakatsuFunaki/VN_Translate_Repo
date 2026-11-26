@@ -602,4 +602,249 @@ TEST(MenuPatcherTest, MenuArchivePatcherSyntheticGpkGtbRoundTrip) {
     EXPECT_EQ(reloaded.decode_entry_rgba(kSyntheticEntryIndex0).pixels, img1.pixels);
 }
 
+TEST(MenuPatcherTest, DwqPackType2ASparsePaletteMaskHeaderRewrite) {
+    constexpr size_t kBmpFileHeaderSize = 54;
+    constexpr size_t kBmpInfoHeaderSize = 40;
+    constexpr size_t kBmpFileSizeOffset = 2;
+    constexpr size_t kBmpOffBitsOffset = 10;
+    constexpr size_t kBmpBiSizeOffset = 14;
+    constexpr size_t kBmpWidthOffset = 18;
+    constexpr size_t kBmpHeightOffset = 22;
+    constexpr size_t kBmpPlanesOffset = 26;
+    constexpr size_t kBmpBitCountOffset = 28;
+    constexpr size_t kBmpSizeImageOffset = 34;
+    constexpr size_t kBmpClrUsedOffset = 46;
+    constexpr size_t kBmpClrImportantOffset = 50;
+    constexpr uint16_t kBmpPlanes = 1;
+    constexpr uint16_t kBmpBpp24 = 24;
+    constexpr uint16_t kBmpBpp8 = 8;
+    constexpr size_t kBmpRowAlign = 4;
+    constexpr uint32_t kSparsePaletteCount = 16;
+    constexpr size_t kSparseMaskHeaderBytes = kBmpFileHeaderSize + kSparsePaletteCount * 4;
+    constexpr uint32_t kFullPaletteCount = 256;
+    constexpr size_t kFullMaskHeaderBytes = kBmpFileHeaderSize + kFullPaletteCount * 4;
+
+    const uint16_t w = kPack0And2aWidth;
+    const uint16_t h = kPack0And2aHeight;
+    const size_t total_px = static_cast<size_t>(w) * h;
+    const size_t stride =
+        (static_cast<size_t>(w) * kRgbChannels + (kBmpRowAlign - 1)) & ~(kBmpRowAlign - 1);
+    const size_t bmp_px_bytes = stride * static_cast<size_t>(h);
+    const size_t bmp_total_bytes = kBmpFileHeaderSize + bmp_px_bytes;
+
+    // Build a sparse-palette PACKTYPE=2A DWQ with bfOffBits = 118 (< 1078),
+    // mirroring retail sparse entries such as ta_xtg_bar01 / ta_compmark.
+    auto orig_dwq = make_dwq_header(w, h, kBpp24, "PACKBMP+MASK    ", "    PACKTYPE=2A     ",
+                                    static_cast<uint32_t>(bmp_total_bytes));
+    write_u32_le(orig_dwq.data() + kDwqWidthOffset, static_cast<uint32_t>(w));
+    write_u32_le(orig_dwq.data() + kDwqHeightOffset, static_cast<uint32_t>(h));
+
+    std::vector<uint8_t> bmp_hdr(kBmpFileHeaderSize, 0);
+    bmp_hdr[kByteIndex0] = 'B';
+    bmp_hdr[kByteIndex1] = 'M';
+    write_u32_le(bmp_hdr.data() + kBmpFileSizeOffset, static_cast<uint32_t>(bmp_total_bytes));
+    write_u32_le(bmp_hdr.data() + kBmpOffBitsOffset, static_cast<uint32_t>(kBmpFileHeaderSize));
+    write_u32_le(bmp_hdr.data() + kBmpBiSizeOffset, static_cast<uint32_t>(kBmpInfoHeaderSize));
+    write_u32_le(bmp_hdr.data() + kBmpWidthOffset, static_cast<uint32_t>(w));
+    write_u32_le(bmp_hdr.data() + kBmpHeightOffset, static_cast<uint32_t>(h));
+    write_u16_le(bmp_hdr.data() + kBmpPlanesOffset, kBmpPlanes);
+    write_u16_le(bmp_hdr.data() + kBmpBitCountOffset, kBmpBpp24);
+    write_u32_le(bmp_hdr.data() + kBmpSizeImageOffset, static_cast<uint32_t>(bmp_px_bytes));
+    orig_dwq.insert(orig_dwq.end(), bmp_hdr.begin(), bmp_hdr.end());
+    orig_dwq.resize(orig_dwq.size() + bmp_px_bytes, 0x33u);
+
+    std::vector<uint8_t> sparse_mask_hdr(kSparseMaskHeaderBytes, 0);
+    sparse_mask_hdr[kByteIndex0] = 'B';
+    sparse_mask_hdr[kByteIndex1] = 'M';
+    write_u32_le(sparse_mask_hdr.data() + kBmpFileSizeOffset,
+                 static_cast<uint32_t>(kSparseMaskHeaderBytes + total_px));
+    write_u32_le(sparse_mask_hdr.data() + kBmpOffBitsOffset,
+                 static_cast<uint32_t>(kSparseMaskHeaderBytes));
+    write_u32_le(sparse_mask_hdr.data() + kBmpBiSizeOffset,
+                 static_cast<uint32_t>(kBmpInfoHeaderSize));
+    write_u32_le(sparse_mask_hdr.data() + kBmpWidthOffset, static_cast<uint32_t>(w));
+    write_u32_le(sparse_mask_hdr.data() + kBmpHeightOffset, static_cast<uint32_t>(h));
+    write_u16_le(sparse_mask_hdr.data() + kBmpPlanesOffset, kBmpPlanes);
+    write_u16_le(sparse_mask_hdr.data() + kBmpBitCountOffset, kBmpBpp8);
+    write_u32_le(sparse_mask_hdr.data() + kBmpSizeImageOffset, static_cast<uint32_t>(total_px));
+    write_u32_le(sparse_mask_hdr.data() + kBmpClrUsedOffset, kSparsePaletteCount);
+    write_u32_le(sparse_mask_hdr.data() + kBmpClrImportantOffset, kSparsePaletteCount);
+    for (uint32_t i = 0; i < kSparsePaletteCount; ++i) {
+        const uint8_t shade = static_cast<uint8_t>(i * 17u);
+        const size_t pal_off = kBmpFileHeaderSize + i * kRgbaChannels;
+        sparse_mask_hdr[pal_off + kByteIndex0] = shade;
+        sparse_mask_hdr[pal_off + kByteIndex1] = shade;
+        sparse_mask_hdr[pal_off + kByteIndex2] = shade;
+    }
+    orig_dwq.insert(orig_dwq.end(), sparse_mask_hdr.begin(), sparse_mask_hdr.end());
+    // Non-uniform sparse indices including out-of-range 200u (must clamp to entry 15 -> 255).
+    constexpr uint8_t kSparseInitCycle[] = {0x00u, 0x01u, 0x07u, 0x0Fu, 200u};
+    constexpr uint8_t kSparseShadeStep = 17u;
+    constexpr uint8_t kOrigFillChannel = 0x33u;
+    std::vector<uint8_t> init_indices(total_px, 0u);
+    std::vector<uint8_t> expected_orig_alpha(total_px, 0u);
+    for (size_t i = 0; i < total_px; ++i) {
+        const uint8_t idx =
+            kSparseInitCycle[i % (sizeof(kSparseInitCycle) / sizeof(uint8_t))];
+        init_indices[i] = idx;
+        const uint32_t clamped =
+            idx < kSparsePaletteCount ? static_cast<uint32_t>(idx) : (kSparsePaletteCount - 1u);
+        expected_orig_alpha[i] = static_cast<uint8_t>(clamped * kSparseShadeStep);
+    }
+    const auto init_rle = encode_rle_xor_mask(init_indices.data(), w, h);
+    orig_dwq.insert(orig_dwq.end(), init_rle.begin(), init_rle.end());
+
+    // Decode the sparse-palette orig_dwq (bfOffBits == 118 < 1078) directly and verify every pixel.
+    const auto decoded_orig = decode_dwq_to_rgba(orig_dwq.data(), orig_dwq.size());
+    ASSERT_EQ(decoded_orig.width, w);
+    ASSERT_EQ(decoded_orig.height, h);
+    ASSERT_EQ(decoded_orig.pixels.size(), total_px * kRgbaChannels);
+    for (size_t i = 0; i < total_px; ++i) {
+        EXPECT_EQ(decoded_orig.pixels[i * kRgbaChannels + kRgbaRedIndex], kOrigFillChannel);
+        EXPECT_EQ(decoded_orig.pixels[i * kRgbaChannels + kRgbaGreenIndex], kOrigFillChannel);
+        EXPECT_EQ(decoded_orig.pixels[i * kRgbaChannels + kRgbaBlueIndex], kOrigFillChannel);
+        EXPECT_EQ(decoded_orig.pixels[i * kRgbaChannels + kRgbaAlphaIndex],
+                  expected_orig_alpha[i]);
+    }
+
+    // Replacement RGBA image spans full 0x00/0x7F/0x80/0xFF alpha boundary values.
+    RgbaImage replacement;
+    replacement.width = w;
+    replacement.height = h;
+    replacement.bpp = kBpp32;
+    replacement.has_alpha = true;
+    replacement.pixels.resize(total_px * kRgbaChannels, 0u);
+    constexpr uint8_t kAlphaBoundaries[] = {0x00u, 0x01u, 0x7Fu, 0x80u, 0xFEu, 0xFFu};
+    std::vector<uint8_t> expected_alpha(total_px, 0u);
+    for (size_t i = 0; i < total_px; ++i) {
+        const uint8_t a = kAlphaBoundaries[i % (sizeof(kAlphaBoundaries) / sizeof(uint8_t))];
+        expected_alpha[i] = a;
+        replacement.pixels[i * kRgbaChannels + kRgbaRedIndex] = static_cast<uint8_t>(0x10u + i * 3u);
+        replacement.pixels[i * kRgbaChannels + kRgbaGreenIndex] = static_cast<uint8_t>(0x40u + i * 5u);
+        replacement.pixels[i * kRgbaChannels + kRgbaBlueIndex] = static_cast<uint8_t>(0x80u + i * 7u);
+        replacement.pixels[i * kRgbaChannels + kRgbaAlphaIndex] = a;
+    }
+
+    const auto encoded = encode_dwq_from_rgba(orig_dwq.data(), orig_dwq.size(), replacement, true);
+    const size_t mask_offset = kDwqHeaderSize + bmp_total_bytes;
+    ASSERT_GT(encoded.size(), mask_offset + kFullMaskHeaderBytes);
+
+    // Pinned BMP mask header contract checks (independent of decode_dwq_to_rgba).
+    const uint8_t* mask_hdr = encoded.data() + mask_offset;
+    EXPECT_EQ(mask_hdr[kByteIndex0], 'B');
+    EXPECT_EQ(mask_hdr[kByteIndex1], 'M');
+    EXPECT_EQ(read_u32_le(mask_hdr + kBmpOffBitsOffset),
+              static_cast<uint32_t>(kFullMaskHeaderBytes));
+    EXPECT_EQ(read_u32_le(mask_hdr + kBmpClrUsedOffset), kFullPaletteCount);
+    EXPECT_EQ(read_u32_le(mask_hdr + kBmpClrImportantOffset), 0u);
+    EXPECT_EQ(read_u32_le(mask_hdr + kBmpFileSizeOffset),
+              static_cast<uint32_t>(kFullMaskHeaderBytes + total_px));
+
+    for (uint32_t shade : {0u, 127u, 128u, 255u}) {
+        const size_t pal_off = kBmpFileHeaderSize + shade * kRgbaChannels;
+        EXPECT_EQ(mask_hdr[pal_off + kByteIndex0], static_cast<uint8_t>(shade));
+        EXPECT_EQ(mask_hdr[pal_off + kByteIndex1], static_cast<uint8_t>(shade));
+        EXPECT_EQ(mask_hdr[pal_off + kByteIndex2], static_cast<uint8_t>(shade));
+        EXPECT_EQ(mask_hdr[pal_off + kByteIndex3], 0u);
+    }
+
+    const auto decoded_mask = decode_rle_xor_mask(
+        encoded.data() + mask_offset + kFullMaskHeaderBytes,
+        encoded.size() - (mask_offset + kFullMaskHeaderBytes), w, h);
+    EXPECT_EQ(decoded_mask, expected_alpha);
+
+    const auto decoded_rgba = decode_dwq_to_rgba(encoded.data(), encoded.size());
+    EXPECT_EQ(decoded_rgba.pixels, replacement.pixels);
+
+    // Corrupt zero-palette MASK (bfOffBits == 54 and BVA seam 57 == 58 - 1) must throw.
+    for (uint32_t bad_bf_off : {static_cast<uint32_t>(kBmpFileHeaderSize),
+                                static_cast<uint32_t>(kBmpFileHeaderSize + 3u)}) {
+        std::vector<uint8_t> corrupt_dwq = orig_dwq;
+        write_u32_le(corrupt_dwq.data() + mask_offset + kBmpOffBitsOffset, bad_bf_off);
+        EXPECT_THROW(decode_dwq_to_rgba(corrupt_dwq.data(), corrupt_dwq.size()),
+                     std::runtime_error);
+        EXPECT_THROW(encode_dwq_from_rgba(corrupt_dwq.data(), corrupt_dwq.size(), replacement, true),
+                     std::runtime_error);
+    }
+}
+
+TEST(MenuPatcherTest, EncodeDwqFromPngBytesValidatesColorTypeAndSignature) {
+    constexpr size_t kRedPatternMul = 11u;
+    constexpr uint8_t kGreenPatternBase = 0x80u;
+    constexpr uint8_t kBluePatternBase = 0xFFu;
+    constexpr size_t kPngIhdrTagOffset = 12u;
+    constexpr size_t kPngIhdrColorTypeOffset = 25u;
+    constexpr size_t kPngMinHeaderBytes = 26u;
+    constexpr uint8_t kPngColorTypeRgba = 6u;
+
+    RgbaImage img;
+    img.width = kSyntheticSpriteDim;
+    img.height = kSyntheticSpriteDim;
+    img.bpp = kBpp32;
+    img.has_alpha = true;
+    img.pixels.assign(
+        static_cast<size_t>(img.width) * img.height * kRgbaChannels, 0u);
+    for (size_t i = 0; i < static_cast<size_t>(img.width) * img.height; ++i) {
+        img.pixels[i * kRgbaChannels + kRgbaRedIndex] = static_cast<uint8_t>(i * kRedPatternMul);
+        img.pixels[i * kRgbaChannels + kRgbaGreenIndex] =
+            static_cast<uint8_t>(kGreenPatternBase + i);
+        img.pixels[i * kRgbaChannels + kRgbaBlueIndex] = static_cast<uint8_t>(kBluePatternBase - i);
+        img.pixels[i * kRgbaChannels + kRgbaAlphaIndex] = kOpaqueAlpha;
+    }
+
+    const auto png_rgba = encode_rgba_to_png_bytes(img, true);
+    const auto png_rgb = encode_rgba_to_png_bytes(img, false);
+
+    auto orig_rgba_dwq = make_dwq_header(img.width, img.height, kBpp32, "PNG             ",
+                                         "    PACKTYPE=8A     ",
+                                         static_cast<uint32_t>(png_rgba.size()));
+    orig_rgba_dwq.insert(orig_rgba_dwq.end(), png_rgba.begin(), png_rgba.end());
+
+    auto orig_rgb_dwq = make_dwq_header(img.width, img.height, kBpp24, "PNG             ",
+                                        "    PACKTYPE=8A     ",
+                                        static_cast<uint32_t>(png_rgb.size()));
+    orig_rgb_dwq.insert(orig_rgb_dwq.end(), png_rgb.begin(), png_rgb.end());
+
+    const auto ok_rgba = encode_dwq_from_png_bytes(
+        orig_rgba_dwq.data(), orig_rgba_dwq.size(), png_rgba, true);
+    ASSERT_EQ(ok_rgba.size(), kDwqHeaderSize + png_rgba.size());
+    EXPECT_EQ(std::memcmp(ok_rgba.data() + kDwqHeaderSize, png_rgba.data(), png_rgba.size()), 0);
+
+    const auto ok_rgb = encode_dwq_from_png_bytes(
+        orig_rgb_dwq.data(), orig_rgb_dwq.size(), png_rgb, true);
+    ASSERT_EQ(ok_rgb.size(), kDwqHeaderSize + png_rgb.size());
+    EXPECT_EQ(std::memcmp(ok_rgb.data() + kDwqHeaderSize, png_rgb.data(), png_rgb.size()), 0);
+
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(orig_rgba_dwq.data(), orig_rgba_dwq.size(), png_rgb, true),
+        std::runtime_error);
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(orig_rgb_dwq.data(), orig_rgb_dwq.size(), png_rgba, true),
+        std::runtime_error);
+
+    std::vector<uint8_t> non_png_matching_color(kPngMinHeaderBytes + kByteIndex2, 0u);
+    non_png_matching_color[kByteIndex0] = 'B';
+    non_png_matching_color[kByteIndex1] = 'M';
+    non_png_matching_color[kPngIhdrColorTypeOffset] = kPngColorTypeRgba;
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(
+            orig_rgba_dwq.data(), orig_rgba_dwq.size(), non_png_matching_color, true),
+        std::runtime_error);
+
+    std::vector<uint8_t> bad_chunk_tag = png_rgba;
+    bad_chunk_tag[kPngIhdrTagOffset] = 'X';
+    ASSERT_EQ(bad_chunk_tag[kPngIhdrColorTypeOffset], kPngColorTypeRgba);
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(
+            orig_rgba_dwq.data(), orig_rgba_dwq.size(), bad_chunk_tag, true),
+        std::runtime_error);
+
+    const std::vector<uint8_t> truncated_png(
+        png_rgba.begin(), png_rgba.begin() + static_cast<std::ptrdiff_t>(kPngMinHeaderBytes - 1u));
+    EXPECT_THROW(
+        encode_dwq_from_png_bytes(
+            orig_rgba_dwq.data(), orig_rgba_dwq.size(), truncated_png, true),
+        std::runtime_error);
+}
+
 }  // namespace

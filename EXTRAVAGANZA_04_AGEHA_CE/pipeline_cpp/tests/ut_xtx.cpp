@@ -93,4 +93,49 @@ TEST(Xtx, translate_xtx_file_rewrites_cp932_entries_and_creates_backup) {
     const auto backup_decoded = cp932_to_utf8_strict(read_file(backup_file));
     ASSERT_TRUE(backup_decoded.has_value());
     EXPECT_EQ(*backup_decoded, initial_utf8);
+
+    // Re-running with an updated & shrinking translation table must read from
+    // xtx_backup/charaname.xtx so modified names update and dropped names revert
+    // cleanly to the pristine Japanese backup.
+    const std::vector<std::pair<std::string, std::string>> shrunk_table = {
+        {"アゲハ", "Ａｇｅｈａ　Ｋｕｊｏｕ"},
+    };
+    const int rerun_changes = xtx::translate_xtx_file(filepath, shrunk_table, backup_dir);
+    EXPECT_EQ(rerun_changes, 1);
+
+    const auto rerun_decoded = cp932_to_utf8_strict(read_file(filepath));
+    ASSERT_TRUE(rerun_decoded.has_value());
+    EXPECT_EQ(*rerun_decoded,
+              "0,名前なし,nobody\r\n"
+              "1,Ａｇｅｈａ　Ｋｕｊｏｕ,ageha\r\n"
+              "2,シュミ,shumi\r\n");
+    EXPECT_EQ(cp932_to_utf8_strict(read_file(backup_file)), initial_utf8);
+}
+
+TEST(Xtx, translate_xtx_file_seeds_backup_from_dot_bak_when_live_already_patched) {
+    const ScopedTempDir tmp("ageha_ut_xtx_dotbak_dir");
+    const fs::path& temp_dir = tmp.path();
+    fs::create_directories(temp_dir / "spt");
+
+    const std::string filepath = (temp_dir / "spt" / "charaname.xtx").u8string();
+    const std::string bak_file = filepath + ".bak";
+    const std::string backup_dir = (temp_dir / "xtx_backup").u8string();
+    const std::string backup_file = (temp_dir / "xtx_backup" / "charaname.xtx").u8string();
+
+    const std::string pristine_utf8 =
+        "0,名前なし,nobody\r\n"
+        "1,アゲハ,ageha\r\n";
+    const std::string stale_live_utf8 =
+        "0,,nobody\r\n"
+        "1,Ｓｔａｌｅ,ageha\r\n";
+    write_file(bak_file, utf8_to_cp932_replace(pristine_utf8));
+    write_file(filepath, utf8_to_cp932_replace(stale_live_utf8));
+
+    const int changes =
+        xtx::translate_xtx_file(filepath, xtx::charaname_translations(), backup_dir);
+    EXPECT_EQ(changes, 2);
+    EXPECT_EQ(cp932_to_utf8_strict(read_file(backup_file)), pristine_utf8);
+    EXPECT_EQ(cp932_to_utf8_strict(read_file(filepath)),
+              "0,,nobody\r\n"
+              "1,Ａｇｅｈａ,ageha\r\n");
 }

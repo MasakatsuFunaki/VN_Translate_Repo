@@ -987,6 +987,23 @@ std::vector<uint8_t> encode_dwq_from_png_bytes(const uint8_t* orig_dwq, size_t o
     if (orig_dwq[kDwqPackTypeCharOffset] != kPackTypePng) {
         throw std::runtime_error("encode_dwq_from_png_bytes requires PACKTYPE=8A entry");
     }
+    constexpr std::array<uint8_t, 8> kPngFileSignature = {
+        0x89u, 'P', 'N', 'G', 0x0Du, 0x0Au, 0x1Au, 0x0Au};
+    constexpr std::array<uint8_t, 4> kPngIhdrTag = {'I', 'H', 'D', 'R'};
+    constexpr size_t kPngIhdrTagOffset = 12;
+    if (png_bytes.size() < kPngMinHeaderBytes ||
+        std::memcmp(png_bytes.data(), kPngFileSignature.data(),
+                    kPngFileSignature.size()) != 0 ||
+        std::memcmp(png_bytes.data() + kPngIhdrTagOffset, kPngIhdrTag.data(),
+                    kPngIhdrTag.size()) != 0) {
+        throw std::runtime_error("Replacement buffer is not a valid PNG");
+    }
+    const uint8_t expected_color_type =
+        is_orig_png_rgba(orig_dwq, orig_size) ? kPngColorTypeRgba : kPngColorTypeRgb;
+    if (png_bytes[kPngIhdrColorTypeOffset] != expected_color_type) {
+        throw std::runtime_error(
+            "Replacement PNG color type does not match original DWQ format (RGB vs RGBA)");
+    }
     uint16_t orig_w = read_u16_le(orig_dwq + kDwqWidthOffset);
     uint16_t orig_h = read_u16_le(orig_dwq + kDwqHeightOffset);
 
@@ -1759,21 +1776,32 @@ int run_patch_menus(const PatchMenusOptions& opt) {
         }
     }
 
+    const fs::path gpk_bak = dwq_dir / "sys0.gpk.bak";
+    const fs::path gtb_bak = dwq_dir / "sys0.gtb.bak";
+    const fs::path gpk_seed = fs::exists(gpk_bak) ? gpk_bak : gpk_live;
+    const fs::path gtb_seed = fs::exists(gtb_bak) ? gtb_bak : gtb_live;
+
     if (!fs::exists(gpk_backup) || !fs::exists(gtb_backup)) {
-        if (!fs::exists(gpk_live) || !fs::exists(gtb_live)) {
-            std::cerr << "ERROR: Neither dwq_backup\\sys0.{gpk,gtb} nor dwq\\sys0.{gpk,gtb} found in "
+        if ((!fs::exists(gpk_backup) && !fs::exists(gpk_seed)) ||
+            (!fs::exists(gtb_backup) && !fs::exists(gtb_seed))) {
+            std::cerr << "ERROR: Neither dwq_backup\\sys0.{gpk,gtb}, dwq\\sys0.{gpk,gtb}.bak, "
+                         "nor dwq\\sys0.{gpk,gtb} found in "
                       << opt.game_dir.u8string() << "\n";
             return 1;
         }
         if (!opt.test_mode && !opt.extract_only) {
             fs::create_directories(dwq_backup_dir);
-            fs::copy_file(gpk_live, gpk_backup, fs::copy_options::overwrite_existing);
-            fs::copy_file(gtb_live, gtb_backup, fs::copy_options::overwrite_existing);
+            if (!fs::exists(gpk_backup)) {
+                fs::copy_file(gpk_seed, gpk_backup, fs::copy_options::overwrite_existing);
+            }
+            if (!fs::exists(gtb_backup)) {
+                fs::copy_file(gtb_seed, gtb_backup, fs::copy_options::overwrite_existing);
+            }
         }
     }
 
-    const fs::path src_gpk = fs::exists(gpk_backup) ? gpk_backup : gpk_live;
-    const fs::path src_gtb = fs::exists(gtb_backup) ? gtb_backup : gtb_live;
+    const fs::path src_gpk = fs::exists(gpk_backup) ? gpk_backup : gpk_seed;
+    const fs::path src_gtb = fs::exists(gtb_backup) ? gtb_backup : gtb_seed;
 
     MenuArchivePatcher patcher;
     patcher.load(src_gpk, src_gtb);
@@ -1877,13 +1905,15 @@ int run_patch_menus(const PatchMenusOptions& opt) {
 
     const auto patch_fxf_file = [&](const std::string& filename,
                                     std::string (*patch_fn)(const std::string&)) {
-        fs::path live_path = init2_dir / filename;
-        fs::path backup_path = init2_backup_dir / filename;
-        if (!fs::exists(backup_path) && fs::exists(live_path)) {
+        const fs::path live_path = init2_dir / filename;
+        const fs::path bak_path = init2_dir / (filename + ".bak");
+        const fs::path backup_path = init2_backup_dir / filename;
+        const fs::path seed_path = fs::exists(bak_path) ? bak_path : live_path;
+        if (!fs::exists(backup_path) && fs::exists(seed_path)) {
             fs::create_directories(init2_backup_dir);
-            fs::copy_file(live_path, backup_path, fs::copy_options::overwrite_existing);
+            fs::copy_file(seed_path, backup_path, fs::copy_options::overwrite_existing);
         }
-        fs::path src_path = fs::exists(backup_path) ? backup_path : live_path;
+        const fs::path src_path = fs::exists(backup_path) ? backup_path : seed_path;
         if (!fs::exists(src_path)) {
             return;
         }
@@ -1898,8 +1928,17 @@ int run_patch_menus(const PatchMenusOptions& opt) {
     patch_fxf_file("mainControl.fxf", &patch_main_control_fxf);
     patch_fxf_file("backlog.fxf", &patch_backlog_fxf);
 
-    if (fs::exists(opt.game_dir / "spt" / "charaname.xtx") ||
-        fs::exists(opt.game_dir / "xtx_backup" / "charaname.xtx")) {
+    const fs::path xtx_live = opt.game_dir / "spt" / "charaname.xtx";
+    const fs::path xtx_bak = opt.game_dir / "spt" / "charaname.xtx.bak";
+    const fs::path xtx_backup_dir = opt.game_dir / "xtx_backup";
+    const fs::path xtx_backup = xtx_backup_dir / "charaname.xtx";
+    const fs::path xtx_nested_backup = xtx_backup_dir / "spt" / "charaname.xtx";
+    if (!fs::exists(xtx_backup) && !fs::exists(xtx_nested_backup) && fs::exists(xtx_bak)) {
+        fs::create_directories(xtx_backup_dir);
+        fs::copy_file(xtx_bak, xtx_backup, fs::copy_options::overwrite_existing);
+    }
+    if (fs::exists(xtx_live) || fs::exists(xtx_bak) ||
+        fs::exists(xtx_backup) || fs::exists(xtx_nested_backup)) {
         exm::xtx::run_translate_xtx(opt.game_dir.u8string());
     }
 
