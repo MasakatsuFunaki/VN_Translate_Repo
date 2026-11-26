@@ -108,29 +108,60 @@ TextBBox Font::measure(const std::string& utf8) const {
 
 void Font::draw(Image& img, int x, int y, const std::string& utf8,
                 std::array<std::uint8_t, 3> color) const {
+    constexpr int kRgbChannels = 3;
+    constexpr unsigned kChannelMax = 255u;
+    constexpr unsigned kHalfChannelMax = 127u;
+    constexpr unsigned kMonoByteShift = 3u;
+    constexpr unsigned kMonoBitMask = 7u;
+    constexpr unsigned kMonoTopBit = 7u;
+
     const int asc = impl_->ascender_px();
+    const bool has_alpha = img.has_alpha();
     impl_->walk(utf8, [&](long pen_x, FT_GlyphSlot g) {
         const FT_Bitmap& bm = g->bitmap;
         if (bm.pixel_mode != FT_PIXEL_MODE_GRAY && bm.pixel_mode != FT_PIXEL_MODE_MONO)
             return;
         for (unsigned row = 0; row < bm.rows; ++row) {
-            int py = y + asc - g->bitmap_top + static_cast<int>(row);
+            const int py = y + asc - g->bitmap_top + static_cast<int>(row);
             if (py < 0 || py >= img.height) continue;
             for (unsigned col = 0; col < bm.width; ++col) {
-                int px_x = x + static_cast<int>(pen_x) + g->bitmap_left +
-                           static_cast<int>(col);
+                const int px_x = x + static_cast<int>(pen_x) + g->bitmap_left +
+                                 static_cast<int>(col);
                 if (px_x < 0 || px_x >= img.width) continue;
-                unsigned a;
-                if (bm.pixel_mode == FT_PIXEL_MODE_MONO)
-                    a = (bm.buffer[row * bm.pitch + (col >> 3)] >> (7 - (col & 7))) & 1
-                            ? 255 : 0;
-                else
+                unsigned a = 0u;
+                if (bm.pixel_mode == FT_PIXEL_MODE_MONO) {
+                    const unsigned bit =
+                        (bm.buffer[row * bm.pitch + (col >> kMonoByteShift)] >>
+                         (kMonoTopBit - (col & kMonoBitMask))) &
+                        1u;
+                    a = bit ? kChannelMax : 0u;
+                } else {
                     a = bm.buffer[row * static_cast<unsigned>(bm.pitch) + col];
-                if (a == 0) continue;
+                }
+                if (a == 0u) continue;
                 std::uint8_t* d = img.px(px_x, py);
-                for (int c = 0; c < 3; ++c)
-                    d[c] = static_cast<std::uint8_t>(
-                        (color[c] * a + d[c] * (255 - a) + 127) / 255);
+                if (!has_alpha) {
+                    for (int c = 0; c < kRgbChannels; ++c) {
+                        d[c] = static_cast<std::uint8_t>(
+                            (color[static_cast<std::size_t>(c)] * a +
+                             d[c] * (kChannelMax - a) + kHalfChannelMax) /
+                            kChannelMax);
+                    }
+                    continue;
+                }
+                std::uint8_t* da = img.alpha_px(px_x, py);
+                const unsigned prev_a = *da;
+                const unsigned src_w = a * kChannelMax;
+                const unsigned dst_w = prev_a * (kChannelMax - a);
+                const unsigned out_w = src_w + dst_w;
+                for (int c = 0; c < kRgbChannels; ++c) {
+                    const unsigned num =
+                        static_cast<unsigned>(color[static_cast<std::size_t>(c)]) * src_w +
+                        static_cast<unsigned>(d[c]) * dst_w + out_w / 2u;
+                    d[c] = static_cast<std::uint8_t>(num / out_w);
+                }
+                *da = static_cast<std::uint8_t>(
+                    std::min(kChannelMax, (out_w + kHalfChannelMax) / kChannelMax));
             }
         }
     });
