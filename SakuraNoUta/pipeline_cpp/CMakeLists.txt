@@ -63,6 +63,8 @@ add_library(snu_core STATIC
     src/cg/text_render.h
     src/cg/cg_pipeline.cpp
     src/cg/cg_pipeline.h
+    src/cg/cg_repacker.cpp
+    src/cg/cg_repacker.h
     src/menu/bgra_image.cpp
     src/menu/bgra_image.h
     src/menu/sprite_canvas.cpp

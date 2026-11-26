@@ -9,8 +9,11 @@
 
 #include "bgi/bgi_archive.h"
 #include "bgi/bgi_cbg.h"
+#include "bgi/bgi_sysgrp.h"
+#include "cg/cg_repacker.h"
 #include "common/util.h"
 #include "image.h"
+#include "menu/bgra_image.h"
 #include "text_render.h"
 
 #include <boost/json.hpp>
@@ -91,9 +94,6 @@ const std::vector<std::string> SCAN_ARCS = {
     "data02501.arc", "data02502.arc", "data02503.arc",
 };
 
-// Entries to skip: decorative calligraphy with clipped vertical text.
-const std::set<std::string> SKIP_ENTRIES = {"kt_ib", "kt_mh", "kt_ny"};
-
 const char* FONT_PATH = "C:/Windows/Fonts/MTCORSVA.TTF";  // Monotype Corsiva
 const char* FONT_FALLBACK = "C:/Windows/Fonts/arial.ttf";
 
@@ -146,27 +146,6 @@ public:
 
 private:
     fs::path path_;
-};
-
-class ScopedTempFile {
-public:
-    explicit ScopedTempFile(fs::path path) noexcept : path_(std::move(path)) {}
-
-    ScopedTempFile(const ScopedTempFile&) = delete;
-    ScopedTempFile& operator=(const ScopedTempFile&) = delete;
-
-    ~ScopedTempFile() {
-        if (!released_) {
-            std::error_code ec;
-            fs::remove(path_, ec);
-        }
-    }
-
-    void release() noexcept { released_ = true; }
-
-private:
-    fs::path path_;
-    bool released_ = false;
 };
 
 std::wstring utf8_to_wide_strict(std::string_view utf8) {
@@ -278,6 +257,33 @@ std::optional<Image> decode_cbg_via_tool(const Bytes& raw) {
     return decode_image(read_file(bmp));
 }
 
+Image from_sysgrp_image(const bgi::SysGrpImage& sys) {
+    Image img;
+    img.width = sys.image.width();
+    img.height = sys.image.height();
+    const std::size_t pixel_count =
+        static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height);
+    img.rgb.resize(pixel_count * static_cast<std::size_t>(kRgbChannels));
+    const bool keep_alpha = (sys.orig_bpp == snu::menu::kBmpBpp32);
+    if (keep_alpha) {
+        img.alpha.resize(pixel_count);
+    }
+    const std::uint8_t* src = sys.image.data();
+    for (std::size_t i = 0; i < pixel_count; ++i) {
+        const std::uint8_t* s =
+            src + i * static_cast<std::size_t>(snu::menu::kBgraBytesPerPixel);
+        std::uint8_t* d =
+            img.rgb.data() + i * static_cast<std::size_t>(kRgbChannels);
+        d[0] = s[snu::menu::kChannelRed];
+        d[1] = s[snu::menu::kChannelGreen];
+        d[2] = s[snu::menu::kChannelBlue];
+        if (keep_alpha) {
+            img.alpha[i] = s[snu::menu::kChannelAlpha];
+        }
+    }
+    return img;
+}
+
 std::optional<Image> decode_entry(const std::string& arc_path, const std::string& name) {
     Bytes raw;
     try {
@@ -294,6 +300,21 @@ std::optional<Image> decode_entry(const std::string& arc_path, const std::string
             return from_cbg_pixels(cbg.pixels, cbg.width, cbg.height, cbg.bpp);
         } catch (...) {
             return decode_cbg_via_tool(raw);  // v2 / anything v1 can't handle
+        }
+    }
+    if (bgi::is_dsc(raw)) {
+        try {
+            const Bytes dec = bgi::dsc_decompress(raw);
+            return from_sysgrp_image(bgi::decode_sysgrp(dec));
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+    if (raw.size() >= bgi::kSysGrpHeaderBytes) {
+        try {
+            return from_sysgrp_image(bgi::decode_sysgrp(raw));
+        } catch (...) {
+            return std::nullopt;
         }
     }
     return std::nullopt;
@@ -836,7 +857,7 @@ bj::array run_scan(const CgOptions& opt, bool resume) {
                  " entries) ===");
 
         for (std::size_t i = 0; i < ae.entries.size(); ++i) {
-            if (!SKIP_ENTRIES.count(ae.entries[i].name)) {
+            if (!is_skipped_cg_entry(ae.entries[i].name)) {
                 ae.scan_idx.push_back(i);
             }
         }
@@ -900,12 +921,19 @@ void run_translate(const CgOptions& opt, bj::array& candidates) {
         const std::string arc(c.at("arc").get_string());
         const std::string entry(c.at("entry").get_string());
 
+        if (is_skipped_cg_entry(entry)) {
+            log_info("  " + entry + ": excluded by skip list");
+            continue;
+        }
         if (!needs_translation(c, paths.out_dir)) {
             log_info("  " + entry + ": already translated, skip");
             continue;
         }
 
-        std::string arc_path = opt.game_dir + "\\" + arc;
+        std::string arc_path = opt.game_dir + "\\" + arc + ".backup";
+        if (!fs::exists(fs::u8path(arc_path))) {
+            arc_path = opt.game_dir + "\\" + arc;
+        }
         print_inline("\n  " + arc + " / " + entry + "...");
 
         auto img = decode_entry(arc_path, entry);
@@ -935,43 +963,103 @@ void run_translate(const CgOptions& opt, bj::array& candidates) {
 
 void run_repack(const CgOptions& opt, const bj::array& candidates) {
     const Paths paths = make_paths(opt);
+    const ArchiveRepacker repacker;
 
-    // Group replacements by arc.
     std::map<std::string, std::map<std::string, Bytes>> by_arc;
+    for (const auto& arc_name : SCAN_ARCS) {
+        const std::string bak_path = opt.game_dir + "\\" + arc_name + ".backup";
+        if (fs::exists(fs::u8path(bak_path))) {
+            by_arc[arc_name];
+        }
+    }
+
     for (const auto& cv : candidates) {
         const auto& c = cv.get_object();
         const std::string arc(c.at("arc").get_string());
         const std::string entry(c.at("entry").get_string());
-        std::string bmp;
-        if (auto* p = c.if_contains("patched_bmp")) {
-            if (p->is_string()) {
-                bmp = std::string(p->get_string());
-            }
+        const std::string arc_path = opt.game_dir + "\\" + arc;
+        const std::string bak_path = arc_path + ".backup";
+        const bool has_backup = fs::exists(fs::u8path(bak_path));
+        if (has_backup) {
+            by_arc[arc];
         }
-        // The path the image was actually found at, which is what the
-        // replacement is read from: a recorded path from before the project
-        // folder moved no longer names a readable file.
-        bmp = resolve_patched_path(bmp, paths.out_dir);
-        if (!bmp.empty()) {
-            by_arc[arc][entry] = read_file(bmp);
+        const std::string arc_src = has_backup ? bak_path : arc_path;
+
+        if (repacker.is_skipped(entry)) {
+            log_info("  [skip] " + arc + " / " + entry + " (excluded by skip list)");
             continue;
         }
-        std::string arc_src = opt.game_dir + "\\" + arc + ".backup";
-        if (!fs::exists(fs::u8path(arc_src))) {
-            arc_src = opt.game_dir + "\\" + arc;
-        }
-        if (const OverrideFn* fn = find_override(arc, entry)) {
-            if (auto img = decode_entry(arc_src, entry)) {
-                by_arc[arc][entry] = encode_bmp((*fn)(opt, *img));
-            }
+
+        Bytes orig_raw;
+        try {
+            orig_raw = bgi::read_entry_by_name(arc_src, entry, /*decompress=*/false);
+        } catch (...) {
+            log_info("  [skip] " + arc + " / " + entry + " (missing from " + arc_src + ")");
             continue;
         }
-        if (auto* r = c.if_contains("regions");
-            r && r->is_array() && !r->get_array().empty()) {
-            if (auto img = decode_entry(arc_src, entry)) {
-                by_arc[arc][entry] =
-                    encode_bmp(render_translation(*img, r->get_array()));
+
+        const auto orig_spec = probe_archive_bg_spec(orig_raw);
+        if (!orig_spec) {
+            log_info("  [skip] " + arc + " / " + entry + " (unsupported BG format/bpp)");
+            continue;
+        }
+
+        try {
+            std::string bmp;
+            if (auto* p = c.if_contains("patched_bmp")) {
+                if (p->is_string()) {
+                    bmp = std::string(p->get_string());
+                }
             }
+            bmp = resolve_patched_path(bmp, paths.out_dir);
+
+            std::optional<Image> patched;
+            std::optional<Image> alpha_donor;
+            if (!bmp.empty()) {
+                patched = decode_image(read_file(bmp));
+                if (patched && orig_spec->bpp == snu::menu::kBmpBpp32 &&
+                    !patched->has_alpha()) {
+                    alpha_donor = decode_entry(arc_src, entry);
+                }
+            } else if (const OverrideFn* fn = find_override(arc, entry)) {
+                if (auto img = decode_entry(arc_src, entry)) {
+                    patched = (*fn)(opt, *img);
+                }
+            } else if (auto* r = c.if_contains("regions");
+                       r && r->is_array() && !r->get_array().empty()) {
+                if (auto img = decode_entry(arc_src, entry)) {
+                    patched = render_translation(*img, r->get_array());
+                }
+            }
+
+            if (!patched || patched->empty()) {
+                continue;
+            }
+            if (patched->width != orig_spec->width ||
+                patched->height != orig_spec->height) {
+                log_info("  [skip] " + arc + " / " + entry +
+                         " (patched dimensions do not match original)");
+                continue;
+            }
+
+            const Image* donor_ptr = nullptr;
+            if (orig_spec->bpp == snu::menu::kBmpBpp32 && !patched->has_alpha()) {
+                if (!alpha_donor || !alpha_donor->has_alpha() ||
+                    alpha_donor->width != patched->width ||
+                    alpha_donor->height != patched->height) {
+                    log_info("  [skip] " + arc + " / " + entry +
+                             " (cannot preserve 32-bpp alpha channel)");
+                    continue;
+                }
+                donor_ptr = &(*alpha_donor);
+            }
+
+            by_arc[arc][entry] = encode_bgi_archive_bg(
+                *patched, orig_spec->bpp, donor_ptr, orig_spec->reserved);
+        } catch (const std::exception& ex) {
+            log_info("  [skip] " + arc + " / " + entry + " (encode error: " +
+                     ex.what() + ")");
+            continue;
         }
     }
 
@@ -982,25 +1070,21 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
 
     for (const auto& [arc_name, replacements] : by_arc) {
         const std::string arc_path = opt.game_dir + "\\" + arc_name;
-        const std::string bak = arc_path + ".backup";
-        const std::string tmp = arc_path + ".tmp";
-        ScopedTempFile tmp_guard(fs::u8path(tmp));
         log_info("\nRepacking " + arc_name + " (" +
                  std::to_string(replacements.size()) + " entries)...");
         try {
-            bgi::repack_arc(arc_path, tmp, replacements);
+            const RepackResult res =
+                repacker.repack_from_backup(arc_path, replacements);
+            log_info("  deployed -> " + arc_path + "  (applied: " +
+                     std::to_string(res.applied_count) + ", skipped: " +
+                     std::to_string(res.skipped_count) + ", backup: " +
+                     res.backup_path + ")");
         } catch (const std::exception& ex) {
             // One archive that cannot be rebuilt -- missing, unreadable or of
             // an unexpected shape -- must not take the other archives with it.
             log_info(std::string("  ERROR: ") + ex.what());
             continue;
         }
-        if (!fs::exists(fs::u8path(bak))) {
-            fs::copy_file(fs::u8path(arc_path), fs::u8path(bak));
-        }
-        fs::rename(fs::u8path(tmp), fs::u8path(arc_path));
-        tmp_guard.release();
-        log_info("  deployed -> " + arc_path + "  (backup: " + bak + ")");
     }
 }
 
@@ -1057,12 +1141,15 @@ std::size_t count_left_to_translate(const bj::array& candidates,
     std::size_t left = 0;
     for (const auto& cv : candidates) {
         const auto& c = cv.get_object();
+        const std::string entry(c.at("entry").get_string());
+        if (is_skipped_cg_entry(entry)) {
+            continue;
+        }
         if (!needs_translation(c, patched_dir)) {
             continue;
         }
         // Hand-tuned override entries cost no external request.
-        if (find_override(std::string(c.at("arc").get_string()),
-                          std::string(c.at("entry").get_string()))) {
+        if (find_override(std::string(c.at("arc").get_string()), entry)) {
             continue;
         }
         ++left;

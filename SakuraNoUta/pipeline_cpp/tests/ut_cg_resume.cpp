@@ -280,6 +280,22 @@ TEST(TranslateCoverage, AnOverrideBesideRealWorkCountsOnlyTheRealWork) {
     EXPECT_EQ(cg::count_left_to_translate(candidates, scratch.patched_dir), 1u);
 }
 
+// Skipped entries (kt_ib/kt_mh/kt_ny) are ignored by run_translate and must
+// never be counted as remaining work even when unpainted.
+TEST(TranslateCoverage, SkippedEntriesNeverCountAsLeftToTranslate) {
+    const CgResumeScratch scratch;
+    const bj::array skipped_only{
+        candidate("data02503.arc", "kt_ib", false, ""),
+        candidate("data02503.arc", "kt_mh", false, ""),
+        candidate("data02503.arc", "kt_ny", false, ""),
+    };
+    EXPECT_EQ(cg::count_left_to_translate(skipped_only, scratch.patched_dir), 0u);
+
+    bj::array mixed = skipped_only;
+    mixed.push_back(auto_candidate("ev01", false, ""));
+    EXPECT_EQ(cg::count_left_to_translate(mixed, scratch.patched_dir), 1u);
+}
+
 // Every mix of painted and unpainted candidates, counted both ways.
 TEST(TranslateCoverage, TheTranslateCountAndTheTranslateSkipAgreeOnEveryMix) {
     const CgResumeScratch scratch;
