@@ -701,3 +701,98 @@ TEST(MenuAutoPatchCt, CommittedAdieuMenuPatchBinParsesInWin32Proxy) {
     EXPECT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
               MenuPatchOutcome::kAlreadyApplied);
 }
+
+TEST(MenuAutoPatchCt,
+     ShrinkingV2UpgradeRestoresDroppedAssetsAtomicallyAndSupportsReAddInV3) {
+    ScopedTempDir sandbox;
+    const SimulatedGameAssets assets;
+    assets.SeedFactoryTree(sandbox.path());
+
+    const fs::path patch_path = sandbox.path() / kMenuPatchFileName;
+    const fs::path gameexe_path = sandbox.path() / "Gameexe.dat";
+    const fs::path me02_path = sandbox.path() / "g00" / "ME_02.g00";
+    const fs::path mess99_path = sandbox.path() / "g00" / "MESS99.g00";
+    const fs::path mess99_bak = sandbox.path() / "g00" / "MESS99.g00.bak";
+
+    // Pass 1 (v1): apply all 3 records.
+    std::vector<std::uint8_t> patch_v1;
+    ASSERT_EQ(SerializeMenuPatchManifest(assets.BuildV1Inputs(), patch_v1),
+              ManifestStatus::kOk);
+    WriteFileBytes(patch_path, patch_v1);
+    ASSERT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kApplied);
+    ASSERT_EQ(ReadFileBytes(mess99_path), assets.en_v1_mess99);
+    const std::vector<std::uint8_t> v1_sentinel_bytes =
+        ReadFileBytes(sandbox.path() / kMenuPatchSentinelFileName);
+
+    // Failed shrinking v2: drops MESS99.g00 while Record 2 (ME_02.g00) has a
+    // corrupted payload (manifest_hash re-signed). Two-phase rollback must keep
+    // MESS99.g00 at v1 (not half-reverted), keep sentinel at v1, and leave zero
+    // .tmp files.
+    const std::vector<MenuPatchRecordInput> shrinking_v2_inputs = {
+        {"Gameexe.dat", "Gameexe.dat", 0u, assets.factory_gameexe,
+         assets.en_v2_gameexe, kFlagBackupStandalone},
+        {"g00\\ME_02.g00", "g00\\ME_02.g00", 0u, assets.factory_me02,
+         assets.en_v2_me02, kFlagBackupStandalone},
+    };
+    std::vector<std::uint8_t> broken_v2;
+    ASSERT_EQ(SerializeMenuPatchManifest(shrinking_v2_inputs, broken_v2),
+              ManifestStatus::kOk);
+    broken_v2.back() ^= 0x01u;
+    WriteLe32InPlace(
+        broken_v2, 0x10u,
+        MurmurHash2(ByteSpan(broken_v2).subspan(kPatchHeaderBytes)));
+    WriteFileBytes(patch_path, broken_v2);
+
+    EXPECT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kFailed);
+    EXPECT_EQ(ReadFileBytes(gameexe_path), assets.en_v1_gameexe);
+    EXPECT_EQ(ReadFileBytes(me02_path), assets.en_v1_me02);
+    EXPECT_EQ(ReadFileBytes(mess99_path), assets.en_v1_mess99);
+    EXPECT_EQ(ReadFileBytes(sandbox.path() / kMenuPatchSentinelFileName),
+              v1_sentinel_bytes);
+    EXPECT_TRUE(CollectRelativeFilesWithSuffix(sandbox.path(), ".tmp").empty());
+
+    // Valid shrinking v2: mark dropped MESS99.g00 read-only to confirm restore
+    // clears attributes cleanly, restores MESS99.g00 from .bak, updates the
+    // retained 2 targets, and keeps .bak immutable.
+    ASSERT_NE(::SetFileAttributesW(mess99_path.c_str(), FILE_ATTRIBUTE_READONLY),
+              0);
+    std::vector<std::uint8_t> valid_v2;
+    ASSERT_EQ(SerializeMenuPatchManifest(shrinking_v2_inputs, valid_v2),
+              ManifestStatus::kOk);
+    WriteFileBytes(patch_path, valid_v2);
+
+    ASSERT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kApplied);
+    EXPECT_EQ(ReadFileBytes(gameexe_path), assets.en_v2_gameexe);
+    EXPECT_EQ(ReadFileBytes(me02_path), assets.en_v2_me02);
+    EXPECT_EQ(ReadFileBytes(mess99_path), assets.factory_mess99);
+    EXPECT_EQ(ReadFileBytes(mess99_bak), assets.factory_mess99);
+    EXPECT_TRUE(CollectRelativeFilesWithSuffix(sandbox.path(), ".tmp").empty());
+
+    AppliedSentinel v2_sentinel{};
+    ASSERT_EQ(ParseAppliedSentinel(
+                  ByteSpan(ReadFileBytes(sandbox.path() /
+                                         kMenuPatchSentinelFileName)),
+                  v2_sentinel),
+              SentinelStatus::kOk);
+    ASSERT_EQ(v2_sentinel.entries.size(), 2u);
+    EXPECT_EQ(v2_sentinel.entries[0].rel_path, "Gameexe.dat");
+    EXPECT_EQ(v2_sentinel.entries[1].rel_path, "g00\\ME_02.g00");
+    EXPECT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kAlreadyApplied);
+
+    // Pass 3 (v3): re-adding MESS99.g00 reapplies cleanly from immutable .bak.
+    std::vector<std::uint8_t> patch_v3;
+    ASSERT_EQ(SerializeMenuPatchManifest(assets.BuildV2Inputs(), patch_v3),
+              ManifestStatus::kOk);
+    WriteFileBytes(patch_path, patch_v3);
+    ASSERT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kApplied);
+    EXPECT_EQ(ReadFileBytes(mess99_path), assets.en_v2_mess99);
+    EXPECT_EQ(ReadFileBytes(mess99_bak), assets.factory_mess99);
+    EXPECT_TRUE(CollectRelativeFilesWithSuffix(sandbox.path(), ".tmp").empty());
+    EXPECT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kAlreadyApplied);
+}

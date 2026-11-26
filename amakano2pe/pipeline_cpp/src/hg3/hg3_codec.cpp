@@ -562,6 +562,50 @@ std::vector<std::uint8_t> EncodeImg0000(const Hg3Frame& frame) {
     return out;
 }
 
+constexpr std::size_t kAlphaChannelOffset = 3;
+
+bool HasNonOpaqueAlpha(const ama::imaging::BgraImage& img) noexcept {
+    const std::size_t byte_count = img.pixels.size();
+    for (std::size_t i = kAlphaChannelOffset; i < byte_count; i += kBytesPerPixel32) {
+        if (img.pixels[i] != kOpaqueAlpha) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FrameCarriesAlpha(const Hg3Frame& frame) noexcept {
+    if (!frame.has_stdinfo) {
+        return false;
+    }
+    return frame.stdinfo.bpp == kBpp32 || frame.has_img_al || HasNonOpaqueAlpha(frame.pixels);
+}
+
+std::vector<std::uint8_t> EncodeImgAl(const ama::imaging::BgraImage& img) {
+    if (img.width <= 0 || img.height <= 0) {
+        throw std::invalid_argument("cannot encode HG-3 img_al for empty or invalid dimensions");
+    }
+    const std::size_t pixel_count =
+        static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height);
+    if (img.pixels.size() < pixel_count * kBytesPerPixel32) {
+        throw std::invalid_argument("cannot encode HG-3 img_al for undersized pixel buffer");
+    }
+
+    std::vector<std::uint8_t> alpha(pixel_count, kOpaqueAlpha);
+    for (std::size_t idx = 0; idx < pixel_count; ++idx) {
+        alpha[idx] = img.pixels[idx * kBytesPerPixel32 + kAlphaChannelOffset];
+    }
+
+    const std::vector<std::uint8_t> comp = ZlibCompress(alpha.data(), alpha.size());
+    std::vector<std::uint8_t> out(kImgAlHeaderBytes + comp.size(), 0);
+    WriteU32Le(out.data() + kImgAlCompLenOffset, static_cast<std::uint32_t>(comp.size()));
+    WriteU32Le(out.data() + kImgAlOrigLenOffset, static_cast<std::uint32_t>(alpha.size()));
+    if (!comp.empty()) {
+        std::memcpy(out.data() + kImgAlHeaderBytes, comp.data(), comp.size());
+    }
+    return out;
+}
+
 void ApplyImgAlAlpha(ama::imaging::BgraImage& img, const std::uint8_t* payload, std::size_t len) {
     if (len < kImgAlHeaderBytes) {
         throw std::runtime_error("HG-3 img_al chunk is smaller than 8 bytes");
@@ -587,7 +631,7 @@ void ApplyImgAlAlpha(ama::imaging::BgraImage& img, const std::uint8_t* payload, 
             img.pixels.data() +
             static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) * kBytesPerPixel32;
         for (int x = 0; x < img.width; ++x) {
-            row[static_cast<std::size_t>(x) * kBytesPerPixel32 + 3] = alpha[idx++];
+            row[static_cast<std::size_t>(x) * kBytesPerPixel32 + kAlphaChannelOffset] = alpha[idx++];
         }
     }
 }
@@ -698,6 +742,7 @@ Hg3Container Hg3Codec::Decode(const std::uint8_t* data, std::size_t size) {
             } else if (tag_name == "img_al") {
                 pending_img_al = payload;
                 pending_img_al_len = data_len;
+                frame.has_img_al = true;
             } else if (tag_name == "cptype") {
                 if (data_len >= kU32PayloadBytes) {
                     frame.cptype = ReadU32Le(payload);
@@ -769,6 +814,10 @@ std::vector<std::uint8_t> Hg3Codec::Encode(const Hg3Container& container) {
             if (frame.stdinfo.width > 0 && frame.stdinfo.height > 0 &&
                 !frame.pixels.pixels.empty()) {
                 tags.emplace_back("img0000", EncodeImg0000(frame));
+                if (frame.stdinfo.bpp == kBpp24 &&
+                    (frame.has_img_al || HasNonOpaqueAlpha(frame.pixels))) {
+                    tags.emplace_back("img_al", EncodeImgAl(frame.pixels));
+                }
             }
         }
         if (frame.cptype.has_value()) {
@@ -836,7 +885,8 @@ bool Hg3Codec::VerifyFrameMetadataParity(const Hg3Container& expected,
         const Hg3Frame& a = actual.frames[i];
         if (e.frame_id != a.frame_id || e.has_stdinfo != a.has_stdinfo ||
             e.stdinfo != a.stdinfo || e.cptype != a.cptype || e.imgmode != a.imgmode ||
-            e.pixels.width != a.pixels.width || e.pixels.height != a.pixels.height) {
+            e.pixels.width != a.pixels.width || e.pixels.height != a.pixels.height ||
+            FrameCarriesAlpha(e) != FrameCarriesAlpha(a)) {
             return false;
         }
     }

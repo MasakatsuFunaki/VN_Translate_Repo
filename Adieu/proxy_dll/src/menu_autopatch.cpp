@@ -32,8 +32,10 @@ namespace {
 using menu_patch_format::AppliedSentinel;
 using menu_patch_format::AppliedSentinelEntry;
 using menu_patch_format::ByteSpan;
+using menu_patch_format::IsAllowedTargetPath;
 using menu_patch_format::kFlagBackupStandalone;
 using menu_patch_format::kMaxAssetPayloadBytes;
+using menu_patch_format::kMinOrigSliceBytes;
 using menu_patch_format::kPatchHeaderBytes;
 using menu_patch_format::ManifestStatus;
 using menu_patch_format::ManifestStatusName;
@@ -60,6 +62,7 @@ constexpr std::uint64_t kMaxSentinelFileBytes =
 constexpr DWORD kMaxIoChunkBytes = 64u * 1024u * 1024u;
 
 constexpr wchar_t kStageTempSuffix[] = L".stage.tmp";
+constexpr wchar_t kRestoreTempSuffix[] = L".restore.tmp";
 constexpr wchar_t kBackupSuffix[] = L".bak";
 constexpr wchar_t kBackupTempSuffix[] = L".bak.tmp";
 constexpr wchar_t kSentinelTempSuffix[] = L".tmp";
@@ -97,6 +100,13 @@ public:
     HANDLE get() const noexcept { return handle_; }
     bool valid() const noexcept {
         return handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE;
+    }
+
+    void reset() noexcept {
+        if (valid()) {
+            ::CloseHandle(handle_);
+        }
+        handle_ = INVALID_HANDLE_VALUE;
     }
 
 private:
@@ -378,12 +388,16 @@ bool StageTempFileWin32(const std::wstring& tmp_path,
         if (!::WriteFile(file.get(), contents.data() + offset, chunk, &written,
                          nullptr) ||
             written != chunk) {
+            file.reset();
+            temp_guard_out.Cleanup();
             return false;
         }
         offset += static_cast<std::size_t>(written);
     }
 
     if (!::FlushFileBuffers(file.get())) {
+        file.reset();
+        temp_guard_out.Cleanup();
         return false;
     }
     return true;
@@ -590,6 +604,129 @@ bool StageSingleRecord(const std::wstring& base_with_sep,
     return true;
 }
 
+struct StagedRestore {
+    std::wstring target_path;
+    ScopedTempFile staged_restore_tmp;
+};
+
+char ToAsciiLower(char ch) noexcept {
+    if (ch >= 'A' && ch <= 'Z') {
+        return static_cast<char>(ch - 'A' + 'a');
+    }
+    return ch;
+}
+
+bool PathsEqualIgnoreAsciiCase(std::string_view lhs,
+                               std::string_view rhs) noexcept {
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (std::size_t i = 0u; i < lhs.size(); ++i) {
+        if (ToAsciiLower(lhs[i]) != ToAsciiLower(rhs[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ManifestContainsTarget(const MenuPatchManifest& manifest,
+                            std::string_view rel_path) noexcept {
+    for (const auto& rec : manifest.records) {
+        if (PathsEqualIgnoreAsciiCase(rec.target_rel_path, rel_path)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ContainsPathIgnoreAsciiCase(const std::vector<std::string>& paths,
+                                 std::string_view candidate) noexcept {
+    for (const auto& existing : paths) {
+        if (PathsEqualIgnoreAsciiCase(existing, candidate)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TryLoadPriorSentinel(const std::wstring& sentinel_path,
+                          AppliedSentinel& out) {
+    out = {};
+    std::vector<std::uint8_t> sentinel_bytes;
+    if (!ReadEntireFileWin32(sentinel_path, kMaxSentinelFileBytes,
+                             sentinel_bytes)) {
+        return false;
+    }
+    return ParseAppliedSentinel(ByteSpan(sentinel_bytes), out) ==
+           SentinelStatus::kOk;
+}
+
+bool StageDroppedTargetRestores(const std::wstring& base_with_sep,
+                                const AppliedSentinel& prior_sentinel,
+                                const MenuPatchManifest& manifest,
+                                std::vector<StagedRestore>& restores_out) {
+    std::vector<std::string> seen_dropped;
+    for (const auto& prior_entry : prior_sentinel.entries) {
+        if (ManifestContainsTarget(manifest, prior_entry.rel_path)) {
+            continue;
+        }
+        if (ContainsPathIgnoreAsciiCase(seen_dropped, prior_entry.rel_path)) {
+            continue;
+        }
+        seen_dropped.push_back(prior_entry.rel_path);
+
+        if (!IsAllowedTargetPath(prior_entry.rel_path)) {
+            continue;
+        }
+        std::wstring wide_rel;
+        if (!Utf8PathToWide(prior_entry.rel_path, wide_rel)) {
+            continue;
+        }
+        const std::wstring target_path = base_with_sep + wide_rel;
+        const std::wstring backup_path = target_path + kBackupSuffix;
+        if (!RegularFileExistsWin32(backup_path)) {
+            Log("[MenuAutoPatch] Dropped target '%s' has no .bak backup; "
+                "leaving live file untouched",
+                prior_entry.rel_path.c_str());
+            continue;
+        }
+
+        std::vector<std::uint8_t> backup_bytes;
+        if (!ReadEntireFileWin32(backup_path, kMaxPatchContainerBytes,
+                                 backup_bytes)) {
+            Log("[MenuAutoPatch] Failed reading backup '%s.bak' for dropped "
+                "target restore (gle=%lu)",
+                prior_entry.rel_path.c_str(), ::GetLastError());
+            return false;
+        }
+        if (backup_bytes.size() < kMinOrigSliceBytes) {
+            Log("[MenuAutoPatch] Dropped target '%s' has truncated .bak (%zu "
+                "bytes); leaving live file untouched",
+                prior_entry.rel_path.c_str(), backup_bytes.size());
+            continue;
+        }
+        if (!EnsureRelativeParentDirsExist(base_with_sep, wide_rel)) {
+            Log("[MenuAutoPatch] Failed creating parent directory for dropped "
+                "target '%s' (gle=%lu)",
+                prior_entry.rel_path.c_str(), ::GetLastError());
+            return false;
+        }
+
+        StagedRestore restore{};
+        restore.target_path = target_path;
+        if (!StageTempFileWin32(target_path + kRestoreTempSuffix,
+                                ByteSpan(backup_bytes),
+                                restore.staged_restore_tmp)) {
+            Log("[MenuAutoPatch] Failed staging restore '%s.restore.tmp' "
+                "(gle=%lu)",
+                prior_entry.rel_path.c_str(), ::GetLastError());
+            return false;
+        }
+        restores_out.push_back(std::move(restore));
+    }
+    return true;
+}
+
 MenuPatchOutcome RunEnsureMenuAssetsPatched(const wchar_t* game_dir) {
     std::wstring base_with_sep;
     if (!NormalizeGameDirWithTrailingSep(game_dir, base_with_sep)) {
@@ -641,9 +778,13 @@ MenuPatchOutcome RunEnsureMenuAssetsPatched(const wchar_t* game_dir) {
         return MenuPatchOutcome::kFailed;
     }
 
-    // Phase 1: Validate every record and stage all backups, targets, and the
-    // applied sentinel to temporary files with FlushFileBuffers before
-    // mutating any live file.
+    // Phase 1: Validate every record and stage all backups, targets,
+    // dropped-target restorations, and the applied sentinel to temporary files
+    // with FlushFileBuffers before mutating any live file.
+    AppliedSentinel prior_sentinel{};
+    const bool has_prior_sentinel =
+        TryLoadPriorSentinel(sentinel_path, prior_sentinel);
+
     std::vector<StagedRecord> staged_records;
     staged_records.reserve(manifest.records.size());
     AppliedSentinel sentinel{};
@@ -662,6 +803,13 @@ MenuPatchOutcome RunEnsureMenuAssetsPatched(const wchar_t* game_dir) {
             AppliedSentinelEntry{rec.target_rel_path, rec.new_size});
     }
 
+    std::vector<StagedRestore> dropped_restores;
+    if (has_prior_sentinel &&
+        !StageDroppedTargetRestores(base_with_sep, prior_sentinel, manifest,
+                                    dropped_restores)) {
+        return MenuPatchOutcome::kFailed;
+    }
+
     std::vector<std::uint8_t> sentinel_bytes;
     if (SerializeAppliedSentinel(sentinel, sentinel_bytes) !=
         SentinelStatus::kOk) {
@@ -678,7 +826,8 @@ MenuPatchOutcome RunEnsureMenuAssetsPatched(const wchar_t* game_dir) {
     }
 
     // Phase 2: Promote immutable .bak files first, then atomically swap all
-    // staged target files, and finally commit menu_patch.applied.
+    // staged target files and dropped-target restores, and finally commit
+    // menu_patch.applied.
     for (auto& item : staged_records) {
         if (!item.needs_backup_commit) {
             continue;
@@ -705,14 +854,23 @@ MenuPatchOutcome RunEnsureMenuAssetsPatched(const wchar_t* game_dir) {
         }
     }
 
+    for (auto& restore : dropped_restores) {
+        if (!restore.staged_restore_tmp.CommitMove(restore.target_path, true)) {
+            Log("[MenuAutoPatch] Failed restoring dropped target (gle=%lu)",
+                ::GetLastError());
+            return MenuPatchOutcome::kFailed;
+        }
+    }
+
     if (!staged_sentinel_tmp.CommitMove(sentinel_path, true)) {
         Log("[MenuAutoPatch] Failed committing menu_patch.applied (gle=%lu)",
             ::GetLastError());
         return MenuPatchOutcome::kFailed;
     }
 
-    Log("[MenuAutoPatch] Applied %zu menu records cleanly",
-        manifest.records.size());
+    Log("[MenuAutoPatch] Applied %zu menu records and restored %zu dropped "
+        "targets cleanly",
+        manifest.records.size(), dropped_restores.size());
     return MenuPatchOutcome::kApplied;
 }
 

@@ -16,9 +16,13 @@
 // verifying their digests, and unmasking the keyless XOR deltas. Standalone
 // root files patched in place are first preserved as <file>.bak.
 //
-// Every file is written as <file>.tmp and swapped in with
-// MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), and the
-// whole run is serialized across processes by the named mutex
+// All target payloads, immutable standalone backups (<file>.bak.tmp), and
+// dropped-target restorations are staged and flushed before Phase 2 commits
+// them with MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH),
+// leaving zero live mutations on Phase 1 validation failure. Targets recorded
+// in a prior menu_patch.applied that are absent from a newer menu_patch.bin
+// are restored from <file>.bak (standalone) or removed (loose overrides).
+// The whole run is serialized across processes by the named mutex
 // Local\Amakano2PeMenuPatchMutex. A successful run leaves
 // <GameDir>\menu_patch.applied so later launches skip all archive reads.
 //

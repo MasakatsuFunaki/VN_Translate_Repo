@@ -15,6 +15,10 @@ ksh_test(ut_minidump)
 ksh_test(ut_util)
 ksh_test(ut_pak_builder)
 
+add_executable(ct_pak_deploy ct_pak_deploy.cpp)
+target_link_libraries(ct_pak_deploy PRIVATE ksh_core GTest::gtest GTest::gtest_main)
+gtest_discover_tests(ct_pak_deploy PROPERTIES LABELS "CT")
+
 add_executable(ut_paths ut_paths.cpp ../src/apps/paths.cpp)
 target_link_libraries(ut_paths PRIVATE ksh_core Boost::program_options shell32 GTest::gtest GTest::gtest_main)
 gtest_discover_tests(ut_paths PROPERTIES LABELS "UT")

@@ -54,6 +54,9 @@ public:
 
     ExtractedAssetEntry ReadArchiveEntry(const std::string& archive_rel_path,
                                          const std::string& entry_name) const;
+    // Reads a standalone file under game_dir, preferring `<rel_path>.bak` when
+    // present as a regular file of at least `kMinOrigSliceBytes` so re-running
+    // on an already-patched install always uses the untouched retail original.
     ExtractedAssetEntry ReadStandaloneFile(const std::string& rel_path) const;
     ExtractedAssetEntry ReadExecutableSlice(std::uint64_t offset = 0,
                                             std::uint32_t length = 4096) const;

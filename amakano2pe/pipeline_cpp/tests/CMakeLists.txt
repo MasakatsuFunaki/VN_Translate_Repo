@@ -34,6 +34,7 @@ ama_test(ut_build_tsv)
 ama_test(ut_cp932)
 ama_test(ut_cache_io)
 ama_test(ut_hg3_codec)
+ama_test(ut_domain_renderer)
 ama_test(ut_menu_patch_container)
 ama_test(ut_sprite_canvas)
 

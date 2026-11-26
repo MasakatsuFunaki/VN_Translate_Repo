@@ -61,6 +61,7 @@ struct Hg3Frame {
     std::optional<std::uint32_t> cptype;
     std::optional<std::uint32_t> imgmode;
     bool was_jpeg_encoded = false;
+    bool has_img_al = false;
     bool top_down_img0000 = false;
     std::uint32_t img0000_unknown = 0;
     std::vector<Hg3ExtraTag> extra_tags;

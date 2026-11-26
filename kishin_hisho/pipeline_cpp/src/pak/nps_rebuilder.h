@@ -128,10 +128,16 @@ public:
         const std::string& recon_map_json_path,
         NpsRebuildStats* out_stats = nullptr) const;
 
+    // Rebuilds 0script.pak and loose script\*.nps and deploys them atomically
+    // into each non-empty directory in `output_game_dirs`. When
+    // `backup_existing` is true (game installation deploy), creates immutable
+    // `<target>.bak` backups on first overwrite; leave false for release
+    // staging so zero `.bak` files land in `install/kishin_hisho/game/`.
     NpsRebuildStats RebuildAndDeploy(
         const std::string& project_dir,
         const std::vector<std::string>& output_game_dirs,
-        bool verify_archive = true) const;
+        bool verify_archive = true,
+        bool backup_existing = false) const;
 
 private:
     struct Impl;
