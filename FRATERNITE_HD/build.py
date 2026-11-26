@@ -161,6 +161,24 @@ def install():
                     print(f"  {folder}/{name}")
 
 
+def atomic_copy_file(src, dst):
+    """Atomically copy `src` to `dst` via a flushed temp file and os.replace."""
+    tmp = dst + ".tmp"
+    try:
+        with open(src, "rb") as fin, open(tmp, "wb") as fout:
+            shutil.copyfileobj(fin, fout, length=1024 * 1024)
+            fout.flush()
+            os.fsync(fout.fileno())
+        os.replace(tmp, dst)
+    except BaseException:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        raise
+
+
 def deploy(game_dir):
     if os.environ.get("VN_DIST_BUILD"):
         print("[DIST] VN_DIST_BUILD set — skipping deploy to the game folder.")
@@ -197,9 +215,9 @@ def deploy(game_dir):
     cgsys = os.path.join(game_dir, "pac", "cgsys.ypf")
     cgsys_bak = cgsys + ".bak"
     if os.path.isfile(cgsys) and not os.path.isfile(cgsys_bak):
-        shutil.copyfile(cgsys, cgsys_bak)
+        atomic_copy_file(cgsys, cgsys_bak)
 
-    if os.path.isfile(patch_src) and os.path.isfile(cgsys):
+    if os.path.isfile(patch_src) and (os.path.isfile(cgsys) or os.path.isfile(cgsys_bak)):
         patcher = os.path.join(INSTALL_DIR, "bin", "03_patch_menus.exe")
         if not os.path.isfile(patcher):
             patcher = os.path.join(BUILD_DIR, "pipeline", CONFIG, "03_patch_menus.exe")

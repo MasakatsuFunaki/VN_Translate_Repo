@@ -33,9 +33,9 @@ public:
     // Ink bbox of ONE line, stroke included, relative to the draw origin.
     TextBBox measure(const std::string& utf8, int stroke_width = 0) const;
 
-    // Draw one line with an optional outline stroke.  The ink alpha is always
-    // 255, so glyph pixels push the destination alpha toward opaque -- text
-    // rendered into a transparent region must not stay transparent.
+    // Draw one line with an optional outline stroke using exact Porter-Duff
+    // straight-alpha source-over blending (preserving destination alpha and
+    // avoiding dark anti-aliasing fringes on transparent backgrounds).
     void draw(Image& img, int x, int y, const std::string& utf8,
               const std::array<std::uint8_t, 4>& rgba, int stroke_width = 0,
               const std::array<std::uint8_t, 4>& stroke_rgba = {0, 0, 0, 255}) const;
@@ -48,6 +48,12 @@ private:
     std::unique_ptr<Impl> impl_;
     int pixel_size_ = 0;
 };
+
+// Composites one glyph coverage sample (0..255) of straight-alpha `ink` onto
+// `dst` (`channels` == 3 RGB or 4 RGBA) via Porter-Duff source-over.
+void blend_pixel_over(std::uint8_t* dst, int channels,
+                      const std::array<std::uint8_t, 4>& ink,
+                      std::uint8_t coverage) noexcept;
 
 // INCLUSIVE OF BOTH CORNERS -- unlike crop(), which is half-open.  A half-open
 // loop here leaves the right column and bottom row of every erased bbox

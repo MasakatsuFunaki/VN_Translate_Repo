@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -32,6 +33,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -56,8 +58,9 @@ namespace {
 // ---------------------------------------------------------------------------
 
 // sin_cgev.dat: event CGs (800x600) -- most likely to carry narrative text.
-// sin_sysd.dat: system/title images -- may include title cards.
-const std::vector<std::string> SCAN_ARCS = {"sin_cgev.dat", "sin_sysd.dat"};
+// sin_sysd.dat is managed exclusively by 04_patch_menus / menu_patch.bin /
+// winmm.dll's Data\sin_sysd.dat.bak contract and must never be mutated here.
+const std::vector<std::string> SCAN_ARCS = {"sin_cgev.dat"};
 
 // Low enough to catch menu panels and large UI labels, not just full-screen
 // narrative CGs; sprite-sized icons are still filtered out.
@@ -958,14 +961,158 @@ void run_translate(const CgOptions& opt, bj::array& candidates) {
         }
 
         // Always BMP: extract_ddp.exe writes BMPs, and the repack substitutes
-        // the patched image straight back into the archive.
+        // the patched image straight back into the archive, preserving 32-bpp
+        // straight alpha when present.
         const std::string out_bmp = paths.out_dir + "\\" + entry + ".bmp";
-        write_file(out_bmp, encode_bmp(patched.channels == 4 ? drop_alpha(patched) : patched));
+        write_file(out_bmp, encode_bmp(patched));
         c["patched_bmp"] = out_bmp;
         log_info("    saved -> " + out_bmp);
 
         write_file_text(paths.candidates, json_pretty(bj::value(candidates), 2));
     }
+}
+
+bool is_menu_managed_archive(const std::string& arc_name) {
+    return ascii_lower(arc_name) == "sin_sysd.dat";
+}
+
+bool is_ddp_archive_file(const std::string& path) {
+    std::ifstream in(fs::u8path(path), std::ios::binary);
+    if (!in) return false;
+    char magic[4] = {};
+    in.read(magic, 4);
+    if (in.gcount() != 4) return false;
+    return (std::memcmp(magic, "DDP2", 4) == 0) ||
+           (std::memcmp(magic, "DDP3", 4) == 0);
+}
+
+void clear_readonly_if_present(const std::wstring& path) noexcept {
+    const DWORD attrs = GetFileAttributesW(path.c_str());
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY) != 0) {
+        const DWORD writable = attrs & ~FILE_ATTRIBUTE_READONLY;
+        SetFileAttributesW(path.c_str(), writable != 0 ? writable : FILE_ATTRIBUTE_NORMAL);
+    }
+}
+
+void atomic_copy_file(const std::string& src_u8,
+                      const std::string& dst_u8,
+                      bool preserve_mtime) {
+    const std::wstring src_w = widen(src_u8);
+    const std::wstring dst_w = widen(dst_u8);
+    const std::wstring tmp_w = dst_w + L".tmp";
+    clear_readonly_if_present(tmp_w);
+    DeleteFileW(tmp_w.c_str());
+
+    FILETIME write_time{};
+    bool has_write_time = false;
+    if (preserve_mtime) {
+        ScopedHandle src_h(CreateFileW(src_w.c_str(), GENERIC_READ,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (src_h && GetFileTime(src_h.get(), nullptr, nullptr, &write_time)) {
+            has_write_time = true;
+        }
+    }
+
+    if (!CopyFileW(src_w.c_str(), tmp_w.c_str(), FALSE)) {
+        clear_readonly_if_present(tmp_w);
+        DeleteFileW(tmp_w.c_str());
+        throw std::runtime_error("atomic copy failed from " + src_u8 + " to " + dst_u8);
+    }
+    clear_readonly_if_present(tmp_w);
+    {
+        ScopedHandle tmp_h(CreateFileW(tmp_w.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (!tmp_h) {
+            clear_readonly_if_present(tmp_w);
+            DeleteFileW(tmp_w.c_str());
+            throw std::runtime_error("cannot open temp copy for flush: " + dst_u8);
+        }
+        if (has_write_time) {
+            SetFileTime(tmp_h.get(), nullptr, nullptr, &write_time);
+        }
+        if (!FlushFileBuffers(tmp_h.get())) {
+            tmp_h.reset();
+            clear_readonly_if_present(tmp_w);
+            DeleteFileW(tmp_w.c_str());
+            throw std::runtime_error("FlushFileBuffers failed for " + dst_u8);
+        }
+    }
+    clear_readonly_if_present(dst_w);
+    if (!MoveFileExW(tmp_w.c_str(), dst_w.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        clear_readonly_if_present(tmp_w);
+        DeleteFileW(tmp_w.c_str());
+        throw std::runtime_error("MoveFileExW failed for " + dst_u8);
+    }
+}
+
+void commit_temp_file_atomically(const std::string& tmp_u8, const std::string& dst_u8) {
+    const std::wstring tmp_w = widen(tmp_u8);
+    const std::wstring dst_w = widen(dst_u8);
+    clear_readonly_if_present(tmp_w);
+    {
+        ScopedHandle tmp_h(CreateFileW(tmp_w.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (!tmp_h || !FlushFileBuffers(tmp_h.get())) {
+            tmp_h.reset();
+            clear_readonly_if_present(tmp_w);
+            DeleteFileW(tmp_w.c_str());
+            throw std::runtime_error("FlushFileBuffers failed for " + tmp_u8);
+        }
+    }
+    clear_readonly_if_present(dst_w);
+    if (!MoveFileExW(tmp_w.c_str(), dst_w.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        clear_readonly_if_present(tmp_w);
+        DeleteFileW(tmp_w.c_str());
+        throw std::runtime_error("MoveFileExW failed for " + dst_u8);
+    }
+}
+
+std::size_t restore_unpatched_backups(const Paths& paths,
+                                      const std::set<std::string>& handled_arcs_lower) {
+    constexpr std::string_view kBackupSuffix = ".backup";
+    std::error_code ec;
+    if (!fs::is_directory(fs::u8path(paths.game_dir), ec)) {
+        return 0u;
+    }
+
+    std::vector<fs::path> backup_files;
+    for (const auto& entry : fs::directory_iterator(fs::u8path(paths.game_dir), ec)) {
+        if (!entry.is_regular_file(ec)) continue;
+        const std::string fname = entry.path().filename().u8string();
+        const std::string lower = ascii_lower(fname);
+        if (lower.size() <= kBackupSuffix.size()) continue;
+        if (lower.compare(lower.size() - kBackupSuffix.size(), kBackupSuffix.size(),
+                          kBackupSuffix) != 0) {
+            continue;
+        }
+        backup_files.push_back(entry.path());
+    }
+    std::sort(backup_files.begin(), backup_files.end());
+
+    std::size_t restored = 0u;
+    for (const fs::path& bak_fs : backup_files) {
+        const std::string bak_name = bak_fs.filename().u8string();
+        const std::string arc_name =
+            bak_name.substr(0, bak_name.size() - kBackupSuffix.size());
+        if (arc_name.empty() || is_menu_managed_archive(arc_name)) {
+            continue;
+        }
+        if (handled_arcs_lower.count(ascii_lower(arc_name)) != 0u) {
+            continue;
+        }
+        const std::string bak_path = bak_fs.u8string();
+        if (!is_ddp_archive_file(bak_path)) {
+            continue;
+        }
+        const std::string arc_path = paths.game_dir + "\\" + arc_name;
+        atomic_copy_file(bak_path, arc_path, /*preserve_mtime=*/true);
+        log_info("  restored -> " + arc_path + " (from " + bak_path + ")");
+        ++restored;
+    }
+    return restored;
 }
 
 void run_repack(const CgOptions& opt, const bj::array& candidates) {
@@ -1003,12 +1150,16 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
             entry_map.emplace_back(entry, p);
     }
 
-    if (by_arc.empty()) {
-        log_info("Nothing to repack (no patched_bmp paths found).");
-        return;
-    }
+    std::set<std::string> handled_arcs_lower;
 
     for (const auto& [arc_name, entry_map] : by_arc) {
+        if (is_menu_managed_archive(arc_name)) {
+            log_info("[skip] " + arc_name +
+                     " is managed by menu_patch.bin / 04_patch_menus (preserving .bak contract)");
+            continue;
+        }
+        handled_arcs_lower.insert(ascii_lower(arc_name));
+
         const std::string arc_path = paths.game_dir + "\\" + arc_name;
         const std::string bak_path = arc_path + ".backup";
         const std::string tmp_path = arc_path + ".tmp";
@@ -1020,27 +1171,34 @@ void run_repack(const CgOptions& opt, const bj::array& candidates) {
         log_info("\nRepacking " + arc_name + " (" + std::to_string(replacements.size()) +
                  " entries)...");
         try {
-            // Note: unlike mushigurui's GPK step this repacks from the LIVE
-            // archive, not from the backup -- so a second run with different
-            // replacements compounds onto the first.
-            ddp::repack(arc_path, tmp_path, replacements);
+            // Strict all-or-nothing atomicity: always read pristine bytes from
+            // `.backup` when present (never mutated live `arc_path`), stage the
+            // repacked archive to `.tmp` FIRST, and only commit `.backup` +
+            // live `arc_path` once repacking succeeds completely.
+            const bool has_backup = path_exists(bak_path);
+            const std::string& src_path = has_backup ? bak_path : arc_path;
+            if (!path_exists(src_path)) {
+                throw std::runtime_error("archive not found: " + src_path);
+            }
+            ddp::repack(src_path, tmp_path, replacements, splitext(arc_name).first);
+            if (!has_backup) {
+                atomic_copy_file(arc_path, bak_path, /*preserve_mtime=*/true);
+                log_info("  backup -> " + bak_path);
+            }
+            commit_temp_file_atomically(tmp_path, arc_path);
+            log_info("  deployed -> " + arc_path);
         } catch (const std::exception& ex) {
             log_info(std::string("  ERROR: ") + ex.what());
+            clear_readonly_if_present(widen(tmp_path));
             std::error_code ec;
             fs::remove(fs::u8path(tmp_path), ec);
             continue;
         }
+    }
 
-        if (!path_exists(bak_path)) {
-            // shutil.copy2 preserves mtime.
-            fs::copy_file(fs::u8path(arc_path), fs::u8path(bak_path),
-                          fs::copy_options::overwrite_existing);
-            fs::last_write_time(fs::u8path(bak_path),
-                                fs::last_write_time(fs::u8path(arc_path)));
-            log_info("  backup -> " + bak_path);
-        }
-        fs::rename(fs::u8path(tmp_path), fs::u8path(arc_path));
-        log_info("  deployed -> " + arc_path);
+    const std::size_t restored = restore_unpatched_backups(paths, handled_arcs_lower);
+    if (by_arc.empty() && restored == 0u) {
+        log_info("Nothing to repack (no patched_bmp paths found).");
     }
 }
 
@@ -1251,22 +1409,35 @@ std::array<std::uint8_t, 4> parse_hex(const std::string& hex,
     }
 }
 
-std::array<std::uint8_t, 3> sample_bg(const Image& img, int x1, int y1, int x2,
-                                      int y2) {
-    Image c = crop(img, x1, y1, x2, y2);
-    if (c.channels == 4) c = drop_alpha(c);
+std::array<std::uint8_t, 4> sample_bg_rgba(const Image& img, int x1, int y1, int x2,
+                                           int y2) {
+    const Image c = crop(img, x1, y1, x2, y2);
+    const auto median_u8 = [](std::vector<std::uint8_t>& ch) -> std::uint8_t {
+        std::sort(ch.begin(), ch.end());
+        const std::size_t n = ch.size();
+        // Median: average the two middle samples on an even count, then
+        // TRUNCATE.  nth_element would take the upper middle instead, which
+        // shifts the sampled background by a level on flat gradients.
+        const double m = (n % 2) ? static_cast<double>(ch[n / 2])
+                                 : (static_cast<double>(ch[n / 2 - 1]) +
+                                    static_cast<double>(ch[n / 2])) / 2.0;
+        return static_cast<std::uint8_t>(static_cast<int>(m));
+    };
 
     // Order and duplication matter: the top/bottom two rows and the left/right
     // two columns are each gathered whole, so the four corners are counted
     // twice and weigh double in the median below.  That is intended.
-    std::vector<std::array<std::uint8_t, 3>> edges;
+    std::vector<std::array<std::uint8_t, 4>> edges;
+    const auto push_pixel = [&](int x, int y) {
+        const std::uint8_t* p = c.at(x, y);
+        const std::uint8_t a = (c.channels == 4) ? p[3] : 255u;
+        edges.push_back({p[0], p[1], p[2], a});
+    };
     const auto push_row = [&](int y) {
-        for (int x = 0; x < c.width; ++x)
-            edges.push_back({c.at(x, y)[0], c.at(x, y)[1], c.at(x, y)[2]});
+        for (int x = 0; x < c.width; ++x) push_pixel(x, y);
     };
     const auto push_col = [&](int x) {
-        for (int y = 0; y < c.height; ++y)
-            edges.push_back({c.at(x, y)[0], c.at(x, y)[1], c.at(x, y)[2]});
+        for (int y = 0; y < c.height; ++y) push_pixel(x, y);
     };
     if (c.height > 4) {
         push_row(0);
@@ -1280,25 +1451,41 @@ std::array<std::uint8_t, 3> sample_bg(const Image& img, int x1, int y1, int x2,
         push_col(c.width - 2);
         push_col(c.width - 1);
     }
-    if (edges.empty()) return {255, 255, 255};
+    if (edges.empty()) {
+        if (c.channels != 4) return {255, 255, 255, 255};
+        for (int y = 0; y < c.height; ++y)
+            for (int x = 0; x < c.width; ++x) push_pixel(x, y);
+        if (edges.empty()) return {0, 0, 0, 0};
+    }
 
-    std::array<std::uint8_t, 3> med{};
     std::vector<std::uint8_t> ch;
     ch.reserve(edges.size());
+    std::uint8_t med_a = 255u;
+    if (c.channels == 4) {
+        for (const auto& e : edges) ch.push_back(e[3]);
+        med_a = median_u8(ch);
+        if (med_a == 0u) {
+            return {0, 0, 0, 0};
+        }
+    }
+
+    std::array<std::uint8_t, 4> med{0, 0, 0, med_a};
     for (int k = 0; k < 3; ++k) {
         ch.clear();
-        for (const auto& e : edges) ch.push_back(e[static_cast<std::size_t>(k)]);
-        std::sort(ch.begin(), ch.end());
-        const std::size_t n = ch.size();
-        // Median: average the two middle samples on an even count, then
-        // TRUNCATE.  nth_element would take the upper middle instead, which
-        // shifts the sampled background by a level on flat gradients.
-        const double m = (n % 2) ? static_cast<double>(ch[n / 2])
-                                 : (static_cast<double>(ch[n / 2 - 1]) +
-                                    static_cast<double>(ch[n / 2])) / 2.0;
-        med[static_cast<std::size_t>(k)] = static_cast<std::uint8_t>(static_cast<int>(m));
+        for (const auto& e : edges) {
+            if (c.channels != 4 || e[3] > 0u) {
+                ch.push_back(e[static_cast<std::size_t>(k)]);
+            }
+        }
+        med[static_cast<std::size_t>(k)] = ch.empty() ? 0u : median_u8(ch);
     }
     return med;
+}
+
+std::array<std::uint8_t, 3> sample_bg(const Image& img, int x1, int y1, int x2,
+                                      int y2) {
+    const auto rgba = sample_bg_rgba(img, x1, y1, x2, y2);
+    return {rgba[0], rgba[1], rgba[2]};
 }
 
 std::unique_ptr<Font> fit_font(const std::string& text, const std::string& font_path,
@@ -1408,8 +1595,8 @@ Image render_translation(const Image& img, const bj::array& regions) {
         if (bw < 4 || bh < 4) continue;
 
         if (bbox.size() >= 4) {
-            const auto bg = sample_bg(result, x1, y1, x2, y2);
-            fill_rect(result, x1, y1, x2, y2, {bg[0], bg[1], bg[2], 255});
+            const auto bg = sample_bg_rgba(result, x1, y1, x2, y2);
+            fill_rect(result, x1, y1, x2, y2, bg);
         }
 
         const auto tc = parse_hex(txt_hex, bg_tone);
@@ -1500,14 +1687,17 @@ int run_find_narrative_cg(const CgOptions& opt) {
             log_info("Aborted by user. No API calls made.");
             return 0;  // note: no "\nDone."
         }
-        // Phase 3: scan + translate + repack.
+        // Phase 3: scan + translate + repack (including restoring backups when empty).
         bj::array candidates = run_scan(opt, /*resume=*/!opt.no_resume);
-        if (!opt.scan_only && !candidates.empty()) {
-            if (detail::count_left_to_translate(candidates, paths.out_dir) && !g_replay_active) {
-                throw std::runtime_error(
-                    "Offline build: missing cached translation; live API client removed for finished game");
+        if (!opt.scan_only) {
+            if (!candidates.empty()) {
+                if (detail::count_left_to_translate(candidates, paths.out_dir) &&
+                    !g_replay_active) {
+                    throw std::runtime_error(
+                        "Offline build: missing cached translation; live API client removed for finished game");
+                }
+                run_translate(opt, candidates);
             }
-            run_translate(opt, candidates);
             run_repack(opt, candidates);
         }
     }

@@ -11,3 +11,4 @@ function(add_ut_target name)
 endfunction()
 
 add_ut_target(tsv_parser_ut)
+add_ut_target(menu_autopatch_ut)

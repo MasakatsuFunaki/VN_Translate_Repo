@@ -19,6 +19,22 @@ target_compile_definitions(translation_pipeline_ct PRIVATE
 )
 gtest_discover_tests(translation_pipeline_ct PROPERTIES LABELS "CT")
 
+add_executable(menu_autopatch_ct
+    menu_autopatch_ct.cpp
+    $<TARGET_OBJECTS:translator_logic>
+)
+target_link_libraries(menu_autopatch_ct PRIVATE
+    GTest::gtest
+    GTest::gtest_main
+)
+target_include_directories(menu_autopatch_ct PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+target_compile_definitions(menu_autopatch_ct PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
+gtest_discover_tests(menu_autopatch_ct PROPERTIES LABELS "CT")
+
 # Optional CT: validates RVAs in the dumped EXE. SKIPs when the dump is absent.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/hook_sites_ct.cpp")
     add_executable(hook_sites_ct hook_sites_ct.cpp)
