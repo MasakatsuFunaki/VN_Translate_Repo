@@ -1267,7 +1267,8 @@ std::vector<PakEntry> NpsRebuilder::BuildEntriesFromJsonFiles(
 NpsRebuildStats NpsRebuilder::RebuildAndDeploy(
     const std::string& project_dir,
     const std::vector<std::string>& output_game_dirs,
-    bool verify_archive) const {
+    bool verify_archive,
+    bool backup_existing) const {
     const std::string script_output_dir = patch::path_join(project_dir, "script_output");
     const std::string translated_json =
         patch::path_join(script_output_dir, "translated_text.json");
@@ -1297,14 +1298,16 @@ NpsRebuildStats NpsRebuilder::RebuildAndDeploy(
                                      ec.message());
         }
 
+        AtomicFileBatch batch;
         for (const auto& entry : entries) {
             const std::string base_fn = patch::base_name(entry.relative_path);
             const std::string out_path = patch::path_join(script_dir, base_fn);
-            write_file(out_path, entry.payload);
+            batch.StageWrite(out_path, entry.payload, backup_existing);
         }
 
         const std::string pak_path = patch::path_join(game_dir, "0script.pak");
-        write_file(pak_path, pak_bytes);
+        batch.StageWrite(pak_path, pak_bytes, backup_existing);
+        batch.Commit();
     }
 
     return stats;

@@ -148,8 +148,17 @@ ExtractedAssetEntry GameAssetSource::ReadArchiveEntry(const std::string& archive
 }
 
 ExtractedAssetEntry GameAssetSource::ReadStandaloneFile(const std::string& rel_path) const {
-    const std::filesystem::path full_path = impl_->game_dir / std::filesystem::u8path(rel_path);
-    std::vector<std::uint8_t> bytes = ReadFileBytes(full_path);
+    const std::filesystem::path live_path = impl_->game_dir / std::filesystem::u8path(rel_path);
+    std::filesystem::path bak_path = live_path;
+    bak_path += L".bak";
+
+    std::error_code ec;
+    const bool use_backup =
+        std::filesystem::is_regular_file(bak_path, ec) && !ec &&
+        std::filesystem::file_size(bak_path, ec) >= kMinOrigSliceBytes && !ec;
+    const std::filesystem::path& source_path = use_backup ? bak_path : live_path;
+
+    std::vector<std::uint8_t> bytes = ReadFileBytes(source_path);
     if (bytes.size() < kMinOrigSliceBytes) {
         throw std::runtime_error("standalone file smaller than minimum slice size: " + rel_path);
     }

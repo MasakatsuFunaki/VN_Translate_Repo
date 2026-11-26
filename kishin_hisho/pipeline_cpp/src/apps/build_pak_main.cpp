@@ -31,6 +31,7 @@ int main() {
         std::string project_dir;
         std::string game_dir;
         bool verify = false;
+        bool backup_existing = false;
 
         po::options_description desc(
             "02_build_pak -- rebuild Kishin Hisho English .nps scripts and 0script.pak");
@@ -39,7 +40,9 @@ int main() {
             ("game-dir", po::value(&game_dir),
              "Output game directory to deploy 0script.pak and script\\*.nps into")
             ("verify", po::bool_switch(&verify),
-             "Round-trip unpack and verify every entry in the generated 0script.pak");
+             "Round-trip unpack and verify every entry in the generated 0script.pak")
+            ("backup-existing", po::bool_switch(&backup_existing),
+             "Create immutable .bak backups on first overwrite of existing target files");
 
         po::variables_map vm;
         if (auto rc = ksh::apps::parse_process_command_line(desc, vm)) {
@@ -63,7 +66,7 @@ int main() {
 
         const pak::NpsRebuilder rebuilder;
         const pak::NpsRebuildStats stats =
-            rebuilder.RebuildAndDeploy(project_dir, out_dirs, verify);
+            rebuilder.RebuildAndDeploy(project_dir, out_dirs, verify, backup_existing);
 
         log_info("[02_build_pak] Rebuilt " + std::to_string(stats.total_nps_scripts) +
                  " .nps scripts (" + std::to_string(stats.total_pak_files) +

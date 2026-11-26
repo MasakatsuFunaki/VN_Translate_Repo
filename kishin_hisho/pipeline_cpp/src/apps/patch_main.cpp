@@ -89,18 +89,20 @@ int main() {
         }
 
         const std::vector<std::string> artifacts = artifacts_in(artifact_dir);
-        for (const auto& src : artifacts) {
-            const std::string dst = patch::path_join(game_dir, patch::base_name(src));
-            const fs::path src_path = fs::u8path(src);
-            const fs::path dst_path = fs::u8path(dst);
-            log_info("[*] copy " + patch::base_name(src) + " -> " + dst);
-            if (!fs::equivalent(src_path, dst_path, ec)) {
-                ec.clear();
-                fs::copy_file(src_path, dst_path, fs::copy_options::overwrite_existing, ec);
-                if (ec) {
-                    return fail("!! copy failed: " + src + " -> " + dst + ": " + ec.message());
+        AtomicFileBatch helper_batch;
+        try {
+            for (const auto& src : artifacts) {
+                const std::string dst = patch::path_join(game_dir, patch::base_name(src));
+                const fs::path src_path = fs::u8path(src);
+                const fs::path dst_path = fs::u8path(dst);
+                log_info("[*] copy " + patch::base_name(src) + " -> " + dst);
+                if (!fs::equivalent(src_path, dst_path, ec)) {
+                    helper_batch.StageCopy(src, dst, /*backup_existing=*/false);
                 }
             }
+            helper_batch.Commit();
+        } catch (const std::exception& e) {
+            return fail(std::string("!! helper artifact deploy failed: ") + e.what());
         }
 
         const std::string staged_game_dir = patch::find_staged_game_dir(project, exe_dir);

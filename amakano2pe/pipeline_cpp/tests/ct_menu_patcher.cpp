@@ -609,9 +609,82 @@ TEST(MenuPatcherCt,
     EXPECT_EQ(menu_autopatch::EnsureMenuAssetsPatched(sandbox.path().wstring()),
               menu_autopatch::PatchOutcome::kAlreadyApplied);
 
-    // Tamper / rollback verification: corrupting cs2.exe slice in a fresh sandbox
-    // causes EnsureMenuAssetsPatched to reject the mismatched records and withhold
-    // menu_patch.applied.
+    // Producer-side .bak idempotence: re-running the offline renderer against
+    // the already-patched sandbox (where boot.hg3, startup.xml, soundconf.xml
+    // are mutated and .bak files hold retail bytes) produces a byte-identical
+    // menu_patch.bin without throwing or double-rendering.
+    {
+        const ama::menu::GameAssetSource patched_source(
+            sandbox.path(), std::string(kSyntheticVCode2));
+        ama::menu::ExtractedAssetEntry boot_entry_rerun;
+        ama::hg3::Hg3Container rerun_boot =
+            patched_source.LoadHg3("boot.hg3", &boot_entry_rerun);
+        ASSERT_FALSE(rerun_boot.frames.empty());
+        EXPECT_EQ(boot_entry_rerun.plain_bytes, orig_boot_bytes);
+        rerun_boot.frames[0].pixels = ama::imaging::MakeFilledBgraImage(
+            kSyntheticFrameWidth, kSyntheticFrameHeight,
+            ama::imaging::BgraColor{180, 200, 220, 255});
+
+        std::vector<ama::menu::MenuPatchEntrySpec> rerun_specs =
+            ui_renderer->RenderDomain(patched_source,
+                                      ama::menu::DomainRenderOptions{});
+        rerun_specs.push_back(ama::menu::GameAssetSource::BuildHg3PatchEntry(
+            boot_entry_rerun, rerun_boot));
+        ASSERT_EQ(rerun_specs.size(), kExpectedSandboxRecordCount);
+
+        ama::menu::MenuPatchBuilder rerun_builder;
+        for (const auto& spec : rerun_specs) {
+            rerun_builder.AddRecord(spec);
+        }
+        EXPECT_EQ(rerun_builder.BuildBytes(), bundle_bytes);
+    }
+
+    // Shrinking-set v2 upgrade: drop one standalone target (config\soundconf.xml)
+    // and two loose overrides (fes\inputtxt.fes, config\adv.xml). Consumer must
+    // restore config\soundconf.xml from .bak, delete the dropped loose files,
+    // leave .bak immutable, and update menu_patch.applied cleanly.
+    {
+        ama::menu::MenuPatchBuilder v2_builder;
+        std::size_t v2_count = 0;
+        for (const auto& spec : specs) {
+            const std::string lower = ToLowerAscii(spec.target_rel_path);
+            if (lower == "config\\soundconf.xml" ||
+                lower == "fes\\inputtxt.fes" || lower == "config\\adv.xml") {
+                continue;
+            }
+            v2_builder.AddRecord(spec);
+            ++v2_count;
+        }
+        ASSERT_EQ(v2_count, kExpectedSandboxRecordCount - 3U);
+        v2_builder.WriteToFile(sandbox.path() / "menu_patch.bin");
+
+        EXPECT_EQ(menu_autopatch::EnsureMenuAssetsPatched(sandbox.path().wstring()),
+                  menu_autopatch::PatchOutcome::kApplied);
+        EXPECT_EQ(ReadBinaryFile(sandbox.path() / "config" / "soundconf.xml"),
+                  orig_soundconf_bytes);
+        EXPECT_EQ(ReadBinaryFile(sandbox.path() / "config" / "soundconf.xml.bak"),
+                  orig_soundconf_bytes);
+        EXPECT_FALSE(fs::exists(sandbox.path() / "fes" / "inputtxt.fes"));
+        EXPECT_FALSE(fs::exists(sandbox.path() / "config" / "adv.xml"));
+        EXPECT_TRUE(fs::exists(sandbox.path() / "fes" / "config_basic.fes"));
+        EXPECT_EQ(ReadBinaryFile(sandbox.path() / "boot.hg3.bak"), orig_boot_bytes);
+
+        menu_patch::AppliedSentinel v2_sentinel;
+        const std::vector<std::uint8_t> v2_sentinel_bytes =
+            ReadBinaryFile(sandbox.path() / "menu_patch.applied");
+        ASSERT_TRUE(menu_patch::ParseAppliedSentinel(
+            menu_patch::ByteView{v2_sentinel_bytes.data(),
+                                 v2_sentinel_bytes.size()},
+            v2_sentinel));
+        EXPECT_EQ(v2_sentinel.targets.size(), v2_count);
+        EXPECT_EQ(menu_autopatch::EnsureMenuAssetsPatched(sandbox.path().wstring()),
+                  menu_autopatch::PatchOutcome::kAlreadyApplied);
+    }
+
+    // Tamper / atomic two-phase rollback verification: corrupting cs2.exe slice
+    // in a fresh sandbox causes Phase 1 staging to fail and roll back ALL
+    // targets so zero live files are mutated, zero .bak/.tmp files remain, and
+    // menu_patch.applied is withheld.
     const ScopedTempDir tamper_sandbox("ama_ct_tamper_sandbox");
     std::vector<std::uint8_t> tampered_exe = exe_bytes;
     tampered_exe[0] ^= 0xFFU;
@@ -631,4 +704,18 @@ TEST(MenuPatcherCt,
     EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "menu_patch.applied"));
     EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "language_.txt"));
     EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "export" / "lang.zt"));
+    EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "fes" / "config_basic.fes"));
+    EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "fes" / "inputtxt.fes"));
+    EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "config" / "adv.xml"));
+    EXPECT_EQ(ReadBinaryFile(tamper_sandbox.path() / "boot.hg3"), orig_boot_bytes);
+    EXPECT_EQ(ReadBinaryFile(tamper_sandbox.path() / "config" / "startup.xml"),
+              orig_startup_bytes);
+    EXPECT_EQ(ReadBinaryFile(tamper_sandbox.path() / "config" / "soundconf.xml"),
+              orig_soundconf_bytes);
+    EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "boot.hg3.bak"));
+    EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "config" / "startup.xml.bak"));
+    EXPECT_FALSE(fs::exists(tamper_sandbox.path() / "config" / "soundconf.xml.bak"));
+    for (const auto& entry : fs::recursive_directory_iterator(tamper_sandbox.path())) {
+        EXPECT_NE(entry.path().extension(), L".tmp") << entry.path().u8string();
+    }
 }

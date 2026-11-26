@@ -13,7 +13,9 @@
 // Japanese classifiers the other games carry are all absent here.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -24,6 +26,10 @@ using Bytes = std::vector<std::uint8_t>;
 // ---- file IO ---------------------------------------------------------------
 
 Bytes read_file(const std::string& path);
+
+// Writes `data[0..size)` atomically via `<path>.tmp`, FlushFileBuffers, and
+// MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH). Cleans up
+// `<path>.tmp` on failure without mutating any existing file at `path`.
 void write_file(const std::string& path, const void* data, std::size_t size);
 inline void write_file(const std::string& path, const Bytes& b) {
     write_file(path, b.data(), b.size());
@@ -31,6 +37,49 @@ inline void write_file(const std::string& path, const Bytes& b) {
 inline void write_file(const std::string& path, const std::string& s) {
     write_file(path, s.data(), s.size());
 }
+
+// Copies `src_path` to `dst_path` atomically via `<dst_path>.tmp`,
+// FlushFileBuffers, and MoveFileExW. Cleans up `.tmp` on failure.
+void copy_file_atomic(const std::string& src_path, const std::string& dst_path);
+
+// If `target_path` is an existing regular file and `<target_path>.bak` does
+// not yet exist, creates an immutable `<target_path>.bak` atomically via
+// `<target_path>.bak.tmp` + FlushFileBuffers + MoveFileExW (without replacing
+// an existing `.bak`). Returns true iff a new `.bak` was created.
+bool backup_file_if_missing(const std::string& target_path);
+
+// Two-phase atomic file writer/copier: StageWrite/StageCopy flush every
+// `<dst>.tmp` (and `<dst>.bak.tmp` when `backup_existing` is true and `<dst>`
+// exists without `<dst>.bak`) before Commit() promotes `.bak` files and swaps
+// live targets. Uncommitted temp files are deleted automatically on scope exit.
+// Thread-compatible.
+class AtomicFileBatch {
+public:
+    AtomicFileBatch();
+    ~AtomicFileBatch();
+
+    AtomicFileBatch(const AtomicFileBatch&) = delete;
+    AtomicFileBatch& operator=(const AtomicFileBatch&) = delete;
+    AtomicFileBatch(AtomicFileBatch&&) noexcept;
+    AtomicFileBatch& operator=(AtomicFileBatch&&) noexcept;
+
+    void StageWrite(const std::string& dst_path,
+                    const void* data,
+                    std::size_t size,
+                    bool backup_existing = false);
+    void StageWrite(const std::string& dst_path,
+                    const Bytes& data,
+                    bool backup_existing = false);
+    void StageCopy(const std::string& src_path,
+                   const std::string& dst_path,
+                   bool backup_existing = false);
+
+    void Commit();
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
 
 // Writes `content` with CRLF line endings.  The committed analysis logs are the
 // regression fixtures for the report builders and they hold CRLF, so the line

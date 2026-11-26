@@ -15,8 +15,9 @@
 //   - Fast-paths Launch 2+ (< 1 ms) via <game_dir>\menu_patch.applied
 //     ("ADIEUAPL" v1) without reading asset payloads when patch size,
 //     manifest_hash, and target byte sizes on disk all match.
-//   - Stages all immutable backups (<target>.bak.tmp) and unmasked payloads
-//     (<target>.stage.tmp) with FlushFileBuffers in Phase 1 before swapping
+//   - Stages all immutable backups (<target>.bak.tmp), unmasked payloads
+//     (<target>.stage.tmp), and dropped-target restorations from <target>.bak
+//     (<target>.restore.tmp) with FlushFileBuffers in Phase 1 before swapping
 //     any live file via MoveFileExW in Phase 2, guaranteeing zero partial live
 //     mutations if any record fails validation.
 

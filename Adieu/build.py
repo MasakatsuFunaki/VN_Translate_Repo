@@ -293,21 +293,11 @@ def deploy(game_dir):
 
     src_patch = os.path.join(staged_game_dir, "menu_patch.bin")
     dst_patch = os.path.join(game_dir, "menu_patch.bin")
-    patch_changed = not files_identical(src_patch, dst_patch)
     try:
         shutil.copy2(src_patch, dst_patch)
     except OSError as exc:
         print(f"COPY menu_patch.bin FAILED ({exc})")
         sys.exit(1)
-
-    applied_marker = os.path.join(game_dir, "menu_patch.applied")
-    if os.path.exists(applied_marker) and patch_changed:
-        try:
-            os.remove(applied_marker)
-            print("Removed stale menu_patch.applied so updated menu_patch.bin re-applies on next launch.")
-        except OSError as exc:
-            print(f"REMOVE menu_patch.applied FAILED ({exc})")
-            sys.exit(1)
 
     print(f"\nDeployed to {game_dir}.")
 

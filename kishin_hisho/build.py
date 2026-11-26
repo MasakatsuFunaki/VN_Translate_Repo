@@ -175,7 +175,7 @@ def test():
             sys.exit(rc)
 
 
-def _stage_or_deploy_pak(target_game_dir):
+def _stage_or_deploy_pak(target_game_dir, backup_existing=False):
     script_out = os.path.join(ROOT, "script_output")
     translated_json = os.path.join(script_out, "translated_text.json")
     recon_json = os.path.join(script_out, "nps_reconstruction_map.json")
@@ -184,19 +184,60 @@ def _stage_or_deploy_pak(target_game_dir):
         if not os.path.isfile(required):
             print(f"MISSING REQUIRED PAK INPUT ({required}) — cannot build 0script.pak.")
             sys.exit(1)
-    run([build_pak_exe, "--dir", ROOT, "--game-dir", target_game_dir, "--verify"], ROOT)
+    cmd = [build_pak_exe, "--dir", ROOT, "--game-dir", target_game_dir, "--verify"]
+    if backup_existing:
+        cmd.append("--backup-existing")
+    run(cmd, ROOT)
+
+
+def _assert_no_backup_or_temp_files(root_dir):
+    leaked = [
+        os.path.relpath(os.path.join(base, name), root_dir)
+        for base, _, files in os.walk(root_dir)
+        for name in files
+        if name.lower().endswith((".bak", ".tmp"))
+    ]
+    if leaked:
+        print(f"STAGING HYGIENE FAILED: unexpected .bak/.tmp files in {root_dir}: "
+              f"{', '.join(sorted(leaked))}")
+        sys.exit(1)
 
 
 def install():
     print(f"\nInstalling to {INSTALL_DIR}...")
     run(["cmake", "--install", BUILD_DIR, "--config", CONFIG], ROOT)
-    _stage_or_deploy_pak(os.path.join(INSTALL_DIR, "game"))
+    staged_game_dir = os.path.join(INSTALL_DIR, "game")
+    _stage_or_deploy_pak(staged_game_dir, backup_existing=False)
+    _assert_no_backup_or_temp_files(staged_game_dir)
 
     for folder in ("bin", "game"):
         path = os.path.join(INSTALL_DIR, folder)
         if os.path.isdir(path):
             for name in sorted(os.listdir(path)):
                 print(f"  {folder}/{name}")
+
+
+def _stage_and_replace_files(pairs):
+    """Stage all (src, dst) copies to `<dst>.tmp` + fsync before replacing any live dst."""
+    staged = []
+    try:
+        for src_path, dst_path in pairs:
+            tmp_path = dst_path + ".tmp"
+            staged.append((tmp_path, dst_path))
+            with open(src_path, "rb") as src_f, open(tmp_path, "wb") as dst_f:
+                shutil.copyfileobj(src_f, dst_f)
+                dst_f.flush()
+                os.fsync(dst_f.fileno())
+        for tmp_path, dst_path in staged:
+            os.replace(tmp_path, dst_path)
+    except OSError:
+        for tmp_path, _ in staged:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+        raise
 
 
 def deploy(game_dir):
@@ -219,18 +260,21 @@ def deploy(game_dir):
     # usual runtime cause — the game holding the DLL open, or Program Files
     # refusing a non-elevated write.
     source_dir = os.path.join(BUILD_DIR, "helper", CONFIG)
+    pairs = [
+        (os.path.join(source_dir, name), os.path.join(game_dir, name))
+        for name in ARTIFACTS
+    ]
+    try:
+        _stage_and_replace_files(pairs)
+    except OSError as exc:
+        print(f"COPY helper artifacts FAILED ({exc}) — is the game running? Close it "
+              f"and retry. A game folder under Program Files also needs an "
+              f"elevated shell.")
+        sys.exit(1)
     for name in ARTIFACTS:
-        try:
-            shutil.copyfile(os.path.join(source_dir, name),
-                            os.path.join(game_dir, name))
-        except OSError as exc:
-            print(f"COPY {name} FAILED ({exc}) — is the game running? Close it "
-                  f"and retry. A game folder under Program Files also needs an "
-                  f"elevated shell.")
-            sys.exit(1)
         print(f"  {name}")
 
-    _stage_or_deploy_pak(game_dir)
+    _stage_or_deploy_pak(game_dir, backup_existing=True)
 
     print(f"\nDeployed to {game_dir}. Run launch.exe there, not KishinHisho.exe.")
 

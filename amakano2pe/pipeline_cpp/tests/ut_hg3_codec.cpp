@@ -14,7 +14,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -39,6 +42,50 @@ void WriteU32Le(std::uint8_t* p, std::uint32_t v) {
     p[1] = static_cast<std::uint8_t>((v >> 8) & 0xFFU);
     p[2] = static_cast<std::uint8_t>((v >> 16) & 0xFFU);
     p[3] = static_cast<std::uint8_t>((v >> 24) & 0xFFU);
+}
+
+std::uint32_t ReadU32Le(const std::uint8_t* p) {
+    return static_cast<std::uint32_t>(p[0]) |
+           (static_cast<std::uint32_t>(p[1]) << 8) |
+           (static_cast<std::uint32_t>(p[2]) << 16) |
+           (static_cast<std::uint32_t>(p[3]) << 24);
+}
+
+// Independent wire-format scanner locating `wanted_tag` in frame 0 of an HG-3 buffer.
+std::optional<std::vector<std::uint8_t>> FindWireTagPayload(
+    const std::vector<std::uint8_t>& hg3, std::string_view wanted_tag) {
+    if (hg3.size() < kHg3HeaderBytes + kFrameHeaderBytes) {
+        return std::nullopt;
+    }
+    const std::uint32_t next_frame_rel = ReadU32Le(hg3.data() + kHg3HeaderBytes);
+    const std::size_t frame_end =
+        (next_frame_rel != 0U && kHg3HeaderBytes + next_frame_rel <= hg3.size())
+            ? (kHg3HeaderBytes + next_frame_rel)
+            : hg3.size();
+    std::size_t off = kHg3HeaderBytes + kFrameHeaderBytes;
+    while (off + kTagHeaderBytes <= frame_end) {
+        std::size_t name_len = 0;
+        while (name_len < 8 && hg3[off + name_len] != 0) {
+            ++name_len;
+        }
+        const std::string_view name(reinterpret_cast<const char*>(hg3.data() + off), name_len);
+        const std::uint32_t next_rel = ReadU32Le(hg3.data() + off + 8);
+        const std::uint32_t data_len = ReadU32Le(hg3.data() + off + 12);
+        const std::size_t payload_off = off + kTagHeaderBytes;
+        if (payload_off + data_len > frame_end) {
+            return std::nullopt;
+        }
+        if (name == wanted_tag) {
+            return std::vector<std::uint8_t>(
+                hg3.begin() + static_cast<std::ptrdiff_t>(payload_off),
+                hg3.begin() + static_cast<std::ptrdiff_t>(payload_off + data_len));
+        }
+        if (next_rel == 0U) {
+            break;
+        }
+        off += next_rel;
+    }
+    return std::nullopt;
 }
 
 void AppendRawTag(std::vector<std::uint8_t>& buf, const char* name,
@@ -200,9 +247,139 @@ TEST(Hg3Codec, DecodesImgJpgPlusImgAlAndReencodesLosslesslyAsImg0000) {
     }
 
     const std::vector<std::uint8_t> reencoded = ama::hg3::Hg3Codec::Encode(decoded);
+    // 32-bpp img0000 carries alpha inline and must not emit a redundant img_al tag.
+    EXPECT_FALSE(FindWireTagPayload(reencoded, "img_al").has_value());
     const ama::hg3::Hg3Container round_tripped = ama::hg3::Hg3Codec::Decode(reencoded);
     EXPECT_TRUE(ama::hg3::Hg3Codec::VerifyFrameMetadataParity(decoded, round_tripped));
     EXPECT_EQ(round_tripped.frames[0].pixels.pixels, decoded.frames[0].pixels.pixels);
+}
+
+TEST(Hg3Codec, PreservesAlphaOn24BppImgJpgPlusImgAlAndDetectsAlphaLossInParityCheck) {
+    constexpr int kW = 8;
+    constexpr int kH = 6;
+    ama::imaging::BgraImage base_img = ama::imaging::MakeBgraImage(kW, kH);
+    std::vector<std::uint8_t> raw_alpha(static_cast<std::size_t>(kW * kH), 0);
+    constexpr std::uint8_t kSeamAlpha[4] = {0x00U, 0x7FU, 0x80U, 0xFFU};
+    for (int y = 0; y < kH; ++y) {
+        for (int x = 0; x < kW; ++x) {
+            ama::imaging::SetPixel(
+                base_img, x, y,
+                ama::imaging::BgraColor{static_cast<std::uint8_t>(x * 31),
+                                        static_cast<std::uint8_t>(y * 41),
+                                        static_cast<std::uint8_t>((x + y) * 19), kOpaqueAlpha});
+            const std::size_t idx = static_cast<std::size_t>(y * kW + x);
+            raw_alpha[idx] = (idx < 4U)
+                                 ? kSeamAlpha[idx]
+                                 : static_cast<std::uint8_t>((x * 29 + y * 17 + 13) & 0xFF);
+        }
+    }
+
+    const std::vector<std::uint8_t> wic_payload = ama::imaging::EncodePng(base_img);
+
+    uLongf comp_bound = compressBound(static_cast<uLong>(raw_alpha.size()));
+    std::vector<std::uint8_t> img_al_payload(kImgAlHeaderBytes + comp_bound, 0);
+    ASSERT_EQ(compress2(reinterpret_cast<Bytef*>(img_al_payload.data() + kImgAlHeaderBytes),
+                        &comp_bound, reinterpret_cast<const Bytef*>(raw_alpha.data()),
+                        static_cast<uLong>(raw_alpha.size()), Z_BEST_COMPRESSION),
+              Z_OK);
+    img_al_payload.resize(kImgAlHeaderBytes + comp_bound);
+    WriteU32Le(img_al_payload.data(), static_cast<std::uint32_t>(comp_bound));
+    WriteU32Le(img_al_payload.data() + 4, static_cast<std::uint32_t>(raw_alpha.size()));
+
+    std::vector<std::uint8_t> stdinfo_payload(kStdInfoBytes, 0);
+    WriteU32Le(stdinfo_payload.data() + 0, kW);
+    WriteU32Le(stdinfo_payload.data() + 4, kH);
+    WriteU32Le(stdinfo_payload.data() + 8, kBpp24);
+    WriteU32Le(stdinfo_payload.data() + 20, kW);
+    WriteU32Le(stdinfo_payload.data() + 24, kH);
+    WriteU32Le(stdinfo_payload.data() + 28, 1U);
+
+    std::vector<std::uint8_t> tags_buf;
+    AppendRawTag(tags_buf, "stdinfo", stdinfo_payload, false);
+    AppendRawTag(tags_buf, "img_jpg", wic_payload, false);
+    AppendRawTag(tags_buf, "img_al", img_al_payload, true);
+
+    std::vector<std::uint8_t> hg3_buf(kHg3HeaderBytes + kFrameHeaderBytes + tags_buf.size(), 0);
+    std::memcpy(hg3_buf.data(), "HG-3", 4);
+    WriteU32Le(hg3_buf.data() + 4, 0x0CU);
+    WriteU32Le(hg3_buf.data() + 8, 0x0300U);
+    WriteU32Le(hg3_buf.data() + kHg3HeaderBytes, 0U);
+    WriteU32Le(hg3_buf.data() + kHg3HeaderBytes + 4, kFrameIdSecond);
+    std::memcpy(hg3_buf.data() + kHg3HeaderBytes + kFrameHeaderBytes, tags_buf.data(),
+                tags_buf.size());
+
+    const ama::hg3::Hg3Container decoded = ama::hg3::Hg3Codec::Decode(hg3_buf);
+    ASSERT_EQ(decoded.frames.size(), 1U);
+    EXPECT_EQ(decoded.frames[0].stdinfo.bpp, kBpp24);
+    EXPECT_TRUE(decoded.frames[0].was_jpeg_encoded);
+    EXPECT_TRUE(decoded.frames[0].has_img_al);
+    for (int y = 0; y < kH; ++y) {
+        for (int x = 0; x < kW; ++x) {
+            EXPECT_EQ(ama::imaging::GetPixel(decoded.frames[0].pixels, x, y).a,
+                      raw_alpha[static_cast<std::size_t>(y * kW + x)]);
+        }
+    }
+
+    const std::vector<std::uint8_t> reencoded = ama::hg3::Hg3Codec::Encode(decoded);
+    const std::optional<std::vector<std::uint8_t>> emitted_al =
+        FindWireTagPayload(reencoded, "img_al");
+    ASSERT_TRUE(emitted_al.has_value());
+    ASSERT_GE(emitted_al->size(), kImgAlHeaderBytes);
+    const std::uint32_t emitted_comp_len = ReadU32Le(emitted_al->data());
+    const std::uint32_t emitted_orig_len = ReadU32Le(emitted_al->data() + 4);
+    EXPECT_EQ(emitted_orig_len, static_cast<std::uint32_t>(kW * kH));
+    EXPECT_EQ(kImgAlHeaderBytes + emitted_comp_len, emitted_al->size());
+
+    std::vector<std::uint8_t> inflated_alpha(raw_alpha.size(), 0);
+    uLongf inflated_len = static_cast<uLongf>(inflated_alpha.size());
+    ASSERT_EQ(uncompress(reinterpret_cast<Bytef*>(inflated_alpha.data()), &inflated_len,
+                         reinterpret_cast<const Bytef*>(emitted_al->data() + kImgAlHeaderBytes),
+                         static_cast<uLong>(emitted_comp_len)),
+              Z_OK);
+    ASSERT_EQ(inflated_len, static_cast<uLongf>(raw_alpha.size()));
+    EXPECT_EQ(inflated_alpha, raw_alpha);
+
+    const ama::hg3::Hg3Container round_tripped = ama::hg3::Hg3Codec::Decode(reencoded);
+    ASSERT_EQ(round_tripped.frames.size(), 1U);
+    EXPECT_EQ(round_tripped.frames[0].stdinfo.bpp, kBpp24);
+    EXPECT_TRUE(round_tripped.frames[0].has_img_al);
+    EXPECT_TRUE(ama::hg3::Hg3Codec::VerifyFrameMetadataParity(decoded, round_tripped));
+    for (int y = 0; y < kH; ++y) {
+        for (int x = 0; x < kW; ++x) {
+            const ama::imaging::BgraColor px =
+                ama::imaging::GetPixel(round_tripped.frames[0].pixels, x, y);
+            EXPECT_EQ(px.a, raw_alpha[static_cast<std::size_t>(y * kW + x)]);
+        }
+    }
+    EXPECT_EQ(round_tripped.frames[0].pixels.pixels, decoded.frames[0].pixels.pixels);
+
+    // Synthetic 24-bpp frame with has_img_al == false and non-opaque seam alpha
+    // must still emit img_al and preserve every alpha value losslessly.
+    ama::hg3::Hg3Container synthetic_24_alpha = decoded;
+    synthetic_24_alpha.frames[0].has_img_al = false;
+    const std::vector<std::uint8_t> synth_encoded = ama::hg3::Hg3Codec::Encode(synthetic_24_alpha);
+    ASSERT_TRUE(FindWireTagPayload(synth_encoded, "img_al").has_value());
+    const ama::hg3::Hg3Container synth_decoded = ama::hg3::Hg3Codec::Decode(synth_encoded);
+    ASSERT_EQ(synth_decoded.frames.size(), 1U);
+    EXPECT_TRUE(synth_decoded.frames[0].has_img_al);
+    EXPECT_EQ(synth_decoded.frames[0].pixels.pixels, decoded.frames[0].pixels.pixels);
+    EXPECT_TRUE(ama::hg3::Hg3Codec::VerifyFrameMetadataParity(synthetic_24_alpha, synth_decoded));
+
+    // Stripping img_al and flattening alpha to 0xFF must fail metadata parity.
+    ama::hg3::Hg3Container alpha_dropped = round_tripped;
+    alpha_dropped.frames[0].has_img_al = false;
+    for (int y = 0; y < kH; ++y) {
+        for (int x = 0; x < kW; ++x) {
+            ama::imaging::BgraColor c = ama::imaging::GetPixel(alpha_dropped.frames[0].pixels, x, y);
+            c.a = kOpaqueAlpha;
+            ama::imaging::SetPixel(alpha_dropped.frames[0].pixels, x, y, c);
+        }
+    }
+    EXPECT_FALSE(ama::hg3::Hg3Codec::VerifyFrameMetadataParity(decoded, alpha_dropped));
+
+    // Opaque 24-bpp frame without img_al must not emit a spurious img_al tag.
+    const std::vector<std::uint8_t> opaque_encoded = ama::hg3::Hg3Codec::Encode(alpha_dropped);
+    EXPECT_FALSE(FindWireTagPayload(opaque_encoded, "img_al").has_value());
 }
 
 TEST(Hg3Codec, RejectsTruncatedOrInvalidBuffers) {

@@ -11,12 +11,18 @@
 
 #include <gtest/gtest.h>
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <system_error>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace ksh;
@@ -188,4 +194,136 @@ TEST(DeployResolution, probes_sibling_game_and_dev_helper_release_fallbacks) {
     EXPECT_EQ(fs::u8path(patch::find_staged_game_dir(
                   checkout.u8string(), install_bin.u8string())),
               install_game);
+}
+
+TEST(AtomicFileIo, write_and_copy_atomic_handle_empty_seam_bytes_readonly_and_errors) {
+    const ScopedDeployTempDir temp("vn_ut_atomic_io_kishin_hisho");
+    const fs::path dst = temp.path() / "payload.bin";
+
+    // Empty 0-byte write leaves zero .tmp files.
+    write_file(dst.u8string(), Bytes{});
+    EXPECT_TRUE(read_file(dst.u8string()).empty());
+    EXPECT_FALSE(fs::exists(temp.path() / "payload.bin.tmp"));
+
+    // Binary seam bytes (0x00, 0x7F, 0x80, 0xFF) round-trip cleanly.
+    const Bytes seam_bytes{0x00u, 0x7Fu, 0x80u, 0xFFu, 0x42u};
+    write_file(dst.u8string(), seam_bytes);
+    EXPECT_EQ(read_file(dst.u8string()), seam_bytes);
+    EXPECT_FALSE(fs::exists(temp.path() / "payload.bin.tmp"));
+
+    // Overwriting a read-only file succeeds atomically.
+    ASSERT_NE(::SetFileAttributesW(dst.c_str(), FILE_ATTRIBUTE_READONLY), 0);
+    const Bytes updated{0xDEu, 0xADu, 0xBEu, 0xEFu};
+    write_file(dst.u8string(), updated);
+    EXPECT_EQ(read_file(dst.u8string()), updated);
+    EXPECT_FALSE(fs::exists(temp.path() / "payload.bin.tmp"));
+
+    // Writing to a missing parent throws and leaves zero .tmp files.
+    const fs::path missing_parent = temp.path() / "no_such_dir" / "out.bin";
+    EXPECT_THROW(write_file(missing_parent.u8string(), updated), std::runtime_error);
+    EXPECT_FALSE(fs::exists(missing_parent));
+
+    // copy_file_atomic copies exact bytes and clears read-only destination.
+    const fs::path copied = temp.path() / "copied.bin";
+    write_file(copied.u8string(), seam_bytes);
+    ASSERT_NE(::SetFileAttributesW(copied.c_str(), FILE_ATTRIBUTE_READONLY), 0);
+    copy_file_atomic(dst.u8string(), copied.u8string());
+    EXPECT_EQ(read_file(copied.u8string()), updated);
+    EXPECT_FALSE(fs::exists(temp.path() / "copied.bin.tmp"));
+
+    // backup_file_if_missing creates immutable .bak once and never overwrites it.
+    EXPECT_TRUE(backup_file_if_missing(copied.u8string()));
+    EXPECT_EQ(read_file((temp.path() / "copied.bin.bak").u8string()), updated);
+    write_file(copied.u8string(), seam_bytes);
+    EXPECT_FALSE(backup_file_if_missing(copied.u8string()));
+    EXPECT_EQ(read_file((temp.path() / "copied.bin.bak").u8string()), updated);
+    EXPECT_FALSE(fs::exists(temp.path() / "copied.bin.bak.tmp"));
+
+    // Missing file returns false without creating .bak.
+    EXPECT_FALSE(backup_file_if_missing((temp.path() / "absent.bin").u8string()));
+}
+
+TEST(AtomicFileIo, atomic_file_batch_rolls_back_all_staged_files_on_failure) {
+    const ScopedDeployTempDir temp("vn_ut_atomic_batch_kishin_hisho");
+    const fs::path file_a = temp.path() / "a.bin";
+    const fs::path file_b = temp.path() / "b.bin";
+    const Bytes orig_a{0x11u, 0x22u, 0x33u};
+    const Bytes new_a{0xAAu, 0xBBu, 0xCCu};
+    write_file(file_a.u8string(), orig_a);
+
+    // Trigger failure on item #2 via missing source file inside a scoped batch.
+    {
+        AtomicFileBatch batch;
+        batch.StageWrite(file_a.u8string(), new_a, /*backup_existing=*/true);
+        EXPECT_THROW(batch.StageCopy((temp.path() / "does_not_exist.bin").u8string(),
+                                     file_b.u8string(), /*backup_existing=*/true),
+                     std::runtime_error);
+    }
+
+    // Item #1 must remain untouched, no .bak created, and zero .tmp left behind.
+    EXPECT_EQ(read_file(file_a.u8string()), orig_a);
+    EXPECT_FALSE(fs::exists(temp.path() / "a.bin.bak"));
+    EXPECT_FALSE(fs::exists(file_b));
+    for (const auto& entry : fs::recursive_directory_iterator(temp.path())) {
+        EXPECT_NE(entry.path().extension(), L".tmp") << entry.path().u8string();
+    }
+}
+
+TEST(AtomicFileIo, atomic_file_batch_commits_backups_moves_and_rejects_case_duplicates) {
+    const ScopedDeployTempDir temp("vn_ut_atomic_batch_commit_kishin_hisho");
+    const fs::path src_copy = temp.path() / "src.bin";
+    const fs::path dst_write = temp.path() / "target_w.bin";
+    const fs::path dst_copy = temp.path() / "target_c.bin";
+    const fs::path dst_nobak = temp.path() / "target_nobak.bin";
+
+    const Bytes orig_w{0x01u, 0x02u, 0x03u};
+    const Bytes orig_c{0x10u, 0x20u, 0x30u};
+    const Bytes orig_nobak{0x44u, 0x55u};
+    const Bytes v1_w{0xA1u, 0xA2u, 0xA3u, 0xA4u};
+    const Bytes v1_c{0xB1u, 0xB2u, 0xB3u};
+    const Bytes v1_nobak{0xC1u, 0xC2u};
+
+    write_file(src_copy.u8string(), v1_c);
+    write_file(dst_write.u8string(), orig_w);
+    write_file(dst_copy.u8string(), orig_c);
+    write_file(dst_nobak.u8string(), orig_nobak);
+
+    // Move construction transfers staged entries; moved-from batch rejects calls.
+    AtomicFileBatch batch1;
+    batch1.StageWrite(dst_write.u8string(), v1_w, /*backup_existing=*/true);
+    batch1.StageCopy(src_copy.u8string(), dst_copy.u8string(), /*backup_existing=*/true);
+    batch1.StageWrite(dst_nobak.u8string(), v1_nobak, /*backup_existing=*/false);
+
+    // Case-insensitive duplicate destination is rejected before clobbering .tmp.
+    const fs::path dup_upper = temp.path() / "TARGET_W.BIN";
+    EXPECT_THROW(batch1.StageWrite(dup_upper.u8string(), Bytes{0xFFu}, false),
+                 std::invalid_argument);
+    EXPECT_THROW(batch1.StageCopy(src_copy.u8string(), (temp.path() / "TARGET_C.BIN").u8string(),
+                                  false),
+                 std::invalid_argument);
+
+    AtomicFileBatch moved_batch(std::move(batch1));
+    EXPECT_THROW(batch1.StageWrite((temp.path() / "x.bin").u8string(), Bytes{1u}, false),
+                 std::logic_error);
+    EXPECT_THROW(batch1.Commit(), std::logic_error);
+
+    moved_batch.Commit();
+    EXPECT_EQ(read_file(dst_write.u8string()), v1_w);
+    EXPECT_EQ(read_file((temp.path() / "target_w.bin.bak").u8string()), orig_w);
+    EXPECT_EQ(read_file(dst_copy.u8string()), v1_c);
+    EXPECT_EQ(read_file((temp.path() / "target_c.bin.bak").u8string()), orig_c);
+    EXPECT_EQ(read_file(dst_nobak.u8string()), v1_nobak);
+    EXPECT_FALSE(fs::exists(temp.path() / "target_nobak.bin.bak"));
+
+    // Second overwrite via a new batch updates targets without mutating immutable .bak.
+    const Bytes v2_w{0xE1u, 0xE2u};
+    AtomicFileBatch batch2;
+    batch2.StageWrite(dst_write.u8string(), v2_w, /*backup_existing=*/true);
+    batch2.Commit();
+    EXPECT_EQ(read_file(dst_write.u8string()), v2_w);
+    EXPECT_EQ(read_file((temp.path() / "target_w.bin.bak").u8string()), orig_w);
+
+    for (const auto& entry : fs::recursive_directory_iterator(temp.path())) {
+        EXPECT_NE(entry.path().extension(), L".tmp") << entry.path().u8string();
+    }
 }

@@ -196,3 +196,116 @@ TEST(MenuAutoPatch, CorruptOrTruncatedPatchFileFailsCleanlyWithoutLeftovers) {
     EXPECT_TRUE(fs::exists(sandbox.path() / kMenuPatchSentinelFileName));
     EXPECT_EQ(CountFilesWithExtension(sandbox.path(), ".tmp"), 0u);
 }
+
+TEST(MenuAutoPatch,
+     ShrinkingBundleRestoresDroppedTargetFromBakRespectsCaseAndSkipsMissingBak) {
+    ScopedTempDir sandbox;
+    const std::vector<std::uint8_t> retail_gameexe = MakePatternBytes(128u, 0x11u);
+    const std::vector<std::uint8_t> retail_me02 = MakePatternBytes(96u, 0x22u);
+    const std::vector<std::uint8_t> retail_mess99 = MakePatternBytes(112u, 0x33u);
+
+    const fs::path gameexe_path = sandbox.path() / "Gameexe.dat";
+    const fs::path me02_path = sandbox.path() / "g00" / "ME_02.g00";
+    const fs::path mess99_path = sandbox.path() / "g00" / "MESS99.g00";
+    WriteBinaryFile(gameexe_path, retail_gameexe);
+    WriteBinaryFile(me02_path, retail_me02);
+    WriteBinaryFile(mess99_path, retail_mess99);
+
+    MenuPatchRecordInput r0{"Gameexe.dat", "Gameexe.dat", 0u, retail_gameexe,
+                            MakePatternBytes(140u, 0xA1u), kFlagBackupStandalone};
+    MenuPatchRecordInput r1{"g00\\ME_02.g00", "g00\\ME_02.g00", 0u, retail_me02,
+                            MakePatternBytes(120u, 0xB2u), kFlagBackupStandalone};
+    MenuPatchRecordInput r2{"g00\\MESS99.g00", "g00\\MESS99.g00", 0u,
+                            retail_mess99, MakePatternBytes(130u, 0xC3u),
+                            kFlagBackupStandalone};
+
+    const fs::path patch_path = sandbox.path() / kMenuPatchFileName;
+    std::vector<std::uint8_t> v1_blob;
+    ASSERT_EQ(SerializeMenuPatchManifest({r0, r1, r2}, v1_blob),
+              ManifestStatus::kOk);
+    WriteBinaryFile(patch_path, v1_blob);
+
+    ASSERT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kApplied);
+    ASSERT_EQ(ReadBinaryFile(me02_path), r1.new_raw);
+    ASSERT_EQ(ReadBinaryFile(mess99_path), r2.new_raw);
+
+    // Manually delete MESS99.g00.bak so v2 exercises both normal restore (ME_02)
+    // and safe missing-backup skip (MESS99 must not be deleted).
+    ASSERT_TRUE(fs::remove(fs::path(mess99_path.wstring() + L".bak")));
+
+    // Pass 2 retains Gameexe.dat with different ASCII casing and drops ME_02 + MESS99.
+    MenuPatchRecordInput r0_v2{"GAMEEXE.DAT", "GAMEEXE.DAT", 0u, retail_gameexe,
+                               MakePatternBytes(144u, 0xD4u),
+                               kFlagBackupStandalone};
+    std::vector<std::uint8_t> v2_blob;
+    ASSERT_EQ(SerializeMenuPatchManifest({r0_v2}, v2_blob), ManifestStatus::kOk);
+    WriteBinaryFile(patch_path, v2_blob);
+
+    ASSERT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kApplied);
+    EXPECT_EQ(ReadBinaryFile(gameexe_path), r0_v2.new_raw);
+    EXPECT_EQ(ReadBinaryFile(fs::path(gameexe_path.wstring() + L".bak")),
+              retail_gameexe);
+    EXPECT_EQ(ReadBinaryFile(me02_path), retail_me02);
+    EXPECT_EQ(ReadBinaryFile(fs::path(me02_path.wstring() + L".bak")),
+              retail_me02);
+    EXPECT_EQ(ReadBinaryFile(mess99_path), r2.new_raw);
+    EXPECT_EQ(CountFilesWithExtension(sandbox.path(), ".tmp"), 0u);
+    EXPECT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kAlreadyApplied);
+}
+
+TEST(MenuAutoPatch,
+     ShrinkingBundleSkipsZeroByteAndTruncatedBakWithoutCorruptingLiveTarget) {
+    ScopedTempDir sandbox;
+    const std::vector<std::uint8_t> retail_gameexe = MakePatternBytes(128u, 0x15u);
+    const std::vector<std::uint8_t> retail_me02 = MakePatternBytes(96u, 0x25u);
+    const std::vector<std::uint8_t> retail_mess99 = MakePatternBytes(112u, 0x35u);
+
+    const fs::path gameexe_path = sandbox.path() / "Gameexe.dat";
+    const fs::path me02_path = sandbox.path() / "g00" / "ME_02.g00";
+    const fs::path mess99_path = sandbox.path() / "g00" / "MESS99.g00";
+    WriteBinaryFile(gameexe_path, retail_gameexe);
+    WriteBinaryFile(me02_path, retail_me02);
+    WriteBinaryFile(mess99_path, retail_mess99);
+
+    MenuPatchRecordInput r0{"Gameexe.dat", "Gameexe.dat", 0u, retail_gameexe,
+                            MakePatternBytes(140u, 0xA2u), kFlagBackupStandalone};
+    MenuPatchRecordInput r1{"g00\\ME_02.g00", "g00\\ME_02.g00", 0u, retail_me02,
+                            MakePatternBytes(120u, 0xB3u), kFlagBackupStandalone};
+    MenuPatchRecordInput r2{"g00\\MESS99.g00", "g00\\MESS99.g00", 0u,
+                            retail_mess99, MakePatternBytes(130u, 0xC4u),
+                            kFlagBackupStandalone};
+
+    const fs::path patch_path = sandbox.path() / kMenuPatchFileName;
+    std::vector<std::uint8_t> v1_blob;
+    ASSERT_EQ(SerializeMenuPatchManifest({r0, r1, r2}, v1_blob),
+              ManifestStatus::kOk);
+    WriteBinaryFile(patch_path, v1_blob);
+    ASSERT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kApplied);
+
+    // Corrupt backups to 0 bytes (ME_02) and 63 bytes = kMinOrigSliceBytes - 1 (MESS99).
+    WriteBinaryFile(fs::path(me02_path.wstring() + L".bak"), {});
+    WriteBinaryFile(fs::path(mess99_path.wstring() + L".bak"),
+                    MakePatternBytes(
+                        static_cast<std::size_t>(menu_patch_format::kMinOrigSliceBytes - 1u),
+                        0xEEu));
+
+    MenuPatchRecordInput r0_v2{"Gameexe.dat", "Gameexe.dat", 0u, retail_gameexe,
+                               MakePatternBytes(144u, 0xD5u),
+                               kFlagBackupStandalone};
+    std::vector<std::uint8_t> v2_blob;
+    ASSERT_EQ(SerializeMenuPatchManifest({r0_v2}, v2_blob), ManifestStatus::kOk);
+    WriteBinaryFile(patch_path, v2_blob);
+
+    ASSERT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kApplied);
+    EXPECT_EQ(ReadBinaryFile(gameexe_path), r0_v2.new_raw);
+    EXPECT_EQ(ReadBinaryFile(me02_path), r1.new_raw);
+    EXPECT_EQ(ReadBinaryFile(mess99_path), r2.new_raw);
+    EXPECT_EQ(CountFilesWithExtension(sandbox.path(), ".tmp"), 0u);
+    EXPECT_EQ(EnsureMenuAssetsPatched(sandbox.path().c_str()),
+              MenuPatchOutcome::kAlreadyApplied);
+}

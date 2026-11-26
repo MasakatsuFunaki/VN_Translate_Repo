@@ -50,10 +50,13 @@ std::string find_helper_artifact_dir(const std::string& project_dir,
 std::string find_staged_game_dir(const std::string& project_dir,
                                  const std::string& exe_dir);
 
-// Rebuilds or copies 0script.pak and loose script\*.nps into `game_dir` when
-// translation script inputs or staged distribution script files are present.
+// Rebuilds or copies 0script.pak and loose script\*.nps atomically into
+// `game_dir` when translation script inputs or staged distribution script
+// files are present. When `backup_existing` is true, creates immutable `.bak`
+// backups on first overwrite of pre-existing targets.
 void deploy_script_artifacts(const std::string& project_dir,
                              const std::string& game_dir,
-                             const std::string& dist_game_dir = {});
+                             const std::string& dist_game_dir = {},
+                             bool backup_existing = true);
 
 }  // namespace ksh::patch

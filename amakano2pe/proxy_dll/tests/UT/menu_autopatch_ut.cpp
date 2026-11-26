@@ -307,4 +307,219 @@ TEST(MenuAutoPatch, SerializesConcurrentCallersAndAppliesUpdatedBundles) {
     EXPECT_EQ(ReadBytes(dir.File(kLooseTarget)), second.entry.new_raw);
 }
 
+TEST(MenuAutoPatch,
+     ShrinkingBundleRestoresDroppedStandalonesDeletesDroppedLooseAndHandlesCaseInsensitiveRetain) {
+    const TempGameDir dir;
+    const Bytes archive = PseudoRandomBytes(kArchiveSize, kArchiveSeed);
+    WriteBytes(dir.File(kArchiveName), archive);
+
+    const Bytes orig_boot = PseudoRandomBytes(kStandaloneSize, kStandaloneSeed);
+    const Bytes orig_cfg = PseudoRandomBytes(kStandaloneSize, kStandaloneSeed + 1U);
+    WriteBytes(dir.File(kStandaloneName), orig_boot);
+    WriteBytes(dir.File("config\\startup.xml"), orig_cfg);
+
+    SpecEntry loose_a;
+    loose_a.source = kArchiveName;
+    loose_a.target = "image\\keep.hg3";
+    loose_a.orig_offset = 0;
+    loose_a.orig_slice = Slice(archive, 0, kSliceSize);
+    loose_a.new_raw = PseudoRandomBytes(kNewRawSize, kNewRawSeed);
+
+    SpecEntry loose_b;
+    loose_b.source = kArchiveName;
+    loose_b.target = "image\\drop.hg3";
+    loose_b.orig_offset = kSliceOffset;
+    loose_b.orig_slice = Slice(archive, kSliceOffset, kSliceSize);
+    loose_b.new_raw = PseudoRandomBytes(kNewRawSize, kNewRawSeed + 1U);
+
+    SpecEntry standalone_a = MakeStandaloneEntry(orig_boot);
+
+    SpecEntry standalone_b;
+    standalone_b.source = "config\\startup.xml";
+    standalone_b.target = "config\\startup.xml";
+    standalone_b.flags = menu_patch_test::kSpecFlagBackupStandalone;
+    standalone_b.orig_offset = 0;
+    standalone_b.orig_slice = orig_cfg;
+    standalone_b.new_raw = PseudoRandomBytes(kStandaloneNewSize, kStandaloneNewSeed + 1U);
+
+    WriteBundle(dir, {loose_a, loose_b, standalone_a, standalone_b});
+    ASSERT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kApplied);
+    ASSERT_TRUE(fs::exists(dir.File("image\\drop.hg3")));
+    ASSERT_EQ(ReadBytes(dir.File("config\\startup.xml")), standalone_b.new_raw);
+    ASSERT_EQ(ReadBytes(dir.File("config\\startup.xml.bak")), orig_cfg);
+
+    // Mark dropped targets read-only to confirm restore/delete clears attributes.
+    ASSERT_NE(SetFileAttributesW(dir.File("image\\drop.hg3").c_str(),
+                                 FILE_ATTRIBUTE_READONLY),
+              0);
+    ASSERT_NE(SetFileAttributesW(dir.File("config\\startup.xml").c_str(),
+                                 FILE_ATTRIBUTE_READONLY),
+              0);
+
+    // Pass 2 shrinks to 2 targets with different ASCII casing on retained paths.
+    SpecEntry loose_a_v2 = loose_a;
+    loose_a_v2.target = "IMAGE\\KEEP.HG3";
+    loose_a_v2.new_raw = PseudoRandomBytes(kNewRawSize, kUpdatedSeed);
+
+    SpecEntry standalone_a_v2 = standalone_a;
+    standalone_a_v2.source = "BOOT.HG3";
+    standalone_a_v2.target = "BOOT.HG3";
+    standalone_a_v2.new_raw = PseudoRandomBytes(kStandaloneNewSize, kUpdatedSeed + 1U);
+
+    WriteBundle(dir, {loose_a_v2, standalone_a_v2});
+    ASSERT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kApplied);
+
+    EXPECT_EQ(ReadBytes(dir.File("image\\keep.hg3")), loose_a_v2.new_raw);
+    EXPECT_EQ(ReadBytes(dir.File(kStandaloneName)), standalone_a_v2.new_raw);
+    EXPECT_EQ(ReadBytes(dir.File(std::string(kStandaloneName) + ".bak")), orig_boot);
+    EXPECT_FALSE(fs::exists(dir.File("image\\drop.hg3")));
+    EXPECT_EQ(ReadBytes(dir.File("config\\startup.xml")), orig_cfg);
+    EXPECT_EQ(ReadBytes(dir.File("config\\startup.xml.bak")), orig_cfg);
+    EXPECT_FALSE(HasLeftoverTempFiles(dir.Path()));
+    EXPECT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kAlreadyApplied);
+
+    // Pass 3 shrinks to an empty bundle ({}): removes remaining loose override
+    // and restores remaining standalone from .bak.
+    WriteBundle(dir, {});
+    ASSERT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kApplied);
+    EXPECT_FALSE(fs::exists(dir.File("image\\keep.hg3")));
+    EXPECT_EQ(ReadBytes(dir.File(kStandaloneName)), orig_boot);
+    EXPECT_EQ(ReadBytes(dir.File(std::string(kStandaloneName) + ".bak")), orig_boot);
+    EXPECT_FALSE(HasLeftoverTempFiles(dir.Path()));
+    EXPECT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kAlreadyApplied);
+}
+
+TEST(MenuAutoPatch,
+     DroppingStandaloneWithMissingZeroByteOrTruncatedBakLeavesLiveFileUntouched) {
+    const TempGameDir dir;
+    const Bytes orig_boot = PseudoRandomBytes(kStandaloneSize, kStandaloneSeed);
+    const Bytes orig_startup = PseudoRandomBytes(kStandaloneSize, kStandaloneSeed + 1U);
+    const Bytes orig_sound = PseudoRandomBytes(kStandaloneSize, kStandaloneSeed + 2U);
+    WriteBytes(dir.File(kStandaloneName), orig_boot);
+    WriteBytes(dir.File("config\\startup.xml"), orig_startup);
+    WriteBytes(dir.File("config\\soundconf.xml"), orig_sound);
+
+    SpecEntry e_boot = MakeStandaloneEntry(orig_boot);
+    SpecEntry e_startup;
+    e_startup.source = "config\\startup.xml";
+    e_startup.target = "config\\startup.xml";
+    e_startup.flags = menu_patch_test::kSpecFlagBackupStandalone;
+    e_startup.orig_offset = 0;
+    e_startup.orig_slice = orig_startup;
+    e_startup.new_raw = PseudoRandomBytes(kStandaloneNewSize, kStandaloneNewSeed + 1U);
+
+    SpecEntry e_sound;
+    e_sound.source = "config\\soundconf.xml";
+    e_sound.target = "config\\soundconf.xml";
+    e_sound.flags = menu_patch_test::kSpecFlagBackupStandalone;
+    e_sound.orig_offset = 0;
+    e_sound.orig_slice = orig_sound;
+    e_sound.new_raw = PseudoRandomBytes(kStandaloneNewSize, kStandaloneNewSeed + 2U);
+
+    WriteBundle(dir, {e_boot, e_startup, e_sound});
+    ASSERT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kApplied);
+
+    // 1. Delete boot.hg3.bak (missing .bak on protected retail standalone).
+    ASSERT_TRUE(fs::remove(dir.File("boot.hg3.bak")));
+    // 2. Replace config\startup.xml.bak with a 0-byte file.
+    WriteBytes(dir.File("config\\startup.xml.bak"), Bytes{});
+    // 3. Replace config\soundconf.xml.bak with a truncated 63-byte (< 64) file.
+    WriteBytes(dir.File("config\\soundconf.xml.bak"),
+               PseudoRandomBytes(menu_patch::kMinOrigSliceSize - 1U, kUpdatedSeed));
+
+    // Shrinking to {} drops all 3 standalones: none may be deleted or
+    // overwritten with empty/truncated bytes.
+    WriteBundle(dir, {});
+    ASSERT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kApplied);
+    EXPECT_EQ(ReadBytes(dir.File(kStandaloneName)), e_boot.new_raw);
+    EXPECT_EQ(ReadBytes(dir.File("config\\startup.xml")), e_startup.new_raw);
+    EXPECT_EQ(ReadBytes(dir.File("config\\soundconf.xml")), e_sound.new_raw);
+    EXPECT_FALSE(HasLeftoverTempFiles(dir.Path()));
+    EXPECT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kAlreadyApplied);
+}
+
+TEST(MenuAutoPatch,
+     TwoPhaseStagingRollsBackAllLiveTargetsBackupsAndDroppedCleanupOnMidBatchFailure) {
+    // Subcase A: Fresh install where Record 0 (standalone) and Record 1 (loose)
+    // succeed in Phase 1 while Record 2 fails orig_slice_hash. Zero live files
+    // may be mutated, zero .bak or .tmp files may remain.
+    {
+        const TempGameDir dir;
+        const Bytes archive = PseudoRandomBytes(kArchiveSize, kArchiveSeed);
+        WriteBytes(dir.File(kArchiveName), archive);
+        const Bytes orig_boot = PseudoRandomBytes(kStandaloneSize, kStandaloneSeed);
+        WriteBytes(dir.File(kStandaloneName), orig_boot);
+
+        SpecEntry valid_standalone = MakeStandaloneEntry(orig_boot);
+        SpecEntry valid_loose;
+        valid_loose.source = kArchiveName;
+        valid_loose.target = "image\\valid_first.hg3";
+        valid_loose.orig_offset = 0;
+        valid_loose.orig_slice = Slice(archive, 0, kSliceSize);
+        valid_loose.new_raw = PseudoRandomBytes(kNewRawSize, kNewRawSeed);
+
+        SpecEntry bad_loose;
+        bad_loose.source = kArchiveName;
+        bad_loose.target = "image\\bad_last.hg3";
+        bad_loose.orig_offset = kSliceOffset;
+        bad_loose.orig_slice = Slice(archive, kSliceOffset, kSliceSize);
+        bad_loose.orig_slice[0] ^= kFlipMask;
+        bad_loose.new_raw = PseudoRandomBytes(kNewRawSize, kUpdatedSeed);
+
+        WriteBundle(dir, {valid_standalone, valid_loose, bad_loose});
+        EXPECT_EQ(EnsureMenuAssetsPatched(dir.Wide()),
+                  PatchOutcome::kPartiallyApplied);
+
+        EXPECT_EQ(ReadBytes(dir.File(kStandaloneName)), orig_boot);
+        EXPECT_FALSE(fs::exists(dir.File(std::string(kStandaloneName) + ".bak")));
+        EXPECT_FALSE(fs::exists(dir.File("image\\valid_first.hg3")));
+        EXPECT_FALSE(fs::exists(dir.File("image\\bad_last.hg3")));
+        EXPECT_FALSE(fs::exists(dir.File("menu_patch.applied")));
+        EXPECT_FALSE(HasLeftoverTempFiles(dir.Path()));
+    }
+
+    // Subcase B: Shrinking v1 -> broken v2 must not delete dropped loose
+    // overrides or revert dropped standalones when v2 fails Phase 1 staging.
+    {
+        const TempGameDir dir;
+        const Bytes archive = PseudoRandomBytes(kArchiveSize, kArchiveSeed);
+        WriteBytes(dir.File(kArchiveName), archive);
+        const Bytes orig_boot = PseudoRandomBytes(kStandaloneSize, kStandaloneSeed);
+        WriteBytes(dir.File(kStandaloneName), orig_boot);
+
+        SpecEntry loose_keep;
+        loose_keep.source = kArchiveName;
+        loose_keep.target = "image\\keep.hg3";
+        loose_keep.orig_offset = 0;
+        loose_keep.orig_slice = Slice(archive, 0, kSliceSize);
+        loose_keep.new_raw = PseudoRandomBytes(kNewRawSize, kNewRawSeed);
+
+        SpecEntry loose_drop;
+        loose_drop.source = kArchiveName;
+        loose_drop.target = "image\\drop.hg3";
+        loose_drop.orig_offset = kSliceOffset;
+        loose_drop.orig_slice = Slice(archive, kSliceOffset, kSliceSize);
+        loose_drop.new_raw = PseudoRandomBytes(kNewRawSize, kNewRawSeed + 1U);
+
+        SpecEntry standalone_drop = MakeStandaloneEntry(orig_boot);
+
+        WriteBundle(dir, {loose_keep, loose_drop, standalone_drop});
+        ASSERT_EQ(EnsureMenuAssetsPatched(dir.Wide()), PatchOutcome::kApplied);
+        const Bytes v1_sentinel = ReadBytes(dir.File("menu_patch.applied"));
+
+        SpecEntry broken_keep = loose_keep;
+        broken_keep.orig_slice[0] ^= kFlipMask;
+        broken_keep.new_raw = PseudoRandomBytes(kNewRawSize, kUpdatedSeed);
+        WriteBundle(dir, {broken_keep});
+
+        EXPECT_EQ(EnsureMenuAssetsPatched(dir.Wide()),
+                  PatchOutcome::kPartiallyApplied);
+        EXPECT_EQ(ReadBytes(dir.File("image\\keep.hg3")), loose_keep.new_raw);
+        EXPECT_EQ(ReadBytes(dir.File("image\\drop.hg3")), loose_drop.new_raw);
+        EXPECT_EQ(ReadBytes(dir.File(kStandaloneName)), standalone_drop.new_raw);
+        EXPECT_EQ(ReadBytes(dir.File("menu_patch.applied")), v1_sentinel);
+        EXPECT_FALSE(HasLeftoverTempFiles(dir.Path()));
+    }
+}
+
 }  // namespace
