@@ -277,8 +277,158 @@ TEST(CgRender, render_translation_inpaints_then_draws) {
     const Image out = render_translation(img, regions);
     EXPECT_EQ(out.channels, kRgbaChannels);
     EXPECT_EQ(out.width, kCanvasWidth);
-    // The erase covers [8,52] x [8,32] INCLUSIVE, so the pixel at (52, 32) is
-    // repainted with the sampled background (200) rather than left alone.
+    // The erase covers [8,52] x [8,32] INCLUSIVE, preserving the surrounding
+    // canvas alpha (kBackgroundSample = 200) instead of stamping opaque 255.
     EXPECT_EQ(out.at(52, 32)[0], kBackgroundSample);
-    EXPECT_EQ(out.at(52, 32)[3], kOpaqueAlpha);
+    EXPECT_EQ(out.at(52, 32)[3], kBackgroundSample);
+}
+
+TEST(CgRender, font_draw_porter_duff_straight_alpha_avoids_halos) {
+    const std::string path = font_file();
+    ASSERT_FALSE(path.empty());
+    const auto font = Font::load(path, kWrapTestFontPixelSize);
+    ASSERT_TRUE(font);
+
+    // 1. Drawing pure white over fully transparent black (0, 0, 0, 0):
+    // Under straight-alpha Porter-Duff over, every pixel with coverage > 0
+    // MUST have straight RGB == (255, 255, 255) regardless of partial alpha.
+    constexpr int kWidth = 80;
+    constexpr int kHeight = 40;
+    Image transparent = solid(kWidth, kHeight, kRgbaChannels, 0u);
+    font->draw(transparent, 6, 4, "Ag", {255u, 255u, 255u, kOpaqueAlpha});
+
+    int partial_alpha_pixels = 0;
+    int opaque_pixels = 0;
+    for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+            const std::uint8_t* p = transparent.at(x, y);
+            if (p[3] == 0u) {
+                EXPECT_EQ(p[0], 0u);
+                EXPECT_EQ(p[1], 0u);
+                EXPECT_EQ(p[2], 0u);
+                continue;
+            }
+            if (p[3] < kOpaqueAlpha) {
+                ++partial_alpha_pixels;
+            } else {
+                ++opaque_pixels;
+            }
+            EXPECT_EQ(p[0], 255u);
+            EXPECT_EQ(p[1], 255u);
+            EXPECT_EQ(p[2], 255u);
+        }
+    }
+    EXPECT_GT(partial_alpha_pixels, 0);
+    EXPECT_GT(opaque_pixels, 0);
+
+    // 2. Drawing pure red (200, 0, 0, 255) over semi-transparent green
+    // (0, 200, 0, 128): under straight-alpha Porter-Duff over, for every
+    // composited pixel, R + G == 200 (within +/-1 rounding) because
+    // (200*sa + 0*da*(1-sa))/out_a + (0*sa + 200*da*(1-sa))/out_a == 200.
+    constexpr std::uint8_t kSignal = 200u;
+    constexpr std::uint8_t kHalfAlpha = 128u;
+    Image semi;
+    semi.width = kWidth;
+    semi.height = kHeight;
+    semi.channels = kRgbaChannels;
+    semi.px.resize(static_cast<std::size_t>(kWidth) * kHeight * kRgbaChannels);
+    for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+            std::uint8_t* p = semi.at(x, y);
+            p[0] = 0u;
+            p[1] = kSignal;
+            p[2] = 0u;
+            p[3] = kHalfAlpha;
+        }
+    }
+    font->draw(semi, 6, 4, "Ag", {kSignal, 0u, 0u, kOpaqueAlpha});
+
+    int blended_edge_pixels = 0;
+    for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+            const std::uint8_t* p = semi.at(x, y);
+            if (p[3] > kHalfAlpha && p[3] < kOpaqueAlpha) {
+                ++blended_edge_pixels;
+                const int sum_rg = static_cast<int>(p[0]) + static_cast<int>(p[1]);
+                EXPECT_GE(sum_rg, static_cast<int>(kSignal) - 1);
+                EXPECT_LE(sum_rg, static_cast<int>(kSignal) + 1);
+                EXPECT_EQ(p[2], 0u);
+            }
+        }
+    }
+    EXPECT_GT(blended_edge_pixels, 0);
+}
+
+TEST(CgRender, render_translation_preserves_transparent_and_semi_transparent_rgba) {
+    const std::string path = font_file();
+    ASSERT_FALSE(path.empty());
+
+    constexpr int kWidth = 80;
+    constexpr int kHeight = 40;
+    // Transparent overlay with opaque dark JP placeholder block inside [12, 10]..[68, 30].
+    Image overlay = solid(kWidth, kHeight, kRgbaChannels, 0u);
+    for (int y = 14; y < 26; ++y) {
+        for (int x = 16; x < 64; ++x) {
+            std::uint8_t* p = overlay.at(x, y);
+            p[0] = 20u;
+            p[1] = 20u;
+            p[2] = 20u;
+            p[3] = kOpaqueAlpha;
+        }
+    }
+
+    const auto bg_transparent = sample_bg_rgba(overlay, 8, 6, 72, 34);
+    EXPECT_EQ(bg_transparent, (std::array<std::uint8_t, 4>{0u, 0u, 0u, 0u}));
+
+    const boost::json::array regions = boost::json::parse(R"([
+        {"text_en": "OK", "bbox": [8, 6, 72, 34], "text_color": "#ffffff", "bg_tone": "dark"}
+    ])").get_array();
+
+    const Image out = render_translation(overlay, regions);
+    ASSERT_EQ(out.channels, kRgbaChannels);
+    // Erased bbox corner stays fully transparent (NOT stamped alpha == 255).
+    EXPECT_EQ(out.at(72, 34)[3], 0u);
+    EXPECT_EQ(out.at(8, 6)[3], 0u);
+
+    // Every rendered glyph pixel inside the bbox carries pure straight white RGB.
+    int glyph_pixels = 0;
+    for (int y = 6; y <= 34; ++y) {
+        for (int x = 8; x <= 72; ++x) {
+            const std::uint8_t* p = out.at(x, y);
+            if (p[3] > 0u) {
+                ++glyph_pixels;
+                EXPECT_EQ(p[0], 255u);
+                EXPECT_EQ(p[1], 255u);
+                EXPECT_EQ(p[2], 255u);
+            }
+        }
+    }
+    EXPECT_GT(glyph_pixels, 0);
+
+    // Semi-transparent panel keeps panel alpha in erased border pixels.
+    constexpr std::uint8_t kPanelR = 40u;
+    constexpr std::uint8_t kPanelG = 80u;
+    constexpr std::uint8_t kPanelB = 120u;
+    constexpr std::uint8_t kPanelA = 160u;
+    Image panel;
+    panel.width = kWidth;
+    panel.height = kHeight;
+    panel.channels = kRgbaChannels;
+    panel.px.resize(static_cast<std::size_t>(kWidth) * kHeight * kRgbaChannels);
+    for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+            std::uint8_t* p = panel.at(x, y);
+            p[0] = kPanelR;
+            p[1] = kPanelG;
+            p[2] = kPanelB;
+            p[3] = kPanelA;
+        }
+    }
+    const auto bg_panel = sample_bg_rgba(panel, 8, 6, 72, 34);
+    EXPECT_EQ(bg_panel, (std::array<std::uint8_t, 4>{kPanelR, kPanelG, kPanelB, kPanelA}));
+    const Image panel_out = render_translation(panel, regions);
+    EXPECT_EQ(panel_out.at(72, 34)[0], kPanelR);
+    EXPECT_EQ(panel_out.at(72, 34)[1], kPanelG);
+    EXPECT_EQ(panel_out.at(72, 34)[2], kPanelB);
+    EXPECT_EQ(panel_out.at(72, 34)[3], kPanelA);
 }

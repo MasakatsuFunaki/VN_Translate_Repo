@@ -164,7 +164,7 @@ TEST(CgImage, channels_come_from_the_container_header) {
     EXPECT_EQ(decode_image(make_png(4, 3, 3, 0x30))->channels, 4);
     EXPECT_EQ(decode_image(make_png(4, 3, 4, 0x30))->channels, 4);
 
-    // BMP: 1/4/8bpp are palettised -> RGBA; 16/24/32 -> RGB.
+    // BMP: 1/4/8bpp are palettised -> RGBA; 16/24 -> RGB; 32 -> RGBA.
     EXPECT_EQ(decode_image(make_bmp(4, 3, 8))->channels, 4);
     EXPECT_EQ(decode_image(make_bmp(4, 3, 24))->channels, 3);
 
@@ -243,4 +243,128 @@ TEST(CgImage, base64_pads_to_a_multiple_of_four) {
     EXPECT_EQ(base64_encode(Bytes{'a', 'b'}), "YWI=");
     EXPECT_EQ(base64_encode(Bytes{'a', 'b', 'c'}), "YWJj");
     EXPECT_EQ(base64_encode(Bytes{}), "");
+}
+
+TEST(CgImage, bmp_32bpp_preserves_straight_alpha_and_sign_bit_boundaries) {
+    constexpr int kWidth = 4;
+    constexpr int kHeight = 2;
+    constexpr int kRgbaChannels = 4;
+    constexpr std::size_t kBmpBitCountOffset = 28u;
+    constexpr std::size_t kBmpCompressionOffset = 30u;
+    constexpr std::size_t kBmpOffBitsOffset = 10u;
+
+    Image rgba;
+    rgba.width = kWidth;
+    rgba.height = kHeight;
+    rgba.channels = kRgbaChannels;
+    // Covers 0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF boundary alpha bytes and
+    // non-zero straight RGB stored beneath alpha == 0.
+    rgba.px = {
+        10u,  20u,  30u,  0x00u,
+        40u,  50u,  60u,  0x01u,
+        70u,  80u,  90u,  0x7Fu,
+        100u, 110u, 120u, 0x80u,
+        130u, 140u, 150u, 0xFEu,
+        160u, 170u, 180u, 0xFFu,
+        200u, 210u, 220u, 0x00u,
+        230u, 240u, 250u, 0x80u,
+    };
+
+    const Bytes encoded = encode_bmp(rgba);
+    ASSERT_EQ(encoded.size(), 54u + rgba.px.size());
+    EXPECT_EQ(encoded[0], 'B');
+    EXPECT_EQ(encoded[1], 'M');
+    const std::uint16_t bpp =
+        static_cast<std::uint16_t>(encoded[kBmpBitCountOffset] |
+                                   (encoded[kBmpBitCountOffset + 1u] << 8u));
+    EXPECT_EQ(bpp, 32u);
+    EXPECT_EQ(encoded[kBmpCompressionOffset], 0u);
+    EXPECT_EQ(encoded[kBmpOffBitsOffset], 54u);
+
+    // Pin exact bottom-up BGRA wire bytes (row y=1 first, then row y=0) so a
+    // symmetric R/B swap or vertical flip in both encode & decode cannot pass.
+    const Bytes expected_bgra_wire = {
+        // Row y=1 (bottom row stored first in bottom-up BMP):
+        150u, 140u, 130u, 0xFEu,
+        180u, 170u, 160u, 0xFFu,
+        220u, 210u, 200u, 0x00u,
+        250u, 240u, 230u, 0x80u,
+        // Row y=0 (top row stored second):
+        30u,  20u,  10u,  0x00u,
+        60u,  50u,  40u,  0x01u,
+        90u,  80u,  70u,  0x7Fu,
+        120u, 110u, 100u, 0x80u,
+    };
+    const Bytes actual_wire(encoded.begin() + 54, encoded.end());
+    EXPECT_EQ(actual_wire, expected_bgra_wire);
+
+    const auto decoded = decode_image(encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded->width, kWidth);
+    EXPECT_EQ(decoded->height, kHeight);
+    EXPECT_EQ(decoded->channels, kRgbaChannels);
+    EXPECT_EQ(decoded->px, rgba.px);
+
+    // Top-down (negative biHeight = -2) 32-bpp BI_RGB BMP stores row y=0 first.
+    Bytes top_down = encoded;
+    const std::uint32_t neg_h = static_cast<std::uint32_t>(-kHeight);
+    top_down[22] = static_cast<std::uint8_t>(neg_h & 0xFFu);
+    top_down[23] = static_cast<std::uint8_t>((neg_h >> 8u) & 0xFFu);
+    top_down[24] = static_cast<std::uint8_t>((neg_h >> 16u) & 0xFFu);
+    top_down[25] = static_cast<std::uint8_t>((neg_h >> 24u) & 0xFFu);
+    // Reorder wire rows so row y=0 is stored first in top-down layout.
+    std::copy(expected_bgra_wire.begin() + 16, expected_bgra_wire.end(), top_down.begin() + 54);
+    std::copy(expected_bgra_wire.begin(), expected_bgra_wire.begin() + 16, top_down.begin() + 70);
+    const auto decoded_td = decode_image(top_down);
+    ASSERT_TRUE(decoded_td.has_value());
+    EXPECT_EQ(decoded_td->width, kWidth);
+    EXPECT_EQ(decoded_td->height, kHeight);
+    EXPECT_EQ(decoded_td->channels, kRgbaChannels);
+    EXPECT_EQ(decoded_td->px, rgba.px);
+
+    // All-zero alpha 32-bpp BMP must keep alpha == 0 rather than promoting to 255.
+    Image all_zero;
+    all_zero.width = 2;
+    all_zero.height = 2;
+    all_zero.channels = kRgbaChannels;
+    all_zero.px = {
+        11u, 22u, 33u, 0u, 44u, 55u, 66u, 0u,
+        77u, 88u, 99u, 0u, 12u, 34u, 56u, 0u,
+    };
+    const auto decoded_zero = decode_image(encode_bmp(all_zero));
+    ASSERT_TRUE(decoded_zero.has_value());
+    EXPECT_EQ(decoded_zero->channels, kRgbaChannels);
+    EXPECT_EQ(decoded_zero->px, all_zero.px);
+
+    // Corrupt / boundary 32-bpp BMP headers must return nullopt without UB or overflow.
+    {
+        // biHeight == INT32_MIN (-2147483648)
+        Bytes int32_min_h = encoded;
+        int32_min_h[22] = 0x00u;
+        int32_min_h[23] = 0x00u;
+        int32_min_h[24] = 0x00u;
+        int32_min_h[25] = 0x80u;
+        EXPECT_FALSE(decode_image(int32_min_h).has_value());
+
+        // Huge w * h multiplication overflow (0x40000001 x 4)
+        Bytes overflow_dims = encoded;
+        overflow_dims[18] = 0x01u;
+        overflow_dims[19] = 0x00u;
+        overflow_dims[20] = 0x00u;
+        overflow_dims[21] = 0x40u;
+        overflow_dims[22] = 0x04u;
+        overflow_dims[23] = 0x00u;
+        overflow_dims[24] = 0x00u;
+        overflow_dims[25] = 0x00u;
+        EXPECT_FALSE(decode_image(overflow_dims).has_value());
+
+        // Truncated pixel data
+        Bytes truncated(encoded.begin(), encoded.end() - 1);
+        EXPECT_FALSE(decode_image(truncated).has_value());
+
+        // bfOffBits < 54
+        Bytes bad_offbits = encoded;
+        bad_offbits[10] = 53u;
+        EXPECT_FALSE(decode_image(bad_offbits).has_value());
+    }
 }

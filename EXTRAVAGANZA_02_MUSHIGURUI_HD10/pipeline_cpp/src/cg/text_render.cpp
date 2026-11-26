@@ -14,6 +14,7 @@
 #include FT_STROKER_H
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -27,6 +28,11 @@ namespace mgi::cg {
 namespace {
 
 constexpr unsigned kMaxCoverage = 255;
+constexpr double kMaxChannelDouble = 255.0;
+constexpr long kMaxChannelLong = 255L;
+constexpr double kOutAlphaEpsilon = 1.0e-12;
+constexpr int kRgbChannelCount = 3;
+constexpr std::size_t kAlphaChannelIndex = 3u;
 constexpr unsigned kMulDivRoundingBias = 128;
 constexpr unsigned kByteShift = 8;
 constexpr int kFixed26Dot6Shift = 6;
@@ -285,12 +291,52 @@ void Font::draw(Image& img, int x, int y, const std::string& utf8,
                         continue;
                     }
                     std::uint8_t* d = img.at(px_x, py);
-                    for (int ch = 0; ch < img.channels; ++ch) {
-                        const auto channel_idx = static_cast<std::size_t>(ch);
-                        d[ch] = static_cast<std::uint8_t>(
-                            muldiv255(d[ch], kMaxCoverage - a) +
-                            muldiv255(ink[channel_idx], a));
+                    if (img.channels == kRgbChannelCount) {
+                        const unsigned eff_a = muldiv255(a, ink[kAlphaChannelIndex]);
+                        if (eff_a == 0) {
+                            continue;
+                        }
+                        for (int ch = 0; ch < kRgbChannelCount; ++ch) {
+                            const auto channel_idx = static_cast<std::size_t>(ch);
+                            d[ch] = static_cast<std::uint8_t>(
+                                muldiv255(d[ch], kMaxCoverage - eff_a) +
+                                muldiv255(ink[channel_idx], eff_a));
+                        }
+                        continue;
                     }
+
+                    // Exact Porter-Duff straight-alpha source-over on 32-bpp RGBA:
+                    // avoids premultiplying RGB into straight-alpha buffers (dark halos).
+                    const double sa = (static_cast<double>(a) / kMaxChannelDouble) *
+                                      (static_cast<double>(ink[kAlphaChannelIndex]) /
+                                       kMaxChannelDouble);
+                    if (sa <= 0.0) {
+                        continue;
+                    }
+                    const double da =
+                        static_cast<double>(d[kAlphaChannelIndex]) / kMaxChannelDouble;
+                    const double inv_sa = 1.0 - sa;
+                    const double out_a = sa + da * inv_sa;
+                    if (out_a <= kOutAlphaEpsilon) {
+                        d[0] = 0u;
+                        d[1] = 0u;
+                        d[2] = 0u;
+                        d[kAlphaChannelIndex] = 0u;
+                        continue;
+                    }
+                    const double inv_out_a = 1.0 / out_a;
+                    const double dst_weight = da * inv_sa;
+                    for (int ch = 0; ch < kRgbChannelCount; ++ch) {
+                        const auto channel_idx = static_cast<std::size_t>(ch);
+                        const double out_c =
+                            (static_cast<double>(ink[channel_idx]) * sa +
+                             static_cast<double>(d[ch]) * dst_weight) *
+                            inv_out_a;
+                        d[ch] = static_cast<std::uint8_t>(
+                            std::clamp(std::lround(out_c), 0L, kMaxChannelLong));
+                    }
+                    d[kAlphaChannelIndex] = static_cast<std::uint8_t>(
+                        std::clamp(std::lround(out_a * kMaxChannelDouble), 0L, kMaxChannelLong));
                 }
             }
         }

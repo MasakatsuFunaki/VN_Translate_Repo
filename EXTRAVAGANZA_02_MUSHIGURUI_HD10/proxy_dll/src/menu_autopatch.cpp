@@ -32,6 +32,7 @@ using Bytes = std::vector<std::uint8_t>;
 
 constexpr wchar_t kPatchMutexName[] = L"Local\\MushiguruiMenuPatchMutex";
 constexpr wchar_t kPatchBinFileName[] = L"menu_patch.bin";
+constexpr wchar_t kAppliedSentinelSuffix[] = L".applied";
 constexpr wchar_t kGpkExtension[] = L".gpk";
 constexpr wchar_t kGtbExtension[] = L".gtb";
 constexpr wchar_t kBackupSuffix[] = L".bak";
@@ -41,6 +42,12 @@ constexpr std::size_t kPatchMagicSize = 8u;
 constexpr char kPatchMagic[kPatchMagicSize] = {'M', 'S', 'G', 'M', 'E', 'N', 'U', '1'};
 constexpr std::size_t kPatchHeaderSize = 32u;
 constexpr std::uint32_t kPatchFormatVersion = 1u;
+
+constexpr std::size_t kSentinelMagicSize = 8u;
+constexpr char kSentinelMagic[kSentinelMagicSize] = {'M', 'S', 'G', 'M', 'S', 'N', 'T', '1'};
+constexpr std::size_t kSentinelSizeFieldOffset = 8u;
+constexpr std::size_t kSentinelHashFieldOffset = 16u;
+constexpr std::size_t kSentinelFileBytes = 20u;
 
 constexpr std::size_t kHeaderOffsetVersion = 0x08u;
 constexpr std::size_t kHeaderOffsetStandaloneCount = 0x0Cu;
@@ -208,6 +215,18 @@ std::uint64_t ReadU64Le(const std::uint8_t* p) noexcept {
            (static_cast<std::uint64_t>(p[kByteIndex7]) << kShiftByte7);
 }
 
+void AppendU32Le(Bytes& buf, std::uint32_t v) {
+    buf.push_back(static_cast<std::uint8_t>(v & kLowByteMask));
+    buf.push_back(static_cast<std::uint8_t>((v >> kShiftByte1) & kLowByteMask));
+    buf.push_back(static_cast<std::uint8_t>((v >> kShiftByte2) & kLowByteMask));
+    buf.push_back(static_cast<std::uint8_t>((v >> kShiftByte3) & kLowByteMask));
+}
+
+void AppendU64Le(Bytes& buf, std::uint64_t v) {
+    AppendU32Le(buf, static_cast<std::uint32_t>(v & kLowU32Mask));
+    AppendU32Le(buf, static_cast<std::uint32_t>((v >> kShiftByte4) & kLowU32Mask));
+}
+
 std::wstring JoinPath(const std::wstring& dir, const std::wstring& rel) {
     if (dir.empty()) {
         return rel;
@@ -268,6 +287,13 @@ bool FileExists(const std::wstring& path) noexcept {
     const DWORD attrs = GetFileAttributesW(path.c_str());
     return attrs != INVALID_FILE_ATTRIBUTES &&
            (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0u;
+}
+
+void ClearReadOnlyAttribute(const std::wstring& path) noexcept {
+    const DWORD attrs = GetFileAttributesW(path.c_str());
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY) != 0u) {
+        SetFileAttributesW(path.c_str(), attrs & ~FILE_ATTRIBUTE_READONLY);
+    }
 }
 
 bool ReadExactBytes(HANDLE hFile, void* dst, std::size_t byte_count) noexcept {
@@ -369,6 +395,7 @@ bool ReadWholeFile(const std::wstring& path, Bytes& out_bytes) {
 }
 
 bool WriteWholeFile(const std::wstring& path, const Bytes& bytes) {
+    ClearReadOnlyAttribute(path);
     ScopedFileHandle file(CreateFileW(path.c_str(),
                                       GENERIC_WRITE,
                                       0,
@@ -379,14 +406,13 @@ bool WriteWholeFile(const std::wstring& path, const Bytes& bytes) {
     if (!file.IsValid()) {
         return false;
     }
-    if (!WriteExactBytes(file.Get(), bytes.data(), bytes.size())) {
+    if (!WriteExactBytes(file.Get(), bytes.data(), bytes.size()) ||
+        !FlushFileBuffers(file.Get())) {
+        const DWORD gle = GetLastError();
         file.Reset();
+        ClearReadOnlyAttribute(path);
         DeleteFileW(path.c_str());
-        return false;
-    }
-    if (!FlushFileBuffers(file.Get())) {
-        file.Reset();
-        DeleteFileW(path.c_str());
+        SetLastError(gle);
         return false;
     }
     return true;
@@ -445,6 +471,8 @@ struct ArchiveSectionMeta {
     std::uint32_t new_gtb_hash = 0;
     std::uint64_t gtb_payload_offset = 0;
     std::vector<ArchiveEntryMeta> entries;
+    bool use_gtb_bak_as_source = false;
+    bool use_gpk_bak_as_source = false;
     bool already_patched = false;
 };
 
@@ -455,11 +483,146 @@ struct ParsedGtbOffsets {
 };
 
 void CleanupTempFiles(const std::vector<std::wstring>& temp_paths) noexcept {
+    const DWORD saved_gle = GetLastError();
     for (const std::wstring& p : temp_paths) {
         if (!p.empty() && FileExists(p)) {
+            ClearReadOnlyAttribute(p);
             DeleteFileW(p.c_str());
         }
     }
+    SetLastError(saved_gle);
+}
+
+std::uint32_t ComputePatchManifestHash(
+    const PatchHeader& hdr,
+    const std::vector<StandaloneGroupMeta>& standalone_groups,
+    const std::vector<ArchiveSectionMeta>& archives) {
+    Bytes manifest;
+    manifest.reserve(kPatchHeaderSize +
+                     standalone_groups.size() * kStandaloneVariantHeaderBytes * 2u +
+                     archives.size() * kArchiveFixedHeaderBytes);
+
+    AppendU32Le(manifest, hdr.version);
+    AppendU32Le(manifest, hdr.standalone_group_count);
+    AppendU32Le(manifest, hdr.archive_count);
+    AppendU32Le(manifest, hdr.flags);
+    AppendU64Le(manifest, hdr.reserved);
+
+    for (const StandaloneGroupMeta& grp : standalone_groups) {
+        AppendU32Le(manifest, static_cast<std::uint32_t>(grp.rel_path.size()));
+        for (wchar_t ch : grp.rel_path) {
+            manifest.push_back(static_cast<std::uint8_t>(ch & kLowByteMask));
+        }
+        AppendU32Le(manifest, static_cast<std::uint32_t>(grp.variants.size()));
+        for (const StandaloneVariantMeta& var : grp.variants) {
+            AppendU32Le(manifest, var.orig_file_size);
+            AppendU32Le(manifest, var.orig_data_hash);
+            AppendU32Le(manifest, var.new_file_size);
+            AppendU32Le(manifest, var.new_data_hash);
+        }
+    }
+
+    for (const ArchiveSectionMeta& sec : archives) {
+        AppendU32Le(manifest, static_cast<std::uint32_t>(sec.stem_rel_path.size()));
+        for (wchar_t ch : sec.stem_rel_path) {
+            manifest.push_back(static_cast<std::uint8_t>(ch & kLowByteMask));
+        }
+        AppendU64Le(manifest, sec.orig_gpk_size);
+        AppendU64Le(manifest, sec.new_gpk_size);
+        AppendU32Le(manifest, sec.orig_gtb_size);
+        AppendU32Le(manifest, sec.orig_gtb_hash);
+        AppendU32Le(manifest, sec.new_gtb_size);
+        AppendU32Le(manifest, sec.new_gtb_hash);
+        AppendU32Le(manifest, static_cast<std::uint32_t>(sec.entries.size()));
+        for (const ArchiveEntryMeta& rec : sec.entries) {
+            AppendU32Le(manifest, rec.entry_index);
+            AppendU64Le(manifest, rec.orig_offset);
+            AppendU32Le(manifest, rec.orig_size);
+            AppendU32Le(manifest, rec.orig_data_hash);
+            AppendU32Le(manifest, rec.new_size);
+            AppendU32Le(manifest, rec.new_data_hash);
+        }
+    }
+
+    return ComputeMurmurHash2(manifest.data(), manifest.size());
+}
+
+bool IsAppliedSentinelValid(const std::wstring& sentinel_path,
+                            std::uint64_t expected_patch_size,
+                            std::uint32_t expected_manifest_hash) {
+    Bytes sentinel_bytes;
+    if (!ReadWholeFile(sentinel_path, sentinel_bytes) ||
+        sentinel_bytes.size() != kSentinelFileBytes) {
+        return false;
+    }
+    if (std::memcmp(sentinel_bytes.data(), kSentinelMagic, kSentinelMagicSize) != 0) {
+        return false;
+    }
+    return ReadU64Le(sentinel_bytes.data() + kSentinelSizeFieldOffset) == expected_patch_size &&
+           ReadU32Le(sentinel_bytes.data() + kSentinelHashFieldOffset) == expected_manifest_hash;
+}
+
+bool StageAppliedSentinelTemp(const std::wstring& sentinel_tmp_path,
+                              std::uint64_t patch_file_size,
+                              std::uint32_t manifest_hash) {
+    Bytes sentinel_bytes;
+    sentinel_bytes.reserve(kSentinelFileBytes);
+    sentinel_bytes.insert(
+        sentinel_bytes.end(), kSentinelMagic, kSentinelMagic + kSentinelMagicSize);
+    AppendU64Le(sentinel_bytes, patch_file_size);
+    AppendU32Le(sentinel_bytes, manifest_hash);
+    return WriteWholeFile(sentinel_tmp_path, sentinel_bytes);
+}
+
+bool StageFlushedFileCopy(const std::wstring& src_path,
+                          const std::wstring& dst_tmp_path,
+                          Bytes& stream_buf) {
+    std::uint64_t src_size = 0;
+    if (!GetFileSizeBytes(src_path, src_size)) {
+        return false;
+    }
+
+    ScopedFileHandle src_file(CreateFileW(src_path.c_str(),
+                                          GENERIC_READ,
+                                          FILE_SHARE_READ,
+                                          nullptr,
+                                          OPEN_EXISTING,
+                                          FILE_FLAG_SEQUENTIAL_SCAN,
+                                          nullptr));
+    if (!src_file.IsValid()) {
+        return false;
+    }
+
+    ClearReadOnlyAttribute(dst_tmp_path);
+    ScopedFileHandle dst_file(CreateFileW(dst_tmp_path.c_str(),
+                                          GENERIC_WRITE,
+                                          0,
+                                          nullptr,
+                                          CREATE_ALWAYS,
+                                          FILE_ATTRIBUTE_NORMAL,
+                                          nullptr));
+    if (!dst_file.IsValid()) {
+        return false;
+    }
+
+    if (!StreamCopyRange(src_file.Get(), 0ull, src_size, dst_file.Get(), stream_buf) ||
+        !FlushFileBuffers(dst_file.Get())) {
+        const DWORD gle = GetLastError();
+        dst_file.Reset();
+        ClearReadOnlyAttribute(dst_tmp_path);
+        DeleteFileW(dst_tmp_path.c_str());
+        SetLastError(gle);
+        return false;
+    }
+    return true;
+}
+
+bool AtomicRenamePath(const std::wstring& src_tmp, const std::wstring& dst_path) noexcept {
+    ClearReadOnlyAttribute(src_tmp);
+    ClearReadOnlyAttribute(dst_path);
+    return MoveFileExW(src_tmp.c_str(),
+                       dst_path.c_str(),
+                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
 }
 
 bool ContainsDuplicateWidePath(const std::vector<StandaloneGroupMeta>& groups,
@@ -732,25 +895,31 @@ const StandaloneVariantMeta* MatchStandaloneVariantByOrig(
 }
 
 bool ResolveStandaloneGroupState(StandaloneGroupMeta& grp) {
-    Bytes bak_bytes;
-    if (FileExists(grp.bak_path) && ReadWholeFile(grp.bak_path, bak_bytes)) {
+    if (FileExists(grp.bak_path)) {
+        Bytes bak_bytes;
+        if (!ReadWholeFile(grp.bak_path, bak_bytes)) {
+            return false;
+        }
         const StandaloneVariantMeta* var =
             MatchStandaloneVariantByOrig(grp.variants, bak_bytes);
-        if (var != nullptr) {
-            grp.matched_variant = var;
-            grp.use_bak_as_source = true;
-
-            std::uint64_t cur_target_sz = 0;
-            Bytes target_bytes;
-            if (GetFileSizeBytes(grp.target_path, cur_target_sz) &&
-                cur_target_sz == var->new_file_size &&
-                ReadWholeFile(grp.target_path, target_bytes) &&
-                ComputeMurmurHash2(target_bytes.data(), target_bytes.size()) ==
-                    var->new_data_hash) {
-                grp.already_patched = true;
-            }
-            return true;
+        if (var == nullptr) {
+            // Existing .bak failed orig hash check: fail cleanly rather than
+            // ignoring or clobbering a corrupt backup.
+            return false;
         }
+        grp.matched_variant = var;
+        grp.use_bak_as_source = true;
+
+        std::uint64_t cur_target_sz = 0;
+        Bytes target_bytes;
+        if (GetFileSizeBytes(grp.target_path, cur_target_sz) &&
+            cur_target_sz == var->new_file_size &&
+            ReadWholeFile(grp.target_path, target_bytes) &&
+            ComputeMurmurHash2(target_bytes.data(), target_bytes.size()) ==
+                var->new_data_hash) {
+            grp.already_patched = true;
+        }
+        return true;
     }
 
     Bytes target_bytes;
@@ -768,7 +937,10 @@ bool ResolveStandaloneGroupState(StandaloneGroupMeta& grp) {
     return true;
 }
 
-bool IsArchiveSectionAlreadyPatched(const ArchiveSectionMeta& sec) {
+bool IsArchiveSectionAlreadyPatched(const ArchiveSectionMeta& sec, bool sentinel_valid) {
+    if (!sentinel_valid) {
+        return false;
+    }
     std::uint64_t cur_gpk_sz = 0;
     std::uint64_t bak_gpk_sz = 0;
     std::uint64_t cur_gtb_sz = 0;
@@ -789,10 +961,16 @@ bool IsArchiveSectionAlreadyPatched(const ArchiveSectionMeta& sec) {
     }
 
     Bytes gtb_bytes;
-    if (!ReadWholeFile(sec.gtb_path, gtb_bytes)) {
+    if (!ReadWholeFile(sec.gtb_path, gtb_bytes) ||
+        ComputeMurmurHash2(gtb_bytes.data(), gtb_bytes.size()) != sec.new_gtb_hash) {
         return false;
     }
-    return ComputeMurmurHash2(gtb_bytes.data(), gtb_bytes.size()) == sec.new_gtb_hash;
+    Bytes bak_gtb_bytes;
+    if (!ReadWholeFile(sec.gtb_bak_path, bak_gtb_bytes) ||
+        ComputeMurmurHash2(bak_gtb_bytes.data(), bak_gtb_bytes.size()) != sec.orig_gtb_hash) {
+        return false;
+    }
+    return true;
 }
 
 bool ParseGtbOffsetsTable(const Bytes& gtb_bytes,
@@ -927,37 +1105,50 @@ bool StageStandaloneTempFile(HANDLE patch_file, const StandaloneGroupMeta& grp) 
     return WriteWholeFile(grp.tmp_path, patched_bytes);
 }
 
-bool SelectOriginalArchivePaths(const ArchiveSectionMeta& sec,
+bool SelectOriginalArchivePaths(ArchiveSectionMeta& sec,
                                 Bytes& out_orig_gtb,
                                 std::wstring& out_orig_gpk_path) {
-    std::uint64_t bak_gtb_sz = 0;
-    const bool use_gtb_bak =
-        GetFileSizeBytes(sec.gtb_bak_path, bak_gtb_sz) && bak_gtb_sz == sec.orig_gtb_size;
-    const std::wstring& gtb_src = use_gtb_bak ? sec.gtb_bak_path : sec.gtb_path;
-    if (!ReadWholeFile(gtb_src, out_orig_gtb) ||
-        out_orig_gtb.size() != sec.orig_gtb_size ||
-        ComputeMurmurHash2(out_orig_gtb.data(), out_orig_gtb.size()) !=
-            sec.orig_gtb_hash) {
-        return false;
+    if (FileExists(sec.gtb_bak_path)) {
+        if (!ReadWholeFile(sec.gtb_bak_path, out_orig_gtb) ||
+            out_orig_gtb.size() != sec.orig_gtb_size ||
+            ComputeMurmurHash2(out_orig_gtb.data(), out_orig_gtb.size()) !=
+                sec.orig_gtb_hash) {
+            return false;
+        }
+        sec.use_gtb_bak_as_source = true;
+    } else {
+        if (!ReadWholeFile(sec.gtb_path, out_orig_gtb) ||
+            out_orig_gtb.size() != sec.orig_gtb_size ||
+            ComputeMurmurHash2(out_orig_gtb.data(), out_orig_gtb.size()) !=
+                sec.orig_gtb_hash) {
+            return false;
+        }
+        sec.use_gtb_bak_as_source = false;
     }
 
-    std::uint64_t bak_gpk_sz = 0;
-    if (GetFileSizeBytes(sec.gpk_bak_path, bak_gpk_sz) &&
-        bak_gpk_sz == sec.orig_gpk_size) {
+    if (FileExists(sec.gpk_bak_path)) {
+        std::uint64_t bak_gpk_sz = 0;
+        if (!GetFileSizeBytes(sec.gpk_bak_path, bak_gpk_sz) ||
+            bak_gpk_sz != sec.orig_gpk_size) {
+            return false;
+        }
+        sec.use_gpk_bak_as_source = true;
         out_orig_gpk_path = sec.gpk_bak_path;
         return true;
     }
+
     std::uint64_t cur_gpk_sz = 0;
-    if (GetFileSizeBytes(sec.gpk_path, cur_gpk_sz) &&
-        cur_gpk_sz == sec.orig_gpk_size) {
-        out_orig_gpk_path = sec.gpk_path;
-        return true;
+    if (!GetFileSizeBytes(sec.gpk_path, cur_gpk_sz) ||
+        cur_gpk_sz != sec.orig_gpk_size) {
+        return false;
     }
-    return false;
+    sec.use_gpk_bak_as_source = false;
+    out_orig_gpk_path = sec.gpk_path;
+    return true;
 }
 
 bool StageArchiveTempFiles(HANDLE patch_file,
-                           const ArchiveSectionMeta& sec,
+                           ArchiveSectionMeta& sec,
                            Bytes& stream_buf) {
     Bytes orig_gtb;
     std::wstring orig_gpk_path;
@@ -1000,6 +1191,7 @@ bool StageArchiveTempFiles(HANDLE patch_file,
         return false;
     }
 
+    ClearReadOnlyAttribute(sec.gpk_tmp_path);
     ScopedFileHandle gpk_tmp_file(CreateFileW(sec.gpk_tmp_path.c_str(),
                                               GENERIC_WRITE,
                                               0,
@@ -1086,27 +1278,6 @@ bool StageArchiveTempFiles(HANDLE patch_file,
     return WriteWholeFile(sec.gtb_tmp_path, new_gtb);
 }
 
-bool CommitPatchedFile(const std::wstring& target_path,
-                       const std::wstring& bak_path,
-                       const std::wstring& tmp_path,
-                       std::uint64_t orig_size) {
-    std::uint64_t existing_bak_size = 0;
-    const bool valid_bak_exists =
-        GetFileSizeBytes(bak_path, existing_bak_size) && existing_bak_size == orig_size;
-    if (!valid_bak_exists) {
-        if (FileExists(bak_path)) {
-            DeleteFileW(bak_path.c_str());
-        }
-        if (!CopyFileW(target_path.c_str(), bak_path.c_str(), FALSE)) {
-            return false;
-        }
-    }
-
-    return MoveFileExW(tmp_path.c_str(),
-                       target_path.c_str(),
-                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
-}
-
 bool ResolveSelfModuleDirectory(std::wstring& out_dir) {
     HMODULE self_mod = nullptr;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -1149,7 +1320,7 @@ std::uint32_t ComputeMurmurHash2(const std::uint8_t* data,
     }
     std::uint32_t h = seed ^ static_cast<std::uint32_t>(len);
     std::size_t i = 0;
-    while (i + kWordBytes <= len) {
+    while (len - i >= kWordBytes) {
         std::uint32_t k = ReadU32Le(data + i);
         k *= kMurmurMultiplier;
         k ^= k >> kMurmurShiftR;
@@ -1262,6 +1433,12 @@ bool EnsureGameFilesPatchedInDir(const std::wstring& game_dir) {
         return false;
     }
 
+    const std::uint32_t manifest_hash =
+        ComputePatchManifestHash(hdr, standalone_groups, archives);
+    const std::wstring sentinel_path = patch_path + kAppliedSentinelSuffix;
+    const bool sentinel_valid =
+        IsAppliedSentinelValid(sentinel_path, patch_file_size, manifest_hash);
+
     bool all_standalone_patched = true;
     for (StandaloneGroupMeta& grp : standalone_groups) {
         if (!ResolveStandaloneGroupState(grp)) {
@@ -1275,23 +1452,26 @@ bool EnsureGameFilesPatchedInDir(const std::wstring& game_dir) {
 
     bool all_archives_patched = true;
     for (ArchiveSectionMeta& sec : archives) {
-        sec.already_patched = IsArchiveSectionAlreadyPatched(sec);
+        sec.already_patched = IsArchiveSectionAlreadyPatched(sec, sentinel_valid);
         if (!sec.already_patched) {
             all_archives_patched = false;
         }
     }
 
-    if (all_standalone_patched && all_archives_patched) {
+    if (sentinel_valid && all_standalone_patched && all_archives_patched) {
         Log("MenuAutopatch: already up-to-date (%zu standalone files, %zu archives)",
             standalone_groups.size(),
             archives.size());
         return true;
     }
 
+    // Phase 1: verify hashes and stage all patched .tmp files, missing .bak.tmp
+    // backups, and the .applied.tmp sentinel before touching any live or .bak file.
     std::vector<std::wstring> staged_temps;
-    staged_temps.reserve(standalone_groups.size() +
-                         archives.size() * kArchiveTempFilesPerSection);
+    staged_temps.reserve(standalone_groups.size() * 2u +
+                         archives.size() * kArchiveTempFilesPerSection * 2u + 1u);
 
+    Bytes stream_buf;
     for (const StandaloneGroupMeta& grp : standalone_groups) {
         if (grp.already_patched) {
             continue;
@@ -1302,11 +1482,19 @@ bool EnsureGameFilesPatchedInDir(const std::wstring& game_dir) {
             Log("MenuAutopatch: standalone staging failed, rolled back temp files");
             return false;
         }
+        if (!grp.use_bak_as_source) {
+            const std::wstring bak_tmp = grp.bak_path + kTempSuffix;
+            staged_temps.push_back(bak_tmp);
+            if (!StageFlushedFileCopy(grp.target_path, bak_tmp, stream_buf)) {
+                CleanupTempFiles(staged_temps);
+                Log("MenuAutopatch: standalone backup staging failed, rolled back temp files");
+                return false;
+            }
+        }
     }
 
-    Bytes stream_buf;
     std::size_t patched_entry_total = 0;
-    for (const ArchiveSectionMeta& sec : archives) {
+    for (ArchiveSectionMeta& sec : archives) {
         if (sec.already_patched) {
             continue;
         }
@@ -1317,19 +1505,94 @@ bool EnsureGameFilesPatchedInDir(const std::wstring& game_dir) {
             Log("MenuAutopatch: archive staging failed, rolled back temp files");
             return false;
         }
+        if (!sec.use_gpk_bak_as_source) {
+            const std::wstring gpk_bak_tmp = sec.gpk_bak_path + kTempSuffix;
+            staged_temps.push_back(gpk_bak_tmp);
+            if (!StageFlushedFileCopy(sec.gpk_path, gpk_bak_tmp, stream_buf)) {
+                CleanupTempFiles(staged_temps);
+                Log("MenuAutopatch: archive GPK backup staging failed, rolled back temp files");
+                return false;
+            }
+        }
+        if (!sec.use_gtb_bak_as_source) {
+            const std::wstring gtb_bak_tmp = sec.gtb_bak_path + kTempSuffix;
+            staged_temps.push_back(gtb_bak_tmp);
+            if (!StageFlushedFileCopy(sec.gtb_path, gtb_bak_tmp, stream_buf)) {
+                CleanupTempFiles(staged_temps);
+                Log("MenuAutopatch: archive GTB backup staging failed, rolled back temp files");
+                return false;
+            }
+        }
         patched_entry_total += sec.entries.size();
+    }
+
+    const std::wstring sentinel_tmp_path = sentinel_path + kTempSuffix;
+    staged_temps.push_back(sentinel_tmp_path);
+    if (!StageAppliedSentinelTemp(sentinel_tmp_path, patch_file_size, manifest_hash)) {
+        CleanupTempFiles(staged_temps);
+        Log("MenuAutopatch: failed to stage .applied sentinel");
+        return false;
+    }
+
+    // Phase 2: commit all staged backups first, then all live targets, then sentinel.
+    for (const StandaloneGroupMeta& grp : standalone_groups) {
+        if (grp.already_patched || grp.use_bak_as_source) {
+            continue;
+        }
+        if (!AtomicRenamePath(grp.bak_path + kTempSuffix, grp.bak_path)) {
+            const DWORD gle = GetLastError();
+            CleanupTempFiles(staged_temps);
+            Log("MenuAutopatch: standalone backup commit failed (err=%lu)", gle);
+            SetLastError(gle);
+            return false;
+        }
+    }
+    for (const ArchiveSectionMeta& sec : archives) {
+        if (sec.already_patched) {
+            continue;
+        }
+        if (!sec.use_gpk_bak_as_source &&
+            !AtomicRenamePath(sec.gpk_bak_path + kTempSuffix, sec.gpk_bak_path)) {
+            const DWORD gle = GetLastError();
+            CleanupTempFiles(staged_temps);
+            Log("MenuAutopatch: archive GPK backup commit failed (err=%lu)", gle);
+            SetLastError(gle);
+            return false;
+        }
+        if (!sec.use_gtb_bak_as_source &&
+            !AtomicRenamePath(sec.gtb_bak_path + kTempSuffix, sec.gtb_bak_path)) {
+            const DWORD gle = GetLastError();
+            CleanupTempFiles(staged_temps);
+            Log("MenuAutopatch: archive GTB backup commit failed (err=%lu)", gle);
+            SetLastError(gle);
+            return false;
+        }
+    }
+
+    // Remove any stale .applied sentinel before replacing live targets so a
+    // mid-commit failure cannot leave an older sentinel fast-pathing.
+    if (FileExists(sentinel_path)) {
+        ClearReadOnlyAttribute(sentinel_path);
+        if (!DeleteFileW(sentinel_path.c_str())) {
+            const DWORD gle = GetLastError();
+            if (gle != ERROR_FILE_NOT_FOUND) {
+                CleanupTempFiles(staged_temps);
+                Log("MenuAutopatch: failed to remove stale .applied sentinel (err=%lu)", gle);
+                SetLastError(gle);
+                return false;
+            }
+        }
     }
 
     for (const StandaloneGroupMeta& grp : standalone_groups) {
         if (grp.already_patched) {
             continue;
         }
-        if (!CommitPatchedFile(grp.target_path,
-                               grp.bak_path,
-                               grp.tmp_path,
-                               grp.matched_variant->orig_file_size)) {
+        if (!AtomicRenamePath(grp.tmp_path, grp.target_path)) {
+            const DWORD gle = GetLastError();
             CleanupTempFiles(staged_temps);
-            Log("MenuAutopatch: standalone commit failed");
+            Log("MenuAutopatch: standalone commit failed (err=%lu)", gle);
+            SetLastError(gle);
             return false;
         }
     }
@@ -1338,14 +1601,22 @@ bool EnsureGameFilesPatchedInDir(const std::wstring& game_dir) {
         if (sec.already_patched) {
             continue;
         }
-        if (!CommitPatchedFile(
-                sec.gpk_path, sec.gpk_bak_path, sec.gpk_tmp_path, sec.orig_gpk_size) ||
-            !CommitPatchedFile(
-                sec.gtb_path, sec.gtb_bak_path, sec.gtb_tmp_path, sec.orig_gtb_size)) {
+        if (!AtomicRenamePath(sec.gpk_tmp_path, sec.gpk_path) ||
+            !AtomicRenamePath(sec.gtb_tmp_path, sec.gtb_path)) {
+            const DWORD gle = GetLastError();
             CleanupTempFiles(staged_temps);
-            Log("MenuAutopatch: archive commit failed");
+            Log("MenuAutopatch: archive commit failed (err=%lu)", gle);
+            SetLastError(gle);
             return false;
         }
+    }
+
+    if (!AtomicRenamePath(sentinel_tmp_path, sentinel_path)) {
+        const DWORD gle = GetLastError();
+        CleanupTempFiles(staged_temps);
+        Log("MenuAutopatch: failed to commit .applied sentinel (err=%lu)", gle);
+        SetLastError(gle);
+        return false;
     }
 
     Log("MenuAutopatch: patched %zu standalone files and %zu GPK entries across %zu archives (.bak backups verified)",

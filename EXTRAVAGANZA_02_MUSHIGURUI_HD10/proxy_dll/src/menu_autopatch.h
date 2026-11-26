@@ -36,12 +36,15 @@ void XorMaskPayload(std::uint8_t* buf,
                     std::uint32_t orig_data_hash) noexcept;
 
 // Ensures that all target game files and GPK/GTB archives referenced by
-// `<game_dir>\menu_patch.bin` have been backed up to `<file>.bak` and patched.
+// `<game_dir>\menu_patch.bin` have been backed up to `<file>.bak` and patched,
+// recording `<game_dir>\menu_patch.bin.applied` ("MSGMSNT1") with the manifest
+// hash so fast-path launches skip work while same-size updates re-apply cleanly.
 //
 // Thread-safe across processes via `Local\MushiguruiMenuPatchMutex`.
-// Returns true if the game files were patched on this call or were already
-// up-to-date.  Returns false without modifying any game file or leaving `.tmp`
-// or newly created `.bak` artifacts if `menu_patch.bin` is absent or invalid.
+// Strict all-or-nothing atomicity: returns true only when every target and
+// `.bak` backup is verified and up-to-date.  Returns false without modifying
+// any live game file or leaving `.tmp`, newly created `.bak`, or `.applied`
+// artifacts if `menu_patch.bin` or any original/backup file fails validation.
 bool EnsureGameFilesPatchedInDir(const std::wstring& game_dir);
 
 // Resolves the directory containing the running `winmm.dll` (or host
