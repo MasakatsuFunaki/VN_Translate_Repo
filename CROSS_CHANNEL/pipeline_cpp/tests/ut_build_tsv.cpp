@@ -8,15 +8,17 @@
 // Runtime TSV builder unit tests: escape order, deduplication rules, glossary
 // top-up, and LF line endings.
 #include "build_tsv/build_tsv.h"
-#include "cache/glossary.h"
 #include "common/util.h"
+#include "translate/glossary.h"
 
 #include <boost/json.hpp>
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstddef>
 #include <filesystem>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -36,12 +38,18 @@ constexpr std::size_t kMinDuplicateRows = 2u;
 struct Scratch {
     fs::path dir;
     Scratch() {
-        static int seq = 0;
+        static std::atomic<unsigned int> seq{0};
         dir = fs::temp_directory_path() / fs::u8path("crc_ut_tsv_" + std::to_string(++seq));
-        fs::remove_all(dir);
+        std::error_code ec;
+        fs::remove_all(dir, ec);
         fs::create_directories(dir);
     }
-    ~Scratch() { fs::remove_all(dir); }
+    ~Scratch() {
+        std::error_code ec;
+        fs::remove_all(dir, ec);
+    }
+    Scratch(const Scratch&) = delete;
+    Scratch& operator=(const Scratch&) = delete;
 };
 
 // Writes a minimal translated_text.json and runs the builder; returns the TSV.

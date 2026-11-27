@@ -46,6 +46,11 @@ std::string default_project_dir();
 po::options_description common_options(std::string& project_dir,
                                        std::string& game_dir);
 
+// `--dir` and optional `--game-dir`, for tools that can operate on
+// `script_output/` without requiring an installed game folder.
+po::options_description optional_game_options(std::string& project_dir,
+                                              std::string& game_dir);
+
 // Returns `argv[1..N]` from the Win32 wide command line converted to UTF-8.
 std::vector<std::string> process_utf8_args();
 
@@ -79,7 +84,16 @@ inline std::string extracted_json(const std::string& project) {
     return output_dir(project) + "\\extracted_text.json";
 }
 inline std::string cache_json(const std::string& project) {
-    return output_dir(project) + "\\translation_cache_anthropic.json";
+    return output_dir(project) + "\\translation_cache_gemini.json";
+}
+inline std::string blocked_lines_json(const std::string& project) {
+    return output_dir(project) + "\\blocked_lines.json";
+}
+inline std::string raw_answers_log(const std::string& project) {
+    return output_dir(project) + "\\gemini_raw_answers.log";
+}
+inline std::string last_batch_json(const std::string& project) {
+    return output_dir(project) + "\\last_gemini_translate\\last_translation.json";
 }
 inline std::string translated_json(const std::string& project) {
     return output_dir(project) + "\\translated_text.json";

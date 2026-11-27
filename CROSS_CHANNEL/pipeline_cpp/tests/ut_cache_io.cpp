@@ -8,7 +8,7 @@
 // Reading the translation cache off disk.  An absent cache is a first run; a
 // cache that is there and cannot be read stops the run with a message naming
 // it, because the caller is usually about to delete or overwrite that file.
-#include "cache/cache_core.h"
+#include "translate/translate_core.h"
 #include "common/util.h"
 
 #include <boost/json.hpp>

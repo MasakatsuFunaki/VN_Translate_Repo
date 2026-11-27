@@ -38,12 +38,14 @@ add_library(crc_core STATIC
     src/extract/extractor.h
     src/build_tsv/build_tsv.cpp
     src/build_tsv/build_tsv.h
-    src/cache/glossary.cpp
-    src/cache/glossary.h
-    src/cache/speaker_gate.cpp
-    src/cache/speaker_gate.h
-    src/cache/cache_core.cpp
-    src/cache/cache_core.h
+    src/translate/gemini_client.cpp
+    src/translate/gemini_client.h
+    src/translate/glossary.cpp
+    src/translate/glossary.h
+    src/translate/speaker_gate.cpp
+    src/translate/speaker_gate.h
+    src/translate/translate_core.cpp
+    src/translate/translate_core.h
     src/cg/image.cpp
     src/cg/image.h
     src/cg/text_render.cpp
@@ -90,15 +92,16 @@ endfunction()
 
 crc_app(00_run_all              src/apps/run_all_main.cpp)
 crc_app(01_extract              src/apps/extract_main.cpp)
+crc_app(02_translate            src/apps/translate_main.cpp)
 crc_app(02_build_tsv            src/apps/build_tsv_main.cpp)
 crc_app(03_find_narrative_cg    src/apps/find_narrative_cg_main.cpp)
 
 # --------------------------------------------------------------------
-# Install: the four executables a user runs, and nothing else.  crc_core and
+# Install: the executables a user runs, and nothing else.  crc_core and
 # the test binaries exist to produce these and stay in the build tree.  Every
 # dependency is a static library, so there is no runtime to carry.
 # --------------------------------------------------------------------
-install(TARGETS 00_run_all 01_extract 02_build_tsv 03_find_narrative_cg
+install(TARGETS 00_run_all 01_extract 02_translate 02_build_tsv 03_find_narrative_cg
         RUNTIME DESTINATION bin)
 
 # --------------------------------------------------------------------
