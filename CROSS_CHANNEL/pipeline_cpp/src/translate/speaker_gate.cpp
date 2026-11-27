@@ -5,11 +5,11 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "cache/speaker_gate.h"
+#include "translate/speaker_gate.h"
 
-#include "cache/cache_core.h"
-#include "cache/glossary.h"
 #include "common/util.h"
+#include "translate/glossary.h"
+#include "translate/translate_core.h"
 
 #include <algorithm>
 #include <cstdio>

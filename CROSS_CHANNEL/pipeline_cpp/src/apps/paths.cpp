@@ -268,6 +268,24 @@ po::options_description common_options(std::string& project_dir,
     return desc;
 }
 
+po::options_description optional_game_options(std::string& project_dir,
+                                              std::string& game_dir) {
+    auto* dir = po::value(&project_dir);
+    if (const std::string found = default_project_dir(); found.empty()) {
+        dir->required();
+    } else {
+        dir->default_value(found);
+    }
+
+    po::options_description desc("Common options");
+    desc.add_options()
+        ("help,h", "show this help and exit")
+        ("dir", dir, "CROSS_CHANNEL project folder")
+        ("game-dir", po::value(&game_dir),
+         "game installation folder (optional)");
+    return desc;
+}
+
 std::vector<std::string> process_utf8_args() {
     const wchar_t* raw_cmd = ::GetCommandLineW();
     if (raw_cmd == nullptr || *raw_cmd == L'\0') {

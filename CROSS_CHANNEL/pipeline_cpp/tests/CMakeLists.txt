@@ -1,6 +1,5 @@
 # GoogleTest suites: hermetic unit tests (LABELS "UT") with zero repository-tree
-# dependency, plus component tests (LABELS "CT") validated against on-disk
-# artefacts in script_output/.
+# dependency, plus component tests (LABELS "CT") and system tests (LABELS "SYSTEM").
 
 include(GoogleTest)
 
@@ -12,7 +11,7 @@ endfunction()
 
 crc_test(ut_sn_archive)
 crc_test(ut_extract)
-crc_test(ut_cache)
+crc_test(ut_translate)
 crc_test(ut_build_tsv)
 crc_test(ut_cg)
 crc_test(ut_cg_resume)
@@ -22,6 +21,12 @@ crc_test(ut_cache_io)
 add_executable(ut_paths ut_paths.cpp ../src/apps/paths.cpp)
 target_link_libraries(ut_paths PRIVATE crc_core Boost::program_options GTest::gtest GTest::gtest_main shell32)
 gtest_discover_tests(ut_paths PROPERTIES LABELS "UT")
+
+add_executable(ct_translate_corpus ct_translate_corpus.cpp)
+target_link_libraries(ct_translate_corpus PRIVATE crc_core GTest::gtest GTest::gtest_main)
+target_compile_definitions(ct_translate_corpus PRIVATE
+    CRC_PROJECT_DIR="${CRC_PROJECT_DIR}")
+gtest_discover_tests(ct_translate_corpus PROPERTIES LABELS "CT")
 
 add_executable(ct_corpus ct_corpus.cpp)
 target_link_libraries(ct_corpus PRIVATE crc_core GTest::gtest GTest::gtest_main)

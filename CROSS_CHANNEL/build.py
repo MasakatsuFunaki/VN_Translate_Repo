@@ -97,7 +97,6 @@ def clean():
 
 SYNC_JSON_NAMES = (
     "translated_text.json",
-    "translation_cache_anthropic.json",
     "translation_cache_gemini.json",
     "nps_reconstruction_map.json",
     "chart_translation_cache.json",

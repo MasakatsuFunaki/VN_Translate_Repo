@@ -235,7 +235,7 @@ TEST(Paths, ParseCommandLineHandlesHelpAndOptions) {
 
     {
         apps::po::variables_map vm;
-        const char* argv[] = {"test_cli", "--dir", "D:\\Project"};
+        const char* argv[] = {"test_cli", "--dir", "X:\\vn_project"};
         const auto rc = apps::parse_command_line(
             static_cast<int>(std::size(argv)), const_cast<char**>(argv), desc, vm);
         ASSERT_TRUE(rc.has_value());
@@ -245,7 +245,7 @@ TEST(Paths, ParseCommandLineHandlesHelpAndOptions) {
     {
         apps::po::variables_map vm;
         const char* argv[] = {
-            "test_cli", "--dir", "D:\\Project", "--game-dir", "E:\\Game", "stray_token"};
+            "test_cli", "--dir", "X:\\vn_project", "--game-dir", "Y:\\vn_game", "stray_token"};
         const auto rc = apps::parse_command_line(
             static_cast<int>(std::size(argv)), const_cast<char**>(argv), desc, vm);
         ASSERT_TRUE(rc.has_value());
@@ -254,12 +254,12 @@ TEST(Paths, ParseCommandLineHandlesHelpAndOptions) {
 
     {
         apps::po::variables_map vm;
-        const char* argv[] = {"test_cli", "--dir", "D:\\Project", "--game-dir", "E:\\Game"};
+        const char* argv[] = {"test_cli", "--dir", "X:\\vn_project", "--game-dir", "Y:\\vn_game"};
         const auto rc = apps::parse_command_line(
             static_cast<int>(std::size(argv)), const_cast<char**>(argv), desc, vm);
         EXPECT_FALSE(rc.has_value());
-        EXPECT_EQ(project, "D:\\Project");
-        EXPECT_EQ(game, "E:\\Game");
+        EXPECT_EQ(project, "X:\\vn_project");
+        EXPECT_EQ(game, "Y:\\vn_game");
     }
 }
 
@@ -273,15 +273,50 @@ TEST(Paths, ParseCommandLinePreservesUtf8JapanesePaths) {
     const char* argv[] = {
         "test_cli_utf8",
         "--dir",
-        "D:\\日本語_プロジェクト\\CROSS_CHANNEL",
+        "X:\\日本語_プロジェクト\\CROSS_CHANNEL",
         "--game-dir",
-        "E:\\ゲーム\\CROSS†CHANNEL",
+        "Y:\\ゲーム\\CROSS†CHANNEL",
     };
     const auto rc = apps::parse_command_line(
         static_cast<int>(std::size(argv)), const_cast<char**>(argv), desc, vm);
     EXPECT_FALSE(rc.has_value());
-    EXPECT_EQ(project, "D:\\日本語_プロジェクト\\CROSS_CHANNEL");
-    EXPECT_EQ(game, "E:\\ゲーム\\CROSS†CHANNEL");
+    EXPECT_EQ(project, "X:\\日本語_プロジェクト\\CROSS_CHANNEL");
+    EXPECT_EQ(game, "Y:\\ゲーム\\CROSS†CHANNEL");
+}
+
+TEST(Paths, GeminiArtifactPathsPointUnconditionallyToGeminiCacheWithZeroLegacyFallback) {
+    const ScopedTempDir temp("vn_ut_paths_gemini_layout");
+    const fs::path proj_path = temp.path() / fs::u8path("日本語_CROSS_CHANNEL");
+    const fs::path game_path = temp.path() / fs::u8path("ゲーム_install");
+    fs::create_directories(proj_path / "script_output");
+    fs::create_directories(game_path / "data");
+
+    const std::string proj = proj_path.u8string();
+    const std::string game = game_path.u8string();
+    const std::string expected_gemini_cache =
+        proj + "\\script_output\\translation_cache_gemini.json";
+
+    // Clean slate: resolves unconditionally to translation_cache_gemini.json.
+    EXPECT_EQ(apps::cache_json(proj), expected_gemini_cache);
+    EXPECT_EQ(apps::extracted_json(proj), proj + "\\script_output\\extracted_text.json");
+    EXPECT_EQ(apps::blocked_lines_json(proj), proj + "\\script_output\\blocked_lines.json");
+    EXPECT_EQ(apps::raw_answers_log(proj), proj + "\\script_output\\gemini_raw_answers.log");
+    EXPECT_EQ(apps::last_batch_json(proj),
+              proj + "\\script_output\\last_gemini_translate\\last_translation.json");
+    EXPECT_EQ(apps::translated_json(proj), proj + "\\script_output\\translated_text.json");
+    EXPECT_EQ(apps::out_tsv(proj), proj + "\\build\\install\\game\\translations.tsv");
+    EXPECT_EQ(apps::sn_bin(game), game + "\\data\\sn.bin");
+    EXPECT_EQ(apps::game_tsv(game), game + "\\translations.tsv");
+
+    // Even if ONLY a legacy cache file exists on disk (and Gemini cache is absent),
+    // cache_json MUST still point unconditionally to translation_cache_gemini.json.
+    {
+        std::ofstream legacy(proj_path / "script_output" / "translation_cache_anthropic.json",
+                             std::ios::binary);
+        legacy << "{\"太一\": \"Taichi\"}";
+    }
+    ASSERT_FALSE(fs::exists(proj_path / "script_output" / "translation_cache_gemini.json"));
+    EXPECT_EQ(apps::cache_json(proj), expected_gemini_cache);
 }
 
 TEST(Paths, ProcessUtf8ArgsExecutesAndSkipsArgvZero) {
@@ -294,12 +329,12 @@ TEST(Paths, ProcessUtf8ArgsExecutesAndSkipsArgvZero) {
 }
 
 TEST(Paths, BuildCommandLineUtf16RoundTripsThroughCommandLineToArgvW) {
-    const std::string exe_path = "D:\\日本語 フォルダ\\bin\\01_extract.exe";
+    const std::string exe_path = "X:\\日本語 フォルダ\\bin\\01_extract.exe";
     const std::vector<std::string> args = {
         "--dir",
-        "D:\\日本語 プロジェクト\\CROSS CHANNEL\\",
+        "X:\\日本語 プロジェクト\\CROSS CHANNEL\\",
         "--game-dir",
-        "E:\\Games\\CROSS†CHANNEL\\\\",
+        "Y:\\Games\\CROSS†CHANNEL\\\\",
         "plain_no_spaces\\",
         "",
         "say \"hello\" world",
@@ -318,26 +353,26 @@ TEST(Paths, BuildCommandLineUtf16RoundTripsThroughCommandLineToArgvW) {
 }
 
 TEST(Paths, BuildCommandLineUtf16DoesNotDoubleTrailingBackslashOnArgvZero) {
-    const std::string exe_with_slash = "D:\\Tools\\";
-    const std::vector<std::string> args = {"--game-dir", "E:\\My Game\\"};
+    const std::string exe_with_slash = "X:\\Tools\\";
+    const std::vector<std::string> args = {"--game-dir", "Y:\\My Game\\"};
 
     const std::wstring cmd = apps::build_command_line_utf16(exe_with_slash, args);
-    EXPECT_EQ(cmd.rfind(L"\"D:\\Tools\\\"", 0), 0u);
+    EXPECT_EQ(cmd.rfind(L"\"X:\\Tools\\\"", 0), 0u);
 
     const std::vector<std::string> parsed = SplitCommandLineUtf16ToUtf8(cmd);
     ASSERT_EQ(parsed.size(), 3u);
     EXPECT_EQ(parsed[0], exe_with_slash);
     EXPECT_EQ(parsed[1], "--game-dir");
-    EXPECT_EQ(parsed[2], "E:\\My Game\\");
+    EXPECT_EQ(parsed[2], "Y:\\My Game\\");
 }
 
 TEST(Paths, BuildCommandLineUtf16RejectsInvalidExePathAndBadUtf8) {
     EXPECT_THROW(apps::build_command_line_utf16("", {}), std::invalid_argument);
-    EXPECT_THROW(apps::build_command_line_utf16("D:\\bad\"exe.exe", {}),
+    EXPECT_THROW(apps::build_command_line_utf16("X:\\bad\"exe.exe", {}),
                  std::invalid_argument);
 
     const char invalid_utf8[] = {static_cast<char>(kInvalidUtf8LeadByte), '\0'};
-    EXPECT_THROW(apps::build_command_line_utf16("D:\\valid.exe", {std::string(invalid_utf8)}),
+    EXPECT_THROW(apps::build_command_line_utf16("X:\\valid.exe", {std::string(invalid_utf8)}),
                  std::runtime_error);
 }
 

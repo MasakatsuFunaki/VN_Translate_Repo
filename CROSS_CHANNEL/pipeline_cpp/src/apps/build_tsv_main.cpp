@@ -13,8 +13,8 @@
 //   02_build_tsv --game-dir <install> --rebuild-table
 #include "apps/paths.h"
 #include "build_tsv/build_tsv.h"
-#include "cache/cache_core.h"
 #include "common/util.h"
+#include "translate/translate_core.h"
 
 #include <exception>
 #include <filesystem>

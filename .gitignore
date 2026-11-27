@@ -135,6 +135,11 @@ sakuranotoki/proxy_dll/iarsys_orig.dll
 # SakuraNoUta's translate step writes every raw API answer here on each run.
 # It repeats the script line by line, and nothing reads it back.
 SakuraNoUta/script_output/anthropic_raw_answers.log
+CROSS_CHANNEL/script_output/*.json
+CROSS_CHANNEL/script_output/*.log
+CROSS_CHANNEL/script_output/blocked_lines.json
+CROSS_CHANNEL/script_output/gemini_raw_answers.log
+CROSS_CHANNEL/script_output/last_gemini_translate/
 _specs*
 resume.md
 fraternite_hd_box_art_*.png

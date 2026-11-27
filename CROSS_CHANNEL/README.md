@@ -4,8 +4,10 @@
 |---|---|
 | **Engine** | WillPlus/AdvHD (`cc.exe`, 5pb. `ph` port) |
 | **Format** | `sn.bin` — LZSS compressed bytecode (CP932); `data\sys.cpk` — Criware CPK (`ITOC` + LZSS `.pak` + `xtx\0` textures) |
-| **JP Strings** | 53,635 (28,787 dialogue + 24,848 narration) |
+| **JP Strings** | 53,635 (28,787 dialogue + 24,848 narration; 43,181 unique translatable) |
 | **Speakers** | 75 (太一, 見里, 美希, 霧, 冬子, 友貴, 桜庭, 曜子, 七香 …) |
+| **Model** | `gemini-4-argon` (`thinkingBudget: 2048`, `BLOCK_NONE`, 60-line rolling + 20-line lookahead context) |
+| **Encrypted State** | `script_output/translation_cache_gemini.json.enc` + `script_output/translated_text.json.enc` |
 | **Delivery** | `xinput1_3.dll` + `translations.tsv` + `menu_patch.bin` |
 
 ## Runtime Hooks & UI Localization
@@ -18,24 +20,28 @@
 
 ```
 01_extract           → extracted_text.json
-02_build_tsv         → speaker gate → translated_text.json + translations.tsv
-00_run_all           → all three in one shot
+02_translate         → speaker gate → gemini-4-argon batches → translation_cache_gemini.json + translated_text.json + translations.tsv
+02_build_tsv         → speaker gate → offline cache apply → translated_text.json + translations.tsv
+00_run_all           → 01_extract → 02_build_tsv → deploy
 03_find_narrative_cg → CG/UI images with JP text → narrative_patched/ (inspection-only)
 ```
 
-`python build.py --deploy` copies `xinput1_3.dll` + `translations.tsv` + `menu_patch.bin` into `<install>`.
+`python build.py --deploy --game-dir <game_dir>` syncs `*.json.enc` and copies `xinput1_3.dll` + `translations.tsv` + `menu_patch.bin` into `<game_dir>`.
 
-## Build
+## Build & Translate
 
 ```bat
-python build.py                    # both halves (pipeline x64, proxy Win32)
-python build.py --test --install   # build + tests + stage into build/install
-python build.py --deploy --game-dir <install>   # ship to game
+python build.py                                 # both halves (pipeline x64, proxy Win32)
+python build.py --test --install                # build + tests + stage into build/install
+python build.py --deploy --game-dir <game_dir>  # ship to game
 python build.py --clean
 
-build\install\bin\00_run_all.exe --game-dir <install>
+build\install\bin\02_translate.exe --gate-only
+build\install\bin\02_translate.exe --max-batches 1 --batch 120
+build\install\bin\02_translate.exe --game-dir <game_dir>
+build\install\bin\02_build_tsv.exe --game-dir <game_dir> --rebuild-table
+build\install\bin\00_run_all.exe --game-dir <game_dir>
 ```
 
-Every app takes `--dir <project>` and `--game-dir <install>`.
-`--game-dir <install>` is required: the game install path differs per machine.
-`02_build_tsv.exe` also accepts `--out <path>` and `--rebuild-table`.
+Every app accepts `--dir <repo_root>\CROSS_CHANNEL` and `--game-dir <game_dir>`.
+`02_translate.exe` reads `GEMINI_API_KEY` from the environment, `%USERPROFILE%\.gemini\.env`, or `HKCU\Environment`, checkpoints `script_output\translation_cache_gemini.json` and `script_output\last_gemini_translate\last_translation.json` atomically after each batch, isolates any single persistently refused line in `script_output\blocked_lines.json` without poisoning the cache, and supports `--model`, `--batch`, `--context`, `--context-after`, `--thinking-budget`, `--max-batches`, `--max-budget-eur`, `--gate-only`, `--retranslate`, `--discard-cache`, and `--out`.

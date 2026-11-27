@@ -5,17 +5,17 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved.  See NOTICE.
 
-#include "build_tsv.h"
+#include "build_tsv/build_tsv.h"
+
+#include "common/util.h"
+#include "translate/glossary.h"
+
+#include <boost/json.hpp>
 
 #include <filesystem>
 #include <map>
 #include <utility>
 #include <vector>
-
-#include <boost/json.hpp>
-
-#include "cache/glossary.h"
-#include "common/util.h"
 
 namespace crc::build_tsv {
 
