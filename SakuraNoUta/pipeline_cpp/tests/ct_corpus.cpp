@@ -13,6 +13,7 @@
 #include "cache/speaker_gate.h"
 #include "common/coverage.h"
 #include "common/util.h"
+#include "translator_logic.h"
 
 #include <boost/json.hpp>
 
@@ -423,6 +424,9 @@ TEST(BoxBudget, the_deployed_table_fits_the_boxes_it_is_drawn_in) {
                   << o.lines_drawn << "\n";
     }
 
+    EXPECT_EQ(r.boxes_with_english, r.boxes)
+        << "every box in the deployed corpus must resolve in translations.tsv "
+           "(0 runtime misses)";
     EXPECT_EQ(r.dropped_segments, 0u);
     EXPECT_EQ(r.over_budget_boxes - r.over_budget_chained, 0u)
         << "single-string boxes whose English does not fit the box";
@@ -457,24 +461,29 @@ TEST(BuildTsv, deployed_tsv_matches_translated_text_boundary_samples) {
         std::vector<std::string> script_keys;
         for (const auto& ev : it->value().get_array()) {
             const auto& entry = ev.get_object();
-            std::string jp(entry.at("text").get_string());
-            std::string en = jp;
+            const std::string raw_jp(entry.at("text").get_string());
+            std::string en = raw_jp;
             if (const auto* t = entry.if_contains("translated")) {
                 if (t->is_string()) {
                     en = std::string(t->get_string());
                 }
             }
-            if (en == jp) {
+            if (en == raw_jp) {
                 continue;
             }
-            script_keys.push_back(jp);
-            auto idx_it = index.find(jp);
+            const std::string wire_jp =
+                translator_logic::StripBgiWireDirectiveSuffix(raw_jp);
+            if (translator_logic::HasBgiWireDirectiveSuffix(raw_jp)) {
+                en = translator_logic::StripLeakedTrailingDirective(en);
+            }
+            script_keys.push_back(wire_jp);
+            auto idx_it = index.find(wire_jp);
             if (idx_it != index.end()) {
                 order[idx_it->second].second = en;
                 continue;
             }
-            index.emplace(jp, order.size());
-            order.emplace_back(jp, en);
+            index.emplace(wire_jp, order.size());
+            order.emplace_back(wire_jp, en);
         }
         if (!script_keys.empty()) {
             per_script_keys.push_back(std::move(script_keys));
@@ -655,4 +664,191 @@ TEST(Translate, speaker_gate_passes_over_the_current_extraction) {
         << "the table and the scripts have to cover each other exactly";
     EXPECT_EQ(report.dialogue_total, kExpectedDialogueTotal);
     EXPECT_EQ(report.dialogue_sampled, kExpectedDialogueSampled);
+}
+
+TEST(BuildTsv, deployed_tsv_carries_no_unhandled_directives_and_resolves_bgi_amp_boxes) {
+    const fs::path tsv_path = fs::u8path(SNU_PROJECT_DIR) / "build" /
+                              "install" / "game" / "translations.tsv";
+    const fs::path doc_path =
+        fs::u8path(SNU_PROJECT_DIR) / "script_output" / "translated_text.json";
+    ASSERT_TRUE(fs::exists(tsv_path)) << tsv_path.u8string();
+    ASSERT_TRUE(fs::exists(doc_path)) << doc_path.u8string();
+
+    // 1. Scan every script string in translated_text.json for unknown ASCII
+    //    control/directive tokens so a new BGI wire directive cannot slip past
+    //    the pipeline unnormalized.
+    const bj::object root = snu::json_parse_file(doc_path.u8string()).get_object();
+    std::size_t unknown_ctrl = 0u;
+    std::size_t unknown_directive = 0u;
+    std::size_t handled_amp_directives = 0u;
+    std::string first_bad;
+    for (const auto& kv : root) {
+        if (!kv.value().is_object()) {
+            continue;
+        }
+        const auto* strings = kv.value().get_object().if_contains("strings");
+        if (!strings || !strings->is_array()) {
+            continue;
+        }
+        for (const auto& ev : strings->get_array()) {
+            const std::string text(ev.get_object().at("text").get_string());
+            if (translator_logic::HasBgiWireDirectiveSuffix(text)) {
+                ++handled_amp_directives;
+            }
+            for (std::size_t i = 0u; i < text.size(); ++i) {
+                const unsigned char ch = static_cast<unsigned char>(text[i]);
+                if (ch < 0x20u && ch != '\n' && ch != '\r' && ch != '\t') {
+                    ++unknown_ctrl;
+                    if (first_bad.empty()) {
+                        first_bad = text;
+                    }
+                }
+                if (ch == '&' || ch == '@' || ch == '$' || ch == '%' ||
+                    ch == '#' || ch == '^' || ch == '|') {
+                    const bool is_handled_tail_amp =
+                        (ch == '&' && i + 1u == text.size() &&
+                         translator_logic::HasBgiWireDirectiveSuffix(text));
+                    if (!is_handled_tail_amp) {
+                        ++unknown_directive;
+                        if (first_bad.empty()) {
+                            first_bad = text;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    EXPECT_EQ(handled_amp_directives, 2u)
+        << "expected the 2 known BGI '\\n&' directives in 06_Ⅵ_08";
+    EXPECT_EQ(unknown_ctrl, 0u) << "unexpected control char in: " << first_bad;
+    EXPECT_EQ(unknown_directive, 0u)
+        << "unrecognized ASCII directive symbol in corpus JP string: "
+        << first_bad;
+
+    // 2. Scan every row of deployed translations.tsv for leaked directives or
+    //    raw control characters.
+    const auto tsv_rows = read_tsv(tsv_path.u8string());
+    ASSERT_FALSE(tsv_rows.empty());
+    auto has_bad_ctrl = [](const std::string& s) {
+        for (const char ch : s) {
+            const unsigned char b = static_cast<unsigned char>(ch);
+            if (b < 0x20u && b != '\n' && b != '\r' && b != '\t') {
+                return true;
+            }
+        }
+        return false;
+    };
+    std::size_t bad_keys = 0u;
+    std::size_t bad_values = 0u;
+    std::string first_bad_key;
+    std::string first_bad_val;
+    for (const auto& [esc_key, vals] : tsv_rows) {
+        std::string key = esc_key;
+        translator_logic::UnescapeInPlace(key);
+        if (translator_logic::HasBgiWireDirectiveSuffix(key) ||
+            has_bad_ctrl(key)) {
+            ++bad_keys;
+            if (first_bad_key.empty()) {
+                first_bad_key = esc_key;
+            }
+        }
+        for (const std::string& esc_val : vals) {
+            std::string val = esc_val;
+            translator_logic::UnescapeInPlace(val);
+            const bool leaked_amp =
+                translator_logic::HasBgiWireDirectiveSuffix(val) ||
+                val == "&" ||
+                (val.size() >= 2u &&
+                 (val[val.size() - 2u] == ' ' || val[val.size() - 2u] == '\t') &&
+                 val.back() == '&');
+            if (leaked_amp || has_bad_ctrl(val)) {
+                ++bad_values;
+                if (first_bad_val.empty()) {
+                    first_bad_val = esc_key + " -> " + esc_val;
+                }
+            }
+        }
+    }
+    EXPECT_EQ(bad_keys, 0u)
+        << "TSV key carries BGI '\\n&' or control char: " << first_bad_key;
+    EXPECT_EQ(bad_values, 0u)
+        << "TSV value carries leaked '&' or control char: " << first_bad_val;
+
+    // 3. Verify both 06_Ⅵ_08 wire-normalized boxes across initial panel draw,
+    //    unprefixed redraw, and backlog concatenation with exact text + budget.
+    namespace tl = translator_logic;
+    const tl::TranslationMap table = bt::load_runtime_table(tsv_path.u8string());
+    ASSERT_FALSE(table.empty());
+
+    struct EpilogueExpectation {
+        const char* seg0_utf8;
+        const char* seg1_utf8;
+        const char* expected_s0;
+        const char* expected_s1;
+        const char* expected_hist;
+    };
+    const EpilogueExpectation kEpilogueChains[] = {
+        {
+            "　まだ日は高い。\nけれど、数刻すれば、日も暮れるだろう。\n",
+            "そうしたら、この街に灯りがともる。",
+            "The sun was still high. But in a few hours it would set. ",
+            "\x05" "And when it\ndid, the lights of this town would come on.",
+            "The sun was still high. But in a few hours it would set. "
+            "And when it\ndid, the lights of this town would come on.",
+        },
+        {
+            "　そんな俺を見て、\n",
+            "藍がにっこりと笑った。",
+            "Watching me like that, ",
+            "\x05" "Ai smiled gently.",
+            "Watching me like that, Ai smiled gently.",
+        },
+    };
+    for (const auto& tc : kEpilogueChains) {
+        SCOPED_TRACE(tc.seg0_utf8);
+        const std::string wire0 = tl::Utf8ToCp932(tc.seg0_utf8);
+        const std::string wire1 = "\x05" + tl::Utf8ToCp932(tc.seg1_utf8);
+        const std::string backlog_wire = wire0 + tl::Utf8ToCp932(tc.seg1_utf8);
+
+        tl::BoxLineBudget budget;
+        tl::Substitution s0;
+        ASSERT_EQ(tl::BuildSubstitution(wire0.c_str(), table, budget, /*box=*/1,
+                                        tl::DIALOGUE_PANEL, s0),
+                  tl::SubstitutionStatus::Substituted);
+        EXPECT_TRUE(s0.more_follows);
+        EXPECT_FALSE(s0.truncated);
+        EXPECT_EQ(s0.bytes, tc.expected_s0);
+        EXPECT_LE(s0.bytes.size(),
+                  tl::DrawBudget(wire0.size(), tl::RECTS_PER_WIRE_BYTE * 8u));
+
+        tl::Substitution s1;
+        ASSERT_EQ(tl::BuildSubstitution(wire1.c_str(), table, budget, /*box=*/1,
+                                        tl::DIALOGUE_PANEL, s1),
+                  tl::SubstitutionStatus::Substituted);
+        EXPECT_TRUE(s1.continues);
+        EXPECT_FALSE(s1.truncated);
+        EXPECT_EQ(s1.bytes, tc.expected_s1);
+        EXPECT_LE(s1.bytes.size(),
+                  tl::DrawBudget(wire1.size(), tl::RECTS_PER_WIRE_BYTE * 8u));
+
+        // Unprefixed redraw (msgwndctrl._bp) must restart cleanly from line 0.
+        tl::Substitution redraw0;
+        ASSERT_EQ(tl::BuildSubstitution(wire0.c_str(), table, budget, /*box=*/1,
+                                        tl::DIALOGUE_PANEL, redraw0),
+                  tl::SubstitutionStatus::Substituted);
+        EXPECT_EQ(redraw0.box_lines_before, 0u);
+        EXPECT_EQ(redraw0.bytes, tc.expected_s0);
+
+        tl::BoxLineBudget hist_budget;
+        tl::Substitution hist;
+        ASSERT_EQ(tl::BuildSubstitution(backlog_wire.c_str(), table,
+                                        hist_budget, /*box=*/2,
+                                        tl::HISTORY_WINDOW, hist),
+                  tl::SubstitutionStatus::Substituted);
+        EXPECT_FALSE(hist.truncated);
+        EXPECT_EQ(hist.bytes, tc.expected_hist);
+        EXPECT_LE(hist.bytes.size(),
+                  tl::DrawBudget(backlog_wire.size(),
+                                 tl::RECTS_PER_WIRE_BYTE * 8u));
+    }
 }

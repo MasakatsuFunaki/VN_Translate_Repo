@@ -240,3 +240,53 @@ TEST_F(TranslationPipelineTest, EveryValueIsWellFormedCp932) {
     EXPECT_EQ(bad, 0u) << bad << " values are not valid CP932; first such: '"
                        << first_bad << "'";
 }
+
+TEST_F(TranslationPipelineTest,
+       NoKeyOrValueCarriesUnhandledBgiDirectiveOrControlByte) {
+    std::size_t bad_keys = 0u;
+    std::size_t bad_values = 0u;
+    std::string first_bad_key;
+    std::string first_bad_val;
+    for (const auto& [key, val] : map) {
+        bool key_bad = translator_logic::HasBgiWireDirectiveSuffix(key);
+        for (const char ch : key) {
+            const unsigned char b = static_cast<unsigned char>(ch);
+            if (b < 0x20u && b != '\n' && b != '\r' && b != '\t') {
+                key_bad = true;
+                break;
+            }
+        }
+        if (key_bad) {
+            ++bad_keys;
+            if (first_bad_key.empty()) {
+                first_bad_key = translator_logic::Cp932ToUtf8(key);
+            }
+        }
+
+        bool val_bad =
+            translator_logic::HasBgiWireDirectiveSuffix(val) ||
+            val == "&" ||
+            (val.size() >= 2u &&
+             (val[val.size() - 2u] == ' ' || val[val.size() - 2u] == '\t') &&
+             val.back() == '&');
+        for (const char ch : val) {
+            const unsigned char b = static_cast<unsigned char>(ch);
+            if (b < 0x20u && b != '\n' && b != '\r' && b != '\t') {
+                val_bad = true;
+                break;
+            }
+        }
+        if (val_bad) {
+            ++bad_values;
+            if (first_bad_val.empty()) {
+                first_bad_val = val;
+            }
+        }
+    }
+    EXPECT_EQ(bad_keys, 0u)
+        << bad_keys << " keys carry an unhandled BGI directive or control byte;"
+        << " first: '" << first_bad_key << "'";
+    EXPECT_EQ(bad_values, 0u)
+        << bad_values << " values carry a leaked trailing '&' or control byte;"
+        << " first: '" << first_bad_val << "'";
+}

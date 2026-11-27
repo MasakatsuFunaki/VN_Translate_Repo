@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -77,6 +78,35 @@ bool CarriesRuby(const std::string& cp932);
 // Strip furigana from a CP932 buffer the engine will draw itself.  At the
 // 30 px pitch the reading would overlap the line above; other tags are kept.
 std::string StripRubyForDisplay(const std::string& cp932);
+
+// BGI click-wait-append directive ("&" immediately following "\n" or "\r").
+// BGI's script runtime strips the trailing '&' when staging the string for the
+// renderer at RVA 0x33900, leaving the preceding '\n' to chain the box.
+bool HasBgiWireDirectiveSuffix(std::string_view text) noexcept;
+
+// Return `text` with a trailing BGI "\n&" / "\r&" directive stripped to "\n" /
+// "\r".  Safe on both UTF-8 and CP932 because 0x0A, 0x0D, and 0x26 are never
+// multi-byte continuation/trail bytes.
+std::string StripBgiWireDirectiveSuffix(std::string_view text);
+
+// Strip a leaked trailing BGI "&" directive (e.g. "\n&", "\r&", or " &") from
+// an English value whose Japanese source carried "\n&".
+std::string StripLeakedTrailingDirective(std::string_view en);
+
+// Deterministic fallback for non-extracted op 0x140 / positioned strings whose
+// CP932 double-byte sequences belong exclusively to the Japanese-punctuation /
+// symbol / Roman-numeral / fullwidth-ASCII allowlist (zero kana or kanji, no
+// "<...>" markup):
+// - Pure ASCII, pure whitespace (e.g. yuzu_2g's dummy "　"), unframed ASCII
+//   alnum + JP punctuation (e.g. "No.01：12", "Wait……", "――Wait", "Wait――";
+//   ASCII alnum requires either a JP bracket or framing dashes on both ends,
+//   as in "「What is mind？」" or "――ZYPRESSENⅡ――"), dangling/invalid CP932
+//   lead bytes, halfwidth katakana (0xA1..0xDF), and control bytes (<0x20
+//   except '\n'/'\r'/'\t', 0x7F) return false and leave `out` untouched.
+// - On true, folds to clean halfwidth ASCII punctuation, collapses "……。" ->
+//   "......", drops paragraph-leading U+3000, and normalizes interior U+3000
+//   to a single ASCII space (avoiding duplicates beside ASCII spaces).
+bool TryFoldPunctuationOnlyCp932(std::string_view cp932, std::string& out);
 
 // English value preparation.
 
