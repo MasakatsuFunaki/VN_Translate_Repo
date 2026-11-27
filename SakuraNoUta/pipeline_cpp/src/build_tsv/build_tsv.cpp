@@ -249,11 +249,19 @@ std::string normalize_leading_space(const std::string& jp, const std::string& en
 }
 
 std::string shipped_english(const std::string& jp, const std::string& en) {
+    const std::string wire_jp = translator_logic::StripBgiWireDirectiveSuffix(jp);
     std::string value = apply_pinned_terms(jp, en);
-    if (value != jp && translator_logic::CarriesEngineMarkup(value)) {
+    if (translator_logic::HasBgiWireDirectiveSuffix(jp)) {
+        if (value == jp) {
+            value = wire_jp;
+        } else {
+            value = translator_logic::StripLeakedTrailingDirective(value);
+        }
+    }
+    if (value != wire_jp && translator_logic::CarriesEngineMarkup(value)) {
         value = translator_logic::StripEngineMarkup(value);
     }
-    return run_together(normalize_leading_space(jp, value));
+    return run_together(normalize_leading_space(wire_jp, value));
 }
 
 int run_build(const std::string& translated_file, const std::string& out_tsv,
@@ -285,12 +293,22 @@ int run_build(const std::string& translated_file, const std::string& out_tsv,
         drawn.reserve(it->value().get_array().size());
         for (const auto& ev : it->value().get_array()) {
             const auto& entry = ev.get_object();
-            std::string jp(entry.at("text").get_string());
-            std::string en = jp;
+            const std::string raw_jp(entry.at("text").get_string());
+            const bool has_bgi_directive =
+                translator_logic::HasBgiWireDirectiveSuffix(raw_jp);
+            const std::string jp =
+                translator_logic::StripBgiWireDirectiveSuffix(raw_jp);
+            std::string en = raw_jp;
             if (auto* t = entry.if_contains("translated")) {
                 if (t->is_string()) {
                     en = std::string(t->get_string());
                 }
+            }
+            const bool is_untranslated = (en == raw_jp);
+            if (!is_untranslated && has_bgi_directive) {
+                en = translator_logic::StripLeakedTrailingDirective(en);
+            } else if (is_untranslated && has_bgi_directive) {
+                en = jp;
             }
             DrawnSegment seg;
             seg.jp = jp;
@@ -304,7 +322,7 @@ int run_build(const std::string& translated_file, const std::string& out_tsv,
             }
             drawn.push_back(std::move(seg));
             ++total_seen;
-            if (!include_untranslated && en == jp) {
+            if (!include_untranslated && is_untranslated) {
                 ++untranslated;
                 continue;
             }

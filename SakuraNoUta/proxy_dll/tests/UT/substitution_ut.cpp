@@ -1671,3 +1671,314 @@ TEST(PositionedBox, SaveLoadPreviewResetsMidNoClearBoxWhenNoNewlineFollows) {
     EXPECT_EQ(c_load[1], 24);
     EXPECT_EQ(sub.box_lines_after, 1u);
 }
+
+TEST(Substitution, BgiAmpersandChainedBoxFlowsAcrossWireSegments) {
+    using translator_logic::DIALOGUE_PANEL;
+    using translator_logic::DrawBudget;
+    using translator_logic::HISTORY_WINDOW;
+    using translator_logic::ParseTsvBuffer;
+    using translator_logic::RECTS_PER_WIRE_BYTE;
+    using translator_logic::Utf8ToCp932;
+
+    // Even if loaded from a TSV whose key still carried "\n&", ParseTsvBuffer
+    // normalizes it so the runtime wire bytes BGI actually sends (trailing '&'
+    // stripped, '\n' kept) hit across all 3 rendering paths: initial scrmsg._bp
+    // chain, unprefixed msgwndctrl._bp redraw, and logwnd._bp HISTORY_WINDOW.
+    const std::string tsv =
+        "　まだ日は高い。\\nけれど、数刻すれば、日も暮れるだろう。\\n&\t"
+        "　The sun was still high. But in a few hours it would set. &\n"
+        "そうしたら、この街に灯りがともる。\t"
+        "And when it did, the lights of this town would come on.\n";
+    TranslationMap m;
+    ASSERT_EQ(ParseTsvBuffer(tsv.data(), tsv.size(), m), 2);
+
+    const std::string wire1 =
+        Utf8ToCp932("　まだ日は高い。\nけれど、数刻すれば、日も暮れるだろう。\n");
+    const std::string wire2 =
+        "\x05" + Utf8ToCp932("そうしたら、この街に灯りがともる。");
+
+    // 1. Initial scrmsg._bp draw (segment 0 + \x05 continuation segment 1).
+    BoxLineBudget budget;
+    Substitution sub1;
+    ASSERT_EQ(BuildSubstitution(wire1.c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub1),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(sub1.tail, 1u);
+    EXPECT_TRUE(sub1.more_follows);
+    EXPECT_FALSE(sub1.truncated);
+    EXPECT_EQ(sub1.bytes,
+              "The sun was still high. But in a few hours it would set. ");
+    EXPECT_LE(sub1.bytes.size(), DrawBudget(wire1.size(), RECTS_PER_WIRE_BYTE));
+
+    Substitution sub2;
+    ASSERT_EQ(BuildSubstitution(wire2.c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, sub2),
+              SubstitutionStatus::Substituted);
+    EXPECT_TRUE(sub2.continues);
+    EXPECT_FALSE(sub2.more_follows);
+    EXPECT_FALSE(sub2.truncated);
+    EXPECT_EQ(sub2.box_lines_after, 2u);
+    EXPECT_EQ(sub2.bytes,
+              "\x05" "And when it\ndid, the lights of this town would come on.");
+    EXPECT_LE(sub2.bytes.size(), DrawBudget(wire2.size(), RECTS_PER_WIRE_BYTE));
+
+    // 2. msgwndctrl._bp unprefixed redraw resets the dialogue box cleanly.
+    Substitution redraw1;
+    ASSERT_EQ(BuildSubstitution(wire1.c_str(), m, budget, kDialogue,
+                                DIALOGUE_PANEL, redraw1),
+              SubstitutionStatus::Substituted);
+    EXPECT_EQ(redraw1.box_lines_before, 0u);
+    EXPECT_EQ(redraw1.box_lines_after, 1u);
+    EXPECT_EQ(redraw1.bytes, sub1.bytes);
+
+    // 3. logwnd._bp HISTORY_WINDOW backlog: resolves via greedy multi-segment
+    //    decomposition even without a pre-emitted whole-box row.
+    const std::string backlog_wire =
+        wire1 + Utf8ToCp932("そうしたら、この街に灯りがともる。");
+    BoxLineBudget hist_budget;
+    Substitution hist;
+    ASSERT_EQ(BuildSubstitution(backlog_wire.c_str(), m, hist_budget, kDialogue,
+                                HISTORY_WINDOW, hist),
+              SubstitutionStatus::Substituted);
+    EXPECT_FALSE(hist.truncated);
+    EXPECT_EQ(hist.bytes,
+              "The sun was still high. But in a few hours it would set. "
+              "And when it\ndid, the lights of this town would come on.");
+    EXPECT_LE(hist.bytes.size(),
+              DrawBudget(backlog_wire.size(), RECTS_PER_WIRE_BYTE));
+}
+
+TEST(Substitution, PunctuationOnlyAndJpBracketedAsciiFallback) {
+    using translator_logic::DIALOGUE_PANEL;
+    using translator_logic::DrawBudget;
+    using translator_logic::HISTORY_WINDOW;
+    using translator_logic::MAX_LINES;
+    using translator_logic::RECTS_PER_WIRE_BYTE;
+    using translator_logic::Surface;
+    using translator_logic::TryFoldPunctuationOnlyCp932;
+    using translator_logic::Utf8ToCp932;
+
+    const TranslationMap empty_map;
+    BoxLineBudget budget;
+
+    struct FoldCase {
+        const char* jp_utf8;
+        const char* expected_ascii;
+    };
+    const FoldCase kCases[] = {
+        {"「……」", "\"......\""},
+        {"「！？」", "\"!?\""},
+        {"　……。 ", "...... "},
+        {"　……。", "......"},
+        {"「～♪」", "\"~~\""},
+        {"「ＺＺＺ……」", "\"ZZZ......\""},
+        {"「──！？」", "\"--!?\""},
+        {"（……？）", "(......?)"},
+        {"「What is mind？　No matter.」", "\"What is mind? No matter.\""},
+        {"「What is mind？　 No matter.\nWhat is matter？　 Never mind.」",
+         "\"What is mind? No matter.\nWhat is matter? Never mind.\""},
+        {"「And for an Everlasting Roof\nThe Gambrels of the Sky―」",
+         "\"And for an Everlasting Roof\nThe Gambrels of the Sky--\""},
+        {"――≠――", "----!=----"},
+        {"――ZYPRESSEN――", "----ZYPRESSEN----"},
+        {"――ZYPRESSENⅡ――", "----ZYPRESSENII----"},
+        {"ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ", "IIIIIIIVVVIVIIVIIIIXX"},
+    };
+
+    for (const auto& tc : kCases) {
+        SCOPED_TRACE(tc.jp_utf8);
+        const std::string wire = Utf8ToCp932(tc.jp_utf8);
+        std::string folded;
+        ASSERT_TRUE(TryFoldPunctuationOnlyCp932(wire, folded));
+        EXPECT_EQ(folded, tc.expected_ascii);
+
+        Substitution sub;
+        ASSERT_EQ(BuildSubstitution(wire.c_str(), empty_map, budget, kDialogue,
+                                    DIALOGUE_PANEL, sub),
+                  SubstitutionStatus::Substituted);
+        EXPECT_FALSE(sub.truncated);
+        EXPECT_EQ(sub.bytes, tc.expected_ascii);
+    }
+
+    // Trailing newline chains the box through the same flowing path.
+    {
+        BoxLineBudget chain_budget;
+        const std::string seg1 = Utf8ToCp932("「……。\n");
+        const std::string seg2 =
+            "\x05" + Utf8ToCp932("What is matter ? Never mind.」");
+        Substitution s1;
+        ASSERT_EQ(BuildSubstitution(seg1.c_str(), empty_map, chain_budget,
+                                    kDialogue, DIALOGUE_PANEL, s1),
+                  SubstitutionStatus::Substituted);
+        EXPECT_EQ(s1.tail, 1u);
+        EXPECT_TRUE(s1.more_follows);
+        EXPECT_EQ(s1.bytes, "\"...... ");
+
+        Substitution s2;
+        ASSERT_EQ(BuildSubstitution(seg2.c_str(), empty_map, chain_budget,
+                                    kDialogue, DIALOGUE_PANEL, s2),
+                  SubstitutionStatus::Substituted);
+        EXPECT_TRUE(s2.continues);
+        EXPECT_EQ(s2.bytes, "\x05" "What is matter ? Never mind.\"");
+    }
+
+    // All 3 rendering paths + yuzu_2g positioned-box flow for punctuation fallback.
+    {
+        const std::string ell = Utf8ToCp932("「……」");
+        BoxLineBudget path_budget;
+        Substitution initial;
+        ASSERT_EQ(BuildSubstitution(ell.c_str(), empty_map, path_budget,
+                                    kDialogue, DIALOGUE_PANEL, initial),
+                  SubstitutionStatus::Substituted);
+        EXPECT_EQ(initial.bytes, "\"......\"");
+
+        Substitution redraw;
+        ASSERT_EQ(BuildSubstitution(ell.c_str(), empty_map, path_budget,
+                                    kDialogue, DIALOGUE_PANEL, redraw),
+                  SubstitutionStatus::Substituted);
+        EXPECT_EQ(redraw.box_lines_before, 0u);
+        EXPECT_EQ(redraw.bytes, "\"......\"");
+
+        Substitution backlog;
+        ASSERT_EQ(BuildSubstitution(ell.c_str(), empty_map, path_budget,
+                                    kDialogue, HISTORY_WINDOW, backlog),
+                  SubstitutionStatus::Substituted);
+        EXPECT_EQ(backlog.bytes, "\"......\"");
+
+        // yuzu_2g positioned opener "　" + prefixed "\x05「……」" and "　「……」"
+        BoxLineBudget pos_budget;
+        const int box_rect[4] = {48, 24, 1024, 150};
+        int d_xy[2] = {48, 24};
+        Substitution opener;
+        ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), empty_map, pos_budget,
+                                    kDialogue, DIALOGUE_PANEL, opener, d_xy,
+                                    box_rect, 30),
+                  SubstitutionStatus::Substituted);
+        EXPECT_TRUE(opener.bytes.empty());
+
+        int p_xy[2] = {200, 24};
+        const std::string pref_ell = "\x05" + ell;
+        Substitution pos_seg;
+        ASSERT_EQ(BuildSubstitution(pref_ell.c_str(), empty_map, pos_budget,
+                                    kDialogue, DIALOGUE_PANEL, pos_seg, p_xy,
+                                    box_rect, 30),
+                  SubstitutionStatus::Substituted);
+        EXPECT_EQ(pos_seg.bytes, "\"......\"");
+        EXPECT_EQ(p_xy[0], 48);
+        EXPECT_EQ(p_xy[1], 24);
+
+        const std::string indented_ell = kFwSpace + ell;
+        Substitution ind_sub;
+        ASSERT_EQ(BuildSubstitution(indented_ell.c_str(), empty_map, pos_budget,
+                                    kDialogue, DIALOGUE_PANEL, ind_sub),
+                  SubstitutionStatus::Substituted);
+        EXPECT_EQ(ind_sub.bytes, "\"......\"");
+    }
+
+    // Long folded ellipsis (39× '…' from retail corpus) wraps cleanly within
+    // stock DrawBudget, and respects tight Surface::max_bytes trimming.
+    {
+        std::string long_jp = "「";
+        for (int i = 0; i < 39; ++i) long_jp += "…";
+        long_jp += "」";
+        const std::string wire = Utf8ToCp932(long_jp);
+        ASSERT_EQ(wire.size(), 82u);
+
+        BoxLineBudget wrap_budget;
+        Substitution wide_sub;
+        ASSERT_EQ(BuildSubstitution(wire.c_str(), empty_map, wrap_budget,
+                                    kDialogue, DIALOGUE_PANEL, wide_sub),
+                  SubstitutionStatus::Substituted);
+        EXPECT_FALSE(wide_sub.truncated);
+        EXPECT_EQ(wide_sub.lines, 2u);
+        EXPECT_LE(wide_sub.bytes.size(),
+                  DrawBudget(wire.size(), RECTS_PER_WIRE_BYTE));
+
+        Surface tight = DIALOGUE_PANEL;
+        tight.max_bytes = 16u;
+        Substitution tight_sub;
+        ASSERT_EQ(BuildSubstitution(wire.c_str(), empty_map, wrap_budget,
+                                    kDialogue, tight, tight_sub),
+                  SubstitutionStatus::Substituted);
+        EXPECT_TRUE(tight_sub.truncated);
+        EXPECT_LE(tight_sub.bytes.size(), 16u);
+    }
+
+    // Explicit TSV entry must always take precedence over the fallback.
+    {
+        TranslationMap override_map;
+        override_map[Utf8ToCp932("「……」")] = "\"...\"";
+        Substitution sub;
+        const std::string wire = Utf8ToCp932("「……」");
+        ASSERT_EQ(BuildSubstitution(wire.c_str(), override_map, budget,
+                                    kDialogue, DIALOGUE_PANEL, sub),
+                  SubstitutionStatus::Substituted);
+        EXPECT_EQ(sub.bytes, "\"...\"");
+    }
+
+    // Non-interference guarantees:
+    // 1. Dummy "　" (0x81 0x40) keeps positioned-box opener semantics on panel
+    //    and is NOT folded on non-flowing surfaces (backlog).
+    {
+        std::string folded = "untouched";
+        EXPECT_FALSE(TryFoldPunctuationOnlyCp932(kFwSpace, folded));
+        EXPECT_EQ(folded, "untouched");
+        EXPECT_FALSE(TryFoldPunctuationOnlyCp932(kFwSpace + kFwSpace, folded));
+        EXPECT_EQ(folded, "untouched");
+
+        Substitution panel_sub;
+        ASSERT_EQ(BuildSubstitution(kFwSpace.c_str(), empty_map, budget,
+                                    kDialogue, DIALOGUE_PANEL, panel_sub),
+                  SubstitutionStatus::Substituted);
+        EXPECT_TRUE(panel_sub.bytes.empty());
+
+        Substitution hist_sub;
+        EXPECT_EQ(BuildSubstitution(kFwSpace.c_str(), empty_map, budget,
+                                    kDialogue, HISTORY_WINDOW, hist_sub),
+                  SubstitutionStatus::NotFound);
+    }
+
+    // 2. Valid -> failing -> valid confirms `out` stays untouched on false, and
+    //    boundary seams (dangling lead byte, NUL, control, DEL, halfwidth
+    //    katakana, unbracketed ASCII alnum + JP punct, kana/kanji, markup)
+    //    are all rejected cleanly.
+    {
+        std::string out;
+        ASSERT_TRUE(TryFoldPunctuationOnlyCp932(Utf8ToCp932("「？」"), out));
+        EXPECT_EQ(out, "\"?\"");
+
+        const std::string raw_seams[] = {
+            std::string("\x81", 1),
+            std::string("\x81\x75\x81", 3),            // dangling lead byte
+            std::string("\x81\x75\x00\x81\x76", 5),    // embedded NUL
+            std::string("\x81\x75\x05\x81\x76", 5),    // control byte 0x05
+            std::string("\x81\x75\x7F\x81\x76", 5),    // DEL 0x7F
+            std::string("\x81\x75\xA1\x81\x76", 5),    // halfwidth katakana
+            Utf8ToCp932("No.01：12"),                  // unframed alnum+JP
+            Utf8ToCp932("Wait……"),                     // unframed alnum+JP
+            Utf8ToCp932("――Wait"),                     // one-sided dash
+            Utf8ToCp932("Wait――"),                     // one-sided dash
+            "Naoya",
+            Utf8ToCp932("「あ……」"),
+            Utf8ToCp932("「藍……」"),
+            Utf8ToCp932("「<r かな>……」"),
+        };
+        for (const std::string& raw : raw_seams) {
+            EXPECT_FALSE(TryFoldPunctuationOnlyCp932(raw, out));
+            EXPECT_EQ(out, "\"?\"") << "out must stay untouched on false";
+        }
+        ASSERT_TRUE(TryFoldPunctuationOnlyCp932(Utf8ToCp932("「！」"), out));
+        EXPECT_EQ(out, "\"!\"");
+
+        // End-to-end BuildSubstitution also returns NotFound on unframed/kana/markup.
+        for (const char* s : {"Naoya", "No.01：12", "Wait……", "――Wait", "Wait――",
+                              "「あ……」", "「藍……」", "「<r かな>……」"}) {
+            SCOPED_TRACE(s);
+            const std::string wire = Utf8ToCp932(s);
+            Substitution sub;
+            EXPECT_EQ(BuildSubstitution(wire.c_str(), empty_map, budget,
+                                        kDialogue, DIALOGUE_PANEL, sub),
+                      SubstitutionStatus::NotFound);
+        }
+    }
+}

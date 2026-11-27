@@ -61,7 +61,8 @@ std::size_t drawn_columns(const std::string& cp932) {
 }
 
 bool hands_the_box_on(const std::string& jp) {
-    return !jp.empty() && (jp.back() == '\n' || jp.back() == '\r');
+    const std::string wire = tl::StripBgiWireDirectiveSuffix(jp);
+    return !wire.empty() && (wire.back() == '\n' || wire.back() == '\r');
 }
 
 void collect_chained_boxes(const std::vector<DrawnSegment>& script,
@@ -69,8 +70,9 @@ void collect_chained_boxes(const std::vector<DrawnSegment>& script,
     ChainedBox box;
     for (const DrawnSegment& seg : script) {
         if (seg.is_name) continue;
-        box.push_back(seg.jp);
-        if (hands_the_box_on(seg.jp)) continue;
+        const std::string wire_jp = tl::StripBgiWireDirectiveSuffix(seg.jp);
+        box.push_back(wire_jp);
+        if (hands_the_box_on(wire_jp)) continue;
         if (box.size() > 1) out.push_back(box);
         box.clear();
     }
@@ -130,9 +132,12 @@ void check_box_budgets(const std::string& script_name,
             box_start = i;
         }
 
+        // Simulate BGI's runtime wire buffer: strip trailing "\n&" directive
+        // so the budget check exercises the exact bytes RVA 0x33900 receives.
+        const std::string wire_jp = tl::StripBgiWireDirectiveSuffix(seg.jp);
         std::string wire;
         if (continues) wire += kContinuationPrefix;
-        wire += tl::Utf8ToCp932(seg.jp);
+        wire += tl::Utf8ToCp932(wire_jp);
 
         tl::Substitution sub;
         const tl::SubstitutionStatus status =
@@ -146,7 +151,7 @@ void check_box_budgets(const std::string& script_name,
         if (status == tl::SubstitutionStatus::Substituted) {
             ++box_with_english;
             report.expansion.emplace_back(
-                drawn_columns(tl::Utf8ToCp932(seg.jp)),
+                drawn_columns(tl::Utf8ToCp932(wire_jp)),
                 drawn_columns(sub.bytes));
         }
         if (sub.truncated || sub.dropped) {
@@ -216,7 +221,8 @@ std::size_t project_boxes_over_budget(const std::string& translated_file,
                         const std::vector<DrawnSegment>& segments) {
         for (const DrawnSegment& seg : segments) {
             if (seg.is_name) continue;
-            std::string key = tl::Utf8ToCp932(seg.jp);
+            std::string key =
+                tl::Utf8ToCp932(tl::StripBgiWireDirectiveSuffix(seg.jp));
             if (synthetic.count(key)) continue;
             const auto cols = static_cast<std::size_t>(
                 drawn_columns(key) * ratio + 0.5);
@@ -393,11 +399,15 @@ tl::TranslationMap measurement_table(const std::string& translated_file,
             for (const auto& ev : it->value().get_array()) {
                 if (!ev.is_object()) continue;
                 const auto& entry = ev.get_object();
-                const std::string jp(entry.at("text").get_string());
+                const std::string raw_jp(entry.at("text").get_string());
                 auto* t = entry.if_contains("translated");
                 if (!t || !t->is_string()) continue;
-                const std::string en(t->get_string());
-                if (en.empty() || en == jp) continue;
+                std::string en(t->get_string());
+                if (en.empty() || en == raw_jp) continue;
+                const std::string jp = tl::StripBgiWireDirectiveSuffix(raw_jp);
+                if (tl::HasBgiWireDirectiveSuffix(raw_jp)) {
+                    en = tl::StripLeakedTrailingDirective(en);
+                }
                 tsv += esc(jp) + "\t" + esc(normalize_leading_space(jp, en)) + "\n";
             }
         }

@@ -1137,3 +1137,100 @@ TEST(BoxBudget, load_runtime_table_and_document_audit_handle_japanese_paths) {
     EXPECT_EQ(report.boxes_with_english, 1u);
     EXPECT_EQ(report.over_budget_boxes, 0u);
 }
+
+TEST(BuildTsv, run_build_strips_bgi_ampersand_directive_from_key_value_and_backlog) {
+    // Contract: BGI strips trailing "&" after "\n" before calling the renderer,
+    // so TSV keys, backlog concatenated keys, and box-budget wire simulations
+    // must all omit the trailing "&" while keeping "\n" to chain the box, and
+    // any leaked "\n&" in English is stripped without touching prose "&".
+    EXPECT_TRUE(bt::hands_the_box_on("　まだ日は高い。\n&"));
+    EXPECT_FALSE(bt::hands_the_box_on("Rock & Roll"));
+
+    std::vector<bt::ChainedBox> chained;
+    bt::collect_chained_boxes(
+        {jp_segment("　そんな俺を見て、\n&"), jp_segment("藍がにっこりと笑った。")},
+        chained);
+    ASSERT_EQ(chained.size(), 1u);
+    EXPECT_EQ(chained[0],
+              (bt::ChainedBox{"　そんな俺を見て、\n", "藍がにっこりと笑った。"}));
+
+    EXPECT_EQ(bt::shipped_english("　そんな俺を見て、\n&",
+                                  "Watching me like that,\n&"),
+              "　Watching me like that,");
+    EXPECT_EQ(bt::shipped_english("　まだ日は高い。\n&", "　まだ日は高い。\n&"),
+              "　まだ日は高い。\n")
+        << "identity '\\n&' row must strip '&' cleanly without turning '\\n&' into ' &'";
+    EXPECT_EQ(bt::shipped_english("ロック＆ロール", "Rock & Roll"),
+              "Rock & Roll");
+
+    bj::object first;
+    first["text"] = "　まだ日は高い。\nけれど、数刻すれば、日も暮れるだろう。\n&";
+    first["translated"] =
+        "The sun was still high.\nBut in a few hours it would set.\n&";
+    bj::object second;
+    second["text"] = "そうしたら、この街に灯りがともる。";
+    second["translated"] =
+        "And when it did, the lights of this town would come on.";
+    bj::object prose_amp;
+    prose_amp["text"] = "ロック＆ロール";
+    prose_amp["translated"] = "Rock & Roll";
+    bj::object script;
+    script["strings"] = bj::array{first, second, prose_amp};
+    bj::object root;
+    root["sc_amp"] = script;
+
+    const ScopedTempDir scratch("snu_ut_bgi_amp");
+    const std::string in =
+        (scratch.path() / fs::u8path("amp.json")).u8string();
+    const std::string out =
+        (scratch.path() / fs::u8path("amp.tsv")).u8string();
+    snu::write_file(in, bj::serialize(bj::value(root)));
+    ASSERT_EQ(bt::run_build(in, out, /*include_untranslated=*/false), 0);
+
+    const auto rows = read_tsv(out);
+    const std::string bad_key =
+        "　まだ日は高い。\\nけれど、数刻すれば、日も暮れるだろう。\\n&";
+    const std::string wire_key =
+        "　まだ日は高い。\\nけれど、数刻すれば、日も暮れるだろう。\\n";
+    const std::string backlog_key =
+        "　まだ日は高い。\\nけれど、数刻すれば、日も暮れるだろう。\\n"
+        "そうしたら、この街に灯りがともる。";
+
+    EXPECT_EQ(rows.count(bad_key), 0u)
+        << "BGI strips '&' on the wire; emitting '\\n&' keys causes runtime misses";
+    ASSERT_EQ(rows.count(wire_key), 1u);
+    EXPECT_EQ(rows.at(wire_key).front(),
+              "　The sun was still high. But in a few hours it would set.");
+    ASSERT_EQ(rows.count(backlog_key), 1u)
+        << "backlog whole-box row must chain '\\n&' segments without '&'";
+    EXPECT_EQ(rows.at(backlog_key).front(),
+              "　The sun was still high. But in a few hours it would set. "
+              "And when it did, the lights of this town would come on.");
+    ASSERT_EQ(rows.count("ロック＆ロール"), 1u);
+    EXPECT_EQ(rows.at("ロック＆ロール").front(), "Rock & Roll");
+
+    namespace tl = translator_logic;
+    const tl::TranslationMap table = bt::load_runtime_table(out);
+    const bt::BoxBudgetReport report =
+        bt::check_box_budgets_of_document(in, table);
+    EXPECT_EQ(report.boxes, 2u);
+    EXPECT_EQ(report.chained_boxes, 1u);
+    EXPECT_EQ(report.boxes_with_english, 2u);
+    EXPECT_EQ(report.over_budget_boxes, 0u);
+
+    // Backlog redraw lookup on the wire bytes BGI concatenates.
+    const std::string backlog_wire =
+        tl::Utf8ToCp932("　まだ日は高い。\nけれど、数刻すれば、日も暮れるだろう。\n") +
+        tl::Utf8ToCp932("そうしたら、この街に灯りがともる。");
+    tl::BoxLineBudget budget;
+    tl::Substitution sub;
+    ASSERT_EQ(tl::BuildSubstitution(backlog_wire.c_str(), table, budget,
+                                    /*box=*/1, tl::HISTORY_WINDOW, sub),
+              tl::SubstitutionStatus::Substituted);
+    EXPECT_FALSE(sub.truncated);
+    EXPECT_EQ(sub.bytes,
+              "The sun was still high. But in a few hours it would set. "
+              "And when it\ndid, the lights of this town would come on.");
+    EXPECT_LE(sub.bytes.size(),
+              tl::DrawBudget(backlog_wire.size(), tl::RECTS_PER_WIRE_BYTE));
+}

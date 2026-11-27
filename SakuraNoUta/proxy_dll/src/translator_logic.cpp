@@ -129,10 +129,20 @@ int ParseTsvBuffer(const char* data, std::size_t len, TranslationMap& out,
             UnescapeInPlace(jp);
             UnescapeInPlace(en);
             if (!jp.empty() && !en.empty()) {
+                const bool is_identity = (en == jp);
+                const bool has_bgi_directive = HasBgiWireDirectiveSuffix(jp);
+                if (has_bgi_directive) {
+                    jp = StripBgiWireDirectiveSuffix(jp);
+                    if (is_identity) {
+                        en = jp;
+                    } else {
+                        en = StripLeakedTrailingDirective(en);
+                    }
+                }
                 std::vector<unsigned> lost;
                 std::string key = Utf8ToCp932(jp);
                 std::string value;
-                if (en == jp) {
+                if (is_identity) {
                     // Identity row: pass the script's own text through unchanged.
                     value = Utf8ToCp932(en);
                 } else {
@@ -324,6 +334,304 @@ std::string StripRubyForDisplay(const std::string& cp932) {
         ++i;
     }
     return out;
+}
+
+bool HasBgiWireDirectiveSuffix(std::string_view text) noexcept {
+    if (text.size() < 2u || text.back() != '&') {
+        return false;
+    }
+    const char prev = text[text.size() - 2u];
+    return prev == '\n' || prev == '\r';
+}
+
+std::string StripBgiWireDirectiveSuffix(std::string_view text) {
+    if (HasBgiWireDirectiveSuffix(text)) {
+        return std::string(text.substr(0, text.size() - 1u));
+    }
+    return std::string(text);
+}
+
+std::string StripLeakedTrailingDirective(std::string_view en) {
+    std::size_t end = en.size();
+    while (end > 0u && (en[end - 1u] == '\n' || en[end - 1u] == '\r')) {
+        --end;
+    }
+    if (end == 0u || en[end - 1u] != '&') {
+        return std::string(en);
+    }
+    // Strip '&' only when it stands as a trailing directive token (whole string
+    // or preceded by whitespace / line break), never inside prose like "A&B".
+    if (end > 1u) {
+        const char before = en[end - 2u];
+        if (before != '\n' && before != '\r' && before != ' ' &&
+            before != '\t') {
+            return std::string(en);
+        }
+    }
+    --end;
+    while (end > 0u &&
+           (en[end - 1u] == ' ' || en[end - 1u] == '\t' ||
+            en[end - 1u] == '\n' || en[end - 1u] == '\r')) {
+        --end;
+    }
+    return std::string(en.substr(0, end));
+}
+
+namespace {
+
+constexpr std::uint16_t kCp932FwSpace = 0x8140u;
+constexpr std::uint16_t kCp932Ellipsis = 0x8163u;
+constexpr std::uint16_t kCp932Period = 0x8142u;
+constexpr std::uint16_t kCp932DigitFirst = 0x824Fu;
+constexpr std::uint16_t kCp932DigitLast = 0x8258u;
+constexpr std::uint16_t kCp932UpperFirst = 0x8260u;
+constexpr std::uint16_t kCp932UpperLast = 0x8279u;
+constexpr std::uint16_t kCp932LowerFirst = 0x8281u;
+constexpr std::uint16_t kCp932LowerLast = 0x829Au;
+constexpr unsigned char kAsciiPrintableMin = 0x20u;
+constexpr unsigned char kAsciiPrintableMax = 0x7Eu;
+
+enum class Cp932PunctRole : std::uint8_t {
+    Plain,
+    Bracket,
+    Dash,
+};
+
+struct Cp932PunctFold {
+    std::uint16_t pair;
+    const char* ascii;
+    Cp932PunctRole role;
+};
+
+constexpr Cp932PunctFold kCp932PunctFolds[] = {
+    { 0x8141u, ",",    Cp932PunctRole::Plain   },  // 、
+    { 0x8142u, ".",    Cp932PunctRole::Plain   },  // 。
+    { 0x8143u, ",",    Cp932PunctRole::Plain   },  // ，
+    { 0x8144u, ".",    Cp932PunctRole::Plain   },  // ．
+    { 0x8145u, " ",    Cp932PunctRole::Plain   },  // ・
+    { 0x8146u, ":",    Cp932PunctRole::Plain   },  // ：
+    { 0x8147u, ";",    Cp932PunctRole::Plain   },  // ；
+    { 0x8148u, "?",    Cp932PunctRole::Plain   },  // ？
+    { 0x8149u, "!",    Cp932PunctRole::Plain   },  // ！
+    { 0x815Cu, "--",   Cp932PunctRole::Dash    },  // ―
+    { 0x815Du, "-",    Cp932PunctRole::Plain   },  // ‐
+    { 0x8160u, "~",    Cp932PunctRole::Plain   },  // ～
+    { 0x8163u, "...",  Cp932PunctRole::Plain   },  // …
+    { 0x8164u, "..",   Cp932PunctRole::Plain   },  // ‥
+    { 0x8165u, "'",    Cp932PunctRole::Plain   },  // ‘
+    { 0x8166u, "'",    Cp932PunctRole::Plain   },  // ’
+    { 0x8167u, "\"",   Cp932PunctRole::Plain   },  // “
+    { 0x8168u, "\"",   Cp932PunctRole::Plain   },  // ”
+    { 0x8169u, "(",    Cp932PunctRole::Bracket },  // （
+    { 0x816Au, ")",    Cp932PunctRole::Bracket },  // ）
+    { 0x816Du, "[",    Cp932PunctRole::Bracket },  // ［
+    { 0x816Eu, "]",    Cp932PunctRole::Bracket },  // ］
+    { 0x8175u, "\"",   Cp932PunctRole::Bracket },  // 「
+    { 0x8176u, "\"",   Cp932PunctRole::Bracket },  // 」
+    { 0x8177u, "\"",   Cp932PunctRole::Bracket },  // 『
+    { 0x8178u, "\"",   Cp932PunctRole::Bracket },  // 』
+    { 0x8179u, "[",    Cp932PunctRole::Bracket },  // 【
+    { 0x817Au, "]",    Cp932PunctRole::Bracket },  // 】
+    { 0x817Cu, "-",    Cp932PunctRole::Plain   },  // －
+    { 0x8181u, "=",    Cp932PunctRole::Plain   },  // ＝
+    { 0x8182u, "!=",   Cp932PunctRole::Plain   },  // ≠
+    { 0x8199u, "*",    Cp932PunctRole::Plain   },  // ☆
+    { 0x819Au, "*",    Cp932PunctRole::Plain   },  // ★
+    { 0x81F4u, "~",    Cp932PunctRole::Plain   },  // ♪
+    { 0x849Fu, "-",    Cp932PunctRole::Dash    },  // ─
+    { 0x84AAu, "-",    Cp932PunctRole::Dash    },  // ━
+    { 0x8754u, "I",    Cp932PunctRole::Plain   },  // Ⅰ
+    { 0x8755u, "II",   Cp932PunctRole::Plain   },  // Ⅱ
+    { 0x8756u, "III",  Cp932PunctRole::Plain   },  // Ⅲ
+    { 0x8757u, "IV",   Cp932PunctRole::Plain   },  // Ⅳ
+    { 0x8758u, "V",    Cp932PunctRole::Plain   },  // Ⅴ
+    { 0x8759u, "VI",   Cp932PunctRole::Plain   },  // Ⅵ
+    { 0x875Au, "VII",  Cp932PunctRole::Plain   },  // Ⅶ
+    { 0x875Bu, "VIII", Cp932PunctRole::Plain   },  // Ⅷ
+    { 0x875Cu, "IX",   Cp932PunctRole::Plain   },  // Ⅸ
+    { 0x875Du, "X",    Cp932PunctRole::Plain   },  // Ⅹ
+};
+
+const Cp932PunctFold* LookupAllowedCp932Punct(std::uint16_t pair) noexcept {
+    for (const Cp932PunctFold& f : kCp932PunctFolds) {
+        if (f.pair == pair) {
+            return &f;
+        }
+    }
+    return nullptr;
+}
+
+bool IsAsciiAlnumByte(unsigned char b) noexcept {
+    return (b >= '0' && b <= '9') || (b >= 'A' && b <= 'Z') ||
+           (b >= 'a' && b <= 'z');
+}
+
+}  // namespace
+
+bool TryFoldPunctuationOnlyCp932(std::string_view cp932, std::string& out) {
+    if (cp932.empty() || !HasJPLeadByte(cp932.data(), cp932.size())) {
+        return false;
+    }
+    // Never fold buffers carrying "<...>" engine markup.
+    for (std::size_t lt = cp932.find('<'); lt != std::string_view::npos;
+         lt = cp932.find('<', lt + 1u)) {
+        const std::size_t gt = cp932.find('>', lt + 1u);
+        if (gt != std::string_view::npos && gt > lt + 1u) {
+            return false;
+        }
+    }
+
+    // Pass 1: stack-only validation + exact capacity sizing so normal JP misses
+    // never allocate heap memory before failing on their first kana/kanji byte.
+    bool saw_wide = false;
+    bool has_visible = false;
+    bool has_ascii_alnum = false;
+    bool has_jp_bracket = false;
+    bool first_is_dash = false;
+    bool last_is_dash = false;
+    std::size_t out_len = 0u;
+    std::uint16_t prev_pair = 0u;
+    char last_out = '\0';
+
+    auto record_visible = [&](bool is_dash) noexcept {
+        if (!has_visible) {
+            first_is_dash = is_dash;
+        }
+        has_visible = true;
+        last_is_dash = is_dash;
+    };
+
+    for (std::size_t i = 0u; i < cp932.size(); ) {
+        const unsigned char b = static_cast<unsigned char>(cp932[i]);
+        if (IsCp932LeadByte(b)) {
+            if (i + 1u >= cp932.size()) {
+                return false;  // dangling lead byte
+            }
+            const unsigned char trail = static_cast<unsigned char>(cp932[i + 1u]);
+            const std::uint16_t pair = static_cast<std::uint16_t>(
+                (static_cast<unsigned>(b) << kByteShiftBits) | trail);
+            saw_wide = true;
+            i += kCp932PairBytes;
+
+            if (pair == kCp932FwSpace) {
+                const bool at_line_start = (out_len == 0u || last_out == '\n');
+                const bool next_is_space =
+                    (i < cp932.size() && cp932[i] == ' ');
+                if (!at_line_start && last_out != ' ' && !next_is_space) {
+                    ++out_len;
+                    last_out = ' ';
+                }
+                prev_pair = pair;
+                continue;
+            }
+            if (pair == kCp932Period && prev_pair == kCp932Ellipsis) {
+                prev_pair = pair;
+                continue;
+            }
+            if ((pair >= kCp932DigitFirst && pair <= kCp932DigitLast) ||
+                (pair >= kCp932UpperFirst && pair <= kCp932UpperLast) ||
+                (pair >= kCp932LowerFirst && pair <= kCp932LowerLast)) {
+                ++out_len;
+                last_out = 'A';
+                record_visible(false);
+                prev_pair = pair;
+                continue;
+            }
+            const Cp932PunctFold* entry = LookupAllowedCp932Punct(pair);
+            if (entry == nullptr) {
+                return false;  // kana, kanji, or non-allowlisted wide glyph
+            }
+            if (entry->role == Cp932PunctRole::Bracket) {
+                has_jp_bracket = true;
+            }
+            const bool is_dash = (entry->role == Cp932PunctRole::Dash);
+            for (const char* p = entry->ascii; *p != '\0'; ++p) {
+                ++out_len;
+                last_out = *p;
+                if (*p != ' ') {
+                    record_visible(is_dash);
+                }
+            }
+            prev_pair = pair;
+            continue;
+        }
+
+        // Single-byte character: accept printable ASCII and whitespace only
+        // (rejects halfwidth katakana 0xA1..0xDF, NUL, and control bytes).
+        if (b == kAsciiLf || b == kAsciiCr || b == '\t') {
+            ++out_len;
+            last_out = static_cast<char>(b);
+            prev_pair = 0u;
+            ++i;
+            continue;
+        }
+        if (b < kAsciiPrintableMin || b > kAsciiPrintableMax) {
+            return false;
+        }
+        if (IsAsciiAlnumByte(b)) {
+            has_ascii_alnum = true;
+        }
+        if (b != ' ') {
+            record_visible(false);
+        }
+        ++out_len;
+        last_out = static_cast<char>(b);
+        prev_pair = 0u;
+        ++i;
+    }
+
+    const bool is_framed =
+        has_jp_bracket || (first_is_dash && last_is_dash);
+    if (!saw_wide || !has_visible || (has_ascii_alnum && !is_framed)) {
+        return false;
+    }
+
+    // Pass 2: materialize into a single exact-sized allocation.
+    std::string folded;
+    folded.reserve(out_len);
+    prev_pair = 0u;
+    for (std::size_t i = 0u; i < cp932.size(); ) {
+        const unsigned char b = static_cast<unsigned char>(cp932[i]);
+        if (IsCp932LeadByte(b)) {
+            const unsigned char trail = static_cast<unsigned char>(cp932[i + 1u]);
+            const std::uint16_t pair = static_cast<std::uint16_t>(
+                (static_cast<unsigned>(b) << kByteShiftBits) | trail);
+            i += kCp932PairBytes;
+
+            if (pair == kCp932FwSpace) {
+                const bool at_line_start =
+                    folded.empty() || folded.back() == '\n';
+                const bool next_is_space =
+                    (i < cp932.size() && cp932[i] == ' ');
+                if (!at_line_start && folded.back() != ' ' && !next_is_space) {
+                    folded += ' ';
+                }
+                prev_pair = pair;
+                continue;
+            }
+            if (pair == kCp932Period && prev_pair == kCp932Ellipsis) {
+                prev_pair = pair;
+                continue;
+            }
+            if (pair >= kCp932DigitFirst && pair <= kCp932DigitLast) {
+                folded += static_cast<char>('0' + (pair - kCp932DigitFirst));
+            } else if (pair >= kCp932UpperFirst && pair <= kCp932UpperLast) {
+                folded += static_cast<char>('A' + (pair - kCp932UpperFirst));
+            } else if (pair >= kCp932LowerFirst && pair <= kCp932LowerLast) {
+                folded += static_cast<char>('a' + (pair - kCp932LowerFirst));
+            } else {
+                folded += LookupAllowedCp932Punct(pair)->ascii;
+            }
+            prev_pair = pair;
+            continue;
+        }
+        folded += static_cast<char>(b);
+        prev_pair = 0u;
+        ++i;
+    }
+
+    out = std::move(folded);
+    return true;
 }
 
 // English value preparation.
@@ -1095,33 +1403,39 @@ bool LookupTranslation(const char* effective, std::size_t len, std::size_t key_l
     }
 
     // Multi-segment backlog concatenation fallback.
+    // Try matching each segment as-is first so narration keys that carry their
+    // own leading U+3000 still hit; only skip a leading U+3000 when no key
+    // matches with it (e.g. yuzu_2g's dummy "　" opener concatenated in logwnd).
     const char* cur = effective;
     std::size_t rem = key_len;
-    if (starts_with_fw_space(cur, rem)) {
-        cur += kCp932PairBytes;
-        rem -= kCp932PairBytes;
-    }
     std::string joined;
     std::size_t segments_matched = 0;
     constexpr std::size_t kMaxConcatSegments = 8;
-    while (rem > 0 && segments_matched < kMaxConcatSegments) {
-        if (starts_with_fw_space(cur, rem)) {
-            cur += kCp932PairBytes;
-            rem -= kCp932PairBytes;
-            if (rem == 0) break;
-        }
-        std::size_t best_len = 0;
-        const std::string* best_val = nullptr;
-        for (std::size_t pos = 0; pos < rem; ) {
-            const unsigned char b = static_cast<unsigned char>(cur[pos]);
+    auto find_longest_segment = [&](const char* s, std::size_t n,
+                                    std::size_t& best_len,
+                                    const std::string*& best_val) {
+        best_len = 0;
+        best_val = nullptr;
+        for (std::size_t pos = 0; pos < n; ) {
+            const unsigned char b = static_cast<unsigned char>(s[pos]);
             const std::size_t w =
-                (IsCp932LeadByte(b) && pos + 1 < rem) ? kCp932PairBytes : 1;
+                (IsCp932LeadByte(b) && pos + 1 < n) ? kCp932PairBytes : 1;
             pos += w;
-            auto seg_it = translations.find(std::string(cur, pos));
+            auto seg_it = translations.find(std::string(s, pos));
             if (seg_it != translations.end()) {
                 best_len = pos;
                 best_val = &seg_it->second;
             }
+        }
+    };
+    while (rem > 0 && segments_matched < kMaxConcatSegments) {
+        std::size_t best_len = 0;
+        const std::string* best_val = nullptr;
+        find_longest_segment(cur, rem, best_len, best_val);
+        while (!best_val && starts_with_fw_space(cur, rem)) {
+            cur += kCp932PairBytes;
+            rem -= kCp932PairBytes;
+            find_longest_segment(cur, rem, best_len, best_val);
         }
         if (!best_val || best_len == 0) {
             segments_matched = 0;
@@ -1381,7 +1695,9 @@ SubstitutionStatus Build(const char* wire_text,
     }
 
     std::string value;
-    if (!LookupTranslation(effective, len, key_len, translations, value)) {
+    if (!LookupTranslation(effective, len, key_len, translations, value) &&
+        !TryFoldPunctuationOnlyCp932(std::string_view(effective, key_len),
+                                     value)) {
         // Miss: strip furigana (would overlap at this pitch); otherwise leave
         // the engine's own buffer alone.
         const std::string wire(effective, len);

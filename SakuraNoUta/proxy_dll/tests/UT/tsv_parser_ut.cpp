@@ -100,3 +100,88 @@ TEST(ParseTsv, ConvertsUtf8KeyToCp932) {
     EXPECT_EQ(m.count(cp932_a), kPresentKeyCount);
     EXPECT_EQ(m[cp932_a], "hello");
 }
+
+TEST(BgiWireDirective, RecognizesAndStripsTrailingBreakAmpersandOnly) {
+    using translator_logic::HasBgiWireDirectiveSuffix;
+    using translator_logic::StripBgiWireDirectiveSuffix;
+    using translator_logic::StripLeakedTrailingDirective;
+
+    EXPECT_FALSE(HasBgiWireDirectiveSuffix(""));
+    EXPECT_FALSE(HasBgiWireDirectiveSuffix("&"));
+    EXPECT_FALSE(HasBgiWireDirectiveSuffix("a&"));
+    EXPECT_FALSE(HasBgiWireDirectiveSuffix("a\n"));
+    EXPECT_FALSE(HasBgiWireDirectiveSuffix("a & b"));
+    EXPECT_FALSE(HasBgiWireDirectiveSuffix("foo &"));
+    EXPECT_TRUE(HasBgiWireDirectiveSuffix("\n&"));
+    EXPECT_TRUE(HasBgiWireDirectiveSuffix("line\n&"));
+    EXPECT_TRUE(HasBgiWireDirectiveSuffix("line\r&"));
+    EXPECT_TRUE(HasBgiWireDirectiveSuffix("line\r\n&"));
+
+    const std::string cp932_jp = Utf8ToCp932("あ");
+    EXPECT_FALSE(HasBgiWireDirectiveSuffix(cp932_jp));
+    EXPECT_TRUE(HasBgiWireDirectiveSuffix(cp932_jp + "\n&"));
+    EXPECT_EQ(StripBgiWireDirectiveSuffix(cp932_jp + "\n&"), cp932_jp + "\n");
+
+    EXPECT_EQ(StripBgiWireDirectiveSuffix("line\n&"), "line\n");
+    EXPECT_EQ(StripBgiWireDirectiveSuffix("line\r&"), "line\r");
+    EXPECT_EQ(StripBgiWireDirectiveSuffix("line\r\n&"), "line\r\n");
+    EXPECT_EQ(StripBgiWireDirectiveSuffix("Rock & Roll"), "Rock & Roll");
+    EXPECT_EQ(StripBgiWireDirectiveSuffix("Rock & Roll\n&"), "Rock & Roll\n");
+
+    // StripLeakedTrailingDirective boundary & guard-mutation pins:
+    EXPECT_EQ(StripLeakedTrailingDirective(""), "");
+    EXPECT_EQ(StripLeakedTrailingDirective("&"), "");
+    EXPECT_EQ(StripLeakedTrailingDirective("foo&"), "foo&");
+    EXPECT_EQ(StripLeakedTrailingDirective("AT&T"), "AT&T");
+    EXPECT_EQ(StripLeakedTrailingDirective("foo &"), "foo");
+    EXPECT_EQ(StripLeakedTrailingDirective("foo\t&"), "foo");
+    EXPECT_EQ(StripLeakedTrailingDirective("foo\r\n&"), "foo");
+    EXPECT_EQ(StripLeakedTrailingDirective("foo\n&\n"), "foo");
+    EXPECT_EQ(StripLeakedTrailingDirective("Watching me like that,\n&"),
+              "Watching me like that,");
+    EXPECT_EQ(StripLeakedTrailingDirective("Watching me like that, &"),
+              "Watching me like that,");
+    EXPECT_EQ(StripLeakedTrailingDirective("Watching me like that,"),
+              "Watching me like that,");
+}
+
+TEST(ParseTsv, NormalizesBgiAmpersandKeyAndStripsLeakedValueDirective) {
+    TranslationMap m;
+    const std::string tsv =
+        "　そんな俺を見て、\\n&\t　Watching me like that, &\n"
+        "　まだ日は高い。\\n&\t　The sun was still high.\\n&\n"
+        "ロック＆ロール\tTom & Jerry\n"
+        "通常\tfoo &\n"
+        "同一\\n&\t同一\\n&\n"
+        "空になる\\n&\t &\n";
+    // 5 rows kept; "空になる\n&\t &\n" becomes empty after stripping and is skipped.
+    ASSERT_EQ(ParseTsvBuffer(tsv.data(), tsv.size(), m), 5);
+
+    const std::string raw_key = Utf8ToCp932("　そんな俺を見て、\n&");
+    const std::string wire_key = Utf8ToCp932("　そんな俺を見て、\n");
+    EXPECT_EQ(m.count(raw_key), 0u);
+    ASSERT_EQ(m.count(wire_key), kPresentKeyCount);
+    EXPECT_EQ(m[wire_key], "Watching me like that,");
+
+    const std::string wire_key2 = Utf8ToCp932("　まだ日は高い。\n");
+    ASSERT_EQ(m.count(wire_key2), kPresentKeyCount);
+    EXPECT_EQ(m[wire_key2], "The sun was still high.");
+
+    const std::string prose_key = Utf8ToCp932("ロック＆ロール");
+    ASSERT_EQ(m.count(prose_key), kPresentKeyCount);
+    EXPECT_EQ(m[prose_key], "Tom & Jerry");
+
+    // A non-\n& key must never have a legitimate trailing " &" value stripped.
+    const std::string plain_key = Utf8ToCp932("通常");
+    ASSERT_EQ(m.count(plain_key), kPresentKeyCount);
+    EXPECT_EQ(m[plain_key], "foo &");
+
+    // Identity "\n&" row drops '&' on both key and value (trailing '\n' stripped from value).
+    const std::string id_key = Utf8ToCp932("同一\n");
+    EXPECT_EQ(m.count(Utf8ToCp932("同一\n&")), 0u);
+    ASSERT_EQ(m.count(id_key), kPresentKeyCount);
+    EXPECT_EQ(m[id_key], Utf8ToCp932("同一"));
+
+    EXPECT_EQ(m.count(Utf8ToCp932("空になる\n")), 0u);
+    EXPECT_EQ(m.count(Utf8ToCp932("空になる\n&")), 0u);
+}

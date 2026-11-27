@@ -11,12 +11,15 @@
 #include "bgi/bgi_archive.h"
 #include "bgi/bgi_cbg.h"
 #include "bgi/bgi_sysgrp.h"
+#include "build_tsv/box_budget.h"
 #include "cg/image.h"
 #include "common/util.h"
+#include "extract/extractor.h"
 #include "menu/bgra_image.h"
 #include "menu/menu_catalog.h"
 #include "menu/menu_patch_builder.h"
 #include "menu_patch_format.h"
+#include "translator_logic.h"
 
 #include <gtest/gtest.h>
 
@@ -31,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -358,4 +362,296 @@ TEST(Cbg, real_cbg_matches_garbro_reference) {
     ASSERT_EQ(mine.width, ref->width);
     ASSERT_EQ(mine.height, ref->height);
     EXPECT_EQ(mine.rgb, ref->rgb);
+}
+
+TEST(BgiArchive,
+     retail_scripts_resolve_every_op140_string_through_deployed_tsv_or_fallback) {
+    const auto game_dir_opt = try_resolve_game_dir();
+    if (!game_dir_opt.has_value()) {
+        GTEST_SKIP() << "VN_GAME_DIR unset; skipping retail script coverage ST";
+    }
+    const fs::path game_dir = fs::u8path(*game_dir_opt);
+    const fs::path tsv_path = fs::u8path(SNU_PROJECT_DIR) / "build" /
+                              "install" / "game" / "translations.tsv";
+    ASSERT_TRUE(fs::is_regular_file(tsv_path)) << tsv_path.u8string();
+
+    namespace tl = translator_logic;
+    const tl::TranslationMap table =
+        snu::build_tsv::load_runtime_table(tsv_path.u8string());
+    ASSERT_FALSE(table.empty());
+
+    // Resolve retail scripts in the engine's exact archive overlay order.
+    struct ArcSource {
+        std::string arc;
+        std::size_t idx = 0u;
+    };
+    std::map<std::string, ArcSource> overlay;
+    for (const std::string& arc_name : snu::extract::SCRIPT_ARCS) {
+        const fs::path arc_path = game_dir / fs::u8path(arc_name);
+        std::error_code ec;
+        if (!fs::is_regular_file(arc_path, ec)) {
+            continue;
+        }
+        const auto entries = bgi::list_arc(arc_path.u8string());
+        for (std::size_t i = 0u; i < entries.size(); ++i) {
+            overlay.emplace(entries[i].name, ArcSource{arc_path.u8string(), i});
+        }
+    }
+    if (overlay.empty()) {
+        GTEST_SKIP() << "No retail script archives found under VN_GAME_DIR="
+                     << *game_dir_opt;
+    }
+
+    constexpr std::size_t kHdrBaseBytes = 0x1Cu;
+    constexpr std::uint32_t kOpPushStr = 0x03u;
+    constexpr std::uint32_t kOpCallFunc = 0x1Cu;
+    constexpr std::uint32_t kOpTextDisplay = 0x140u;
+    constexpr std::size_t kYuzuTextFnMarkerOff = 0x1Cu;
+    constexpr std::size_t kYuzuTextFnAddrOff = 0x20u;
+    constexpr std::size_t kYuzuTextCallOff = 0x24u;
+    constexpr std::uint8_t kEndMarker[4] = {0x1Bu, 0x00u, 0x00u, 0x00u};
+    const std::string kDummyFwSpace = tl::Utf8ToCp932("　");
+    const tl::TranslationMap kEmptyTable;
+
+    auto is_yuzu_msg_helper = [](std::string_view sv) {
+        if (sv.rfind("iMessage", 0u) == 0u) {
+            sv.remove_prefix(8u);
+        } else if (sv.rfind("Message", 0u) == 0u) {
+            sv.remove_prefix(7u);
+        } else {
+            return false;
+        }
+        if (sv.rfind("Left", 0u) == 0u) {
+            sv.remove_prefix(4u);
+        } else if (sv.rfind("Center", 0u) == 0u) {
+            sv.remove_prefix(6u);
+        } else if (sv.rfind("Right", 0u) == 0u) {
+            sv.remove_prefix(5u);
+        } else {
+            return false;
+        }
+        return sv.empty() || sv == "Ig" || sv == "NC";
+    };
+
+    auto has_leaked_amp = [](const std::string& bytes) {
+        return tl::HasBgiWireDirectiveSuffix(bytes) || bytes == "&" ||
+               (bytes.size() >= 2u &&
+                (bytes[bytes.size() - 2u] == ' ' ||
+                 bytes[bytes.size() - 2u] == '\t') &&
+                bytes.back() == '&');
+    };
+
+    std::size_t scripts_checked = 0u;
+    std::size_t extracted_checked = 0u;
+    std::size_t extracted_misses = 0u;
+    std::size_t extracted_bad_output = 0u;
+    std::size_t non_extracted_checked = 0u;
+    std::size_t fallback_resolved = 0u;
+    std::size_t non_extracted_misses = 0u;
+    std::size_t non_extracted_bad_output = 0u;
+    std::string first_extracted_miss;
+    std::string first_extracted_bad;
+    std::string first_non_extracted_miss;
+    std::string first_non_extracted_bad;
+
+    for (const auto& [name, src] : overlay) {
+        const Bytes data = bgi::read_entry(src.arc, src.idx);
+        const auto entries = snu::extract::extract_one(data);
+        if (!entries.has_value()) {
+            continue;
+        }
+        ++scripts_checked;
+
+        std::uint32_t hdr_extra = 0u;
+        if (data.size() >= kHdrBaseBytes + sizeof(std::uint32_t)) {
+            std::memcpy(&hdr_extra, data.data() + kHdrBaseBytes, sizeof(hdr_extra));
+        }
+        const std::size_t hdr_size =
+            std::min<std::size_t>(kHdrBaseBytes + hdr_extra, data.size());
+        std::size_t code_end = hdr_size;
+        if (data.size() >= sizeof(kEndMarker)) {
+            for (std::size_t i = data.size() - sizeof(kEndMarker) + 1u; i-- > 0u;) {
+                if (std::memcmp(data.data() + i, kEndMarker, sizeof(kEndMarker)) == 0) {
+                    code_end = std::max(i + sizeof(kEndMarker), hdr_size);
+                    break;
+                }
+            }
+        }
+        const std::size_t code_size = code_end - hdr_size;
+
+        // 1. Every extracted string's wire-normalized form must resolve directly
+        //    in the deployed TSV (never hiding a TSV miss behind fallback) and
+        //    satisfy concrete output & DrawBudget invariants.
+        std::set<std::int64_t> extracted_addrs;
+        for (const snu::extract::Entry& e : *entries) {
+            ++extracted_checked;
+            extracted_addrs.insert(e.offset - static_cast<std::int64_t>(code_end));
+            const std::string wire =
+                tl::Utf8ToCp932(tl::StripBgiWireDirectiveSuffix(e.text));
+            std::string wire_no_tail = wire;
+            while (!wire_no_tail.empty() &&
+                   (wire_no_tail.back() == '\n' || wire_no_tail.back() == '\r')) {
+                wire_no_tail.pop_back();
+            }
+            const bool direct_tsv_hit =
+                table.count(wire) != 0u || table.count(wire_no_tail) != 0u;
+
+            tl::Surface surface = tl::DIALOGUE_PANEL;
+            const std::size_t budget_cap =
+                tl::DrawBudget(wire.size(), tl::RECTS_PER_WIRE_BYTE * 8u);
+            surface.max_bytes = budget_cap;
+            tl::BoxLineBudget budget;
+            tl::Substitution sub;
+            const tl::SubstitutionStatus st = tl::BuildSubstitution(
+                wire.c_str(), table, budget, /*box=*/1, surface, sub);
+            if (!direct_tsv_hit || st != tl::SubstitutionStatus::Substituted) {
+                ++extracted_misses;
+                if (first_extracted_miss.empty()) {
+                    first_extracted_miss = name + ": " + e.text;
+                }
+                continue;
+            }
+            if (sub.bytes.empty() || has_leaked_amp(sub.bytes) ||
+                sub.bytes.size() > budget_cap) {
+                ++extracted_bad_output;
+                if (first_extracted_bad.empty()) {
+                    first_extracted_bad = name + ": " + sub.bytes;
+                }
+            }
+        }
+
+        // 2. Scan every non-extracted op 0x140 TEXT_POS AND yuzu_2g op 0x1C
+        //    positioned-message string containing CP932 lead bytes (excluding
+        //    dummy "　"), asserting positive fallback proof + output bounds.
+        std::unordered_map<std::int64_t, std::string> text_section;
+        for (std::size_t pos = code_end, start = code_end; pos <= data.size(); ++pos) {
+            if (pos == data.size() || data[pos] == 0u) {
+                text_section.emplace(
+                    static_cast<std::int64_t>(start - code_end),
+                    std::string(reinterpret_cast<const char*>(data.data() + start),
+                                pos - start));
+                start = pos + 1u;
+            }
+        }
+
+        std::set<std::int64_t> seen_non_extracted;
+        for (std::size_t off = 4u; off + 8u <= code_size; off += 4u) {
+            std::uint32_t marker = 0u;
+            std::uint32_t addr = 0u;
+            std::uint32_t next_op = 0u;
+            std::memcpy(&marker, data.data() + hdr_size + off - 4u, 4u);
+            std::memcpy(&addr, data.data() + hdr_size + off, 4u);
+            std::memcpy(&next_op, data.data() + hdr_size + off + 4u, 4u);
+            if (marker != kOpPushStr) {
+                continue;
+            }
+            bool is_text_site = (next_op == kOpTextDisplay);
+            if (!is_text_site && off + kYuzuTextCallOff + 4u <= code_size) {
+                std::uint32_t fn_marker = 0u;
+                std::uint32_t fn_addr = 0u;
+                std::uint32_t call_op = 0u;
+                std::memcpy(&fn_marker,
+                            data.data() + hdr_size + off + kYuzuTextFnMarkerOff,
+                            4u);
+                std::memcpy(&fn_addr,
+                            data.data() + hdr_size + off + kYuzuTextFnAddrOff,
+                            4u);
+                std::memcpy(&call_op,
+                            data.data() + hdr_size + off + kYuzuTextCallOff,
+                            4u);
+                if (fn_marker == kOpPushStr && call_op == kOpCallFunc) {
+                    const std::int64_t fn_ta =
+                        static_cast<std::int64_t>(fn_addr) -
+                        static_cast<std::int64_t>(code_size);
+                    auto fn_it = text_section.find(fn_ta);
+                    if (fn_it != text_section.end() &&
+                        is_yuzu_msg_helper(fn_it->second)) {
+                        is_text_site = true;
+                    }
+                }
+            }
+            if (!is_text_site) {
+                continue;
+            }
+            const std::int64_t text_addr =
+                static_cast<std::int64_t>(addr) - static_cast<std::int64_t>(code_size);
+            if (extracted_addrs.count(text_addr) != 0u) {
+                continue;
+            }
+            auto it = text_section.find(text_addr);
+            if (it == text_section.end() ||
+                !seen_non_extracted.insert(text_addr).second) {
+                continue;
+            }
+            const std::string& raw_cp932 = it->second;
+            if (raw_cp932.empty() || raw_cp932 == kDummyFwSpace ||
+                !tl::HasJPLeadByte(raw_cp932.data(), raw_cp932.size())) {
+                continue;
+            }
+            const std::string wire = tl::StripBgiWireDirectiveSuffix(raw_cp932);
+            tl::Surface surface = tl::DIALOGUE_PANEL;
+            const std::size_t budget_cap =
+                tl::DrawBudget(wire.size(), tl::RECTS_PER_WIRE_BYTE * 8u);
+            surface.max_bytes = budget_cap;
+            tl::BoxLineBudget budget;
+            tl::Substitution sub;
+            const tl::SubstitutionStatus st = tl::BuildSubstitution(
+                wire.c_str(), table, budget, /*box=*/1, surface, sub);
+            ++non_extracted_checked;
+            if (st != tl::SubstitutionStatus::Substituted) {
+                ++non_extracted_misses;
+                if (non_extracted_misses <= 10u) {
+                    if (!first_non_extracted_miss.empty()) {
+                        first_non_extracted_miss += " | ";
+                    }
+                    first_non_extracted_miss +=
+                        name + ": " + tl::Cp932ToUtf8(raw_cp932) + " [";
+                    for (unsigned char ch : raw_cp932) {
+                        char hex[4];
+                        std::snprintf(hex, sizeof(hex), "%02X", ch);
+                        first_non_extracted_miss += hex;
+                    }
+                    first_non_extracted_miss += "]";
+                }
+                continue;
+            }
+            // Count positive proof that the punctuation fallback resolved it
+            // independently of the TSV table.
+            tl::BoxLineBudget fb_budget;
+            tl::Substitution fb_sub;
+            if (tl::BuildSubstitution(wire.c_str(), kEmptyTable, fb_budget,
+                                      /*box=*/1, surface, fb_sub) ==
+                tl::SubstitutionStatus::Substituted) {
+                ++fallback_resolved;
+            }
+            if (sub.bytes.empty() || has_leaked_amp(sub.bytes) ||
+                sub.bytes.size() > budget_cap) {
+                ++non_extracted_bad_output;
+                if (first_non_extracted_bad.empty()) {
+                    first_non_extracted_bad = name + ": " + sub.bytes;
+                }
+            }
+        }
+    }
+
+    EXPECT_GT(scripts_checked, 100u);
+    EXPECT_GT(extracted_checked, 60'000u);
+    EXPECT_GT(non_extracted_checked, 250u)
+        << "expected retail non-extracted op 0x140 / yuzu_2g punctuation lines";
+    EXPECT_GT(fallback_resolved, 250u)
+        << "fallback must actively resolve non-extracted retail punctuation lines";
+    EXPECT_EQ(extracted_misses, 0u)
+        << extracted_misses << " extracted retail script entries missed TSV; "
+        << "first: " << first_extracted_miss;
+    EXPECT_EQ(extracted_bad_output, 0u)
+        << extracted_bad_output << " extracted entries produced empty/leaked/over-budget output; "
+        << "first: " << first_extracted_bad;
+    EXPECT_EQ(non_extracted_misses, 0u)
+        << non_extracted_misses
+        << " non-extracted retail op 0x140 / yuzu_2g CP932 strings missed both TSV and fallback; "
+        << "first: " << first_non_extracted_miss;
+    EXPECT_EQ(non_extracted_bad_output, 0u)
+        << non_extracted_bad_output
+        << " non-extracted retail strings produced empty/leaked/over-budget output; "
+        << "first: " << first_non_extracted_bad;
 }
