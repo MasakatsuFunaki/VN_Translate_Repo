@@ -44,6 +44,8 @@ public:
     Cache(Cache&& other) noexcept;
     Cache& operator=(Cache&& other) noexcept;
 
+    void swap(Cache& other) noexcept;
+
     bool contains(const std::string& jp) const;
     const std::string* get(const std::string& jp) const;
     void set(const std::string& jp, const std::string& en);
@@ -55,6 +57,10 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+
+inline void swap(Cache& lhs, Cache& rhs) noexcept {
+    lhs.swap(rhs);
+}
 
 // True when the text contains hiragana / katakana / CJK.
 bool needs_translation(const std::string& text);
@@ -269,6 +275,8 @@ struct TranslateOptions {
     std::string cache_file;   // translation_cache_gemini.json
     std::string output_file;  // translated_text.json
     std::string tsv_file;     // translations.tsv, the table the game loads
+    // Optional outer HTTP transport seam for deterministic offline component tests.
+    vn::llm::IRawHttpTransport* raw_transport = nullptr;
 };
 
 // The whole translation step, in the order the outputs depend on each other:

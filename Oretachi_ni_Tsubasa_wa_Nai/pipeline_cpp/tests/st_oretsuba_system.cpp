@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -100,12 +101,16 @@ constexpr std::size_t kMidNovelDivisor = 2U;
 constexpr std::size_t kLateNovelTailOffset = 200U;
 constexpr std::size_t kMovingWindowSize = 8U;
 constexpr std::size_t kJudgeMaxOutputTokens = 32768U;
-constexpr DWORD kCliProcessTimeoutMs = 600000U;
+constexpr DWORD kCliProcessTimeoutMs = 660000U;
+constexpr double kMaxLiveBatchLatencySeconds =
+    static_cast<double>(vn::llm::kDefaultReadTimeoutSeconds);
+constexpr std::int64_t kMinCalibratedThoughtTokensFloor = 64;
 constexpr DWORD kProcessSuccessExitCode = 0U;
 constexpr DWORD kProcessFailureExitCode = 1U;
 constexpr std::int64_t kMissingMetricSentinel = -1;
 constexpr std::size_t kPipeReadBufferBytes = 4096U;
-constexpr std::size_t kSandboxScriptLineCount = 5U;
+constexpr std::size_t kSandboxScriptLineCount =
+    static_cast<std::size_t>(oretsuba::translate::kDefaultBatchSize);
 constexpr std::size_t kExpectedKeywaitPauseRows = 3U;
 
 class ScopedHandle {
@@ -133,6 +138,7 @@ private:
 struct ProcessResult {
     bool completed = false;
     DWORD exit_code = kProcessFailureExitCode;
+    double elapsed_seconds = 0.0;
     std::string combined_output;
 };
 
@@ -185,6 +191,7 @@ ProcessResult RunChildProcessCapture(const fs::path& exe_path,
 
     PROCESS_INFORMATION pi{};
     const std::wstring cwd_wide = working_dir.wstring();
+    const auto start_time = std::chrono::steady_clock::now();
     const BOOL created = ::CreateProcessW(
         exe_path.wstring().c_str(),
         mutable_cmd.data(),
@@ -225,8 +232,11 @@ ProcessResult RunChildProcessCapture(const fs::path& exe_path,
         result.completed = true;
     } else {
         ::TerminateProcess(proc_handle.get(), kProcessFailureExitCode);
+        ::WaitForSingleObject(proc_handle.get(), INFINITE);
     }
     reader.join();
+    result.elapsed_seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
     ::GetExitCodeProcess(proc_handle.get(), &result.exit_code);
     return result;
 }
@@ -723,32 +733,174 @@ TEST(TranslateSystemTest, LiveOretsubaBatchPrecheckControlCodesCp932AndResumeIde
     constexpr const char* kJpHawkChivalry =
         "「案ずるな、我が忠実なる騎士ペガサスよ！　王女アスカとグレタガルドの誇りは、この聖騎士ホークが必ずや守り抜く！」";
 
+    struct SandboxScriptEntry {
+        const char* type;
+        const char* speaker;
+        const char* speaker_en;
+        const char* text;
+    };
+
+    static constexpr SandboxScriptEntry kSandboxEntries[] = {
+        {"dialogue", "タカシ", "Takashi", kJpTakashiIntro},
+        {"dialogue", "鷹志", "Takashi", kJpTakashiFeathers},
+        {"dialogue", "小鳩", "Kobato", kJpKobatoRaw},
+        {"dialogue", "明日香", "Asuka", kJpAsukaPause},
+        {"dialogue", "聖騎士ホーク", "Holy Knight Hawk", kJpHawkChivalry},
+        {"dialogue",
+         "騎士ペガサス",
+         "Knight Pegasus",
+         "「おおっ、さすがはサー・ホーク！　ベルツモンド修道院の鐘が鳴り響いておりますぞ！」"},
+        {"dialogue",
+         "王女アスカ",
+         "Princess Asuka",
+         "「ふん、口先だけなら何とでも言えるわ。ちゃんと結果で示しなさいよね、ホーク卿！」"},
+        {"dialogue",
+         "ガルーダ",
+         "Garuda",
+         "「忘れるなよ、ホーク。異世界の扉が開く刻限は、すでに目前まで迫っているのだ」"},
+        {"narration",
+         "",
+         "",
+         "　冬の柳原を吹き抜ける冷たい朝風で、僕の妄想はあっけなく現実の教室へと引き戻された。"},
+        {"dialogue",
+         "京",
+         "Kyo",
+         "「あ、あの……羽田くん、おはようございます。今日もなんだか寒そうですね……」"},
+        {"dialogue",
+         "和馬",
+         "Kazuma",
+         "「よおタカシ！　朝からぼーっとしてんじゃねえぞ、高内先生のホームルームが始まるぜ！」"},
+        {"dialogue",
+         "高内",
+         "Takauchi",
+         "「こら森里、席に着きなさい！　Ｈ組は朝から騒がしくてかなわんわね」"},
+        {"dialogue",
+         "鷹志",
+         "Takashi",
+         "「す、すみません高内先生……ちょっと考えごとをしていただけで」"},
+        {"dialogue",
+         "明日香",
+         "Asuka",
+         "「はあ……アンタのその寝ぼけた顔を見てると、こっちまで調子が狂うのよ」"},
+        {"dialogue",
+         "小鳩",
+         "Kobato",
+         "「お兄ちゃん、放課後は柳原の通りで焼きたてのクレープを食べて帰ろうね！」"},
+        {"dialogue",
+         "春恵",
+         "Harue",
+         "「おう、いらっしゃい小鳩ちゃん！　特製チョコバナナクレープ、たっぷり巻いといたよ！」"},
+        {"narration",
+         "",
+         "",
+         "　夕暮れのネオンが灯り始める頃、喫茶店アレキサンドリアの扉が軽やかな鈴の音を立てた。"},
+        {"dialogue",
+         "鷲介",
+         "Shuusuke",
+         "「おっす、日和子ちゃん！　今日もアレキサンドリアの看板娘は真面目に働いてるねえ」"},
+        {"dialogue",
+         "日和子",
+         "Hiyoko",
+         "「ち、千歳さん！　看板娘だなんてからかわないでください、まだ仕込みの最中なんですから！」"},
+        {"dialogue",
+         "英里子",
+         "Eriko",
+         "「ちょっと鷲介、油売ってないでさっさとテーブル拭いてきなさいよ。時給泥棒になるわよ」"},
+        {"dialogue",
+         "紀奈子",
+         "Kinako",
+         "「まあまあ英里子ちゃん、温かい紅茶を淹れましたから、みんなでひと息つきましょうねぇ」"},
+        {"dialogue",
+         "狩男",
+         "Karuo",
+         "「ふっふっふ、紀奈子くんの優しさはまさに砂漠のオアシスだな！　マスターも感激だぞ！」"},
+        {"dialogue",
+         "鷲介",
+         "Shuusuke",
+         "「マスターはサボる口実を見つけただけだろっての。ほら、客席のオーダー入ってるぜ」"},
+        {"dialogue",
+         "蔵人",
+         "Kurando",
+         "「ふん、相変わらず騒々しい店だな。少しは静かに珈琲を味わわせてくれないものか」"},
+        {"dialogue",
+         "日和子",
+         "Hiyoko",
+         "「あ、針生さん……！　あの、先日の原稿の感想、もしよろしければ聞かせていただけますか？」"},
+        {"dialogue",
+         "優",
+         "Yu",
+         "「日和子ちゃんの新しいプロット、編集部の会議でもなかなか評判が良かったわよ」"},
+        {"dialogue",
+         "鷲介",
+         "Shuusuke",
+         "「おおっ、すげえじゃん玉泉！　これは今夜、お祝いにパレートの法則でも語っちゃうか？」"},
+        {"dialogue",
+         "英里子",
+         "Eriko",
+         "「アンタが語るとロクな話にならないから却下。ほら、さっさと皿洗い手伝いなさい」"},
+        {"narration",
+         "",
+         "",
+         "　やがて終電を過ぎた柳原の裏路地に、昼間とはまるで違う凍てついた夜の空気が降りてくる。"},
+        {"dialogue",
+         "隼人",
+         "Hayato",
+         "「……ちっ、今夜もずいぶん冷え込むな。こんな時間まで路地裏をうろつくんじゃねえよ」"},
+        {"dialogue",
+         "鳴",
+         "Naru",
+         "「あーっ、ドラだ！　ねえねえドラ、わたしの盗まれたチャリ、どこに行ったか知らない？」"},
+        {"dialogue",
+         "隼人",
+         "Hayato",
+         "「知るかよ。俺は便利屋であって、お前の自転車専門の探偵じゃねえんだ」"},
+        {"dialogue",
+         "亜衣",
+         "Ai",
+         "「あはは、鳴ちゃん相変わらず元気だねー！　成田くんもなんだかんだ言って付き合ってあげてるし」"},
+        {"dialogue",
+         "翔",
+         "Kakeru",
+         "「やれやれ、鳴が迷惑をかけたみたいだね。夜の柳原はウィングロード連中も騒いでいるから気をつけなよ」"},
+        {"dialogue",
+         "伽楼羅",
+         "Karura",
+         "「くす、夜の鳥たちが羽ばたくには、これくらい凍える風のほうがちょうど良いのやもしれぬな」"},
+        {"dialogue",
+         "隼人",
+         "Hayato",
+         "「どいつもこいつも勝手なことばっかり言いやがって……ほら鳴、風邪ひく前に帰るぞ」"},
+        {"dialogue",
+         "鳴",
+         "Naru",
+         "「えへへ、ドラがそう言うなら、もうちょっとだけ一緒に夜道を歩いてあげる！」"},
+        {"narration",
+         "",
+         "",
+         "　街灯の下に伸びる二つの影を見送りながら、冬の長い夜は静かに更けていった。"},
+        {"dialogue",
+         "鷹志",
+         "Takashi",
+         "「……あれ？　いま一瞬、どこかの誰かの夢を見ていたような気がするんだけど」"},
+        {"dialogue",
+         "小鳩",
+         "Kobato",
+         "「もう、お兄ちゃんったらまた寝ぼけてるの？　早く朝ごはん食べないと美空学園に遅刻しちゃうよ！」"},
+    };
+    static_assert(std::size(kSandboxEntries) == kSandboxScriptLineCount,
+                  "Tier-2 live ST must stage exactly kDefaultBatchSize (40) lines");
+
     bj::array script_entries;
-    script_entries.push_back(bj::object{
-        {"type", "dialogue"},
-        {"speaker", "タカシ"},
-        {"text", kJpTakashiIntro},
-    });
-    script_entries.push_back(bj::object{
-        {"type", "dialogue"},
-        {"speaker", "鷹志"},
-        {"text", kJpTakashiFeathers},
-    });
-    script_entries.push_back(bj::object{
-        {"type", "dialogue"},
-        {"speaker", "小鳩"},
-        {"text", kJpKobatoRaw},
-    });
-    script_entries.push_back(bj::object{
-        {"type", "dialogue"},
-        {"speaker", "明日香"},
-        {"text", kJpAsukaPause},
-    });
-    script_entries.push_back(bj::object{
-        {"type", "dialogue"},
-        {"speaker", "聖騎士ホーク"},
-        {"text", kJpHawkChivalry},
-    });
+    for (const auto& item : kSandboxEntries) {
+        bj::object entry{
+            {"type", item.type},
+            {"text", item.text},
+        };
+        if (item.speaker[0] != '\0') {
+            entry["speaker"] = item.speaker;
+        }
+        script_entries.push_back(std::move(entry));
+    }
 
     bj::object s01_obj;
     s01_obj["file"] = "s01_01a.sob";
@@ -765,20 +917,29 @@ TEST(TranslateSystemTest, LiveOretsubaBatchPrecheckControlCodesCp932AndResumeIde
         staged_translate_exe,
         {L"--dir", sandbox.path().wstring(), L"--batch", batch_arg, L"--max-batches", L"1"},
         sandbox.path());
-    std::cout << "[02_translate.exe Pass 1]\n" << pass1_res.combined_output << "\n";
+    std::cout << "[02_translate.exe Pass 1 (" << pass1_res.elapsed_seconds << "s)]\n"
+              << pass1_res.combined_output << "\n";
     ASSERT_TRUE(pass1_res.completed) << "02_translate.exe Pass 1 timed out:\n" << pass1_res.combined_output;
     ASSERT_EQ(pass1_res.exit_code, kProcessSuccessExitCode)
         << "02_translate.exe Pass 1 failed:\n" << pass1_res.combined_output;
+    EXPECT_LT(pass1_res.elapsed_seconds, kMaxLiveBatchLatencySeconds)
+        << "Pass 1 exceeded 600s read timeout ceiling";
     EXPECT_EQ(pass1_res.combined_output.find("[ERROR]"), std::string::npos);
     EXPECT_NE(pass1_res.combined_output.find("[SPEAKER-CHECK] PASS"), std::string::npos);
     EXPECT_NE(pass1_res.combined_output.find("Batches to run: 1"), std::string::npos);
-    EXPECT_NE(pass1_res.combined_output.find("Applied 5/5 lines"), std::string::npos);
+    const std::string expected_applied_marker =
+        "Applied " + std::to_string(kSandboxScriptLineCount) + "/" +
+        std::to_string(kSandboxScriptLineCount) + " lines";
+    EXPECT_NE(pass1_res.combined_output.find(expected_applied_marker), std::string::npos);
 
     const std::int64_t pass1_thoughts_tokens =
         ExtractThoughtsTokensFromTelemetryLog(pass1_res.combined_output);
     ASSERT_GT(pass1_thoughts_tokens, 0)
         << "Expected gemini-4-carbon thinkingLevel=MEDIUM to log thoughts=<N> > 0, output:\n"
         << pass1_res.combined_output;
+    EXPECT_GE(pass1_thoughts_tokens, kMinCalibratedThoughtTokensFloor)
+        << "Expected calibrated reasoning depth >= " << kMinCalibratedThoughtTokensFloor
+        << " thought tokens on 40-line Oretsuba batch, got " << pass1_thoughts_tokens;
 
     const fs::path sandbox_cache_path = sandbox_script_out / "translation_cache_gemini.json";
     const fs::path sandbox_translated_path = sandbox_script_out / "translated_text.json";
@@ -789,15 +950,8 @@ TEST(TranslateSystemTest, LiveOretsubaBatchPrecheckControlCodesCp932AndResumeIde
     ASSERT_TRUE(fs::is_regular_file(sandbox_last_batch_path));
 
     const TranslationCache pass1_cache = LoadCache(sandbox_cache_path.u8string());
-    const char* const kAllJpKeys[kSandboxScriptLineCount] = {
-        kJpTakashiIntro,
-        kJpTakashiFeathers,
-        kJpKobatoRaw,
-        kJpAsukaPause,
-        kJpHawkChivalry,
-    };
     for (std::size_t i = 0; i < kSandboxScriptLineCount; ++i) {
-        const std::string* en_ptr = pass1_cache.Find(kAllJpKeys[i]);
+        const std::string* en_ptr = pass1_cache.Find(kSandboxEntries[i].text);
         ASSERT_NE(en_ptr, nullptr) << "Missing cache entry #" << i;
         const std::string& en = *en_ptr;
         EXPECT_FALSE(en.empty());
@@ -807,6 +961,7 @@ TEST(TranslateSystemTest, LiveOretsubaBatchPrecheckControlCodesCp932AndResumeIde
         EXPECT_FALSE(ContainsAnySubstring(
             en,
             {"[Takashi]", "[Kobato]", "[Asuka]", "[Holy Knight Hawk]",
+             "[Shuusuke]", "[Hiyoko]", "[Hayato]", "[Naru]", "[NARRATION]",
              "[タカシ]", "[鷹志]", "[小鳩]", "[明日香]", "[聖騎士ホーク]", "<\""}))
             << "Leaked speaker tag or ruby wrapper in: " << en;
         std::cout << "  [Oretsuba #" << (i + 1U) << "] " << en << "\n";
@@ -834,16 +989,14 @@ TEST(TranslateSystemTest, LiveOretsubaBatchPrecheckControlCodesCp932AndResumeIde
     const auto& out_strings =
         translated_json.as_object().at("s01_01a.sob").as_object().at("strings").as_array();
     ASSERT_EQ(out_strings.size(), kSandboxScriptLineCount);
-    constexpr const char* kExpectedSpeakerEn[kSandboxScriptLineCount] = {
-        "Takashi",
-        "Takashi",
-        "Kobato",
-        "Asuka",
-        "Holy Knight Hawk",
-    };
     for (std::size_t i = 0; i < kSandboxScriptLineCount; ++i) {
         SCOPED_TRACE(i);
-        EXPECT_EQ(out_strings[i].as_object().at("speaker_en").as_string(), kExpectedSpeakerEn[i]);
+        const auto& row_obj = out_strings[i].as_object();
+        if (kSandboxEntries[i].speaker_en[0] != '\0') {
+            EXPECT_EQ(row_obj.at("speaker_en").as_string(), kSandboxEntries[i].speaker_en);
+        } else {
+            EXPECT_EQ(row_obj.if_contains("speaker_en"), nullptr);
+        }
     }
 
     const fs::path sandbox_tsv_path = sandbox_game / "translation_table.tsv";

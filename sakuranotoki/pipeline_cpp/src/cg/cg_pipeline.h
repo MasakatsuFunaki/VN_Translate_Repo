@@ -28,6 +28,10 @@
 #include <utility>
 #include <vector>
 
+namespace vn::llm {
+class IRawHttpTransport;
+}
+
 namespace snt::cg {
 
 struct CgOptions {
@@ -38,6 +42,8 @@ struct CgOptions {
     std::optional<int> max_images;
     // Skip the interactive "send to Gemini?" prompt (for non-tty runs).
     bool assume_yes = false;
+    // Optional outer HTTP transport seam for deterministic offline component tests.
+    vn::llm::IRawHttpTransport* raw_transport = nullptr;
 };
 
 int run_find_narrative_cg(const CgOptions& opt);

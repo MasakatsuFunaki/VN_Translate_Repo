@@ -749,3 +749,526 @@ TEST(TranslateUnitTest, GeminiClientRejectsDisallowedArgonModelsAtConstruction) 
     }
     EXPECT_EQ(transport_calls, 0U);
 }
+
+TEST(TranslateUnitTest, GeminiClientMessagesTranslatesDisallowedModelErrorsToApiError) {
+    namespace bj = boost::json;
+    static constexpr unsigned kHttpOk = static_cast<unsigned>(vn::llm::kHttpStatusOk);
+    static constexpr std::int64_t kValidReplyThoughts = 310;
+
+    std::size_t transport_calls = 0U;
+    auto loopback_transport = [&](std::string_view /*target*/,
+                                  std::string_view /*request_body*/,
+                                  int /*timeout_sec*/) -> HttpResponse {
+        ++transport_calls;
+        return HttpResponse{
+            kHttpOk,
+            R"json({
+              "candidates": [{
+                "content": {
+                  "parts": [
+                    {"thought": true, "text": "Audit check."},
+                    {"text": "VERDICT: PASS"}
+                  ]
+                },
+                "finishReason": "STOP"
+              }],
+              "usageMetadata": {
+                "promptTokenCount": 120,
+                "candidatesTokenCount": 6,
+                "thoughtsTokenCount": 310
+              }
+            })json",
+        };
+    };
+
+    GeminiClient client("synthetic-unit-key", kDefaultModel, {}, loopback_transport);
+
+    constexpr char kEmbeddedNulModelLiteral[] = "gemini-4-carbon\0injected";
+    const std::string embedded_nul_model(
+        kEmbeddedNulModelLiteral, sizeof(kEmbeddedNulModelLiteral) - 1U);
+    const std::vector<std::string> bad_models = {
+        "gemini-4-argon",
+        "GEMINI-4-ARGON",
+        "models/gemini-4-argon-preview",
+        embedded_nul_model,
+    };
+
+    for (const std::string& bad_model : bad_models) {
+        SCOPED_TRACE(bad_model);
+        bj::object bad_req;
+        bad_req["model"] = bad_model;
+        bad_req["messages"] = bj::array{
+            bj::object{{"role", "user"}, {"content", "Audit sample"}},
+        };
+        EXPECT_THROW((void)client.Messages(bad_req), ApiError);
+    }
+    EXPECT_EQ(transport_calls, 0U);
+
+    bj::object valid_req;
+    valid_req["model"] = kDefaultModel;
+    valid_req["messages"] = bj::array{
+        bj::object{{"role", "user"}, {"content", "Audit sample"}},
+    };
+    const bj::value valid_resp = client.Messages(valid_req);
+    EXPECT_EQ(transport_calls, 1U);
+    ASSERT_TRUE(valid_resp.is_object());
+    EXPECT_EQ(valid_resp.as_object().at("stop_reason").as_string(), "end_turn");
+    EXPECT_EQ(client.LastUsage().thoughts_tokens, kValidReplyThoughts);
+
+    GeminiClient moved_client(std::move(client));
+    EXPECT_EQ(moved_client.Model(), kDefaultModel);
+    EXPECT_EQ(moved_client.LastUsage().thoughts_tokens, kValidReplyThoughts);
+    EXPECT_EQ(client.Model(), "");
+    EXPECT_EQ(client.LastUsage().thoughts_tokens, 0);
+    EXPECT_FALSE(client.WasLastBatchZeroThoughtRefused());
+}
+
+TEST(TranslateUnitTest, GeminiClientDelegatesZeroThoughtRetriesAndAccumulatesBilledUsage) {
+    namespace bj = boost::json;
+    static constexpr unsigned kHttpOk = static_cast<unsigned>(vn::llm::kHttpStatusOk);
+    static constexpr int kConfiguredZeroThoughtRetries = vn::llm::kDefaultZeroThoughtRetries;
+    static constexpr std::size_t kExpectedMaxLiveAttempts = 4U;
+    static constexpr std::size_t kExpectedMaxBackoffSleeps = 3U;
+    static constexpr std::size_t kBelowInitialGuardLineCount = 3U;
+    static constexpr std::size_t kAtInitialGuardLineCount = 4U;
+    static constexpr std::size_t kRecoveryAttemptCount = 3U;
+    static constexpr std::size_t kRecoverySleepCount = 2U;
+    static constexpr std::int64_t kExpectedAccumulatedInputTokens = 640;
+    static constexpr std::int64_t kExpectedAccumulatedCandidatesTokens = 52;
+    static constexpr std::int64_t kExpectedAccumulatedThoughtsTokens = 410;
+    static constexpr std::int64_t kExpectedAccumulatedOutputTokens = 462;
+    static constexpr std::int64_t kExpectedAccumulatedCachedTokens = 150;
+    static constexpr std::int64_t kExpectedAccumulatedTotalTokens = 1102;
+
+    auto make_lines = [](std::size_t count) {
+        std::vector<std::string> out;
+        out.reserve(count);
+        for (std::size_t i = 0U; i < count; ++i) {
+            out.push_back("[Takashi] 「テスト行" + std::to_string(i + 1U) + "」");
+        }
+        return out;
+    };
+
+    // Case 1: Persistent 0-thought top-level batch of 4 lines executes exact 1 + 3 = 4
+    // attempts inside vn::llm_client (never 3 x 4 = 12) and throws ZeroThoughtError.
+    {
+        std::vector<std::string> request_bodies;
+        std::size_t sleep_calls = 0U;
+        GeminiClientOptions opts;
+        opts.api_key = "synthetic-unit-key";
+        opts.model = kDefaultModel;
+        opts.zero_thought_max_retries = kConfiguredZeroThoughtRetries;
+        opts.sleep_fn = [&](std::chrono::milliseconds) { ++sleep_calls; };
+        opts.transport_override = [&](std::string_view /*target*/,
+                                      std::string_view body,
+                                      int /*timeout_sec*/) -> HttpResponse {
+            request_bodies.emplace_back(body);
+            return HttpResponse{
+                kHttpOk,
+                R"json({
+                  "candidates": [{
+                    "content": {"parts": [{"text": "1. A\n2. B\n3. C\n4. D"}]},
+                    "finishReason": "STOP"
+                  }],
+                  "usageMetadata": {
+                    "promptTokenCount": 200,
+                    "candidatesTokenCount": 16,
+                    "thoughtsTokenCount": 0
+                  }
+                })json",
+            };
+        };
+
+        GeminiClient client(std::move(opts));
+        EXPECT_THROW(
+            (void)client.TranslateBatch(make_lines(kAtInitialGuardLineCount), {}, {}, false),
+            ZeroThoughtError);
+        ASSERT_EQ(request_bodies.size(), kExpectedMaxLiveAttempts);
+        EXPECT_EQ(sleep_calls, kExpectedMaxBackoffSleeps);
+        EXPECT_EQ(request_bodies[0].find("Reason carefully in your internal thoughts"),
+                  std::string::npos);
+        for (std::size_t attempt = 1U; attempt < request_bodies.size(); ++attempt) {
+            SCOPED_TRACE(attempt);
+            EXPECT_NE(request_bodies[attempt].find("Reason carefully in your internal thoughts"),
+                      std::string::npos);
+        }
+        EXPECT_EQ(client.CumulativeUsage().total_tokens, 0);
+    }
+
+    // Case 2: Transient 0-thought on attempts 1..2 recovering on attempt 3 accumulates
+    // billed token usage across all 3 attempts without dropping earlier attempts.
+    {
+        std::size_t call_count = 0U;
+        std::size_t sleep_calls = 0U;
+        GeminiClientOptions opts;
+        opts.api_key = "synthetic-unit-key";
+        opts.model = kDefaultModel;
+        opts.zero_thought_max_retries = kConfiguredZeroThoughtRetries;
+        opts.sleep_fn = [&](std::chrono::milliseconds) { ++sleep_calls; };
+        opts.transport_override = [&](std::string_view /*target*/,
+                                      std::string_view /*body*/,
+                                      int /*timeout_sec*/) -> HttpResponse {
+            ++call_count;
+            if (call_count == 1U) {
+                return HttpResponse{
+                    kHttpOk,
+                    R"json({
+                      "candidates": [{
+                        "content": {"parts": [{"text": "1. A\n2. B\n3. C\n4. D"}]},
+                        "finishReason": "STOP"
+                      }],
+                      "usageMetadata": {
+                        "promptTokenCount": 200,
+                        "candidatesTokenCount": 15,
+                        "thoughtsTokenCount": 0,
+                        "cachedContentTokenCount": 50
+                      }
+                    })json",
+                };
+            }
+            if (call_count == 2U) {
+                return HttpResponse{
+                    kHttpOk,
+                    R"json({
+                      "candidates": [{
+                        "content": {"parts": [{"text": "1. A\n2. B\n3. C\n4. D"}]},
+                        "finishReason": "STOP"
+                      }],
+                      "usageMetadata": {
+                        "promptTokenCount": 220,
+                        "candidatesTokenCount": 17,
+                        "thoughtsTokenCount": 0,
+                        "cachedContentTokenCount": 50
+                      }
+                    })json",
+                };
+            }
+            return HttpResponse{
+                kHttpOk,
+                R"json({
+                  "candidates": [{
+                    "content": {
+                      "parts": [
+                        {"thought": true, "text": "Recovered internal reasoning."},
+                        {"text": "1. Line one\n2. Line two\n3. Line three\n4. Line four"}
+                      ]
+                    },
+                    "finishReason": "STOP"
+                  }],
+                  "usageMetadata": {
+                    "promptTokenCount": 220,
+                    "candidatesTokenCount": 20,
+                    "thoughtsTokenCount": 410,
+                    "cachedContentTokenCount": 50
+                  }
+                })json",
+            };
+        };
+
+        GeminiClient client(std::move(opts));
+        const auto res = client.TranslateBatch(make_lines(kAtInitialGuardLineCount), {}, {}, false);
+        ASSERT_EQ(res.size(), kAtInitialGuardLineCount);
+        EXPECT_EQ(call_count, kRecoveryAttemptCount);
+        EXPECT_EQ(sleep_calls, kRecoverySleepCount);
+        const GeminiUsage usage = client.LastUsage();
+        EXPECT_EQ(usage.input_tokens, kExpectedAccumulatedInputTokens);
+        EXPECT_EQ(usage.candidates_tokens, kExpectedAccumulatedCandidatesTokens);
+        EXPECT_EQ(usage.thoughts_tokens, kExpectedAccumulatedThoughtsTokens);
+        EXPECT_EQ(usage.output_tokens, kExpectedAccumulatedOutputTokens);
+        EXPECT_EQ(usage.cache_read_input_tokens, kExpectedAccumulatedCachedTokens);
+        EXPECT_EQ(usage.total_tokens, kExpectedAccumulatedTotalTokens);
+    }
+
+    // Case 3: Boundary < 4 lines (3 lines) top-level AND >= 4 lines neutral sub-batch
+    // disable retry_on_zero_thoughts (exact 1 HTTP call, 0 sleeps).
+    {
+        std::size_t call_count = 0U;
+        std::size_t sleep_calls = 0U;
+        GeminiClientOptions opts;
+        opts.api_key = "synthetic-unit-key";
+        opts.model = kDefaultModel;
+        opts.zero_thought_max_retries = kConfiguredZeroThoughtRetries;
+        opts.sleep_fn = [&](std::chrono::milliseconds) { ++sleep_calls; };
+        opts.transport_override = [&](std::string_view /*target*/,
+                                      std::string_view /*body*/,
+                                      int /*timeout_sec*/) -> HttpResponse {
+            ++call_count;
+            if (call_count == 1U) {
+                return HttpResponse{
+                    kHttpOk,
+                    R"json({
+                      "candidates": [{
+                        "content": {"parts": [{"text": "1. Sub A\n2. Sub B\n3. Sub C"}]},
+                        "finishReason": "STOP"
+                      }],
+                      "usageMetadata": {
+                        "promptTokenCount": 150,
+                        "candidatesTokenCount": 12,
+                        "thoughtsTokenCount": 0
+                      }
+                    })json",
+                };
+            }
+            return HttpResponse{
+                kHttpOk,
+                R"json({
+                  "candidates": [{
+                    "content": {"parts": [{"text": "1. Sub A\n2. Sub B\n3. Sub C\n4. Sub D"}]},
+                    "finishReason": "STOP"
+                  }],
+                  "usageMetadata": {
+                    "promptTokenCount": 150,
+                    "candidatesTokenCount": 16,
+                    "thoughtsTokenCount": 0
+                  }
+                })json",
+            };
+        };
+
+        GeminiClient client(std::move(opts));
+        const auto tiny_top =
+            client.TranslateBatch(make_lines(kBelowInitialGuardLineCount), {}, {}, false);
+        EXPECT_EQ(call_count, 1U);
+        EXPECT_EQ(sleep_calls, 0U);
+        EXPECT_EQ(tiny_top.size(), kBelowInitialGuardLineCount);
+
+        const auto neutral_sub =
+            client.TranslateBatch(make_lines(kAtInitialGuardLineCount), {}, {}, true);
+        EXPECT_EQ(call_count, 2U);
+        EXPECT_EQ(sleep_calls, 0U);
+        EXPECT_EQ(neutral_sub.size(), kAtInitialGuardLineCount);
+    }
+}
+
+TEST(TranslateUnitTest, GeminiClientRefusesStrikeOneCachingAndPreservesBatchZeroGuardOnUnparsedReply) {
+    static constexpr unsigned kHttpOk = static_cast<unsigned>(vn::llm::kHttpStatusOk);
+    static constexpr std::size_t kInitialGuardLines = 4U;
+    static constexpr std::size_t kBelowSubsequentGuardLines = 15U;
+    static constexpr std::size_t kAtSubsequentGuardLines = 16U;
+    static constexpr std::size_t kNeutralSubSliceLines = 20U;
+
+    auto make_lines = [](std::size_t count) {
+        std::vector<std::string> out;
+        out.reserve(count);
+        for (std::size_t i = 0U; i < count; ++i) {
+            out.push_back("[Kobato] 「台詞" + std::to_string(i + 1U) + "」");
+        }
+        return out;
+    };
+
+    auto make_numbered_wire_reply = [](std::size_t count, std::int64_t thoughts) {
+        std::string numbered;
+        for (std::size_t i = 0U; i < count; ++i) {
+            if (i > 0U) {
+                numbered += "\\n";
+            }
+            numbered += std::to_string(i + 1U) + ". Line " + std::to_string(i + 1U);
+        }
+        return std::string(R"({"candidates":[{"content":{"parts":[{"text":")") +
+               numbered + R"("}]},"finishReason":"STOP"}],"usageMetadata":{)"
+               R"("promptTokenCount":300,"candidatesTokenCount":60,"thoughtsTokenCount":)" +
+               std::to_string(thoughts) + "}}";
+    };
+
+    // Part A: Unparseable Batch 1 reply must NOT call record_top_level_batch_completed(),
+    // so the immediate context-free retry on Batch 1 still enforces 1-strike abort at 4 lines.
+    {
+        std::size_t calls = 0U;
+        auto unparsed_then_zero_transport = [&](std::string_view /*target*/,
+                                                std::string_view /*body*/,
+                                                int /*timeout_sec*/) -> HttpResponse {
+            ++calls;
+            if (calls == 1U) {
+                return HttpResponse{
+                    kHttpOk,
+                    R"json({
+                      "candidates": [{
+                        "content": {"parts": [{"text": "Unnumbered commentary without indices."}]},
+                        "finishReason": "STOP"
+                      }],
+                      "usageMetadata": {
+                        "promptTokenCount": 250,
+                        "candidatesTokenCount": 12,
+                        "thoughtsTokenCount": 520
+                      }
+                    })json",
+                };
+            }
+            return HttpResponse{
+                kHttpOk,
+                make_numbered_wire_reply(kInitialGuardLines, 0),
+            };
+        };
+
+        GeminiClient client("synthetic-unit-key", kDefaultModel, {}, unparsed_then_zero_transport);
+        EXPECT_THROW(
+            (void)TranslateBatchWithFallback(
+                client,
+                make_lines(kInitialGuardLines),
+                {"[Takashi] Prior context"},
+                {"[Asuka] Lookahead context"}),
+            ZeroThoughtError);
+        EXPECT_EQ(calls, 2U);
+    }
+
+    // Part B: After valid Batch 1, 15-line 0-thought batch is accepted (B-1), 16-line 0-thought
+    // batch records Strike 1 and returns empty WITHOUT triggering context-free/neutral/sub-batch
+    // retries, 20-line neutral sub-slice is immune, and a second consecutive 16-line 0-thought
+    // top-level batch throws ZeroThoughtError.
+    {
+        std::size_t calls = 0U;
+        std::int64_t next_thoughts = 600;
+        std::size_t next_reply_lines = kInitialGuardLines;
+
+        auto scripted_transport = [&](std::string_view /*target*/,
+                                      std::string_view /*body*/,
+                                      int /*timeout_sec*/) -> HttpResponse {
+            ++calls;
+            return HttpResponse{
+                kHttpOk,
+                make_numbered_wire_reply(next_reply_lines, next_thoughts),
+            };
+        };
+
+        GeminiClient client("synthetic-unit-key", kDefaultModel, {}, scripted_transport);
+
+        // Batch 1 (4 lines, thoughts = 600): succeeds and completes top-level Batch 0.
+        const auto batch1 = TranslateBatchWithFallback(
+            client, make_lines(kInitialGuardLines), {"[Takashi] ctx"}, {"[Kobato] after"});
+        ASSERT_EQ(batch1.size(), kInitialGuardLines);
+        EXPECT_FALSE(client.WasLastBatchZeroThoughtRefused());
+        EXPECT_EQ(calls, 1U);
+
+        // Seam B-1 (15 lines, thoughts = 0): below 16-line threshold -> accepted, 0 strikes.
+        next_thoughts = 0;
+        next_reply_lines = kBelowSubsequentGuardLines;
+        const auto seam15 = TranslateBatchWithFallback(
+            client, make_lines(kBelowSubsequentGuardLines), {"[Takashi] ctx"}, {"[Kobato] after"});
+        ASSERT_EQ(seam15.size(), kBelowSubsequentGuardLines);
+        EXPECT_FALSE(client.WasLastBatchZeroThoughtRefused());
+        EXPECT_EQ(calls, 2U);
+
+        // Seam B (16 lines, thoughts = 0) with non-empty context: Strike 1 -> refused ({}),
+        // exact 1 HTTP call (no context-free retry that would double-count Strike 1 into 2,
+        // and no neutral/sub-batch fallback!).
+        next_thoughts = 0;
+        next_reply_lines = kAtSubsequentGuardLines;
+        const auto strike1 = TranslateBatchWithFallback(
+            client, make_lines(kAtSubsequentGuardLines), {"[Takashi] ctx"}, {"[Kobato] after"});
+        EXPECT_EQ(strike1.size(), 0U);
+        EXPECT_TRUE(client.WasLastBatchZeroThoughtRefused());
+        EXPECT_EQ(calls, 3U);
+
+        // Sub-slice immunity: 20-line neutral sub-batch (use_neutral_prompt = true, thoughts = 0)
+        // neither throws ZeroThoughtError nor refuses results.
+        next_thoughts = 0;
+        next_reply_lines = kNeutralSubSliceLines;
+        const auto neutral_sub =
+            client.TranslateBatch(make_lines(kNeutralSubSliceLines), {}, {}, true);
+        ASSERT_EQ(neutral_sub.size(), kNeutralSubSliceLines);
+        EXPECT_FALSE(client.WasLastBatchZeroThoughtRefused());
+        EXPECT_EQ(calls, 4U);
+
+        // Strike 2: consecutive 16-line top-level batch with thoughts = 0 throws ZeroThoughtError.
+        next_thoughts = 0;
+        next_reply_lines = kAtSubsequentGuardLines;
+        EXPECT_THROW(
+            (void)TranslateBatchWithFallback(
+                client, make_lines(kAtSubsequentGuardLines), {"[Takashi] ctx"}, {}),
+            ZeroThoughtError);
+        EXPECT_EQ(calls, 5U);
+    }
+}
+
+TEST(TranslateUnitTest, StrictCp932ValidationAndLatinFoldingGuardCacheIntegrity) {
+    static constexpr std::uint8_t kAsciiUpperA = 0x41U;
+    static constexpr std::uint8_t kAsciiDel = 0x7FU;
+    static constexpr std::uint8_t kSjisIdeographicSpaceLead = 0x81U;
+    static constexpr std::uint8_t kSjisIdeographicSpaceTrail = 0x40U;
+    static constexpr std::size_t kExpectedTwoBytes = 2U;
+    static constexpr std::size_t kExpectedSurvivingCacheEntries = 2U;
+
+    const auto empty_cp932 = oretsuba::Utf8ToCp932Strict("");
+    ASSERT_TRUE(empty_cp932.has_value());
+    EXPECT_EQ(empty_cp932->size(), 0U);
+
+    const auto ascii_del_cp932 = oretsuba::Utf8ToCp932Strict("A\x7F");
+    ASSERT_TRUE(ascii_del_cp932.has_value());
+    ASSERT_EQ(ascii_del_cp932->size(), kExpectedTwoBytes);
+    EXPECT_EQ((*ascii_del_cp932)[0], kAsciiUpperA);
+    EXPECT_EQ((*ascii_del_cp932)[1], kAsciiDel);
+
+    const auto fullwidth_space_cp932 = oretsuba::Utf8ToCp932Strict("　");
+    ASSERT_TRUE(fullwidth_space_cp932.has_value());
+    ASSERT_EQ(fullwidth_space_cp932->size(), kExpectedTwoBytes);
+    EXPECT_EQ((*fullwidth_space_cp932)[0], kSjisIdeographicSpaceLead);
+    EXPECT_EQ((*fullwidth_space_cp932)[1], kSjisIdeographicSpaceTrail);
+
+    struct InvalidCp932Case {
+        const char* name;
+        std::string_view input;
+    };
+    constexpr char kEmbeddedNulSample[] = "Hello\0World";
+    const std::string embedded_nul(kEmbeddedNulSample, sizeof(kEmbeddedNulSample) - 1U);
+    const InvalidCp932Case kInvalidCases[] = {
+        {"embedded_nul_byte", embedded_nul},
+        {"lone_0x80_continuation_byte", "\x80"},
+        {"invalid_0xff_byte", "\xFF"},
+        {"truncated_utf8_lead", "\xC3"},
+        {"invalid_utf8_continuation_pair", "\xC3("},
+        {"unmapped_latin_diacritic_naive", "naïve"},
+        {"unmapped_euro_sign", "500€"},
+        {"unmapped_four_byte_emoji", "🦅"},
+    };
+    for (const auto& tc : kInvalidCases) {
+        SCOPED_TRACE(tc.name);
+        EXPECT_FALSE(oretsuba::Utf8ToCp932Strict(tc.input).has_value());
+    }
+
+    const std::string rich_latin =
+        "«Café\u00A0Alexandria»—Harue's crêpe • naïve façade, señor Ōtori & Ægir œuf ß!\u200B";
+    const std::string folded = SanitizeAscii(rich_latin);
+    EXPECT_EQ(
+        folded,
+        "\"Cafe Alexandria\"--Harue's crepe * naive facade, senor Otori & AEgir oeuf ss!");
+    EXPECT_TRUE(oretsuba::Utf8ToCp932Strict(folded).has_value());
+
+    // Malformed UTF-8 bytes must not be masked into ASCII by SanitizeAscii.
+    const std::string malformed_utf8 = "bad\xC3(seq";
+    EXPECT_FALSE(oretsuba::Utf8ToCp932Strict(SanitizeAscii(malformed_utf8)).has_value());
+
+    constexpr char kNullByteValueLiteral[] = "Null\0byte";
+    TranslationCache cache;
+    const std::map<int, std::string> batch_results = {
+        {1, "[Harue] «Café\u00A0crêpe • naïve señor!»\u200B"},
+        {2, "Price is 500€"},
+        {3, "Hawk emblem 🦅"},
+        {4, "\"Welcome to グレタガルド!\""},
+        {5, "bad\xFFutf8"},
+        {6, std::string(kNullByteValueLiteral, sizeof(kNullByteValueLiteral) - 1U)},
+    };
+
+    EXPECT_TRUE(ApplyLineResult("「クレープだよ！」", batch_results, 1, cache));
+    EXPECT_FALSE(ApplyLineResult("「五百ユーロだ」", batch_results, 2, cache));
+    EXPECT_FALSE(ApplyLineResult("「鷹の紋章」", batch_results, 3, cache));
+    EXPECT_FALSE(ApplyLineResult("<10>\\「ようこそ！」", batch_results, 4, cache));
+    EXPECT_FALSE(ApplyLineResult("「壊れた文字列」", batch_results, 5, cache));
+    EXPECT_FALSE(ApplyLineResult("「ヌル文字」", batch_results, 6, cache));
+
+    ASSERT_EQ(cache.Size(), 1U);
+    const std::string* harue_en = cache.Find("「クレープだよ！」");
+    ASSERT_NE(harue_en, nullptr);
+    EXPECT_EQ(*harue_en, "\"Cafe crepe * naive senor!\"");
+
+    // PurgeFailedEntries removes pre-existing non-CP932 and leaked-JP cache entries
+    // while keeping valid speaker and dialogue entries intact.
+    cache.Set("鷹志", "Takashi");
+    cache.Set("「ユーロ」", "Costs 10€");
+    cache.Set("「混入」", "\"Wait, お兄ちゃん!\"");
+    cache.Set("「空白」", "   ");
+    const std::size_t purged = PurgeFailedEntries(cache);
+    EXPECT_EQ(purged, 3U);
+    EXPECT_EQ(cache.Size(), kExpectedSurvivingCacheEntries);
+    EXPECT_NE(cache.Find("鷹志"), nullptr);
+    EXPECT_NE(cache.Find("「クレープだよ！」"), nullptr);
+}

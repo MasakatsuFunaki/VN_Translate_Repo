@@ -217,12 +217,16 @@ bj::value to_message_envelope(const vn::llm::LlmResponse& resp) {
 
 std::size_t count_batch_slice_lines(std::string_view user_prompt) noexcept {
     const std::size_t start = user_prompt.find(kLinesOpenTag);
-    const std::size_t end = user_prompt.find(kLinesCloseTag);
-    if (start == std::string_view::npos || end == std::string_view::npos || end <= start) {
+    if (start == std::string_view::npos) {
         return kFallbackSliceSize;
     }
-    const std::string_view block = user_prompt.substr(
-        start + kLinesOpenTag.size(), end - (start + kLinesOpenTag.size()));
+    const std::size_t content_start = start + kLinesOpenTag.size();
+    const std::size_t end = user_prompt.find(kLinesCloseTag, content_start);
+    if (end == std::string_view::npos) {
+        return kFallbackSliceSize;
+    }
+    const std::string_view block =
+        user_prompt.substr(content_start, end - content_start);
     std::size_t count = 0u;
     for (char ch : block) {
         if (ch == '\n') {
@@ -232,15 +236,20 @@ std::size_t count_batch_slice_lines(std::string_view user_prompt) noexcept {
     return count > 0u ? count : kFallbackSliceSize;
 }
 
-std::unique_ptr<vn::llm::ILlmClient> make_shared_client(const std::string& api_key,
+std::unique_ptr<vn::llm::ILlmClient> make_shared_client(const ClientOptions& client_opts,
                                                         int read_timeout_sec) {
     vn::llm::LlmClientOptions opts;
     opts.provider = vn::llm::LlmProvider::Gemini;
-    opts.api_key = api_key;
+    opts.api_key = client_opts.api_key;
     opts.default_model = std::string(vn::llm::kDefaultModel);
+    opts.max_retries = client_opts.max_retries;
+    opts.zero_thought_max_retries = client_opts.zero_thought_max_retries;
+    opts.initial_backoff = client_opts.initial_backoff;
     opts.read_timeout_seconds =
         read_timeout_sec > 0 ? read_timeout_sec : kDefaultRequestTimeoutSec;
+    opts.sleep_fn = client_opts.sleep_fn;
     opts.log_fn = [](std::string_view msg) { log_info(std::string(msg)); };
+    opts.raw_transport = client_opts.raw_transport;
     return vn::llm::create_llm_client(std::move(opts));
 }
 
@@ -290,10 +299,11 @@ bj::value adapt_gemini_response(const bj::value& raw) {
             vn::llm::parse_gemini_response_json(serialized, kHttpOkStatus));
     } catch (const vn::llm::LlmError&) {
         // `vn::llm::parse_gemini_response_json` rejects unblocked empty-text
-        // responses in live traffic; for offline callers passing metadata-only
-        // or thought-only payloads, inject a sentinel candidate to reuse its
-        // `usageMetadata` and `finishReason` extraction without duplicating logic.
+        // responses in live traffic; for offline callers passing metadata-only,
+        // error-only, or thought-only payloads, strip `"error"` and inject a
+        // sentinel candidate to reuse `usageMetadata` and `finishReason` extraction.
         bj::object synthetic = raw.as_object();
+        synthetic.erase("error");
         bj::object sentinel_part{{"text", "x"}};
         bj::object sentinel_content{{"parts", bj::array{std::move(sentinel_part)}}};
         if (auto* cands = synthetic.if_contains("candidates");
@@ -304,10 +314,14 @@ bj::value adapt_gemini_response(const bj::value& raw) {
             synthetic["candidates"] =
                 bj::array{bj::object{{"content", std::move(sentinel_content)}}};
         }
-        vn::llm::LlmResponse fallback =
-            vn::llm::parse_gemini_response_json(bj::serialize(synthetic), kHttpOkStatus);
-        fallback.text.clear();
-        return to_message_envelope(fallback);
+        try {
+            vn::llm::LlmResponse fallback =
+                vn::llm::parse_gemini_response_json(bj::serialize(synthetic), kHttpOkStatus);
+            fallback.text.clear();
+            return to_message_envelope(fallback);
+        } catch (const vn::llm::LlmError&) {
+            return to_message_envelope(vn::llm::LlmResponse{});
+        }
     }
 }
 
@@ -318,7 +332,7 @@ std::string load_api_key() {
 IMessageClient::~IMessageClient() = default;
 
 struct Client::Impl {
-    std::string api_key;
+    ClientOptions options;
     int configured_timeout_sec = kDefaultRequestTimeoutSec;
     std::unique_ptr<vn::llm::ILlmClient> llm_client;
     vn::llm::ZeroThoughtCircuitBreaker thought_guard;
@@ -338,6 +352,9 @@ LazyClient& LazyClient::operator=(LazyClient&& other) noexcept {
 LazyClient::~LazyClient() = default;
 
 Client& LazyClient::get() {
+    if (!impl_) {
+        throw ApiError("LazyClient used after move");
+    }
     if (!impl_->client) {
         std::string key = load_api_key();
         if (key.empty()) {
@@ -353,15 +370,22 @@ bj::value LazyClient::messages(const bj::value& body, int timeout_sec) {
     return get().messages(body, timeout_sec);
 }
 
-Client::Client(std::string api_key) : impl_(std::make_unique<Impl>()) {
-    impl_->api_key = std::move(api_key);
-    if (impl_->api_key.empty()) {
-        impl_->api_key = load_api_key();
+Client::Client(std::string api_key)
+    : Client(ClientOptions{std::move(api_key)}) {}
+
+Client::Client(ClientOptions options) : impl_(std::make_unique<Impl>()) {
+    impl_->options = std::move(options);
+    if (impl_->options.api_key.empty()) {
+        impl_->options.api_key = load_api_key();
     }
-    if (impl_->api_key.empty()) {
+    if (impl_->options.api_key.empty()) {
         throw ApiError("GEMINI_API_KEY not set");
     }
-    impl_->llm_client = make_shared_client(impl_->api_key, impl_->configured_timeout_sec);
+    impl_->configured_timeout_sec =
+        impl_->options.request_timeout_sec > 0 ? impl_->options.request_timeout_sec
+                                               : kDefaultRequestTimeoutSec;
+    impl_->llm_client =
+        make_shared_client(impl_->options, impl_->configured_timeout_sec);
 }
 
 Client::Client(Client&& other) noexcept
@@ -373,6 +397,9 @@ Client& Client::operator=(Client&& other) noexcept {
 Client::~Client() = default;
 
 bj::value Client::messages(const bj::value& body, int timeout_sec) {
+    if (!impl_) {
+        throw ApiError("Client used after move");
+    }
     try {
         vn::llm::LlmRequest llm_req = to_llm_request(body);
         if (body.is_object() && !try_extract_single_user_text(body.as_object()).has_value()) {
@@ -398,8 +425,9 @@ bj::value Client::messages(const bj::value& body, int timeout_sec) {
         const int effective_timeout =
             timeout_sec > 0 ? timeout_sec : kDefaultRequestTimeoutSec;
         if (effective_timeout != impl_->configured_timeout_sec) {
+            auto updated_client = make_shared_client(impl_->options, effective_timeout);
+            impl_->llm_client = std::move(updated_client);
             impl_->configured_timeout_sec = effective_timeout;
-            impl_->llm_client = make_shared_client(impl_->api_key, effective_timeout);
         }
 
         const std::size_t slice_size = count_batch_slice_lines(llm_req.user_prompt);

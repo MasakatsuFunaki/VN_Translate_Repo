@@ -704,6 +704,84 @@ TEST(GeminiClient, CallGeminiBatchEnforcesZeroThoughtBreakerAndRecoversOnValidCa
     EXPECT_EQ(gm::extract_usage(msg_resp).thought_tokens, kBatchValidThoughtsTokens);
 }
 
+TEST(GeminiClient, PropagatesRateLimitAndApiErrorsAcrossCustomEndpointAndRecovers) {
+    class FaultInjectingEndpoint final : public gm::Endpoint {
+    public:
+        enum class Action { ThrowRateLimit, ReturnJson429, ThrowApiError, Succeed };
+
+        void enqueue(Action action) { actions_.push_back(action); }
+
+        boost::json::value generate_content(std::string_view /*model*/,
+                                            const boost::json::object& /*wire_request*/,
+                                            int /*timeout_sec*/) override {
+            const Action act = actions_.at(calls_++);
+            if (act == Action::ThrowRateLimit) {
+                throw gm::RateLimitError("HTTP 429 quota exceeded on custom endpoint");
+            }
+            if (act == Action::ReturnJson429) {
+                boost::json::object err;
+                err["code"] = 429;
+                err["status"] = "RESOURCE_EXHAUSTED";
+                err["message"] = "Per-minute token rate limit reached";
+                boost::json::object root;
+                root["error"] = std::move(err);
+                return root;
+            }
+            if (act == Action::ThrowApiError) {
+                throw gm::ApiError("Upstream gateway error");
+            }
+            return make_wire_response(
+                "STOP", kSamplePromptTokens, kSampleCandidatesTokens,
+                kSampleThoughtsTokens, kZeroTokens, "1. Morning came.\n");
+        }
+
+        std::size_t calls() const noexcept { return calls_; }
+
+    private:
+        std::vector<Action> actions_;
+        std::size_t calls_ = 0u;
+    };
+
+    constexpr std::size_t kExpectedFiveEndpointCalls = 5u;
+    FaultInjectingEndpoint endpoint;
+    endpoint.enqueue(FaultInjectingEndpoint::Action::ThrowRateLimit);
+    endpoint.enqueue(FaultInjectingEndpoint::Action::ThrowRateLimit);
+    endpoint.enqueue(FaultInjectingEndpoint::Action::ReturnJson429);
+    endpoint.enqueue(FaultInjectingEndpoint::Action::ThrowApiError);
+    endpoint.enqueue(FaultInjectingEndpoint::Action::Succeed);
+
+    gm::Client client(&endpoint);
+
+    try {
+        (void)client.messages(make_base_messages_body());
+        FAIL() << "Expected RateLimitError when custom Endpoint throws RateLimitError";
+    } catch (const gm::RateLimitError& e) {
+        EXPECT_NE(std::string(e.what()).find("429 quota exceeded"), std::string::npos)
+            << e.what();
+    }
+
+    EXPECT_THROW(
+        tr::call_gemini_batch(client, {"朝が来た。"}, {}, {}, "gemini-4-carbon", "MEDIUM"),
+        gm::RateLimitError);
+
+    EXPECT_THROW(client.messages(make_base_messages_body()), gm::RateLimitError);
+
+    try {
+        (void)client.messages(make_base_messages_body());
+        FAIL() << "Expected ApiError when custom Endpoint throws ApiError";
+    } catch (const gm::RateLimitError&) {
+        FAIL() << "ApiError must not be misclassified as RateLimitError";
+    } catch (const gm::ApiError& e) {
+        EXPECT_NE(std::string(e.what()).find("Upstream gateway error"), std::string::npos)
+            << e.what();
+    }
+
+    // Valid -> Failing -> Valid recovery on the same Client instance.
+    const boost::json::value ok_resp = client.messages(make_base_messages_body());
+    EXPECT_EQ(endpoint.calls(), kExpectedFiveEndpointCalls);
+    EXPECT_EQ(gm::extract_usage(ok_resp).thought_tokens, kSampleThoughtsTokens);
+}
+
 TEST(GeminiClient, TranslateAllAbortsOnZeroThoughtWithoutMutatingCacheOrCallingNextBatch) {
     const ScopedTempDir temp("fav_ut_zero_thought_abort");
     const fs::path& dir = temp.path();

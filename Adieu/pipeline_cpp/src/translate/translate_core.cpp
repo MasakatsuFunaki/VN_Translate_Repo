@@ -10,6 +10,7 @@
 #include "build_tsv/build_tsv.h"
 #include "common/util.h"
 #include "translate/glossary.h"
+#include "vn/llm/zero_thought_guard.h"
 
 #include <boost/regex.hpp>
 
@@ -73,6 +74,16 @@ struct WindowEntry {
     bool was_uncached = false;
 };
 
+struct BatchCallTelemetry {
+    std::map<int, std::string> translations;
+    std::int64_t input_tokens = 0;
+    std::int64_t output_tokens = 0;
+    std::int64_t thought_tokens = 0;
+    std::int64_t cache_read_tokens = 0;
+    std::int64_t cache_creation_tokens = 0;
+    std::string stop_reason = "end_turn";
+};
+
 std::string replace_all(std::string s, const std::string& from, const std::string& to) {
     if (from.empty()) {
         return s;
@@ -119,12 +130,94 @@ void print_context_window(
     log_info("=== END CONTEXT ===\n");
 }
 
+BatchCallTelemetry call_gemini_with_telemetry(
+    gemini::IMessageClient& client,
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after) {
+    bj::object body;
+    body["model"] = MODEL;
+    body["max_tokens"] = std::max<std::int64_t>(
+        static_cast<std::int64_t>(batch_lines.size()) * kTokensPerBatchLine,
+        kMinMaxOutputTokens);
+    body["system"] = SYSTEM_PROMPT;
+    bj::object msg;
+    msg["role"] = "user";
+    msg["content"] = build_user_prompt(batch_lines, previous_context, context_after);
+    body["messages"] = bj::array{std::move(msg)};
+
+    bj::value response = client.messages(bj::value(std::move(body)));
+    const auto& resp_obj = response.get_object();
+
+    std::string response_text;
+    if (auto* content = resp_obj.if_contains("content")) {
+        for (const auto& block : content->get_array()) {
+            if (auto* t = block.get_object().if_contains("type")) {
+                if (t->is_string() && t->get_string() == "text") {
+                    if (auto* txt = block.get_object().if_contains("text")) {
+                        if (txt->is_string()) {
+                            response_text = trim(std::string(txt->get_string()));
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    log_info("\n--- GEMINI'S RAW ANSWER ---");
+    log_info(response_text);
+    log_info("---------------------------\n");
+
+    BatchCallTelemetry out;
+    if (auto* sr = resp_obj.if_contains("stop_reason"); sr && sr->is_string()) {
+        out.stop_reason = std::string(sr->get_string());
+    }
+    if (auto* usage = resp_obj.if_contains("usage"); usage && usage->is_object()) {
+        const auto& u = usage->get_object();
+        auto geti = [&](const char* k) -> std::int64_t {
+            if (auto* v = u.if_contains(k)) {
+                if (v->is_int64()) {
+                    return v->get_int64();
+                }
+            }
+            return 0;
+        };
+        out.input_tokens = geti("input_tokens");
+        out.output_tokens = geti("output_tokens");
+        out.thought_tokens = geti("thought_tokens");
+        out.cache_read_tokens = geti("cache_read_input_tokens");
+        out.cache_creation_tokens = geti("cache_creation_input_tokens");
+    }
+    log_info("    Tokens: in=" + std::to_string(out.input_tokens) +
+             " out=" + std::to_string(out.output_tokens) +
+             " thoughts=" + std::to_string(out.thought_tokens) +
+             " cache_read=" + std::to_string(out.cache_read_tokens) +
+             " cache_create=" + std::to_string(out.cache_creation_tokens));
+
+    out.translations = parse_numbered_response(response_text);
+    return out;
+}
+
+bool should_refuse_zero_thought_cache(std::size_t slice_size,
+                                      const BatchCallTelemetry& batch) noexcept {
+    if (batch.stop_reason == "refusal") {
+        return false;
+    }
+    if (!vn::llm::is_guarded_thinking_mode(MODEL, EFFORT)) {
+        return false;
+    }
+    return slice_size >= vn::llm::kMinSubsequentBatchSliceForThoughtCheck &&
+           batch.thought_tokens <= 0;
+}
+
 void write_last_translation_snapshot(
     const TranslateOptions& opt,
     const std::string& scene_name,
     int api_batches_done,
     const std::vector<UniqueBatchItem>& unique_items,
-    const Cache& cache) {
+    const Cache& cache,
+    const BatchCallTelemetry& telemetry) {
     fs::path base_dir = fs::u8path(opt.cache_file).parent_path();
     if (base_dir.empty()) {
         base_dir = fs::u8path(opt.output_file).parent_path();
@@ -149,7 +242,15 @@ void write_last_translation_snapshot(
 
     bj::object snap;
     snap["scene"] = scene_name;
+    snap["model"] = MODEL;
+    snap["thinking_level"] = EFFORT;
     snap["api_batches_done"] = static_cast<std::int64_t>(api_batches_done);
+    snap["line_count"] = static_cast<std::int64_t>(unique_items.size());
+    snap["input_tokens"] = telemetry.input_tokens;
+    snap["output_tokens"] = telemetry.output_tokens;
+    snap["thought_tokens"] = telemetry.thought_tokens;
+    snap["cache_read_input_tokens"] = telemetry.cache_read_tokens;
+    snap["stop_reason"] = telemetry.stop_reason;
     snap["items"] = std::move(items_arr);
 
     write_file_atomic_text(
@@ -285,23 +386,51 @@ bool translate_scene_impl(const std::string& scene_name,
             }
         };
 
-        try {
-            auto translations =
-                call_gemini(client, api_lines, previous_context, context_after);
-            if (translations.size() < unique_uncached.size()) {
-                log_info("    WARNING: got " + std::to_string(translations.size()) + "/" +
+        BatchCallTelemetry last_telemetry;
+        auto apply_batch_result = [&](BatchCallTelemetry&& batch, bool verbose) {
+            last_telemetry = std::move(batch);
+            if (should_refuse_zero_thought_cache(unique_uncached.size(), last_telemetry)) {
+                log_info("    WARNING: 0 thought tokens on guarded top-level batch (" +
+                         std::to_string(unique_uncached.size()) +
+                         " lines) -- refusing to cache unreasoned output");
+                return;
+            }
+            if (verbose && last_telemetry.translations.size() < unique_uncached.size()) {
+                log_info("    WARNING: got " +
+                         std::to_string(last_telemetry.translations.size()) + "/" +
                          std::to_string(unique_uncached.size()) + " translations");
             }
-            store_translations(translations, /*verbose=*/true);
+            store_translations(last_telemetry.translations, verbose);
+        };
+
+        try {
+            apply_batch_result(
+                call_gemini_with_telemetry(
+                    client, api_lines, previous_context, context_after),
+                /*verbose=*/true);
         } catch (const gemini::ZeroThoughtError&) {
+            if (!opt.cache_file.empty()) {
+                save_cache(cache, opt.cache_file);
+            }
             throw;
         } catch (const gemini::RateLimitError&) {
             log_info("    Rate limited, waiting 60s...");
-            std::this_thread::sleep_for(std::chrono::seconds(kRateLimitRetrySeconds));
+            const auto backoff = std::chrono::seconds(kRateLimitRetrySeconds);
+            if (opt.sleep_fn) {
+                opt.sleep_fn(backoff);
+            } else {
+                std::this_thread::sleep_for(backoff);
+            }
             try {
-                store_translations(
-                    call_gemini(client, api_lines, previous_context, context_after),
+                apply_batch_result(
+                    call_gemini_with_telemetry(
+                        client, api_lines, previous_context, context_after),
                     /*verbose=*/false);
+            } catch (const gemini::ZeroThoughtError&) {
+                if (!opt.cache_file.empty()) {
+                    save_cache(cache, opt.cache_file);
+                }
+                throw;
             } catch (const std::exception& e2) {
                 log_info(std::string("    Retry failed: ") + e2.what() +
                          ", keeping originals");
@@ -339,7 +468,7 @@ bool translate_scene_impl(const std::string& scene_name,
             save_cache(cache, opt.cache_file);
         }
         write_last_translation_snapshot(
-            opt, scene_name, api_batches_done, unique_uncached, cache);
+            opt, scene_name, api_batches_done, unique_uncached, cache, last_telemetry);
 
         if (opt.max_batches > 0 && api_batches_done >= opt.max_batches) {
             // Check whether any uncached lines remain in this scene after `cursor`.
@@ -669,66 +798,9 @@ std::map<int, std::string> call_gemini(
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
     const std::vector<std::pair<std::string, std::string>>& previous_context,
     const std::vector<std::pair<std::string, std::string>>& context_after) {
-    bj::object body;
-    body["model"] = MODEL;
-    body["max_tokens"] = std::max<std::int64_t>(
-        static_cast<std::int64_t>(batch_lines.size()) * kTokensPerBatchLine,
-        kMinMaxOutputTokens);
-    body["system"] = SYSTEM_PROMPT;
-    bj::object msg;
-    msg["role"] = "user";
-    msg["content"] = build_user_prompt(batch_lines, previous_context, context_after);
-    body["messages"] = bj::array{std::move(msg)};
-
-    bj::value response = client.messages(bj::value(std::move(body)));
-
-    std::string response_text;
-    if (auto* content = response.get_object().if_contains("content")) {
-        for (const auto& block : content->get_array()) {
-            if (auto* t = block.get_object().if_contains("type")) {
-                if (t->is_string() && t->get_string() == "text") {
-                    if (auto* txt = block.get_object().if_contains("text")) {
-                        if (txt->is_string()) {
-                            response_text = trim(std::string(txt->get_string()));
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
-    log_info("\n--- GEMINI'S RAW ANSWER ---");
-    log_info(response_text);
-    log_info("---------------------------\n");
-
-    std::int64_t in_tok = 0;
-    std::int64_t out_tok = 0;
-    std::int64_t thought_tok = 0;
-    std::int64_t cache_read = 0;
-    std::int64_t cache_create = 0;
-    if (auto* usage = response.get_object().if_contains("usage")) {
-        const auto& u = usage->get_object();
-        auto geti = [&](const char* k) -> std::int64_t {
-            if (auto* v = u.if_contains(k)) {
-                if (v->is_int64()) {
-                    return v->get_int64();
-                }
-            }
-            return 0;
-        };
-        in_tok = geti("input_tokens");
-        out_tok = geti("output_tokens");
-        thought_tok = geti("thought_tokens");
-        cache_read = geti("cache_read_input_tokens");
-        cache_create = geti("cache_creation_input_tokens");
-    }
-    log_info("    Tokens: in=" + std::to_string(in_tok) + " out=" + std::to_string(out_tok) +
-             " thoughts=" + std::to_string(thought_tok) +
-             " cache_read=" + std::to_string(cache_read) +
-             " cache_create=" + std::to_string(cache_create));
-
-    return parse_numbered_response(response_text);
+    return call_gemini_with_telemetry(
+               client, batch_lines, previous_context, context_after)
+        .translations;
 }
 
 bool translate_scene(const std::string& scene_name,

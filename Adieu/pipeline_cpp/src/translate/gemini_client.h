@@ -13,10 +13,16 @@
 
 #include <boost/json.hpp>
 
+#include <chrono>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
+
+namespace vn::llm {
+class IRawHttpTransport;
+}  // namespace vn::llm
 
 namespace adi::gemini {
 
@@ -100,11 +106,22 @@ public:
                                         int timeout_sec = kDefaultRequestTimeoutSec) = 0;
 };
 
+struct ClientOptions {
+    std::string api_key;
+    int request_timeout_sec = kDefaultRequestTimeoutSec;
+    int max_retries = vn::llm::kDefaultMaxRetries;
+    int zero_thought_max_retries = vn::llm::kAutoZeroThoughtRetries;
+    std::chrono::milliseconds initial_backoff = vn::llm::kDefaultInitialBackoff;
+    std::function<void(std::chrono::milliseconds)> sleep_fn;
+    vn::llm::IRawHttpTransport* raw_transport = nullptr;
+};
+
 // PIMPL-insulated HTTPS Gemini client. Hides OpenSSL, Boost.Beast/Asio, and
 // Windows root-certificate store details from all translation units.
 class Client : public IMessageClient {
 public:
     explicit Client(std::string api_key = {});
+    explicit Client(ClientOptions options);
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
     Client(Client&& other) noexcept;

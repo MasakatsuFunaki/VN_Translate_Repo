@@ -1497,3 +1497,375 @@ TEST(Translate, gemini_client_and_request_builder_reject_disallowed_argon_models
     EXPECT_EQ(transport.call_count, kOneTransportCall);
     EXPECT_EQ(tr::read_answer(ok_resp).text, "1. Alpha");
 }
+
+TEST(Translate, cache_pimpl_copy_and_move_handle_moved_from_state_safely) {
+    constexpr std::size_t kEmptySize = 0U;
+    constexpr std::size_t kSingleSize = 1U;
+    constexpr std::size_t kPairSize = 2U;
+
+    tr::Cache original;
+    original.set(kNaoya, "Naoya");
+    original.set(kMisuzu, "Misuzu");
+    ASSERT_EQ(original.size(), kPairSize);
+
+    tr::Cache moved_into(std::move(original));
+    ASSERT_EQ(moved_into.size(), kPairSize);
+
+    // Moved-from Cache must remain safe for queries, self-assignment, copying,
+    // and subsequent mutation without dereferencing a null PIMPL pointer.
+    EXPECT_EQ(original.size(), kEmptySize);
+    EXPECT_FALSE(original.contains(kNaoya));
+    EXPECT_EQ(original.get(kNaoya), nullptr);
+    EXPECT_TRUE(original.items().empty());
+
+    const tr::Cache copy_from_moved(original);
+    EXPECT_EQ(copy_from_moved.size(), kEmptySize);
+    EXPECT_TRUE(copy_from_moved.items().empty());
+
+    tr::Cache& alias_moved = original;
+    original = alias_moved;
+    EXPECT_EQ(original.size(), kEmptySize);
+
+    // Copy-assigning a populated Cache into a moved-from Cache must allocate
+    // cleanly and preserve insertion order with deep-copy independence.
+    original = moved_into;
+    ASSERT_EQ(original.size(), kPairSize);
+    ASSERT_EQ(original.items().size(), kPairSize);
+    EXPECT_EQ(original.items()[0], std::make_pair(std::string(kNaoya), std::string("Naoya")));
+    EXPECT_EQ(original.items()[1], std::make_pair(std::string(kMisuzu), std::string("Misuzu")));
+
+    original.set(kNaoya, "Kusanagi Naoya");
+    ASSERT_NE(moved_into.get(kNaoya), nullptr);
+    EXPECT_EQ(*moved_into.get(kNaoya), "Naoya");
+    ASSERT_NE(original.get(kNaoya), nullptr);
+    EXPECT_EQ(*original.get(kNaoya), "Kusanagi Naoya");
+
+    // Copy-assigning a moved-from Cache into a populated Cache must reset it to
+    // empty and leave it reusable for new insertions.
+    tr::Cache donor;
+    donor.set("静流", "Shizuru");
+    tr::Cache sink(std::move(donor));
+    ASSERT_EQ(sink.size(), kSingleSize);
+
+    original = donor;
+    EXPECT_EQ(original.size(), kEmptySize);
+    EXPECT_FALSE(original.contains(kNaoya));
+
+    original.set("稟", "Rin");
+    ASSERT_EQ(original.size(), kSingleSize);
+    ASSERT_NE(original.get("稟"), nullptr);
+    EXPECT_EQ(*original.get("稟"), "Rin");
+}
+
+TEST(Translate, adapt_gemini_response_translates_llm_errors_to_gemini_exceptions) {
+    const bj::value quota_err = bj::parse(R"json({
+        "error": {
+            "code": 429,
+            "message": "Resource has been exhausted (e.g. check quota).",
+            "status": "RESOURCE_EXHAUSTED"
+        }
+    })json");
+    EXPECT_THROW(snt::gemini::adapt_gemini_response(quota_err),
+                 snt::gemini::RateLimitError);
+
+    const bj::value empty_candidates = bj::parse(R"json({
+        "candidates": []
+    })json");
+    EXPECT_THROW(snt::gemini::adapt_gemini_response(empty_candidates),
+                 snt::gemini::ApiError);
+
+    const bj::value thought_only_candidate = bj::parse(R"json({
+        "candidates": [{
+            "content": {
+                "role": "model",
+                "parts": [{"thought": true, "text": "Only internal reasoning."}]
+            },
+            "finishReason": "STOP"
+        }]
+    })json");
+    EXPECT_THROW(snt::gemini::adapt_gemini_response(thought_only_candidate),
+                 snt::gemini::ApiError);
+}
+
+TEST(Translate, multimodal_image_blocks_serialize_to_inline_data_and_reach_transport) {
+    constexpr int kHttpStatusOk = 200;
+    constexpr int kVisionTimeoutSec = 60;
+    constexpr std::size_t kExpectedSingleTurnCount = 1U;
+    constexpr std::size_t kExpectedTwoPartsCount = 2U;
+    constexpr std::size_t kExpectedThreePartsCount = 3U;
+    constexpr std::size_t kZeroCalls = 0U;
+    constexpr std::size_t kOneCall = 1U;
+    constexpr const char* kPinnedPngBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    constexpr const char* kSecondJpegBase64 = "/9j/4AAQSkZJRgABAQEASABIAAD/";
+    constexpr const char* kDetectPrompt = "Check if this CG contains narrative text.";
+
+    class CapturingTransport final : public vn::llm::IRawHttpTransport {
+    public:
+        std::size_t call_count = 0U;
+        std::string last_target;
+        std::string last_body;
+        int last_read_timeout = 0;
+
+        vn::llm::RawHttpResponse post_json(std::string_view target_path,
+                                           std::string_view json_body,
+                                           int /*connect_timeout_sec*/,
+                                           int read_timeout_sec) override {
+            ++call_count;
+            last_target.assign(target_path.data(), target_path.size());
+            last_body.assign(json_body.data(), json_body.size());
+            last_read_timeout = read_timeout_sec;
+            return vn::llm::RawHttpResponse{
+                kHttpStatusOk,
+                R"json({
+                    "candidates": [{
+                        "content": {"parts": [
+                            {"thought": true, "text": "Inspecting CG overlay..."},
+                            {"text": "{\"has_narrative_text\": true, \"confidence\": 0.95, \"description\": \"poem\"}"}
+                        ]},
+                        "finishReason": "STOP"
+                    }],
+                    "usageMetadata": {
+                        "promptTokenCount": 320,
+                        "candidatesTokenCount": 24,
+                        "thoughtsTokenCount": 140
+                    }
+                })json"};
+        }
+    };
+
+    bj::object img_block;
+    img_block["type"] = "image";
+    img_block["source"] = bj::object{
+        {"type", "base64"},
+        {"media_type", "image/png"},
+        {"data", kPinnedPngBase64},
+    };
+    bj::object txt_block;
+    txt_block["type"] = "text";
+    txt_block["text"] = kDetectPrompt;
+
+    bj::object vision_in;
+    vision_in["model"] = "gemini-4-carbon";
+    vision_in["max_tokens"] = vn::llm::kMinOutputTokensFloor;
+    vision_in["messages"] = bj::array{
+        bj::object{{"role", "user"}, {"content", bj::array{img_block, txt_block}}}};
+
+    std::string resolved_model;
+    const bj::object built = snt::gemini::build_gemini_request(vision_in, &resolved_model);
+    EXPECT_EQ(resolved_model, "gemini-4-carbon");
+    ASSERT_NE(built.if_contains("safetySettings"), nullptr);
+    EXPECT_EQ(built.at("safetySettings").as_array().size(), kExpectedSafetyCategoryCount);
+    EXPECT_EQ(built.at("generationConfig")
+                  .as_object()
+                  .at("thinkingConfig")
+                  .as_object()
+                  .at("thinkingLevel")
+                  .as_string(),
+              "MEDIUM");
+
+    const bj::array& contents = built.at("contents").as_array();
+    ASSERT_EQ(contents.size(), kExpectedSingleTurnCount);
+    EXPECT_EQ(contents[0].as_object().at("role").as_string(), "user");
+    const bj::array& parts = contents[0].as_object().at("parts").as_array();
+    ASSERT_EQ(parts.size(), kExpectedTwoPartsCount);
+    const bj::object& inline_data = parts[0].as_object().at("inlineData").as_object();
+    EXPECT_EQ(inline_data.at("mimeType").as_string(), "image/png");
+    EXPECT_EQ(inline_data.at("data").as_string(), kPinnedPngBase64);
+    EXPECT_EQ(parts[1].as_object().at("text").as_string(), kDetectPrompt);
+
+    // Multi-image + omitted media_type fallback ("image/png") + custom "image/jpeg".
+    bj::object default_mime_img;
+    default_mime_img["type"] = "image";
+    default_mime_img["source"] = bj::object{{"type", "base64"}, {"data", kPinnedPngBase64}};
+    bj::object jpeg_img;
+    jpeg_img["type"] = "image";
+    jpeg_img["source"] = bj::object{
+        {"type", "base64"}, {"media_type", "image/jpeg"}, {"data", kSecondJpegBase64}};
+    bj::object multi_in;
+    multi_in["messages"] = bj::array{bj::object{
+        {"role", "user"},
+        {"content", bj::array{default_mime_img, jpeg_img, txt_block}}}};
+    const bj::object multi_built = snt::gemini::build_gemini_request(multi_in);
+    const bj::array& multi_parts =
+        multi_built.at("contents").as_array()[0].as_object().at("parts").as_array();
+    ASSERT_EQ(multi_parts.size(), kExpectedThreePartsCount);
+    EXPECT_EQ(multi_parts[0].as_object().at("inlineData").as_object().at("mimeType").as_string(),
+              "image/png");
+    EXPECT_EQ(multi_parts[1].as_object().at("inlineData").as_object().at("mimeType").as_string(),
+              "image/jpeg");
+    EXPECT_EQ(multi_parts[1].as_object().at("inlineData").as_object().at("data").as_string(),
+              kSecondJpegBase64);
+    EXPECT_EQ(multi_parts[2].as_object().at("text").as_string(), kDetectPrompt);
+
+    // Valid -> Failing -> Valid seam on Client::messages: malformed image blocks
+    // throw ApiError before touching transport, then valid multimodal request
+    // delivers inlineData end-to-end through IRawHttpTransport.
+    CapturingTransport transport;
+    snt::gemini::Client client("fake-vision-key", &transport);
+
+    bj::object empty_data_img;
+    empty_data_img["type"] = "image";
+    empty_data_img["source"] = bj::object{{"type", "base64"}, {"media_type", "image/png"}, {"data", ""}};
+    bj::object bad_req;
+    bad_req["messages"] = bj::array{
+        bj::object{{"role", "user"}, {"content", bj::array{empty_data_img, txt_block}}}};
+    EXPECT_THROW(snt::gemini::build_gemini_request(bad_req), snt::gemini::ApiError);
+    EXPECT_THROW(client.messages(bad_req, kVisionTimeoutSec), snt::gemini::ApiError);
+    EXPECT_EQ(transport.call_count, kZeroCalls);
+
+    const bj::value resp = client.messages(vision_in, kVisionTimeoutSec);
+    ASSERT_EQ(transport.call_count, kOneCall);
+    EXPECT_EQ(transport.last_read_timeout, kVisionTimeoutSec);
+    EXPECT_EQ(transport.last_target,
+              "/v1beta/models/gemini-4-carbon:generateContent?key=fake-vision-key");
+
+    const bj::object wire_sent = bj::parse(transport.last_body).as_object();
+    const bj::array& wire_parts =
+        wire_sent.at("contents").as_array()[0].as_object().at("parts").as_array();
+    ASSERT_EQ(wire_parts.size(), kExpectedTwoPartsCount);
+    EXPECT_EQ(wire_parts[0].as_object().at("inlineData").as_object().at("mimeType").as_string(),
+              "image/png");
+    EXPECT_EQ(wire_parts[0].as_object().at("inlineData").as_object().at("data").as_string(),
+              kPinnedPngBase64);
+    EXPECT_EQ(wire_parts[1].as_object().at("text").as_string(), kDetectPrompt);
+    EXPECT_NE(tr::read_answer(resp).text.find("\"has_narrative_text\": true"), std::string::npos);
+}
+
+TEST(Translate, zero_thought_strike_one_refuses_cache_at_16_line_seam_and_strike_two_aborts) {
+    constexpr int kHttpStatusOk = 200;
+    constexpr std::size_t kBelowSubsequentGuardSeam = 15U;
+    constexpr std::size_t kAtSubsequentGuardSeam = 16U;
+    constexpr std::int64_t kHealthyThoughts = 240;
+    constexpr std::int64_t kRecoveredThoughts = 195;
+    constexpr std::int64_t kZeroThoughts = 0;
+
+    auto make_batch_slice = [](const std::string& tag, std::size_t count) {
+        std::vector<std::pair<std::string, std::string>> out;
+        out.reserve(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            out.emplace_back("Naoya", "「" + tag + "・第" + std::to_string(i + 1) + "行」");
+        }
+        return out;
+    };
+
+    auto make_gemini_numbered_json = [](std::size_t count,
+                                        const std::string& en_prefix,
+                                        std::int64_t thought_tokens) {
+        std::string numbered;
+        for (std::size_t i = 0; i < count; ++i) {
+            numbered += std::to_string(i + 1) + ". " + en_prefix + " " +
+                        std::to_string(i + 1) + "\\n";
+        }
+        return std::string(R"json({"candidates":[{"content":{"parts":[)json") +
+               (thought_tokens > 0
+                    ? std::string(R"json({"thought":true,"text":"Reasoning..."},)json")
+                    : std::string{}) +
+               R"json({"text":")json" + numbered +
+               R"json("}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":300,"candidatesTokenCount":80,"thoughtsTokenCount":)json" +
+               std::to_string(thought_tokens) + "}}";
+    };
+
+    class ScriptedTransport final : public vn::llm::IRawHttpTransport {
+    public:
+        std::vector<std::string> responses;
+        std::size_t cursor = 0U;
+
+        vn::llm::RawHttpResponse post_json(std::string_view /*target_path*/,
+                                           std::string_view /*json_body*/,
+                                           int /*connect_timeout_sec*/,
+                                           int /*read_timeout_sec*/) override {
+            if (cursor >= responses.size()) {
+                throw std::runtime_error("unexpected extra HTTP call");
+            }
+            return vn::llm::RawHttpResponse{kHttpStatusOk, responses[cursor++]};
+        }
+    };
+
+    const auto b1 = make_batch_slice("一組", kAtSubsequentGuardSeam);
+    const auto b2_seam15 = make_batch_slice("二組十五", kBelowSubsequentGuardSeam);
+    const auto b3_strike1 = make_batch_slice("三組十六", kAtSubsequentGuardSeam);
+    const auto b4_recover = make_batch_slice("四組回復", kAtSubsequentGuardSeam);
+    const auto b5_strike1_again = make_batch_slice("五組再発", kAtSubsequentGuardSeam);
+    const auto b6_strike2_trip = make_batch_slice("六組遮断", kAtSubsequentGuardSeam);
+
+    ScriptedTransport transport;
+    transport.responses = {
+        make_gemini_numbered_json(kAtSubsequentGuardSeam, "BatchOne", kHealthyThoughts),
+        make_gemini_numbered_json(kBelowSubsequentGuardSeam, "TailFifteen", kZeroThoughts),
+        make_gemini_numbered_json(kAtSubsequentGuardSeam, "StrikeOneUncached", kZeroThoughts),
+        make_gemini_numbered_json(kAtSubsequentGuardSeam, "RecoveredBatch", kRecoveredThoughts),
+        make_gemini_numbered_json(kAtSubsequentGuardSeam, "SecondStrikeOne", kZeroThoughts),
+        make_gemini_numbered_json(kAtSubsequentGuardSeam, "StrikeTwoAbort", kZeroThoughts),
+    };
+
+    snt::gemini::Client client("fake-guard-key", &transport);
+    tr::Cache cache;
+    std::vector<std::pair<std::string, std::string>> ctx;
+
+    // 1. Batch 1 (16 lines, thought_tokens = 240 > 0) -> cached.
+    tr::translate_batch(cache, ctx, b1, [&] { return tr::call_gemini(client, b1, ctx); });
+    ASSERT_EQ(cache.size(), kAtSubsequentGuardSeam);
+    EXPECT_TRUE(cache.contains(b1.front().second));
+
+    // 2. BVA seam B - 1 = 15 lines on Batch 2 with thought_tokens == 0 -> below 16-line
+    // subsequent-batch threshold, so accepted and cached.
+    tr::translate_batch(cache, ctx, b2_seam15,
+                        [&] { return tr::call_gemini(client, b2_seam15, ctx); });
+    ASSERT_EQ(cache.size(), kAtSubsequentGuardSeam + kBelowSubsequentGuardSeam);
+    EXPECT_TRUE(cache.contains(b2_seam15.back().second));
+
+    // 3. BVA seam B = 16 lines on Batch 3 with thought_tokens == 0 -> Strike 1:
+    // does NOT throw yet, and MUST NOT cache any of the 16 non-thinking lines.
+    tr::translate_batch(cache, ctx, b3_strike1,
+                        [&] { return tr::call_gemini(client, b3_strike1, ctx); });
+    EXPECT_EQ(cache.size(), kAtSubsequentGuardSeam + kBelowSubsequentGuardSeam);
+    for (const auto& [speaker, jp] : b3_strike1) {
+        (void)speaker;
+        EXPECT_FALSE(cache.contains(jp)) << "Strike-1 0-thought line polluted cache: " << jp;
+    }
+
+    // 4. Batch 4 (16 lines, thought_tokens = 195 > 0) -> resets consecutive strike
+    // counter to 0 and caches all 16 lines.
+    tr::translate_batch(cache, ctx, b4_recover,
+                        [&] { return tr::call_gemini(client, b4_recover, ctx); });
+    ASSERT_EQ(cache.size(),
+              kAtSubsequentGuardSeam + kBelowSubsequentGuardSeam + kAtSubsequentGuardSeam);
+    EXPECT_TRUE(cache.contains(b4_recover.front().second));
+
+    // 5. Batch 5 (16 lines, thought_tokens == 0) -> fresh Strike 1 (must NOT throw
+    // because Batch 4 reset the streak, and must NOT cache).
+    tr::translate_batch(cache, ctx, b5_strike1_again,
+                        [&] { return tr::call_gemini(client, b5_strike1_again, ctx); });
+    EXPECT_EQ(cache.size(),
+              kAtSubsequentGuardSeam + kBelowSubsequentGuardSeam + kAtSubsequentGuardSeam);
+    EXPECT_FALSE(cache.contains(b5_strike1_again.front().second));
+
+    // 6. Batch 6 (16 lines, thought_tokens == 0) -> 2nd consecutive top-level strike:
+    // trips ZeroThoughtCircuitBreaker and throws ZeroThoughtError.
+    EXPECT_THROW(
+        tr::translate_batch(cache, ctx, b6_strike2_trip,
+                            [&] { return tr::call_gemini(client, b6_strike2_trip, ctx); }),
+        snt::gemini::ZeroThoughtError);
+    EXPECT_FALSE(cache.contains(b6_strike2_trip.front().second));
+
+    // 7. RateLimitError retry path must also rethrow ZeroThoughtError rather than
+    // swallowing it inside catch (const std::exception&).
+    int retry_attempt = 0;
+    tr::Cache rate_cache;
+    std::vector<std::pair<std::string, std::string>> rate_ctx;
+    EXPECT_THROW(
+        tr::translate_batch(
+            rate_cache,
+            rate_ctx,
+            b1,
+            [&]() -> std::map<int, std::string> {
+                if (++retry_attempt == 1) {
+                    throw snt::gemini::RateLimitError("HTTP 429");
+                }
+                throw snt::gemini::ZeroThoughtError("0 thoughts on retry");
+            },
+            std::chrono::seconds::zero()),
+        snt::gemini::ZeroThoughtError);
+    EXPECT_EQ(rate_cache.size(), 0U);
+}

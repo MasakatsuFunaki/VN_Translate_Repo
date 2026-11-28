@@ -64,6 +64,7 @@ The pipeline is four steps, and `00_run_all.exe` performs all four:
 
 02_translate.exe --batch N           :: lines per API call (default 40)
 02_translate.exe --max-batches N     :: cap API requests, keeping cache and outputs
+02_translate.exe --max-budget-eur N  :: stop cleanly once spend reaches EUR cap (0 = no limit)
 02_translate.exe --rebuild-table     :: rebuild translation_table.tsv from translated_text.json
 02_translate.exe --retranslate       :: ignore cache, redo all
 02_translate.exe --discard-cache     :: let --retranslate delete a cache holding paid work

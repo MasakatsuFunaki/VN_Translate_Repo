@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -56,6 +57,15 @@ using HttpTransportFn = std::function<HttpResponse(
     std::string_view request_body,
     int timeout_sec)>;
 
+struct GeminiClientOptions {
+    std::string api_key;
+    std::string model = kDefaultModel;
+    std::string project_dir;
+    HttpTransportFn transport_override;
+    int zero_thought_max_retries = vn::llm::kAutoZeroThoughtRetries;
+    std::function<void(std::chrono::milliseconds)> sleep_fn;
+};
+
 // Strategy interface for batch translation backends.
 class ITranslationBackend {
 public:
@@ -66,6 +76,8 @@ public:
         const std::vector<std::string>& previous_context,
         const std::vector<std::string>& context_after,
         bool use_neutral_prompt = false) = 0;
+
+    virtual bool WasLastBatchZeroThoughtRefused() const noexcept { return false; }
 };
 
 // Thread-compatible HTTPS client for gemini-4-carbon over Boost.Beast + OpenSSL.
@@ -78,6 +90,7 @@ public:
                  std::string model,
                  std::string project_dir,
                  HttpTransportFn transport_override);
+    explicit GeminiClient(GeminiClientOptions options);
     GeminiClient(const GeminiClient&) = delete;
     GeminiClient& operator=(const GeminiClient&) = delete;
     GeminiClient(GeminiClient&& other) noexcept;
@@ -89,6 +102,8 @@ public:
         const std::vector<std::string>& previous_context,
         const std::vector<std::string>& context_after,
         bool use_neutral_prompt = false) override;
+
+    bool WasLastBatchZeroThoughtRefused() const noexcept override;
 
     boost::json::value Messages(const boost::json::value& body,
                                 int timeout_sec = kDefaultTimeoutSec);

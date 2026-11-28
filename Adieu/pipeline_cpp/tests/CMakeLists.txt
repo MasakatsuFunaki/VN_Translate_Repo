@@ -44,11 +44,16 @@ adi_ct_test(ct_menu_patcher)
 target_compile_definitions(ct_menu_patcher PRIVATE
     ADIEU_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../.."
 )
+add_executable(ct_translate ct_translate.cpp ../src/apps/paths.cpp)
+target_link_libraries(ct_translate PRIVATE adi_core Boost::program_options shell32 GTest::gtest GTest::gtest_main)
+gtest_discover_tests(ct_translate PROPERTIES LABELS "CT")
+add_dependencies(ct_translate 02_translate)
 
 adi_st_test(st_siglus_system)
 adi_st_test(st_gameexe_roundtrip)
 adi_st_test(st_menu_patcher)
 adi_st_test(st_gemini_translate)
+add_dependencies(st_gemini_translate 02_translate)
 target_compile_definitions(st_menu_patcher PRIVATE
     ADIEU_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../.."
 )

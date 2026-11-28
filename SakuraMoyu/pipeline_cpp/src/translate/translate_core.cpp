@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -38,6 +39,7 @@ constexpr int kMinValidBatchSize = 1;
 constexpr int kMinNonNegativeOptionValue = 0;
 constexpr double kMinNonNegativeBudgetEur = 0.0;
 constexpr int kDefaultPrettyIndent = 2;
+constexpr unsigned char kNullByte = 0x00u;
 constexpr unsigned char kNonAsciiByteMin = 0x80u;
 constexpr std::size_t kPromptNumberOffset = 1;
 constexpr int kMinBatchNumberForNumberedLog = 1;
@@ -147,6 +149,8 @@ std::optional<std::string> validate_options(int batch_size, int test_n, int max_
     if (max_batches < kMinNonNegativeOptionValue)
         return "--max-batches cannot be negative (got " + std::to_string(max_batches) +
                "); use 0 for no limit";
+    if (!std::isfinite(max_budget_eur))
+        return "--max-budget-eur must be finite; use 0 for no limit";
     if (max_budget_eur < kMinNonNegativeBudgetEur)
         return "--max-budget-eur cannot be negative (got " + std::to_string(max_budget_eur) +
                "); use 0 for no limit";
@@ -171,6 +175,13 @@ std::string sanitize_ascii(const std::string& text) {
     static const boost::regex angle_ruby_re(R"(<([^|>]+)\|([^>]+)>)");
     s = boost::regex_replace(s, angle_ruby_re, "$1");
     return s;
+}
+
+bool is_ascii_clean(std::string_view text) noexcept {
+    return std::all_of(text.begin(), text.end(), [](char ch) noexcept {
+        const auto b = static_cast<unsigned char>(ch);
+        return b != kNullByte && b < kNonAsciiByteMin;
+    });
 }
 
 std::string strip_speaker_tags(const std::string& text) {
@@ -244,16 +255,21 @@ std::size_t purge_failed_entries(Cache& cache) {
 
 void apply_line_result(Cache& cache, std::vector<std::string>& previous_context,
                        const std::string& jp, const std::string& en) {
-    // An answer that never arrived is not a translation.  Caching the Japanese
-    // as its own English would mark the line done, and no later run would ask
-    // for it again.  The context window still gets the Japanese, so the next
-    // request reads in sequence.
-    if (en.empty()) {
+    // An answer that never arrived, leaked Japanese, or retained non-ASCII /
+    // NUL bytes is not a usable FVP translation.  Leaving it uncached ensures
+    // the next resume run asks for it again while the Japanese carries the
+    // context window in sequence.
+    if (en.find('\0') != std::string::npos) {
         previous_context.push_back(jp);
         return;
     }
-    cache.set(jp, en);
-    previous_context.push_back(en);
+    const std::string cleaned = strip_speaker_tags(en);
+    if (cleaned.empty() || jp_char_count(cleaned) > 0 || !is_ascii_clean(cleaned)) {
+        previous_context.push_back(jp);
+        return;
+    }
+    cache.set(jp, cleaned);
+    previous_context.push_back(cleaned);
 }
 
 std::string build_user_prompt(const std::vector<std::string>& batch_lines,
@@ -802,6 +818,7 @@ int translate_all(const TranslateOptions& opt) {
                     api, prompt_lines, previous_context, context_after,
                     active_model, active_thinking, circuit_breaker, top_opt);
                 gemini::Usage batch_usage = batch_res.usage;
+                std::int64_t winning_thoughts = batch_res.usage.thought_tokens;
                 accumulate_usage(cumulative_usage, batch_res.usage);
 
                 if (batch_res.stop_reason == "refusal") {
@@ -814,6 +831,7 @@ int translate_all(const TranslateOptions& opt) {
                                          stopped_by_budget, batch_usage, rescued);
                     batch_res.translations = std::move(rescued);
                     batch_res.usage = batch_usage;
+                    winning_thoughts = batch_usage.thought_tokens;
                 } else if (batch_res.translations.empty() &&
                            (!previous_context.empty() || !context_after.empty())) {
                     log_info("    Empty response with context window -- retrying batch "
@@ -821,6 +839,7 @@ int translate_all(const TranslateOptions& opt) {
                     BatchResult retry_res = run_gemini_batch_with_guard(
                         api, prompt_lines, {}, {}, active_model, active_thinking,
                         circuit_breaker, top_opt);
+                    winning_thoughts = retry_res.usage.thought_tokens;
                     add_gemini_usage(batch_usage, retry_res.usage);
                     accumulate_usage(cumulative_usage, retry_res.usage);
                     batch_res = std::move(retry_res);
@@ -831,9 +850,11 @@ int translate_all(const TranslateOptions& opt) {
                     vn::llm::is_guarded_thinking_mode(active_model, active_thinking) &&
                     batch_res.stop_reason != "refusal" &&
                     prompt_lines.size() >= vn::llm::kMinSubsequentBatchSliceForThoughtCheck &&
-                    batch_res.usage.thought_tokens <= 0;
+                    winning_thoughts <= 0;
 
-                circuit_breaker.record_top_level_batch_completed();
+                if (!batch_res.translations.empty() || batch_res.stop_reason == "refusal") {
+                    circuit_breaker.record_top_level_batch_completed();
+                }
                 batch_thoughts = batch_res.usage.thought_tokens;
 
                 const double spend_usd =
@@ -883,17 +904,35 @@ int translate_all(const TranslateOptions& opt) {
                     std::vector<std::string> resolved_en(api_lines.size());
                     for (std::size_t j = 0; j < api_lines.size(); ++j) {
                         auto it = translations.find(static_cast<int>(j) + 1);
-                        if (it != translations.end()) resolved_en[j] = strip(it->second);
+                        const bool has_embedded_nul =
+                            it != translations.end() &&
+                            it->second.find('\0') != std::string::npos;
+                        if (has_embedded_nul) {
+                            log_info("    [WARN] Embedded NUL byte in line " +
+                                     std::to_string(j + 1) + " -- leaving it queued");
+                            continue;
+                        }
+                        if (it != translations.end()) {
+                            resolved_en[j] = strip_speaker_tags(it->second);
+                        }
                         if (resolved_en[j].empty()) {
                             log_info("    Missing translation for line " +
                                      std::to_string(j + 1) + " -- leaving it queued");
-                        } else if (jp_char_count(resolved_en[j]) > 0) {
+                            continue;
+                        }
+                        if (jp_char_count(resolved_en[j]) > 0) {
                             log_info("    [WARN] Leaked Japanese characters in line " +
                                      std::to_string(j + 1) + " -- leaving it queued");
                             resolved_en[j].clear();
-                        } else {
-                            cache.set(api_lines[j], resolved_en[j]);
+                            continue;
                         }
+                        if (!is_ascii_clean(resolved_en[j])) {
+                            log_info("    [WARN] Non-ASCII characters in line " +
+                                     std::to_string(j + 1) + " -- leaving it queued");
+                            resolved_en[j].clear();
+                            continue;
+                        }
+                        cache.set(api_lines[j], resolved_en[j]);
                     }
 
                     std::size_t previewed = 0;

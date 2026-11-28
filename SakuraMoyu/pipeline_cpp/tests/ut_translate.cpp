@@ -17,7 +17,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -220,19 +222,68 @@ TEST(Translate, glossary_entries_are_well_formed) {
 }
 
 // A mistyped cap must be refused before anything is loaded or deleted: a
-// negative one used to read as "no limit" and start an unbounded paid run.
+// negative or non-finite one (`NaN`, `Inf`) reads as "no limit" and starts an
+// unbounded paid run.
 TEST(Translate, validate_options_refuses_caps_that_would_overspend) {
-    constexpr double kValidBudgetEur = 50.0;
+    struct OptionCase {
+        const char* name;
+        int batch_size;
+        int test_n;
+        int max_batches;
+        double max_budget_eur;
+        const char* expected_error_flag;
+    };
+
     constexpr double kZeroBudgetEur = 0.0;
+    constexpr double kSmallPositiveBudgetEur = 0.01;
+    constexpr double kValidBudgetEur = 50.0;
     constexpr double kNegativeBudgetEur = -0.01;
-    EXPECT_FALSE(tr::validate_options(kValidBatchSize, kZeroLimit, kZeroLimit, kZeroBudgetEur).has_value());
-    EXPECT_FALSE(tr::validate_options(kMinBatchSize, kSampleBatchCap, kZeroLimit, kValidBudgetEur).has_value());
-    EXPECT_FALSE(tr::validate_options(kMinBatchSize, kZeroLimit, kSampleBatchCap, kZeroBudgetEur).has_value());
-    EXPECT_TRUE(tr::validate_options(kZeroLimit, kZeroLimit, kZeroLimit, kZeroBudgetEur).has_value());
-    EXPECT_TRUE(tr::validate_options(kNegativeValue, kZeroLimit, kZeroLimit, kZeroBudgetEur).has_value());
-    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kNegativeValue, kZeroLimit, kZeroBudgetEur).has_value());
-    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kZeroLimit, kNegativeValue, kZeroBudgetEur).has_value());
-    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kZeroLimit, kZeroLimit, kNegativeBudgetEur).has_value());
+    const double quiet_nan = std::numeric_limits<double>::quiet_NaN();
+    const double sig_nan = std::numeric_limits<double>::signaling_NaN();
+    const double pos_inf = std::numeric_limits<double>::infinity();
+    const double neg_inf = -std::numeric_limits<double>::infinity();
+    const double max_finite = std::numeric_limits<double>::max();
+
+    const OptionCase cases[] = {
+        {"default_unlimited_caps", kValidBatchSize, kZeroLimit, kZeroLimit,
+         kZeroBudgetEur, nullptr},
+        {"min_batch_with_positive_budget", kMinBatchSize, kSampleBatchCap, kZeroLimit,
+         kSmallPositiveBudgetEur, nullptr},
+        {"max_batches_with_valid_budget", kMinBatchSize, kZeroLimit, kSampleBatchCap,
+         kValidBudgetEur, nullptr},
+        {"max_finite_budget_is_accepted", kValidBatchSize, kZeroLimit, kZeroLimit,
+         max_finite, nullptr},
+        {"zero_batch_rejected", kZeroLimit, kZeroLimit, kZeroLimit,
+         kZeroBudgetEur, "--batch"},
+        {"negative_batch_rejected", kNegativeValue, kZeroLimit, kZeroLimit,
+         kZeroBudgetEur, "--batch"},
+        {"negative_test_n_rejected", kValidBatchSize, kNegativeValue, kZeroLimit,
+         kZeroBudgetEur, "--test"},
+        {"negative_max_batches_rejected", kValidBatchSize, kZeroLimit, kNegativeValue,
+         kZeroBudgetEur, "--max-batches"},
+        {"negative_budget_rejected", kValidBatchSize, kZeroLimit, kZeroLimit,
+         kNegativeBudgetEur, "--max-budget-eur"},
+        {"quiet_nan_budget_rejected", kValidBatchSize, kZeroLimit, kZeroLimit,
+         quiet_nan, "--max-budget-eur"},
+        {"signaling_nan_budget_rejected", kValidBatchSize, kZeroLimit, kZeroLimit,
+         sig_nan, "--max-budget-eur"},
+        {"positive_infinity_budget_rejected", kValidBatchSize, kZeroLimit, kZeroLimit,
+         pos_inf, "--max-budget-eur"},
+        {"negative_infinity_budget_rejected", kValidBatchSize, kZeroLimit, kZeroLimit,
+         neg_inf, "--max-budget-eur"},
+    };
+
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.name);
+        const auto why = tr::validate_options(
+            tc.batch_size, tc.test_n, tc.max_batches, tc.max_budget_eur);
+        if (tc.expected_error_flag == nullptr) {
+            EXPECT_FALSE(why.has_value()) << (why.has_value() ? *why : "");
+            continue;
+        }
+        ASSERT_TRUE(why.has_value());
+        EXPECT_NE(why->find(tc.expected_error_flag), std::string::npos) << *why;
+    }
 }
 
 TEST(Translate, synthetic_cast_registry_and_speaker_gate_checks_pass) {
@@ -456,7 +507,87 @@ TEST(Translate, sanitize_ascii_normalizes_typographic_punctuation_and_ruby_tags)
               "cafe naive facade deja vu -- 'uber' ~");
     EXPECT_EQ(tr::sanitize_ascii("[・|俺][・|は]"), "俺は");
     EXPECT_EQ(tr::sanitize_ascii("[えが|描]く"), "描く");
+    EXPECT_EQ(tr::sanitize_ascii("<桜|さくら>の花びら"), "桜の花びら");
+    EXPECT_EQ(tr::sanitize_ascii("<満開|まんかい>の[さくら|桜]と<輪廻|りんね>"),
+              "満開の桜と輪廻");
+    EXPECT_EQ(tr::sanitize_ascii("The <Night|yoru> returned."), "The Night returned.");
+    EXPECT_EQ(tr::sanitize_ascii("a < b > c"), "a < b > c");
     EXPECT_EQ(tr::strip_speaker_tags("[Chiwa] “Good morning…”"), "\"Good morning...\"");
+}
+
+TEST(Translate, AsciiCleanlinessAndApplyLineResultEnforceByteSeams) {
+    static constexpr char kEmbeddedNulAscii[] = "Quiet\0morning";
+    static constexpr char kMinValidByte[] = "\x01";
+    static constexpr char kMaxAsciiByte[] = "ok\x7F";
+    static constexpr char kMinHighByte[] = "bad\x80";
+    static constexpr char kMaxHighByte[] = "bad\xFF";
+
+    struct AsciiSeamCase {
+        const char* name;
+        std::string_view input;
+        bool expected_clean;
+    };
+
+    constexpr AsciiSeamCase kSeamCases[] = {
+        {"empty_string_is_vacuously_clean", "", true},
+        {"min_non_nul_byte_0x01_accepted", std::string_view(kMinValidByte, 1u), true},
+        {"printable_ascii_accepted", "Welcome home, Taiga!", true},
+        {"upper_7bit_seam_0x7f_accepted", std::string_view(kMaxAsciiByte, 3u), true},
+        {"sign_bit_seam_0x80_rejected", std::string_view(kMinHighByte, 4u), false},
+        {"unsigned_max_seam_0xff_rejected", std::string_view(kMaxHighByte, 4u), false},
+        {"embedded_nul_byte_rejected",
+         std::string_view(kEmbeddedNulAscii, sizeof(kEmbeddedNulAscii) - 1u), false},
+        {"latin_extended_macron_utf8_rejected", "Tōya", false},
+        {"euro_symbol_utf8_rejected", "100€", false},
+        {"emoji_utf8_rejected", "Sakura 🌸", false},
+    };
+
+    for (const auto& tc : kSeamCases) {
+        SCOPED_TRACE(tc.name);
+        EXPECT_EQ(tr::is_ascii_clean(tc.input), tc.expected_clean);
+    }
+
+    // Stateful Valid -> Failing -> Valid sequence on Cache and context window.
+    constexpr std::size_t kExpectedSevenContextEntries = 7u;
+    tr::Cache cache;
+    std::vector<std::string> context;
+
+    tr::apply_line_result(
+        cache, context, "「ようこそ」", "[Kuro] “Welcome to the <Café|kafe>…”");
+    ASSERT_NE(cache.get("「ようこそ」"), nullptr);
+    EXPECT_EQ(*cache.get("「ようこそ」"), "\"Welcome to the Cafe...\"");
+    EXPECT_EQ(context.back(), "\"Welcome to the Cafe...\"");
+
+    tr::apply_line_result(cache, context, "「十夜だよ」", "It is Tōya.");
+    EXPECT_FALSE(cache.contains("「十夜だよ」"));
+    EXPECT_EQ(context.back(), "「十夜だよ」");
+
+    tr::apply_line_result(cache, context, "「百ユーロだ」", "It costs 100€.");
+    EXPECT_FALSE(cache.contains("「百ユーロだ」"));
+    EXPECT_EQ(context.back(), "「百ユーロだ」");
+
+    tr::apply_line_result(cache, context, "「桜が咲いた」", "Blossoms bloomed 🌸");
+    EXPECT_FALSE(cache.contains("「桜が咲いた」"));
+    EXPECT_EQ(context.back(), "「桜が咲いた」");
+
+    tr::apply_line_result(cache, context, "「夜の声」", "Voice of 夜");
+    EXPECT_FALSE(cache.contains("「夜の声」"));
+    EXPECT_EQ(context.back(), "「夜の声」");
+
+    tr::apply_line_result(
+        cache,
+        context,
+        "「静かな朝」",
+        std::string(kEmbeddedNulAscii, sizeof(kEmbeddedNulAscii) - 1u));
+    EXPECT_FALSE(cache.contains("「静かな朝」"));
+    EXPECT_EQ(context.back(), "「静かな朝」");
+
+    tr::apply_line_result(cache, context, "「おはよう」", "Good morning.");
+    ASSERT_NE(cache.get("「おはよう」"), nullptr);
+    EXPECT_EQ(*cache.get("「おはよう」"), "Good morning.");
+    EXPECT_EQ(cache.size(), kExpectedTwoLines);
+    ASSERT_EQ(context.size(), kExpectedSevenContextEntries);
+    EXPECT_EQ(context.back(), "Good morning.");
 }
 
 TEST(Translate, user_prompt_includes_context_after_and_speaker_hints) {

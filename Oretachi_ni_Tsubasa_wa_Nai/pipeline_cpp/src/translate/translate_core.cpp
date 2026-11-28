@@ -433,6 +433,9 @@ TranslationCache LoadCache(const std::string& cache_file) {
 }
 
 void SaveCache(const std::string& cache_file, const TranslationCache& cache) {
+    if (cache_file.empty()) {
+        return;
+    }
     std::ostringstream ss;
     WriteJsonObjectOrdered(ss, cache.order, cache.values);
     WriteFileAtomic(std::filesystem::u8path(cache_file), ss.str());
@@ -463,10 +466,21 @@ bool RefuseCacheDiscard(const TranslateOptions& options,
 }
 
 bool IsFailedEntry(std::string_view key, std::string_view val) {
-    if (val != key) {
-        return false;
+    const std::string trimmed_key = TrimUnicode(key);
+    const std::string trimmed_val = TrimUnicode(val);
+    if (!trimmed_key.empty() && trimmed_val.empty()) {
+        return true;
     }
-    return NeedsTranslation(key);
+    if ((val == key || trimmed_val == trimmed_key) && NeedsTranslation(key)) {
+        return true;
+    }
+    if (NeedsTranslation(val) || HasSobJapanese(val)) {
+        return true;
+    }
+    if (!Utf8ToCp932Strict(val).has_value()) {
+        return true;
+    }
+    return false;
 }
 
 std::size_t PurgeFailedEntries(TranslationCache& cache) {
@@ -491,8 +505,11 @@ bool ApplyLineResult(std::string_view jp_text,
     if (it == batch_results.end()) {
         return false;
     }
-    const std::string cleaned = SanitizeAscii(StripSpeakerTags(it->second));
+    const std::string cleaned = TrimUnicode(SanitizeAscii(StripSpeakerTags(it->second)));
     if (cleaned.empty() || cleaned == jp_text) {
+        return false;
+    }
+    if (IsFailedEntry(jp_text, cleaned)) {
         return false;
     }
     cache.Set(std::string(jp_text), cleaned);
@@ -725,12 +742,19 @@ struct TranslateCore::Impl {
                 results = TranslateBatchWithFallback(
                     *backend, prompt_lines, prev_context, ctx_after);
             } catch (const ZeroThoughtError& err) {
+                SaveCache(options.cache_file, cache);
                 std::cerr << "Error: Zero-thought circuit breaker tripped: " << err.what() << "\n";
                 return kExitError;
             } catch (const RateLimitError& err) {
+                if (batches_executed > 0U) {
+                    SaveCache(options.cache_file, cache);
+                }
                 std::cerr << "Error: Rate limit retries exhausted: " << err.what() << "\n";
                 return kExitError;
             } catch (const ApiError& err) {
+                if (batches_executed > 0U) {
+                    SaveCache(options.cache_file, cache);
+                }
                 std::cerr << "Error: API request failed: " << err.what() << "\n";
                 return kExitError;
             }
@@ -786,6 +810,9 @@ TranslateCore& TranslateCore::operator=(TranslateCore&& other) noexcept = defaul
 TranslateCore::~TranslateCore() = default;
 
 int TranslateCore::Run(const TranslateOptions& options) {
+    if (!impl_) {
+        throw std::logic_error("TranslateCore is moved-from");
+    }
     return impl_->Run(options);
 }
 

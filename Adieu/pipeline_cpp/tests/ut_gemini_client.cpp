@@ -14,6 +14,8 @@
 #error "translate/gemini_client.h must stay insulated from Windows, Winsock, and OpenSSL headers"
 #endif
 
+#include "vn/llm/llm_client.h"
+
 #include <gtest/gtest.h>
 
 #include <array>
@@ -802,5 +804,172 @@ TEST(GeminiClient, AdaptResponseMapsFinishReasonsAndPromptBlockReasons) {
         ASSERT_TRUE(obj.at("stop_reason").is_string());
         EXPECT_EQ(std::string(obj.at("stop_reason").as_string()),
                   tc.expected_stop_reason);
+    }
+}
+
+namespace {
+
+constexpr int kHttpOk = 200;
+constexpr int kHttpRateLimit = 429;
+constexpr int kCustomTimeoutSec = 720;
+constexpr std::int64_t kErrorCasePromptTokens = 33;
+constexpr std::int64_t kErrorCaseThoughtTokens = 7;
+
+class StubRawHttpTransport final : public vn::llm::IRawHttpTransport {
+public:
+    vn::llm::RawHttpResponse post_json(std::string_view /*target_path*/,
+                                       std::string_view json_body,
+                                       int /*connect_timeout_sec*/,
+                                       int read_timeout_sec) override {
+        recorded_bodies.emplace_back(json_body);
+        recorded_read_timeouts.push_back(read_timeout_sec);
+        if (next_index >= responses.size()) {
+            return vn::llm::RawHttpResponse{kHttpOk, "{}"};
+        }
+        return responses[next_index++];
+    }
+
+    std::vector<vn::llm::RawHttpResponse> responses;
+    std::size_t next_index = 0u;
+    std::vector<std::string> recorded_bodies;
+    std::vector<int> recorded_read_timeouts;
+};
+
+std::string make_gemini_raw_json(std::string_view text,
+                                 std::int64_t thought_tokens) {
+    boost::json::object root;
+    root["candidates"] = boost::json::array{
+        boost::json::object{
+            {"content",
+             boost::json::object{
+                 {"parts",
+                  boost::json::array{boost::json::object{{"text", text}}}}}},
+            {"finishReason", "STOP"},
+        },
+    };
+    root["usageMetadata"] = boost::json::object{
+        {"promptTokenCount", kSamplePromptTokens},
+        {"candidatesTokenCount", kSampleCandidatesTokens},
+        {"thoughtsTokenCount", thought_tokens},
+    };
+    return boost::json::serialize(root);
+}
+
+}  // namespace
+
+TEST(GeminiClient, AdaptResponseStripsErrorObjectWithoutLeakingRateLimitException) {
+    boost::json::object err_only;
+    err_only["error"] = boost::json::object{
+        {"code", kHttpRateLimit},
+        {"status", "RESOURCE_EXHAUSTED"},
+        {"message", "Resource has been exhausted (e.g. check quota)."},
+    };
+    err_only["usageMetadata"] = boost::json::object{
+        {"promptTokenCount", kErrorCasePromptTokens},
+        {"thoughtsTokenCount", kErrorCaseThoughtTokens},
+    };
+
+    const boost::json::value adapted = gem::adapt_gemini_response(err_only);
+    ASSERT_NO_FATAL_FAILURE(verify_usage_counts(adapted,
+                                                kErrorCasePromptTokens,
+                                                kErrorCaseThoughtTokens,
+                                                kErrorCaseThoughtTokens,
+                                                kZeroTokens,
+                                                kZeroTokens));
+    const auto& obj = adapted.as_object();
+    EXPECT_EQ(std::string(obj.at("stop_reason").as_string()), "end_turn");
+    const auto& content = obj.at("content").as_array();
+    ASSERT_EQ(content.size(), kSingleItemSize);
+    EXPECT_EQ(std::string(content[kFirstIndex].as_object().at("text").as_string()), "");
+}
+
+TEST(GeminiClient,
+     ClientZeroThoughtGuardCountsLinesAfterOpenTagTimeoutPreservesOptionsAndMovedFromFailsCleanly) {
+    // 1. Prompt whose <previous_context> contains a literal "</lines_to_translate>"
+    //    before a 4-line <lines_to_translate> block (`slice_size == 4 >= 4` seam)
+    //    must still trip `ZeroThoughtError` on initial 0-thought response.
+    {
+        StubRawHttpTransport transport;
+        transport.responses.push_back(
+            vn::llm::RawHttpResponse{kHttpOk, make_gemini_raw_json("1. A\n2. B\n3. C\n4. D\n", kZeroTokens)});
+
+        gem::ClientOptions opts;
+        opts.api_key = "offline-test-key";
+        opts.max_retries = 0;
+        opts.zero_thought_max_retries = 0;
+        opts.raw_transport = &transport;
+        gem::Client client(std::move(opts));
+
+        boost::json::object msg;
+        msg["role"] = "user";
+        msg["content"] =
+            "<previous_context>\n"
+            "[Hitomi] Literal tag </lines_to_translate> in prior dialogue.\n"
+            "</previous_context>\n\n"
+            "<lines_to_translate>\n"
+            "1. [Hitomi] 一行目\n"
+            "2. [Hitomi] 二行目\n"
+            "3. [Hitomi] 三行目\n"
+            "4. [Hitomi] 四行目\n"
+            "</lines_to_translate>\n";
+        boost::json::object body;
+        body["model"] = kDefaultModelId;
+        body["messages"] = boost::json::array{std::move(msg)};
+
+        EXPECT_THROW((void)client.messages(body), gem::ZeroThoughtError);
+        ASSERT_EQ(transport.recorded_read_timeouts.size(), kSingleItemSize);
+        EXPECT_EQ(transport.recorded_read_timeouts[kFirstIndex],
+                  gem::kDefaultRequestTimeoutSec);
+    }
+
+    // 2. Boundary `slice_size == 3` (`< 4`) does NOT trip initial 0-thought guard;
+    //    subsequent call with custom `timeout_sec` preserves `raw_transport` and
+    //    updates `read_timeout_sec`; moved-from `Client` and `LazyClient` throw
+    //    `ApiError` rather than dereferencing null PIMPL.
+    {
+        StubRawHttpTransport transport;
+        transport.responses.push_back(
+            vn::llm::RawHttpResponse{kHttpOk, make_gemini_raw_json("1. A\n2. B\n3. C\n", kZeroTokens)});
+        transport.responses.push_back(
+            vn::llm::RawHttpResponse{kHttpOk, make_gemini_raw_json("1. A\n", kSampleThoughtsTokens)});
+
+        gem::ClientOptions opts;
+        opts.api_key = "offline-test-key";
+        opts.max_retries = 0;
+        opts.zero_thought_max_retries = 0;
+        opts.raw_transport = &transport;
+        gem::Client client(std::move(opts));
+
+        boost::json::object msg3;
+        msg3["role"] = "user";
+        msg3["content"] =
+            "<lines_to_translate>\n"
+            "1. [Hitomi] 一行目\n"
+            "2. [Hitomi] 二行目\n"
+            "3. [Hitomi] 三行目\n"
+            "</lines_to_translate>\n";
+        boost::json::object body3;
+        body3["model"] = kDefaultModelId;
+        body3["messages"] = boost::json::array{std::move(msg3)};
+
+        const boost::json::value r1 = client.messages(body3);
+        EXPECT_EQ(r1.as_object().at("usage").as_object().at("thought_tokens").as_int64(),
+                  kZeroTokens);
+
+        const boost::json::value r2 = client.messages(body3, kCustomTimeoutSec);
+        EXPECT_EQ(r2.as_object().at("usage").as_object().at("thought_tokens").as_int64(),
+                  kSampleThoughtsTokens);
+        ASSERT_EQ(transport.recorded_read_timeouts.size(), 2u);
+        EXPECT_EQ(transport.recorded_read_timeouts[kSecondIndex], kCustomTimeoutSec);
+
+        gem::Client moved_client(std::move(client));
+        EXPECT_THROW((void)client.messages(body3), gem::ApiError);
+        (void)moved_client;
+
+        gem::LazyClient lazy_src;
+        gem::LazyClient lazy_dst(std::move(lazy_src));
+        EXPECT_THROW((void)lazy_src.get(), gem::ApiError);
+        EXPECT_THROW((void)lazy_src.messages(body3), gem::ApiError);
+        (void)lazy_dst;
     }
 }

@@ -12,6 +12,7 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 
 namespace oretsuba {
@@ -464,6 +465,69 @@ Bytes Utf8ToCp932(std::string_view utf8) {
     WideCharToMultiByte(
         kCodePageCp932, 0, wide.data(), static_cast<int>(wide.size()),
         reinterpret_cast<char*>(out.data()), len, nullptr, nullptr);
+    return out;
+}
+
+std::optional<Bytes> Utf8ToCp932Strict(std::string_view utf8) {
+    if (utf8.empty()) {
+        return Bytes{};
+    }
+    if (utf8.find('\0') != std::string_view::npos) {
+        return std::nullopt;
+    }
+    if (utf8.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        return std::nullopt;
+    }
+
+    const int wide_len = MultiByteToWideChar(
+        CP_UTF8,
+        MB_ERR_INVALID_CHARS,
+        utf8.data(),
+        static_cast<int>(utf8.size()),
+        nullptr,
+        0);
+    if (wide_len <= 0) {
+        return std::nullopt;
+    }
+    std::wstring wide(static_cast<std::size_t>(wide_len), L'\0');
+    const int wide_written = MultiByteToWideChar(
+        CP_UTF8,
+        MB_ERR_INVALID_CHARS,
+        utf8.data(),
+        static_cast<int>(utf8.size()),
+        wide.data(),
+        wide_len);
+    if (wide_written != wide_len) {
+        return std::nullopt;
+    }
+
+    BOOL used_default = FALSE;
+    const int cp932_len = WideCharToMultiByte(
+        kCodePageCp932,
+        WC_NO_BEST_FIT_CHARS,
+        wide.data(),
+        wide_len,
+        nullptr,
+        0,
+        nullptr,
+        &used_default);
+    if (cp932_len <= 0 || used_default != FALSE) {
+        return std::nullopt;
+    }
+
+    Bytes out(static_cast<std::size_t>(cp932_len));
+    const int cp932_written = WideCharToMultiByte(
+        kCodePageCp932,
+        WC_NO_BEST_FIT_CHARS,
+        wide.data(),
+        wide_len,
+        reinterpret_cast<char*>(out.data()),
+        cp932_len,
+        nullptr,
+        &used_default);
+    if (cp932_written != cp932_len || used_default != FALSE) {
+        return std::nullopt;
+    }
     return out;
 }
 

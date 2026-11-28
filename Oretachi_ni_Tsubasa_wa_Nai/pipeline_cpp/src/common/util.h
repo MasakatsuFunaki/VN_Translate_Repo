@@ -33,6 +33,7 @@ std::string Cp932ToUtf8(const std::uint8_t* data, std::size_t size);
 std::string Cp932ToUtf8(const Bytes& bytes);
 std::string Cp932ToUtf8(std::string_view raw_bytes);
 Bytes Utf8ToCp932(std::string_view utf8);
+std::optional<Bytes> Utf8ToCp932Strict(std::string_view utf8);
 
 char32_t Utf8NextCodepoint(std::string_view utf8, std::size_t& index);
 int JapaneseCharCount(std::string_view utf8);
@@ -93,6 +94,10 @@ inline std::string cp932_to_utf8_replace(const std::uint8_t* data, std::size_t s
 
 inline Bytes utf8_to_cp932_replace(std::string_view utf8) {
     return Utf8ToCp932(utf8);
+}
+
+inline std::optional<Bytes> utf8_to_cp932_strict(std::string_view utf8) {
+    return Utf8ToCp932Strict(utf8);
 }
 
 inline char32_t utf8_next(std::string_view utf8, std::size_t& index) {
