@@ -12,12 +12,14 @@
 #include <utility>
 #include <vector>
 
+#include "vn/llm/llm_types.h"
+
 namespace oretsuba::translate {
 
-constexpr const char* kDefaultModel = "gemini-4-argon";
+inline constexpr const char* kDefaultModel = vn::llm::kDefaultModel.data();
 constexpr std::size_t kContextWindowLines = 80U;
 constexpr std::size_t kContextAfterLines = 20U;
-constexpr int kDefaultBatchSize = 100;
+constexpr int kDefaultBatchSize = vn::llm::kDefaultBatchSize;
 
 // Thread-compatible glossary holding the system prompt, speaker translations,
 // and canonical terminology loaded from TONE_OF_NOVEL.md.

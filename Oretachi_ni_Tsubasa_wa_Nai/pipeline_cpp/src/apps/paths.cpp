@@ -106,7 +106,7 @@ std::optional<int> ParseUtf8ArgumentList(const std::vector<std::string>& args,
 const std::vector<PipelineStepDescriptor>& PipelineSteps() {
     static const std::vector<PipelineStepDescriptor> kSteps = {
         {"01_extract", "Unpack SCRIPT.LPK and extract SOB0/SOB1/SOB2 strings"},
-        {"02_translate", "Validate speaker gate and translate via gemini-4-argon"},
+        {"02_translate", "Validate speaker gate and translate via gemini-4-carbon"},
         {"03_build_tsv", "Build runtime translation_table.tsv with line wrapping"},
         {"deploy", "Unwrap ORE_TUBA.exe inner PE and deploy runtime artifacts"},
     };

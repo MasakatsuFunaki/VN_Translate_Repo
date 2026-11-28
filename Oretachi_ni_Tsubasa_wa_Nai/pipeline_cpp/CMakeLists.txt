@@ -14,6 +14,12 @@ option(ENABLE_TESTS "Build the GoogleTest suite" ON)
 find_package(Boost REQUIRED COMPONENTS json regex program_options)
 find_package(OpenSSL REQUIRED)
 
+if(NOT TARGET vn::llm_client)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../tools/llm_client
+                     ${CMAKE_CURRENT_BINARY_DIR}/vn_llm_client
+                     EXCLUDE_FROM_ALL)
+endif()
+
 get_filename_component(ORETSUBA_PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 
 add_library(oretsuba_core STATIC
@@ -44,13 +50,11 @@ target_compile_definitions(oretsuba_core PUBLIC
     _WIN32_WINNT=0x0601
 )
 target_link_libraries(oretsuba_core PUBLIC
+    vn::llm_client
     Boost::json
     Boost::regex
     Boost::program_options
     Boost::headers
-    openssl::openssl
-    ws2_32
-    crypt32
     shell32
 )
 
