@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MasakatsuFunaki
 
+#include "apps/paths.h"
 #include "common/util.h"
 #include "extract/extractor.h"
 #include "lpk/lpk_archive.h"
@@ -19,17 +20,20 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <cwchar>
 #include <filesystem>
+#include <initializer_list>
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -95,7 +99,206 @@ constexpr std::size_t kEarlyNovelAnchorOffset = 100U;
 constexpr std::size_t kMidNovelDivisor = 2U;
 constexpr std::size_t kLateNovelTailOffset = 200U;
 constexpr std::size_t kMovingWindowSize = 8U;
-constexpr std::size_t kJudgeMaxOutputTokens = 4096U;
+constexpr std::size_t kJudgeMaxOutputTokens = 32768U;
+constexpr DWORD kCliProcessTimeoutMs = 600000U;
+constexpr DWORD kProcessSuccessExitCode = 0U;
+constexpr DWORD kProcessFailureExitCode = 1U;
+constexpr std::int64_t kMissingMetricSentinel = -1;
+constexpr std::size_t kPipeReadBufferBytes = 4096U;
+constexpr std::size_t kSandboxScriptLineCount = 5U;
+constexpr std::size_t kExpectedKeywaitPauseRows = 3U;
+
+class ScopedHandle {
+public:
+    ScopedHandle() noexcept = default;
+    explicit ScopedHandle(HANDLE h) noexcept : handle_(h) {}
+    ~ScopedHandle() { Reset(); }
+
+    ScopedHandle(const ScopedHandle&) = delete;
+    ScopedHandle& operator=(const ScopedHandle&) = delete;
+
+    HANDLE get() const noexcept { return handle_; }
+
+    void Reset(HANDLE next = nullptr) noexcept {
+        if (handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE) {
+            ::CloseHandle(handle_);
+        }
+        handle_ = next;
+    }
+
+private:
+    HANDLE handle_ = nullptr;
+};
+
+struct ProcessResult {
+    bool completed = false;
+    DWORD exit_code = kProcessFailureExitCode;
+    std::string combined_output;
+};
+
+std::wstring QuoteCommandLineArg(std::wstring_view arg) {
+    std::wstring out;
+    out.push_back(L'"');
+    for (const wchar_t ch : arg) {
+        if (ch == L'"') {
+            out.push_back(L'\\');
+        }
+        out.push_back(ch);
+    }
+    out.push_back(L'"');
+    return out;
+}
+
+ProcessResult RunChildProcessCapture(const fs::path& exe_path,
+                                     const std::vector<std::wstring>& args,
+                                     const fs::path& working_dir,
+                                     DWORD timeout_ms = kCliProcessTimeoutMs) {
+    ProcessResult result;
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    HANDLE raw_read = nullptr;
+    HANDLE raw_write = nullptr;
+    if (!::CreatePipe(&raw_read, &raw_write, &sa, 0)) {
+        result.combined_output = "CreatePipe failed";
+        return result;
+    }
+    ScopedHandle read_pipe(raw_read);
+    ScopedHandle write_pipe(raw_write);
+    ::SetHandleInformation(read_pipe.get(), HANDLE_FLAG_INHERIT, 0);
+
+    std::wstring cmd_line = QuoteCommandLineArg(exe_path.wstring());
+    for (const auto& arg : args) {
+        cmd_line.push_back(L' ');
+        cmd_line += QuoteCommandLineArg(arg);
+    }
+    std::vector<wchar_t> mutable_cmd(cmd_line.begin(), cmd_line.end());
+    mutable_cmd.push_back(L'\0');
+
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = write_pipe.get();
+    si.hStdError = write_pipe.get();
+
+    PROCESS_INFORMATION pi{};
+    const std::wstring cwd_wide = working_dir.wstring();
+    const BOOL created = ::CreateProcessW(
+        exe_path.wstring().c_str(),
+        mutable_cmd.data(),
+        nullptr,
+        nullptr,
+        TRUE,
+        CREATE_NO_WINDOW,
+        nullptr,
+        cwd_wide.c_str(),
+        &si,
+        &pi);
+    write_pipe.Reset();
+    if (!created) {
+        result.combined_output =
+            "CreateProcessW failed with error " + std::to_string(::GetLastError());
+        return result;
+    }
+
+    ScopedHandle proc_handle(pi.hProcess);
+    ScopedHandle thread_handle(pi.hThread);
+
+    std::thread reader([&]() {
+        char buffer[kPipeReadBufferBytes];
+        DWORD bytes_read = 0;
+        while (::ReadFile(
+                   read_pipe.get(),
+                   buffer,
+                   static_cast<DWORD>(sizeof(buffer)),
+                   &bytes_read,
+                   nullptr) &&
+               bytes_read > 0) {
+            result.combined_output.append(buffer, bytes_read);
+        }
+    });
+
+    const DWORD wait_status = ::WaitForSingleObject(proc_handle.get(), timeout_ms);
+    if (wait_status == WAIT_OBJECT_0) {
+        result.completed = true;
+    } else {
+        ::TerminateProcess(proc_handle.get(), kProcessFailureExitCode);
+    }
+    reader.join();
+    ::GetExitCodeProcess(proc_handle.get(), &result.exit_code);
+    return result;
+}
+
+fs::path FindBuiltPipelineExe(const fs::path& proj_dir, std::string_view exe_name) {
+    std::error_code ec;
+    const std::string self_dir_str = oretsuba::apps::ExecutableDirectory();
+    if (!self_dir_str.empty()) {
+        const fs::path self_dir = fs::u8path(self_dir_str);
+        const fs::path sibling_cfg =
+            self_dir.parent_path().parent_path() / self_dir.filename() / fs::u8path(exe_name);
+        if (fs::is_regular_file(sibling_cfg, ec)) {
+            return sibling_cfg;
+        }
+        const fs::path same_dir = self_dir / fs::u8path(exe_name);
+        if (fs::is_regular_file(same_dir, ec)) {
+            return same_dir;
+        }
+    }
+    const fs::path staged = proj_dir / "build" / "install" / "bin" / fs::u8path(exe_name);
+    if (fs::is_regular_file(staged, ec)) {
+        return staged;
+    }
+    return {};
+}
+
+std::string AsciiLower(std::string_view input) {
+    std::string out(input);
+    for (char& ch : out) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    return out;
+}
+
+bool ContainsAnySubstring(std::string_view haystack,
+                          std::initializer_list<std::string_view> needles) {
+    return std::any_of(needles.begin(), needles.end(), [&](std::string_view needle) {
+        return haystack.find(needle) != std::string_view::npos;
+    });
+}
+
+bool IsCp932LosslessRoundTrip(std::string_view utf8) {
+    const oretsuba::Bytes cp932 = oretsuba::Utf8ToCp932(utf8);
+    const std::optional<std::string> round_tripped = oretsuba::Cp932ToUtf8Strict(cp932);
+    return round_tripped.has_value() && *round_tripped == utf8;
+}
+
+std::int64_t ExtractThoughtsTokensFromTelemetryLog(std::string_view log_text) {
+    constexpr std::string_view kTelemetryLineMarker = "Tokens: in=";
+    constexpr std::string_view kMarker = "thoughts=";
+    const std::size_t line_pos = log_text.rfind(kTelemetryLineMarker);
+    if (line_pos == std::string_view::npos) {
+        return kMissingMetricSentinel;
+    }
+    const std::size_t pos = log_text.find(kMarker, line_pos);
+    if (pos == std::string_view::npos) {
+        return kMissingMetricSentinel;
+    }
+    std::size_t cursor = pos + kMarker.size();
+    if (cursor >= log_text.size() ||
+        !std::isdigit(static_cast<unsigned char>(log_text[cursor]))) {
+        return kMissingMetricSentinel;
+    }
+    std::int64_t value = 0;
+    constexpr std::int64_t kDecimalRadix = 10;
+    while (cursor < log_text.size() &&
+           std::isdigit(static_cast<unsigned char>(log_text[cursor]))) {
+        value = value * kDecimalRadix + (log_text[cursor] - '0');
+        ++cursor;
+    }
+    return value;
+}
 
 std::string ReadWideEnvUtf8(const wchar_t* var_name) {
     const wchar_t* wide_val = ::_wgetenv(var_name);
@@ -294,7 +497,7 @@ TEST(TranslateSystemTest, SpeakerGatePassesOnLocalTranslatedAndExtractedCorpora)
     }
 }
 
-TEST(TranslateSystemTest, MovingWindowArgonJudgeAuditAcrossThreeNovelWindows) {
+TEST(TranslateSystemTest, MovingWindowCarbonJudgeAuditAcrossThreeNovelWindows) {
     const wchar_t* live_api_env = ::_wgetenv(L"VN_RUN_LIVE_API_TESTS");
     if (live_api_env == nullptr ||
         std::wstring_view(live_api_env) != std::wstring_view(L"1")) {
@@ -464,7 +667,248 @@ TEST(TranslateSystemTest, MovingWindowArgonJudgeAuditAcrossThreeNovelWindows) {
             }
         }
     }
-    std::cout << "[Argon Judge Report]\n" << judge_text << "\n";
+    std::cout << "[Carbon Judge Report]\n" << judge_text << "\n";
     EXPECT_NE(judge_text.find("VERDICT: PASS"), std::string::npos)
         << "Judge did not return VERDICT: PASS:\n" << judge_text;
+}
+
+TEST(TranslateSystemTest, LiveOretsubaBatchPrecheckControlCodesCp932AndResumeIdempotency) {
+    using namespace oretsuba::translate;
+
+    const fs::path proj_dir = fs::u8path(ORETSUBA_PROJECT_DIR);
+    const std::string api_key = LoadGeminiApiKey(proj_dir.u8string());
+    if (api_key.empty()) {
+        if (ReadWideEnvUtf8(L"GITHUB_ACTIONS") == "true") {
+            GTEST_SKIP()
+                << "GITHUB_ACTIONS=true and GEMINI_API_KEY is absent; skipping live Oretsuba system test";
+        }
+        FAIL() << "GEMINI_API_KEY is missing locally; configure GEMINI_API_KEY in environment, "
+                  "~/.gemini/.env, HKCU\\Environment, or .claude/settings.json";
+    }
+
+    const fs::path tone_src = proj_dir / "TONE_OF_NOVEL.md";
+    ASSERT_TRUE(fs::is_regular_file(tone_src)) << "Missing TONE_OF_NOVEL.md: " << tone_src.u8string();
+
+    const fs::path built_translate_exe = FindBuiltPipelineExe(proj_dir, "02_translate.exe");
+    ASSERT_FALSE(built_translate_exe.empty()) << "Built 02_translate.exe not found";
+    const fs::path built_tsv_exe = FindBuiltPipelineExe(proj_dir, "03_build_tsv.exe");
+    ASSERT_FALSE(built_tsv_exe.empty()) << "Built 03_build_tsv.exe not found";
+
+    const ScopedTempDir sandbox("oretsuba_st_tier2_live");
+    const fs::path sandbox_bin = sandbox.path() / "bin";
+    const fs::path sandbox_script_out = sandbox.path() / "script_output";
+    const fs::path sandbox_game = sandbox.path() / "game";
+    fs::create_directories(sandbox_bin);
+    fs::create_directories(sandbox_script_out);
+    fs::create_directories(sandbox_game);
+
+    const fs::path staged_translate_exe = sandbox_bin / "02_translate.exe";
+    const fs::path staged_tsv_exe = sandbox_bin / "03_build_tsv.exe";
+    fs::copy_file(built_translate_exe, staged_translate_exe, fs::copy_options::overwrite_existing);
+    fs::copy_file(built_tsv_exe, staged_tsv_exe, fs::copy_options::overwrite_existing);
+    fs::copy_file(tone_src, sandbox.path() / "TONE_OF_NOVEL.md", fs::copy_options::overwrite_existing);
+
+    constexpr const char* kJpTakashiIntro =
+        "　僕の名前は羽田鷹志。私立美空学園の三年生。";
+    constexpr const char* kJpTakashiFeathers =
+        "　いまの僕──つまり羽田鷹志は、グレタガルドの先代国王が集めた次期王候補“万色の四枚羽根”のひとり、$&聖騎士ホークの≪転生≫した姿だ。";
+    constexpr const char* kJpTakashiFeathersNormalizedKey =
+        "いまの僕──つまり羽田鷹志は、グレタガルドの先代国王が集めた次期王候補“万色の四枚羽根”のひとり、$&聖騎士ホークの≪転生≫した姿だ。";
+    constexpr const char* kJpKobatoRaw =
+        "<10>\\「お兄ちゃん、<\"柳原|やなぎはら\">の駅前まで一緒に行こうよ！$&遅れちゃうよ！」";
+    constexpr const char* kJpKobatoNormalizedKey =
+        "「お兄ちゃん、柳原の駅前まで一緒に行こうよ！$&遅れちゃうよ！」";
+    constexpr const char* kJpAsukaPause =
+        "「なに？$&アンタ、さっきから私の顔をジロジロ見てるけど、何か用なの？」";
+    constexpr const char* kJpHawkChivalry =
+        "「案ずるな、我が忠実なる騎士ペガサスよ！　王女アスカとグレタガルドの誇りは、この聖騎士ホークが必ずや守り抜く！」";
+
+    bj::array script_entries;
+    script_entries.push_back(bj::object{
+        {"type", "dialogue"},
+        {"speaker", "タカシ"},
+        {"text", kJpTakashiIntro},
+    });
+    script_entries.push_back(bj::object{
+        {"type", "dialogue"},
+        {"speaker", "鷹志"},
+        {"text", kJpTakashiFeathers},
+    });
+    script_entries.push_back(bj::object{
+        {"type", "dialogue"},
+        {"speaker", "小鳩"},
+        {"text", kJpKobatoRaw},
+    });
+    script_entries.push_back(bj::object{
+        {"type", "dialogue"},
+        {"speaker", "明日香"},
+        {"text", kJpAsukaPause},
+    });
+    script_entries.push_back(bj::object{
+        {"type", "dialogue"},
+        {"speaker", "聖騎士ホーク"},
+        {"text", kJpHawkChivalry},
+    });
+
+    bj::object s01_obj;
+    s01_obj["file"] = "s01_01a.sob";
+    s01_obj["strings"] = std::move(script_entries);
+    bj::object extracted_root;
+    extracted_root["s01_01a.sob"] = std::move(s01_obj);
+
+    oretsuba::WriteFileBytes(
+        (sandbox_script_out / "extracted_text.json").u8string(),
+        oretsuba::JsonPretty(extracted_root) + "\n");
+
+    const std::wstring batch_arg = std::to_wstring(kDefaultBatchSize);
+    const ProcessResult pass1_res = RunChildProcessCapture(
+        staged_translate_exe,
+        {L"--dir", sandbox.path().wstring(), L"--batch", batch_arg, L"--max-batches", L"1"},
+        sandbox.path());
+    std::cout << "[02_translate.exe Pass 1]\n" << pass1_res.combined_output << "\n";
+    ASSERT_TRUE(pass1_res.completed) << "02_translate.exe Pass 1 timed out:\n" << pass1_res.combined_output;
+    ASSERT_EQ(pass1_res.exit_code, kProcessSuccessExitCode)
+        << "02_translate.exe Pass 1 failed:\n" << pass1_res.combined_output;
+    EXPECT_EQ(pass1_res.combined_output.find("[ERROR]"), std::string::npos);
+    EXPECT_NE(pass1_res.combined_output.find("[SPEAKER-CHECK] PASS"), std::string::npos);
+    EXPECT_NE(pass1_res.combined_output.find("Batches to run: 1"), std::string::npos);
+    EXPECT_NE(pass1_res.combined_output.find("Applied 5/5 lines"), std::string::npos);
+
+    const std::int64_t pass1_thoughts_tokens =
+        ExtractThoughtsTokensFromTelemetryLog(pass1_res.combined_output);
+    ASSERT_GT(pass1_thoughts_tokens, 0)
+        << "Expected gemini-4-carbon thinkingLevel=MEDIUM to log thoughts=<N> > 0, output:\n"
+        << pass1_res.combined_output;
+
+    const fs::path sandbox_cache_path = sandbox_script_out / "translation_cache_gemini.json";
+    const fs::path sandbox_translated_path = sandbox_script_out / "translated_text.json";
+    const fs::path sandbox_last_batch_path =
+        sandbox_script_out / "last_gemini_translate" / "last_translation.json";
+    ASSERT_TRUE(fs::is_regular_file(sandbox_cache_path));
+    ASSERT_TRUE(fs::is_regular_file(sandbox_translated_path));
+    ASSERT_TRUE(fs::is_regular_file(sandbox_last_batch_path));
+
+    const TranslationCache pass1_cache = LoadCache(sandbox_cache_path.u8string());
+    const char* const kAllJpKeys[kSandboxScriptLineCount] = {
+        kJpTakashiIntro,
+        kJpTakashiFeathers,
+        kJpKobatoRaw,
+        kJpAsukaPause,
+        kJpHawkChivalry,
+    };
+    for (std::size_t i = 0; i < kSandboxScriptLineCount; ++i) {
+        const std::string* en_ptr = pass1_cache.Find(kAllJpKeys[i]);
+        ASSERT_NE(en_ptr, nullptr) << "Missing cache entry #" << i;
+        const std::string& en = *en_ptr;
+        EXPECT_FALSE(en.empty());
+        EXPECT_FALSE(NeedsTranslation(en)) << "Residual kana/kanji in: " << en;
+        EXPECT_FALSE(oretsuba::HasSobJapanese(en)) << "Residual fullwidth/CJK in: " << en;
+        EXPECT_TRUE(IsCp932LosslessRoundTrip(en)) << "Non-CP932 character in: " << en;
+        EXPECT_FALSE(ContainsAnySubstring(
+            en,
+            {"[Takashi]", "[Kobato]", "[Asuka]", "[Holy Knight Hawk]",
+             "[タカシ]", "[鷹志]", "[小鳩]", "[明日香]", "[聖騎士ホーク]", "<\""}))
+            << "Leaked speaker tag or ruby wrapper in: " << en;
+        std::cout << "  [Oretsuba #" << (i + 1U) << "] " << en << "\n";
+    }
+
+    const std::string intro_lower = AsciiLower(*pass1_cache.Find(kJpTakashiIntro));
+    EXPECT_NE(intro_lower.find("takashi"), std::string::npos) << intro_lower;
+    EXPECT_NE(intro_lower.find("misora"), std::string::npos) << intro_lower;
+
+    const std::string feathers_lower = AsciiLower(*pass1_cache.Find(kJpTakashiFeathers));
+    EXPECT_NE(feathers_lower.find("gretagik"), std::string::npos) << feathers_lower;
+    EXPECT_NE(feathers_lower.find("hawk"), std::string::npos) << feathers_lower;
+    EXPECT_TRUE(ContainsAnySubstring(feathers_lower, {"feather", "wing", "plume"}))
+        << feathers_lower;
+
+    const std::string kobato_lower = AsciiLower(*pass1_cache.Find(kJpKobatoRaw));
+    EXPECT_NE(kobato_lower.find("yanagihara"), std::string::npos) << kobato_lower;
+
+    const std::string hawk_lower = AsciiLower(*pass1_cache.Find(kJpHawkChivalry));
+    EXPECT_NE(hawk_lower.find("pegasus"), std::string::npos) << hawk_lower;
+    EXPECT_NE(hawk_lower.find("asuka"), std::string::npos) << hawk_lower;
+    EXPECT_NE(hawk_lower.find("gretagik"), std::string::npos) << hawk_lower;
+
+    const bj::value translated_json = oretsuba::JsonParseFile(sandbox_translated_path.u8string());
+    const auto& out_strings =
+        translated_json.as_object().at("s01_01a.sob").as_object().at("strings").as_array();
+    ASSERT_EQ(out_strings.size(), kSandboxScriptLineCount);
+    constexpr const char* kExpectedSpeakerEn[kSandboxScriptLineCount] = {
+        "Takashi",
+        "Takashi",
+        "Kobato",
+        "Asuka",
+        "Holy Knight Hawk",
+    };
+    for (std::size_t i = 0; i < kSandboxScriptLineCount; ++i) {
+        SCOPED_TRACE(i);
+        EXPECT_EQ(out_strings[i].as_object().at("speaker_en").as_string(), kExpectedSpeakerEn[i]);
+    }
+
+    const fs::path sandbox_tsv_path = sandbox_game / "translation_table.tsv";
+    const ProcessResult tsv_res = RunChildProcessCapture(
+        staged_tsv_exe,
+        {L"--dir", sandbox.path().wstring(), L"--out", sandbox_tsv_path.wstring()},
+        sandbox.path());
+    ASSERT_TRUE(tsv_res.completed) << "03_build_tsv.exe timed out:\n" << tsv_res.combined_output;
+    ASSERT_EQ(tsv_res.exit_code, kProcessSuccessExitCode)
+        << "03_build_tsv.exe failed:\n" << tsv_res.combined_output;
+    ASSERT_TRUE(fs::is_regular_file(sandbox_tsv_path));
+
+    const oretsuba::Bytes tsv_bytes = oretsuba::ReadFileBytes(sandbox_tsv_path.u8string());
+    const std::string tsv_text(reinterpret_cast<const char*>(tsv_bytes.data()), tsv_bytes.size());
+    std::map<std::string, std::string> tsv_map;
+    std::istringstream tsv_stream(tsv_text);
+    std::string row;
+    std::size_t row_count = 0U;
+    while (std::getline(tsv_stream, row)) {
+        if (!row.empty() && row.back() == '\r') {
+            row.pop_back();
+        }
+        if (row.empty()) {
+            continue;
+        }
+        ++row_count;
+        const std::size_t tab_pos = row.find('\t');
+        ASSERT_NE(tab_pos, std::string::npos) << "Malformed TSV row: " << row;
+        const std::string jp_col = row.substr(0, tab_pos);
+        const std::string en_col = row.substr(tab_pos + 1U);
+        EXPECT_TRUE(IsCp932LosslessRoundTrip(jp_col)) << "Non-CP932 TSV key: " << jp_col;
+        EXPECT_TRUE(IsCp932LosslessRoundTrip(en_col)) << "Non-CP932 TSV value: " << en_col;
+        tsv_map.emplace(jp_col, en_col);
+    }
+    EXPECT_GT(row_count, kSandboxScriptLineCount);
+
+    const char* const kKeywaitNormalizedKeys[kExpectedKeywaitPauseRows] = {
+        kJpTakashiFeathersNormalizedKey,
+        kJpKobatoNormalizedKey,
+        kJpAsukaPause,
+    };
+    for (const char* pause_key : kKeywaitNormalizedKeys) {
+        const auto it = tsv_map.find(pause_key);
+        ASSERT_NE(it, tsv_map.end()) << "Missing TSV key: " << pause_key;
+        EXPECT_NE(it->second.find("$&"), std::string::npos)
+            << "Expected Navel '$&' inline keywait pause preserved in TSV value for key '"
+            << pause_key << "', got: " << it->second;
+    }
+
+    const ProcessResult pass2_res = RunChildProcessCapture(
+        staged_translate_exe,
+        {L"--dir", sandbox.path().wstring(), L"--batch", batch_arg, L"--max-batches", L"1"},
+        sandbox.path());
+    std::cout << "[02_translate.exe Pass 2 Resume]\n" << pass2_res.combined_output << "\n";
+    ASSERT_TRUE(pass2_res.completed) << "02_translate.exe Pass 2 timed out:\n" << pass2_res.combined_output;
+    ASSERT_EQ(pass2_res.exit_code, kProcessSuccessExitCode)
+        << "02_translate.exe Pass 2 failed:\n" << pass2_res.combined_output;
+    EXPECT_NE(pass2_res.combined_output.find("Unique uncached lines: 0 | Batches to run: 0"),
+              std::string::npos)
+        << "Expected 0 uncached lines and 0 batches on 2nd-pass resume:\n"
+        << pass2_res.combined_output;
+    EXPECT_EQ(pass2_res.combined_output.find("Tokens: in="), std::string::npos)
+        << "Expected 0 live API calls on immediate 2nd-pass resume:\n"
+        << pass2_res.combined_output;
+
+    const TranslationCache pass2_cache = LoadCache(sandbox_cache_path.u8string());
+    EXPECT_EQ(pass2_cache.values, pass1_cache.values);
 }

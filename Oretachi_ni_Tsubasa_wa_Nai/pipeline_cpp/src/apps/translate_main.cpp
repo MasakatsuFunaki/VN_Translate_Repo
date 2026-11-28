@@ -43,6 +43,9 @@ int main() {
             ("batch",
              po::value<int>(&opts.batch_size)->default_value(oretsuba::translate::kDefaultBatchSize)->value_name("N"),
              "Batch size")
+            ("test",
+             po::bool_switch(&opts.test_mode),
+             "Run single-batch test translation")
             ("retranslate",
              po::bool_switch(&opts.retranslate),
              "Retranslate from scratch")

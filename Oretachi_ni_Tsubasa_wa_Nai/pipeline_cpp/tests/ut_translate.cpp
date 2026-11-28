@@ -395,3 +395,357 @@ TEST(TranslateUnitTest, UnwrapsSoftDenchiOuterPeAndBacksUpOriginal) {
 
     EXPECT_FALSE(oretsuba::apps::UnwrapInnerPeIfNeeded(tmp.path));
 }
+
+TEST(TranslateUnitTest, BuildsGenerateContentRequestWithMediumThinkingLevelAndClampedMaxTokens) {
+    namespace bj = boost::json;
+    constexpr std::size_t kExpectedSafetyCategoryCount = 5U;
+    constexpr std::int64_t kSpecMinOutputTokensFloor = vn::llm::kMinOutputTokensFloor;
+    constexpr std::int64_t kSpecMaxOutputTokensCeiling = vn::llm::kMaxOutputTokensCeiling;
+    constexpr std::int64_t kNegativeMaxTokensSample = -5;
+
+    bj::object default_body;
+    default_body["system"] = bj::array{
+        bj::object{{"type", "text"}, {"text", "Primary system instruction."}},
+        bj::object{{"type", "text"}, {"text", "Secondary glossary section."}},
+    };
+    default_body["messages"] = bj::array{
+        bj::object{{"role", "user"}, {"content", "1. [Takashi] 「おはよう」"}},
+    };
+
+    const bj::object req = BuildGenerateContentRequest(default_body);
+
+    const auto* sys_inst = req.if_contains("systemInstruction");
+    ASSERT_NE(sys_inst, nullptr);
+    const auto& sys_parts = sys_inst->as_object().at("parts").as_array();
+    ASSERT_EQ(sys_parts.size(), 1U);
+    EXPECT_EQ(sys_parts[0].as_object().at("text").as_string(),
+              "Primary system instruction.\nSecondary glossary section.");
+
+    const auto& contents = req.at("contents").as_array();
+    ASSERT_EQ(contents.size(), 1U);
+    EXPECT_EQ(contents[0].as_object().at("role").as_string(), "user");
+    EXPECT_EQ(contents[0].as_object().at("parts").as_array()[0].as_object().at("text").as_string(),
+              "1. [Takashi] 「おはよう」");
+
+    const auto& gen_cfg = req.at("generationConfig").as_object();
+    EXPECT_EQ(gen_cfg.at("maxOutputTokens").as_int64(), kSpecMaxOutputTokensCeiling);
+    const auto& thinking_cfg = gen_cfg.at("thinkingConfig").as_object();
+    EXPECT_EQ(thinking_cfg.at("thinkingLevel").as_string(), "MEDIUM");
+    EXPECT_EQ(thinking_cfg.if_contains("thinkingBudget"), nullptr);
+
+    const auto& safety = req.at("safetySettings").as_array();
+    ASSERT_EQ(safety.size(), kExpectedSafetyCategoryCount);
+    for (std::size_t i = 0; i < safety.size(); ++i) {
+        EXPECT_EQ(safety[i].as_object().at("threshold").as_string(), "BLOCK_NONE");
+    }
+
+    struct MaxTokensBoundaryCase {
+        const char* name;
+        std::int64_t requested;
+        std::int64_t expected;
+    };
+    constexpr MaxTokensBoundaryCase kCases[] = {
+        {"negative_uses_default_ceiling", kNegativeMaxTokensSample, kSpecMaxOutputTokensCeiling},
+        {"zero_uses_default_ceiling", 0, kSpecMaxOutputTokensCeiling},
+        {"one_clamped_to_floor", 1, kSpecMinOutputTokensFloor},
+        {"below_floor_clamped", kSpecMinOutputTokensFloor - 1, kSpecMinOutputTokensFloor},
+        {"exact_floor", kSpecMinOutputTokensFloor, kSpecMinOutputTokensFloor},
+        {"interior_above_floor", kSpecMinOutputTokensFloor + 1, kSpecMinOutputTokensFloor + 1},
+        {"below_ceiling", kSpecMaxOutputTokensCeiling - 1, kSpecMaxOutputTokensCeiling - 1},
+        {"exact_ceiling", kSpecMaxOutputTokensCeiling, kSpecMaxOutputTokensCeiling},
+        {"above_ceiling_clamped", kSpecMaxOutputTokensCeiling + 1, kSpecMaxOutputTokensCeiling},
+    };
+    for (const auto& tc : kCases) {
+        SCOPED_TRACE(tc.name);
+        bj::object body;
+        body["max_tokens"] = tc.requested;
+        body["messages"] = bj::array{
+            bj::object{{"role", "user"}, {"content", "test"}},
+        };
+        const bj::object out_req = BuildGenerateContentRequest(body);
+        EXPECT_EQ(out_req.at("generationConfig").as_object().at("maxOutputTokens").as_int64(),
+                  tc.expected);
+    }
+}
+
+TEST(TranslateUnitTest, ParsesGenerateContentResponseFilteringThoughtsAndRecordingUsage) {
+    namespace bj = boost::json;
+    constexpr std::int64_t kPromptTokens = 512;
+    constexpr std::int64_t kCandidatesTokens = 24;
+    constexpr std::int64_t kThoughtsTokens = 1480;
+    constexpr std::int64_t kCachedTokens = 320;
+    constexpr std::int64_t kExpectedOutputTokens = 1504;
+    constexpr std::int64_t kExpectedTotalTokens = 2016;
+
+    const bj::value wire_response = bj::parse(R"json({
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "thought": true,
+                "text": "1. Internal lookahead reasoning: サメ肌 precedes 巨大なサメ, so keep sharkskin."
+              },
+              {
+                "text": "1. \"Good morning.\"\n2. Terrible sharkskin."
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 512,
+        "candidatesTokenCount": 24,
+        "thoughtsTokenCount": 1480,
+        "cachedContentTokenCount": 320
+      }
+    })json");
+
+    GeminiUsage parsed_usage;
+    const bj::object normalized = ParseGenerateContentResponse(wire_response, &parsed_usage);
+
+    const auto& content_arr = normalized.at("content").as_array();
+    ASSERT_EQ(content_arr.size(), 1U);
+    EXPECT_EQ(content_arr[0].as_object().at("text").as_string(),
+              "1. \"Good morning.\"\n2. Terrible sharkskin.");
+    EXPECT_EQ(normalized.at("stop_reason").as_string(), "end_turn");
+
+    EXPECT_EQ(parsed_usage.input_tokens, kPromptTokens);
+    EXPECT_EQ(parsed_usage.candidates_tokens, kCandidatesTokens);
+    EXPECT_EQ(parsed_usage.thoughts_tokens, kThoughtsTokens);
+    EXPECT_EQ(parsed_usage.output_tokens, kExpectedOutputTokens);
+    EXPECT_EQ(parsed_usage.cache_read_input_tokens, kCachedTokens);
+    EXPECT_EQ(parsed_usage.total_tokens, kExpectedTotalTokens);
+
+    const auto& usage_obj = normalized.at("usage").as_object();
+    EXPECT_EQ(usage_obj.at("input_tokens").as_int64(), kPromptTokens);
+    EXPECT_EQ(usage_obj.at("candidates_tokens").as_int64(), kCandidatesTokens);
+    EXPECT_EQ(usage_obj.at("thoughts_tokens").as_int64(), kThoughtsTokens);
+    EXPECT_EQ(usage_obj.at("thoughtsTokenCount").as_int64(), kThoughtsTokens);
+    EXPECT_EQ(usage_obj.at("output_tokens").as_int64(), kExpectedOutputTokens);
+    EXPECT_EQ(usage_obj.at("total_tokens").as_int64(), kExpectedTotalTokens);
+    EXPECT_EQ(usage_obj.at("cache_read_input_tokens").as_int64(), kCachedTokens);
+
+    const auto& meta_obj = normalized.at("usageMetadata").as_object();
+    EXPECT_EQ(meta_obj.at("thoughtsTokenCount").as_int64(), kThoughtsTokens);
+
+    struct StopReasonCase {
+        const char* name;
+        const char* wire_json;
+        const char* expected_stop_reason;
+    };
+    constexpr StopReasonCase kStopCases[] = {
+        {
+            "max_tokens_finish_reason",
+            R"json({"candidates":[{"content":{"parts":[{"text":"1. Partial"}]},"finishReason":"MAX_TOKENS"}]})json",
+            "max_tokens",
+        },
+        {
+            "prohibited_content_maps_to_refusal",
+            R"json({"candidates":[{"content":{"parts":[]},"finishReason":"PROHIBITED_CONTENT"}]})json",
+            "refusal",
+        },
+        {
+            "prompt_feedback_block_reason_maps_to_refusal",
+            R"json({"promptFeedback":{"blockReason":"SAFETY"}})json",
+            "refusal",
+        },
+    };
+    for (const auto& sc : kStopCases) {
+        SCOPED_TRACE(sc.name);
+        GeminiUsage u;
+        const bj::object out = ParseGenerateContentResponse(bj::parse(sc.wire_json), &u);
+        EXPECT_EQ(out.at("stop_reason").as_string(), sc.expected_stop_reason);
+        EXPECT_EQ(u.thoughts_tokens, 0);
+    }
+}
+
+TEST(TranslateUnitTest, GeminiClientTracksThoughtTelemetryAcrossValidFailingValidCalls) {
+    namespace bj = boost::json;
+    static constexpr unsigned kHttpOk = static_cast<unsigned>(vn::llm::kHttpStatusOk);
+    static constexpr unsigned kHttpTooManyRequests =
+        static_cast<unsigned>(vn::llm::kHttpStatusTooManyRequests);
+    static constexpr unsigned kHttpServiceUnavailable = 503U;
+    static constexpr std::size_t kFirstSuccessCall = 1U;
+    static constexpr std::size_t kRateLimitFaultCall = 2U;
+    static constexpr std::size_t kServerErrorFaultCall = 3U;
+    static constexpr std::int64_t kFirstCallThoughts = 960;
+    static constexpr std::int64_t kSecondCallThoughts = 640;
+    static constexpr std::int64_t kCombinedThoughts = 1600;
+    static constexpr std::int64_t kSingleLineBatchMaxTokensFloor = vn::llm::kMinOutputTokensFloor;
+
+    std::vector<std::string> captured_targets;
+    std::vector<bj::value> captured_requests;
+    std::size_t call_index = 0U;
+
+    auto loopback_transport = [&](std::string_view target,
+                                  std::string_view request_body,
+                                  int /*timeout_sec*/) -> HttpResponse {
+        captured_targets.emplace_back(target);
+        captured_requests.push_back(bj::parse(request_body));
+        ++call_index;
+
+        if (call_index == kFirstSuccessCall) {
+            return HttpResponse{
+                kHttpOk,
+                R"json({
+                  "candidates": [{
+                    "content": {
+                      "parts": [
+                        {"thought": true, "text": "Checking Oretsuba speaker register."},
+                        {"text": "1. \"Good morning, Big Brother!\""}
+                      ]
+                    },
+                    "finishReason": "STOP"
+                  }],
+                  "usageMetadata": {
+                    "promptTokenCount": 300,
+                    "candidatesTokenCount": 18,
+                    "thoughtsTokenCount": 960,
+                    "cachedContentTokenCount": 100,
+                    "totalTokenCount": 1278
+                  }
+                })json",
+            };
+        }
+        if (call_index == kRateLimitFaultCall) {
+            return HttpResponse{kHttpTooManyRequests, R"json({"error":{"code":429}})json"};
+        }
+        if (call_index == kServerErrorFaultCall) {
+            return HttpResponse{kHttpServiceUnavailable, R"json({"error":{"code":503}})json"};
+        }
+        return HttpResponse{
+            kHttpOk,
+            R"json({
+              "candidates": [{
+                "content": {
+                  "parts": [
+                    {"thought": true, "text": "Second batch reasoning."},
+                    {"text": "1. \"Welcome to the rift between dimensions.\""}
+                  ]
+                },
+                "finishReason": "STOP"
+              }],
+              "usageMetadata": {
+                "promptTokenCount": 310,
+                "candidatesTokenCount": 22,
+                "thoughtsTokenCount": 640,
+                "cachedContentTokenCount": 120,
+                "totalTokenCount": 972
+              }
+            })json",
+        };
+    };
+
+    GeminiClient client("synthetic-unit-key", kDefaultModel, {}, loopback_transport);
+
+    const auto first_batch = client.TranslateBatch(
+        {"[Kobato] 「お兄ちゃん、おはよう！」"},
+        {"[Takashi] 「ああ、もう朝か。」"},
+        {"[Kobato] 「早く朝ごはん食べようよ！」"},
+        false);
+    ASSERT_EQ(first_batch.size(), 1U);
+    EXPECT_EQ(first_batch.at(kFirstNumberedLine), "\"Good morning, Big Brother!\"");
+    EXPECT_EQ(client.LastUsage().thoughts_tokens, kFirstCallThoughts);
+    EXPECT_EQ(client.CumulativeUsage().thoughts_tokens, kFirstCallThoughts);
+
+    ASSERT_EQ(captured_targets.size(), 1U);
+    EXPECT_EQ(captured_targets[0],
+              "/v1beta/models/gemini-4-carbon:generateContent?key=synthetic-unit-key");
+    const auto& wire_gen_cfg =
+        captured_requests[0].as_object().at("generationConfig").as_object();
+    EXPECT_EQ(wire_gen_cfg.at("maxOutputTokens").as_int64(), kSingleLineBatchMaxTokensFloor);
+    EXPECT_EQ(wire_gen_cfg.at("thinkingConfig").as_object().at("thinkingLevel").as_string(),
+              "MEDIUM");
+    EXPECT_EQ(wire_gen_cfg.at("thinkingConfig").as_object().if_contains("thinkingBudget"),
+              nullptr);
+
+    EXPECT_THROW(
+        client.TranslateBatch({"[Takashi] テスト"}, {}, {}, false),
+        RateLimitError);
+    EXPECT_EQ(client.LastUsage().thoughts_tokens, kFirstCallThoughts);
+    EXPECT_EQ(client.CumulativeUsage().thoughts_tokens, kFirstCallThoughts);
+
+    EXPECT_THROW(
+        client.TranslateBatch({"[Takashi] テスト"}, {}, {}, false),
+        ApiError);
+    EXPECT_EQ(client.LastUsage().thoughts_tokens, kFirstCallThoughts);
+    EXPECT_EQ(client.CumulativeUsage().thoughts_tokens, kFirstCallThoughts);
+
+    const auto second_batch = client.TranslateBatch(
+        {"[Takashi] 「次元の狭間へようこそ。」"}, {}, {}, false);
+    ASSERT_EQ(second_batch.size(), 1U);
+    EXPECT_EQ(second_batch.at(kFirstNumberedLine),
+              "\"Welcome to the rift between dimensions.\"");
+    EXPECT_EQ(client.LastUsage().thoughts_tokens, kSecondCallThoughts);
+    EXPECT_EQ(client.CumulativeUsage().thoughts_tokens, kCombinedThoughts);
+
+    auto zero_thought_transport = [](std::string_view /*target*/,
+                                     std::string_view /*request_body*/,
+                                     int /*timeout_sec*/) -> HttpResponse {
+        return HttpResponse{
+            kHttpOk,
+            R"json({
+              "candidates": [{
+                "content": {
+                  "parts": [
+                    {"text": "1. Line 1\n2. Line 2\n3. Line 3\n4. Line 4"}
+                  ]
+                },
+                "finishReason": "STOP"
+              }],
+              "usageMetadata": {
+                "promptTokenCount": 400,
+                "candidatesTokenCount": 32,
+                "thoughtsTokenCount": 0
+              }
+            })json",
+        };
+    };
+    GeminiClient guarded_client("synthetic-unit-key", kDefaultModel, {}, zero_thought_transport);
+    EXPECT_THROW(
+        guarded_client.TranslateBatch(
+            {
+                "[Takashi] 「一行目」",
+                "[Kobato] 「二行目」",
+                "[Asuka] 「三行目」",
+                "[Holy Knight Hawk] 「四行目」",
+            },
+            {},
+            {},
+            false),
+        ZeroThoughtError);
+    EXPECT_EQ(guarded_client.LastUsage().thoughts_tokens, 0);
+    EXPECT_EQ(guarded_client.CumulativeUsage().output_tokens, 0);
+}
+
+TEST(TranslateUnitTest, GeminiClientRejectsDisallowedArgonModelsAtConstruction) {
+    static constexpr unsigned kHttpOk = static_cast<unsigned>(vn::llm::kHttpStatusOk);
+    std::size_t transport_calls = 0U;
+    auto unused_transport = [&](std::string_view /*target*/,
+                                std::string_view /*request_body*/,
+                                int /*timeout_sec*/) -> HttpResponse {
+        ++transport_calls;
+        return HttpResponse{kHttpOk, "{}"};
+    };
+
+    constexpr const char* kDisallowedModels[] = {
+        "gemini-4-argon",
+        "GEMINI-4-ARGON",
+        "models/gemini-4-argon-preview",
+    };
+    for (const char* bad_model : kDisallowedModels) {
+        SCOPED_TRACE(bad_model);
+        try {
+            GeminiClient rejected("synthetic-unit-key", bad_model, {}, unused_transport);
+            FAIL() << "Expected ApiError when constructing GeminiClient with " << bad_model;
+        } catch (const ApiError& err) {
+            const std::string msg = err.what();
+            EXPECT_NE(msg.find("argon"), std::string::npos) << msg;
+        }
+        EXPECT_THROW(GeminiClient("synthetic-unit-key", bad_model), ApiError);
+    }
+    EXPECT_EQ(transport_calls, 0U);
+}

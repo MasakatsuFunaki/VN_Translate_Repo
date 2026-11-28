@@ -7,7 +7,7 @@
 | **Archive Format** | `LPK1` (`SCRIPT.LPK`: `418` entries — `411` `SOB0`, `1` `SOB1`, `1` `SOB2`, `5` `.dat`/`.inf`/`.sys`) |
 | **Extracted Corpus** | `58,851` total entries (`57,865` messages across `387` scenario scripts, `54` choices across `24` choice blocks, `388` scene titles, `388` scene skip synopses, `156` UI strings) |
 | **Unique Speakers** | `324` (`鷹志`, `隼人`, `鷲介`, `日和子`, `鳴`, `明日香`, `京`, `小鳩`, `亜衣`, `狩男`, `英里子`, `翔`, `紀奈子`, `和馬`, `春恵`, `ガルーダ`, `蔵人`, `咲夜`, `優`, `聖騎士ホーク` …) |
-| **Translator** | `gemini-4-argon` (`pipeline_cpp/src/translate/`, cached in `script_output/translation_cache_gemini.json`) |
+| **Translator** | `gemini-4-carbon` (`thinkingLevel: MEDIUM`, `batch_size: 40`, `pipeline_cpp/src/translate/`, cached in `script_output/translation_cache_gemini.json`) |
 | **Runtime Delivery** | `winmm.dll` proxy + `build/install/game/translation_table.tsv` + unwrapped inner Lucifen PE (`ORE_TUBA.exe`, preserving `ORE_TUBA_orig.exe`). `.LPK` archives are never modified. |
 
 ---

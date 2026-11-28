@@ -11,7 +11,6 @@
 #include <boost/json.hpp>
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -19,7 +18,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <system_error>
-#include <thread>
 #include <unordered_set>
 
 namespace oretsuba::translate {
@@ -49,9 +47,6 @@ constexpr unsigned char kUtf8ThreeByteLeadMask = 0x0FU;
 constexpr unsigned char kUtf8FourByteLeadMask = 0x07U;
 
 constexpr int kJsonIndentSpaces = 2;
-constexpr int kMaxApiRetries = 5;
-constexpr int kInitialRetryBackoffSec = 3;
-constexpr int kBackoffMultiplier = 2;
 
 std::vector<std::uint32_t> DecodeCodepoints(std::string_view utf8) {
     std::vector<std::uint32_t> out;
@@ -726,33 +721,18 @@ struct TranslateCore::Impl {
             }
 
             std::map<int, std::string> results;
-            int attempt = 0;
-            while (attempt < kMaxApiRetries) {
-                try {
-                    results = TranslateBatchWithFallback(
-                        *backend, prompt_lines, prev_context, ctx_after);
-                    break;
-                } catch (const RateLimitError& err) {
-                    ++attempt;
-                    if (attempt >= kMaxApiRetries) {
-                        std::cerr << "Error: Rate limit retries exhausted: " << err.what() << "\n";
-                        return kExitError;
-                    }
-                    const int wait_sec = kInitialRetryBackoffSec * (1 << (attempt - 1));
-                    std::cerr << "Rate limit hit (" << err.what() << "), waiting "
-                              << wait_sec << "s before retry " << attempt << "...\n";
-                    std::this_thread::sleep_for(std::chrono::seconds(wait_sec));
-                } catch (const ApiError& err) {
-                    ++attempt;
-                    if (attempt >= kMaxApiRetries) {
-                        std::cerr << "Error: API retries exhausted: " << err.what() << "\n";
-                        return kExitError;
-                    }
-                    const int wait_sec = kInitialRetryBackoffSec * kBackoffMultiplier * attempt;
-                    std::cerr << "API error (" << err.what() << "), waiting "
-                              << wait_sec << "s before retry " << attempt << "...\n";
-                    std::this_thread::sleep_for(std::chrono::seconds(wait_sec));
-                }
+            try {
+                results = TranslateBatchWithFallback(
+                    *backend, prompt_lines, prev_context, ctx_after);
+            } catch (const ZeroThoughtError& err) {
+                std::cerr << "Error: Zero-thought circuit breaker tripped: " << err.what() << "\n";
+                return kExitError;
+            } catch (const RateLimitError& err) {
+                std::cerr << "Error: Rate limit retries exhausted: " << err.what() << "\n";
+                return kExitError;
+            } catch (const ApiError& err) {
+                std::cerr << "Error: API request failed: " << err.what() << "\n";
+                return kExitError;
             }
 
             std::size_t applied_in_batch = 0;

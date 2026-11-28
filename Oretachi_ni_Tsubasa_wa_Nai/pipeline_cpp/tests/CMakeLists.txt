@@ -21,6 +21,7 @@ gtest_discover_tests(ct_translate_corpus PROPERTIES LABELS "CT")
 
 add_executable(st_oretsuba_system st_oretsuba_system.cpp)
 target_link_libraries(st_oretsuba_system PRIVATE oretsuba_core GTest::gtest GTest::gtest_main)
+add_dependencies(st_oretsuba_system 02_translate 03_build_tsv)
 target_compile_definitions(st_oretsuba_system PRIVATE
     ORETSUBA_PROJECT_DIR="${ORETSUBA_PROJECT_DIR}")
 gtest_discover_tests(st_oretsuba_system PROPERTIES LABELS "SYSTEM")
