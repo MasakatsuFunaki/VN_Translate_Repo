@@ -15,7 +15,12 @@ endif()
 option(ENABLE_TESTS "Build the GoogleTest suite" ON)
 
 find_package(Boost REQUIRED COMPONENTS json regex program_options)
-find_package(OpenSSL REQUIRED)
+
+if(NOT TARGET vn::llm_client)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../tools/llm_client
+                     ${CMAKE_CURRENT_BINARY_DIR}/vn_llm_client
+                     EXCLUDE_FROM_ALL)
+endif()
 
 # No project folder is compiled in: a build-time absolute path would ship this
 # machine's directory layout inside every binary.  The apps walk up from their
@@ -76,15 +81,13 @@ target_compile_definitions(adi_core PUBLIC
     _WIN32_WINNT=0x0601
 )
 target_link_libraries(adi_core PUBLIC
+    vn::llm_client
     Boost::json
     Boost::regex
-    # Beast/Asio only.  NOT the boost::boost aggregate -- that pulls in every
-    # compiled Boost lib, including test_exec_monitor, whose main() wants a
-    # test_main symbol the GoogleTest suites don't define.
+    # Span/header-only utilities only.  NOT the boost::boost aggregate -- that
+    # pulls in every compiled Boost lib, including test_exec_monitor, whose
+    # main() wants a test_main symbol the GoogleTest suites don't define.
     Boost::headers
-    openssl::openssl
-    ws2_32
-    crypt32
 )
 target_link_libraries(adi_core PRIVATE
     gdi32

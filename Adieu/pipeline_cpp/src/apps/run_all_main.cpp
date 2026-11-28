@@ -37,7 +37,7 @@ using namespace adi;
 
 namespace {
 
-constexpr int kDefaultBatchSize = 150;
+constexpr int kDefaultBatchSize = vn::llm::kDefaultBatchSize;
 constexpr int kUnlimitedBatches = 0;
 constexpr int kDisabledTestBatchCap = 0;
 constexpr std::size_t kBannerWidth = 60;

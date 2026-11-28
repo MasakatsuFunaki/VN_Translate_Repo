@@ -252,6 +252,18 @@ bool translate_scene_impl(const std::string& scene_name,
             api_lines.emplace_back(u.speaker, u.text);
         }
 
+        std::vector<std::pair<std::string, std::string>> context_after;
+        const std::size_t lookahead_end = std::min<std::size_t>(
+            translatable.size(),
+            cursor + static_cast<std::size_t>(CONTEXT_AFTER_WINDOW));
+        context_after.reserve(lookahead_end - cursor);
+        for (std::size_t look = cursor; look < lookahead_end; ++look) {
+            const auto& ls = strings[translatable[look]].get_object();
+            const std::string ltext(ls.at("text").get_string());
+            const std::string* cached_en = cache.get(ltext);
+            context_after.emplace_back(extract_speaker(ls), cached_en ? *cached_en : ltext);
+        }
+
         auto store_translations = [&](const std::map<int, std::string>& translations,
                                       bool verbose) {
             for (std::size_t i = 0; i < unique_uncached.size(); ++i) {
@@ -274,18 +286,22 @@ bool translate_scene_impl(const std::string& scene_name,
         };
 
         try {
-            auto translations = call_gemini(client, api_lines, previous_context);
+            auto translations =
+                call_gemini(client, api_lines, previous_context, context_after);
             if (translations.size() < unique_uncached.size()) {
                 log_info("    WARNING: got " + std::to_string(translations.size()) + "/" +
                          std::to_string(unique_uncached.size()) + " translations");
             }
             store_translations(translations, /*verbose=*/true);
+        } catch (const gemini::ZeroThoughtError&) {
+            throw;
         } catch (const gemini::RateLimitError&) {
             log_info("    Rate limited, waiting 60s...");
             std::this_thread::sleep_for(std::chrono::seconds(kRateLimitRetrySeconds));
             try {
                 store_translations(
-                    call_gemini(client, api_lines, previous_context), /*verbose=*/false);
+                    call_gemini(client, api_lines, previous_context, context_after),
+                    /*verbose=*/false);
             } catch (const std::exception& e2) {
                 log_info(std::string("    Retry failed: ") + e2.what() +
                          ", keeping originals");
@@ -575,7 +591,8 @@ std::size_t purge_failed_entries(Cache& cache) {
 
 std::string build_user_prompt(
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context) {
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after) {
     std::string user_prompt;
     if (!previous_context.empty()) {
         user_prompt += "<previous_context>\n";
@@ -597,10 +614,22 @@ std::string build_user_prompt(
             std::to_string(i + 1) + ". [" + batch_lines[i].first + "] " + escaped + "\n";
     }
     user_prompt += "</lines_to_translate>\n\n";
+    if (!context_after.empty()) {
+        user_prompt += "<context_after>\n";
+        const std::size_t limit = std::min<std::size_t>(
+            context_after.size(), static_cast<std::size_t>(CONTEXT_AFTER_WINDOW));
+        for (std::size_t i = 0; i < limit; ++i) {
+            user_prompt += "[" + context_after[i].first + "] " +
+                           flatten_for_log(context_after[i].second, kContextLineCharLimit) +
+                           "\n";
+        }
+        user_prompt += "</context_after>\n\n";
+    }
     user_prompt +=
         "Translate the " + std::to_string(batch_lines.size()) +
         " lines inside <lines_to_translate> to English. "
-        "Use the <previous_context> (if present) for scene continuity but do NOT translate it. "
+        "Use the <previous_context> and <context_after> (if present) for scene continuity "
+        "and lookahead disambiguation, but do NOT translate them. "
         "Output EXACTLY " + std::to_string(batch_lines.size()) +
         " numbered translations, one per line. "
         "Do NOT include [SPEAKER] tags in your output.";
@@ -638,7 +667,8 @@ std::map<int, std::string> parse_numbered_response(const std::string& response_t
 std::map<int, std::string> call_gemini(
     gemini::IMessageClient& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context) {
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after) {
     bj::object body;
     body["model"] = MODEL;
     body["max_tokens"] = std::max<std::int64_t>(
@@ -647,7 +677,7 @@ std::map<int, std::string> call_gemini(
     body["system"] = SYSTEM_PROMPT;
     bj::object msg;
     msg["role"] = "user";
-    msg["content"] = build_user_prompt(batch_lines, previous_context);
+    msg["content"] = build_user_prompt(batch_lines, previous_context, context_after);
     body["messages"] = bj::array{std::move(msg)};
 
     bj::value response = client.messages(bj::value(std::move(body)));
@@ -674,6 +704,7 @@ std::map<int, std::string> call_gemini(
 
     std::int64_t in_tok = 0;
     std::int64_t out_tok = 0;
+    std::int64_t thought_tok = 0;
     std::int64_t cache_read = 0;
     std::int64_t cache_create = 0;
     if (auto* usage = response.get_object().if_contains("usage")) {
@@ -688,10 +719,12 @@ std::map<int, std::string> call_gemini(
         };
         in_tok = geti("input_tokens");
         out_tok = geti("output_tokens");
+        thought_tok = geti("thought_tokens");
         cache_read = geti("cache_read_input_tokens");
         cache_create = geti("cache_creation_input_tokens");
     }
     log_info("    Tokens: in=" + std::to_string(in_tok) + " out=" + std::to_string(out_tok) +
+             " thoughts=" + std::to_string(thought_tok) +
              " cache_read=" + std::to_string(cache_read) +
              " cache_create=" + std::to_string(cache_create));
 

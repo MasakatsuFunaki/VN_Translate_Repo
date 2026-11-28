@@ -23,6 +23,7 @@
 #include <boost/json.hpp>
 
 #include "translate/gemini_client.h"
+#include "vn/llm/llm_types.h"
 
 namespace adi::translate {
 
@@ -92,17 +93,19 @@ std::size_t purge_failed_entries(Cache& cache);
 
 std::string build_user_prompt(
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context);
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after = {});
 
 std::map<int, std::string> parse_numbered_response(const std::string& response_text);
 
 std::map<int, std::string> call_gemini(
     gemini::IMessageClient& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context);
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after = {});
 
 struct TranslateOptions {
-    int batch_size = 150;
+    int batch_size = vn::llm::kDefaultBatchSize;
     bool retranslate = false;
     std::optional<std::string> only_scene;
     int max_batches = 0; // Global cap on API requests across all scenes (0 = unlimited)

@@ -10,7 +10,7 @@
 //
 // Usage:
 //   02_translate
-//   02_translate --batch 150
+//   02_translate --batch 40
 //   02_translate --max-batches 4       # cap the run, keep the cache
 //   02_translate --rebuild-table [--game-dir <GameDataDir>]
 //   02_translate --retranslate --discard-cache
@@ -29,7 +29,7 @@ using namespace adi;
 
 namespace {
 
-constexpr int kDefaultBatchSize = 150;
+constexpr int kDefaultBatchSize = vn::llm::kDefaultBatchSize;
 constexpr int kUnlimitedBatches = 0;
 constexpr int kDisabledTestBatchCap = 0;
 
@@ -54,7 +54,7 @@ int main() {
         desc.add(apps::project_only_options(project));
         desc.add_options()
             ("batch", po::value(&batch)->default_value(kDefaultBatchSize),
-             "Lines per API request (default: 150)")
+             "Lines per API request (default: 40)")
             ("max-batches", po::value(&max_batches)->default_value(kUnlimitedBatches),
              "Stop after N API requests globally, keeping cache and outputs (0 = no limit)")
             ("out", po::value(&out_tsv),

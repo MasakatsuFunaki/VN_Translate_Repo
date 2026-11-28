@@ -27,6 +27,7 @@ adi_test(ut_utf16)
 adi_test(ut_siglus_decoder)
 adi_test(ut_scene_pck)
 adi_test(ut_extract)
+adi_test(ut_gemini_client)
 adi_test(ut_translate)
 adi_test(ut_build_tsv)
 adi_test(ut_cache_io)
@@ -47,6 +48,7 @@ target_compile_definitions(ct_menu_patcher PRIVATE
 adi_st_test(st_siglus_system)
 adi_st_test(st_gameexe_roundtrip)
 adi_st_test(st_menu_patcher)
+adi_st_test(st_gemini_translate)
 target_compile_definitions(st_menu_patcher PRIVATE
     ADIEU_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../.."
 )
