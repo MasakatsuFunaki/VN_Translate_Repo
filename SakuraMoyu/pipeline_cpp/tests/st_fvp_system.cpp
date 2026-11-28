@@ -34,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -551,10 +552,13 @@ constexpr std::uint8_t kZeroOperand = 0x00u;
 constexpr std::size_t kMaxShortPushPayloadBytes = 254u;
 constexpr std::size_t kPipeChunkBytes = 4096u;
 constexpr DWORD kBufferScaleFactor = 2u;
+constexpr DWORD kProcessTimeoutMs = 660000u;
+constexpr UINT kTimeoutTerminateCode = 1u;
 constexpr std::size_t kEscapedBackslashScale = 2u;
 constexpr std::size_t kEscapedQuoteBackslashes = 1u;
-constexpr std::int64_t kExpectedBatchLines = 8;
+constexpr std::int64_t kExpectedBatchLines = vn::llm::kDefaultBatchSize;
 constexpr std::int64_t kZeroThoughtTokens = 0;
+constexpr std::int64_t kMinExpectedBatchThoughtTokens = 64;
 constexpr double kMaxBatchLatencySeconds =
     static_cast<double>(vn::llm::kDefaultReadTimeoutSeconds);
 constexpr std::size_t kNarrationRubySceneIdx = 0u;
@@ -564,7 +568,9 @@ constexpr std::size_t kHaruOniichanSceneIdx = 3u;
 constexpr std::size_t kChiwaCastSceneIdx = 4u;
 constexpr std::size_t kSolNachtSceneIdx = 6u;
 constexpr std::size_t kSakuraHaruSceneIdx = 7u;
-constexpr std::size_t kSpeakerPlateCount = 4u;
+constexpr std::size_t kHimeoriSenpaiSceneIdx = 8u;
+constexpr std::size_t kMashiroSoftSceneIdx = 9u;
+constexpr std::size_t kSpeakerPlateCount = 7u;
 constexpr std::size_t kDisplayLineOffset = 1u;
 constexpr std::size_t kNewlineCharBytes = 1u;
 
@@ -773,18 +779,33 @@ CapturedProcessResult run_process_captured(
     ScopedWinHandle thread_handle(pi.hThread);
 
     CapturedProcessResult res;
-    char chunk[kPipeChunkBytes];
-    for (;;) {
-        DWORD n_read = 0;
-        const BOOL read_ok =
-            ReadFile(read_pipe.get(), chunk, sizeof(chunk), &n_read, nullptr);
-        if (!read_ok || n_read == 0) {
-            break;
+    std::thread reader([&]() {
+        char chunk[kPipeChunkBytes];
+        for (;;) {
+            DWORD n_read = 0;
+            const BOOL read_ok =
+                ReadFile(read_pipe.get(), chunk, sizeof(chunk), &n_read, nullptr);
+            if (!read_ok || n_read == 0) {
+                break;
+            }
+            res.output.append(chunk, n_read);
         }
-        res.output.append(chunk, n_read);
+    });
+
+    const DWORD wait_rc = WaitForSingleObject(proc_handle.get(), kProcessTimeoutMs);
+    if (wait_rc == WAIT_TIMEOUT) {
+        TerminateProcess(proc_handle.get(), kTimeoutTerminateCode);
+        WaitForSingleObject(proc_handle.get(), INFINITE);
+        reader.join();
+        throw std::runtime_error(
+            "Process timed out after " + std::to_string(kProcessTimeoutMs) +
+            "ms: " + exe_path.u8string() + "\n" + res.output);
+    }
+    reader.join();
+    if (wait_rc != WAIT_OBJECT_0) {
+        throw std::runtime_error("WaitForSingleObject failed for " + exe_path.u8string());
     }
 
-    WaitForSingleObject(proc_handle.get(), INFINITE);
     res.elapsed_seconds =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     DWORD exit_code = 1;
@@ -821,7 +842,7 @@ bool is_github_actions_ci() noexcept {
 
 }  // namespace
 
-TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
+TEST(FvpSystem, live_carbon_sakuramoyu_pipeline_and_resume_idempotency) {
     if (gemini::load_api_key().empty()) {
         if (is_github_actions_ci()) {
             GTEST_SKIP() << "Skipping live Gemini SYSTEM test on GitHub Actions without GEMINI_API_KEY";
@@ -841,43 +862,141 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
     fs::create_directories(script_out_dir);
     fs::create_directories(game_dir);
 
-    constexpr const char* kLine1NarrationRubyJp =
-        "　夜風が頬を撫で、<桜|さくら>の花びらが静かに舞い落ちた。";
-    constexpr const char* kLine2KuroToTaigaJp =
-        "「おかえり、大雅。長い夜の始まりだよ」";
-    constexpr const char* kLine3TaigaEmphasisJp =
-        "「ああ……[・|ぼ][・|く]はずっと、クロの声を待っていたんだ」";
-    constexpr const char* kLine4HaruOniichanJp =
-        "「お兄ちゃん、早く早く！　一緒に<満開|まんかい>のさくらを見に行こうよ！」";
-    constexpr const char* kLine5ChiwaCastJp =
-        "「千和も姫織も十夜も、みんな大雅のことを心配してたんだからね！」";
-    constexpr const char* kLine6CreatureRubyJp =
-        "　<輪廻|りんね>する季節の中で、[よる|夜]の向こうから夜のイキモノが目を覚ました。";
-    constexpr const char* kLine7SolNachtJp =
-        "「ソルとナハトが巡るみたいに、ぼくたちの願いもきっと繋がっているよ」";
-    constexpr const char* kLine8SakuraHaruJp =
-        "　ひらひらと舞うさくらの下で、ぼくはハルの小さな手を握り返した。";
+    enum class SpeakerKind { Narration, Kuro, Taiga, Haru, Chiwa, Himeori, Mashiro, Toya };
+    struct SceneEntry {
+        SpeakerKind speaker;
+        const char* jp;
+    };
+
+    static constexpr SceneEntry kSceneEntries[] = {
+        {SpeakerKind::Narration,
+         "　夜風が頬を撫で、<桜|さくら>の花びらが静かに舞い落ちた。"},
+        {SpeakerKind::Kuro,
+         "「おかえり、大雅。長い夜の始まりだよ」"},
+        {SpeakerKind::Taiga,
+         "「ああ……[・|ぼ][・|く]はずっと、クロの声を待っていたんだ」"},
+        {SpeakerKind::Haru,
+         "「お兄ちゃん、早く早く！　一緒に<満開|まんかい>のさくらを見に行こうよ！」"},
+        {SpeakerKind::Chiwa,
+         "「千和も姫織も十夜も、みんな大雅のことを心配してたんだからね！」"},
+        {SpeakerKind::Narration,
+         "　<輪廻|りんね>する季節の中で、[よる|夜]の向こうから夜のイキモノが目を覚ました。"},
+        {SpeakerKind::Kuro,
+         "「ソルとナハトが巡るみたいに、ぼくたちの願いもきっと繋がっているよ」"},
+        {SpeakerKind::Narration,
+         "　ひらひらと舞うさくらの下で、ぼくはハルの小さな手を握り返した。"},
+        {SpeakerKind::Himeori,
+         "「大雅先輩、今夜の<星空|ほしぞら>はとても澄んでいますね」"},
+        {SpeakerKind::Mashiro,
+         "「わたし、ましろもみんなと一緒にこの桜並木を歩きたかったんです」"},
+        {SpeakerKind::Toya,
+         "「……静かな夜だね。十夜はもう少しだけ、ここで風にあたっていくよ」"},
+        {SpeakerKind::Taiga,
+         "「無理はするなよ、十夜。冷えてきたらいつでも声をかけてくれ」"},
+        {SpeakerKind::Chiwa,
+         "「ほらほら、温かいお茶を淹れてきたから、みんなで一休みしようよ！」"},
+        {SpeakerKind::Haru,
+         "「わあ、ありがとう千和ちゃん！　いい匂いがするね、お兄ちゃん！」"},
+        {SpeakerKind::Narration,
+         "　湯気の立つカップを受け取ると、指先からじんわりと<温|ぬく>もりが広がった。"},
+        {SpeakerKind::Kuro,
+         "「ふふ、こうして肩を並べていると、遠い昔の[やくそく|約束]を思い出すね」"},
+        {SpeakerKind::Himeori,
+         "「先輩は覚えていますか？　あの日、駅のホームで見上げた白い月のことを」"},
+        {SpeakerKind::Taiga,
+         "「もちろん覚えているさ。あんなに綺麗な<月明かり|つきあかり>は忘れられないよ」"},
+        {SpeakerKind::Mashiro,
+         "「わたしのスケッチブックにも、あの夜の景色が大切に描いてあります」"},
+        {SpeakerKind::Narration,
+         "　街灯の光に照らされて、薄紅色の花びらが雪のように路面を染めていく。"},
+        {SpeakerKind::Toya,
+         "「夜が深まるほど、桜の色がいっそう鮮やかに浮かび上がって見えるね」"},
+        {SpeakerKind::Chiwa,
+         "「明日も明後日も、こうして変わらずにみんなで笑っていられたらいいな」"},
+        {SpeakerKind::Kuro,
+         "「大丈夫だよ、千和。どんなに長い夜でも、必ず優しい朝へと続いていくから」"},
+        {SpeakerKind::Haru,
+         "「うん！　ハルもお兄ちゃんとクロちゃんの言葉を信じてるよ！」"},
+        {SpeakerKind::Narration,
+         "　遠くの踏切で警報機が鳴り、<最終電車|さいしゅうでんしゃ>の灯りが夜霧を横切った。"},
+        {SpeakerKind::Taiga,
+         "「そろそろ夜露が降りてきたな。風邪を引く前に屋根のある場所へ戻ろう」"},
+        {SpeakerKind::Himeori,
+         "「ええ、先輩のおっしゃる通りです。お茶菓子もまだ残っていますしね」"},
+        {SpeakerKind::Mashiro,
+         "「あ、わたしがバスケットを持ちますね。落とさないように気をつけます」"},
+        {SpeakerKind::Toya,
+         "「半分持つよ、ましろ。二人で運んだほうがずっと楽だから」"},
+        {SpeakerKind::Chiwa,
+         "「じゃあ千和が先頭を歩くね！　足元の段差に気をつけてついてきて！」"},
+        {SpeakerKind::Narration,
+         "　石畳の坂道に、いくつもの足音が重なって穏やかなリズムを刻んでいく。"},
+        {SpeakerKind::Kuro,
+         "「ねえ大雅……きみが隣にいてくれるだけで、夜の闇はこんなにも温かいんだね」"},
+        {SpeakerKind::Taiga,
+         "「それはぼくの台詞だよ、クロ。きみが呼んでくれたから、ここまで来られたんだ」"},
+        {SpeakerKind::Haru,
+         "「お兄ちゃん、お星さまがきらきら光ってるよ！　あの一番明るい星はなあに？」"},
+        {SpeakerKind::Himeori,
+         "「あれは春の<宵|よい>を告げる一等星ですよ、ハルちゃん」"},
+        {SpeakerKind::Mashiro,
+         "「まるで夜空のキャンバスに、銀色の絵の具を一滴落としたみたいですね」"},
+        {SpeakerKind::Toya,
+         "「見上げていると、時間がゆっくりと溶けていくような気がするよ」"},
+        {SpeakerKind::Chiwa,
+         "「さあ、もうすぐ到着だよ！　明かりのついた窓が見えてきたでしょう？」"},
+        {SpeakerKind::Kuro,
+         "「おやすみの前に、もうひとつだけ小さな<物語|ものがたり>を聞かせてあげようか」"},
+        {SpeakerKind::Narration,
+         "　扉を開けると、春の夜風と一緒にひとひらのさくらが部屋の中へ舞い込んだ。"},
+    };
+    static_assert(std::size(kSceneEntries) ==
+                      static_cast<std::size_t>(vn::llm::kDefaultBatchSize),
+                  "Tier-2 live SYSTEM test must exercise a full 40-line default batch");
 
     // Build a real FVP Sakura.hcb bytecode image with cast-window subroutines
-    // (< 0x2000) and speaker-attributed scene pushes.
+    // (< 0x2000) and 40 speaker-attributed / narrated scene pushes.
     {
         Bytes body;
         const std::uint32_t kuro_sub = append_speaker_subroutine(body, "　クロ　");
         const std::uint32_t haru_sub = append_speaker_subroutine(body, "　ハル　");
         const std::uint32_t chiwa_sub = append_speaker_subroutine(body, "　千和　");
         const std::uint32_t taiga_sub = append_speaker_subroutine(body, "　大雅　");
+        const std::uint32_t himeori_sub = append_speaker_subroutine(body, "　姫織　");
+        const std::uint32_t mashiro_sub = append_speaker_subroutine(body, "　ましろ　");
+        const std::uint32_t toya_sub = append_speaker_subroutine(body, "　十夜　");
 
         body.push_back(kFuncHeaderOp);
         body.push_back(kZeroOperand);
         body.push_back(kZeroOperand);
-        append_hcb_push_string(body, kLine1NarrationRubyJp);
-        append_spoken_line(body, kuro_sub, kLine2KuroToTaigaJp);
-        append_spoken_line(body, taiga_sub, kLine3TaigaEmphasisJp);
-        append_spoken_line(body, haru_sub, kLine4HaruOniichanJp);
-        append_spoken_line(body, chiwa_sub, kLine5ChiwaCastJp);
-        append_hcb_push_string(body, kLine6CreatureRubyJp);
-        append_spoken_line(body, kuro_sub, kLine7SolNachtJp);
-        append_hcb_push_string(body, kLine8SakuraHaruJp);
+        for (const auto& entry : kSceneEntries) {
+            switch (entry.speaker) {
+            case SpeakerKind::Narration:
+                append_hcb_push_string(body, entry.jp);
+                break;
+            case SpeakerKind::Kuro:
+                append_spoken_line(body, kuro_sub, entry.jp);
+                break;
+            case SpeakerKind::Taiga:
+                append_spoken_line(body, taiga_sub, entry.jp);
+                break;
+            case SpeakerKind::Haru:
+                append_spoken_line(body, haru_sub, entry.jp);
+                break;
+            case SpeakerKind::Chiwa:
+                append_spoken_line(body, chiwa_sub, entry.jp);
+                break;
+            case SpeakerKind::Himeori:
+                append_spoken_line(body, himeori_sub, entry.jp);
+                break;
+            case SpeakerKind::Mashiro:
+                append_spoken_line(body, mashiro_sub, entry.jp);
+                break;
+            case SpeakerKind::Toya:
+                append_spoken_line(body, toya_sub, entry.jp);
+                break;
+            }
+        }
         body.push_back(kReturnOp);
 
         Bytes hcb;
@@ -887,6 +1006,8 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
         write_file((game_dir / "Sakura.hcb").u8string(), hcb);
     }
 
+    const std::string default_batch_arg = std::to_string(vn::llm::kDefaultBatchSize);
+
     // Step 1: Run real 01_extract.exe over the synthetic Sakura.hcb.
     const CapturedProcessResult extract_proc = run_process_captured(
         extract_exe,
@@ -895,13 +1016,14 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
         << "01_extract.exe failed:\n" << extract_proc.output;
     ASSERT_TRUE(fs::exists(script_out_dir / "extracted_text.json"));
 
-    // Step 2 (Pass 1): Run real 02_translate.exe against live gemini-4-carbon.
+    // Step 2 (Pass 1): Run real 02_translate.exe against live gemini-4-carbon
+    // at full production batch size (`--batch 40 --max-batches 1`).
     const CapturedProcessResult pass1 = run_process_captured(
         translate_exe,
         {
             "--dir", project_dir.u8string(),
             "--game-dir", game_dir.u8string(),
-            "--batch", "8",
+            "--batch", default_batch_arg,
             "--max-batches", "1",
         });
 
@@ -926,6 +1048,8 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
     EXPECT_EQ(telemetry.at("batch_lines").as_int64(), kExpectedBatchLines);
     EXPECT_GT(thought_tokens, kZeroThoughtTokens)
         << "gemini-4-carbon with thinkingLevel=MEDIUM must produce thought_tokens > 0";
+    EXPECT_GE(thought_tokens, kMinExpectedBatchThoughtTokens)
+        << "gemini-4-carbon reasoning depth fell below baseline floor on 40-line batch";
     EXPECT_NE(pass1.output.find("thoughts=" + std::to_string(thought_tokens)),
               std::string::npos)
         << "Expected thoughts=<N> telemetry in Pass 1 log:\n" << pass1.output;
@@ -936,24 +1060,14 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
     ASSERT_TRUE(fs::exists(tsv_path));
 
     const tr::Cache cache = tr::load_cache(cache_path.u8string());
-    const char* const kSceneLines[] = {
-        kLine1NarrationRubyJp,
-        kLine2KuroToTaigaJp,
-        kLine3TaigaEmphasisJp,
-        kLine4HaruOniichanJp,
-        kLine5ChiwaCastJp,
-        kLine6CreatureRubyJp,
-        kLine7SolNachtJp,
-        kLine8SakuraHaruJp,
-    };
 
     log_info("[LIVE SAKURAMOYU ST] thought_tokens=" + std::to_string(thought_tokens) +
              " elapsed=" + std::to_string(pass1.elapsed_seconds) + "s");
 
     std::vector<std::string> scene_en;
-    scene_en.reserve(std::size(kSceneLines));
-    for (std::size_t i = 0; i < std::size(kSceneLines); ++i) {
-        const std::string* ptr = cache.get(kSceneLines[i]);
+    scene_en.reserve(std::size(kSceneEntries));
+    for (std::size_t i = 0; i < std::size(kSceneEntries); ++i) {
+        const std::string* ptr = cache.get(kSceneEntries[i].jp);
         ASSERT_NE(ptr, nullptr)
             << "Missing cached translation for line " << (i + kDisplayLineOffset);
         const std::string& en = *ptr;
@@ -973,6 +1087,7 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
         }
         scene_en.push_back(en);
     }
+    ASSERT_EQ(scene_en.size(), std::size(kSceneEntries));
 
     // Verify SakuraMoyu cast glossary fidelity across translated dialogue/narration.
     EXPECT_NE(to_ascii_lower(scene_en[kKuroToTaigaSceneIdx]).find("taiga"),
@@ -1000,6 +1115,12 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
     EXPECT_NE(to_ascii_lower(scene_en[kSakuraHaruSceneIdx]).find("haru"),
               std::string::npos)
         << scene_en[kSakuraHaruSceneIdx];
+    EXPECT_NE(to_ascii_lower(scene_en[kHimeoriSenpaiSceneIdx]).find("taiga"),
+              std::string::npos)
+        << scene_en[kHimeoriSenpaiSceneIdx];
+    EXPECT_NE(to_ascii_lower(scene_en[kMashiroSoftSceneIdx]).find("mashiro"),
+              std::string::npos)
+        << scene_en[kMashiroSoftSceneIdx];
 
     // Verify CP932 cleanliness, 1-tab structure, nameplate keys, and trimmed
     // U+3000 narration keys in translation_table.tsv.
@@ -1031,14 +1152,17 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
         ASSERT_TRUE(row_roundtrip.has_value()) << "Row failed CP932 decode: " << row;
         EXPECT_EQ(*row_roundtrip, row) << "Row lost characters in CP932 round-trip: " << row;
     }
-    EXPECT_GE(non_empty_rows, std::size(kSceneLines) + kSpeakerPlateCount);
+    EXPECT_GE(non_empty_rows, std::size(kSceneEntries) + kSpeakerPlateCount);
     EXPECT_NE(tsv_text.find("クロ\tKuro\n"), std::string::npos);
     EXPECT_NE(tsv_text.find("ハル\tHaru\n"), std::string::npos);
     EXPECT_NE(tsv_text.find("千和\tChiwa\n"), std::string::npos);
     EXPECT_NE(tsv_text.find("大雅\tTaiga\n"), std::string::npos);
+    EXPECT_NE(tsv_text.find("姫織\tHimeori\n"), std::string::npos);
+    EXPECT_NE(tsv_text.find("ましろ\tMashiro\n"), std::string::npos);
+    EXPECT_NE(tsv_text.find("十夜\tToya\n"), std::string::npos);
     EXPECT_NE(
-        tsv_text.find(build_tsv::flatten(kLine1NarrationRubyJp) + "\t" +
-                      scene_en[kNarrationRubySceneIdx]),
+        tsv_text.find(build_tsv::flatten(kSceneEntries[kNarrationRubySceneIdx].jp) +
+                      "\t" + scene_en[kNarrationRubySceneIdx]),
         std::string::npos);
 
     // Step 3 (Pass 2): Immediate resume run must make 0 API calls and preserve
@@ -1048,7 +1172,7 @@ TEST(FvpSystem, live_argon_sakuramoyu_pipeline_and_resume_idempotency) {
         {
             "--dir", project_dir.u8string(),
             "--game-dir", game_dir.u8string(),
-            "--batch", "8",
+            "--batch", default_batch_arg,
             "--max-batches", "1",
         });
 

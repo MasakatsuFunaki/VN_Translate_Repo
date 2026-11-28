@@ -237,8 +237,6 @@ int main() {
         log_info("English Translation Pipeline (Gemini)");
         log_info(bar);
 
-        gemini::load_api_key();
-
         if (clean && gemini::load_api_key().empty()) {
             log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the "
                      "cache for a run that cannot translate.");

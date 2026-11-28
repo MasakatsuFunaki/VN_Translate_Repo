@@ -72,9 +72,13 @@ bool needs_translation(const std::string& text);
 // Remove [Speaker] tags Gemini sometimes echoes despite the prompt.
 std::string strip_speaker_tags(const std::string& text);
 
-// Replace typographic punctuation with CP932-safe ASCII and strip leftover
-// [ruby|base] bracket markup.
+// Replace typographic punctuation and Latin-1 diacritics with CP932-safe ASCII,
+// and fold leftover [reading|base] or <base|reading> ruby markup to base text.
 std::string sanitize_ascii(const std::string& text);
+
+// True iff every byte in `text` is NUL-free 7-bit ASCII (`0x01..0x7F`), safe
+// for FVP's raw Shift-JIS glyph walker without UTF-8 transcoding.
+bool is_ascii_clean(std::string_view text) noexcept;
 
 // Unicode-aware whitespace strip -- U+3000 included (see common/util.h).
 std::string strip(const std::string& s);
@@ -100,8 +104,10 @@ bool is_failed_entry(const std::string& jp, const std::string& en);
 // Remove failed entries so they re-queue. Returns how many were removed.
 std::size_t purge_failed_entries(Cache& cache);
 
-// Cache one translated line. Empty `en` leaves it uncached so it re-queues,
-// and the Japanese carries the context window instead.
+// Cache one translated line after stripping echoed speaker tags and folding
+// typographic punctuation/ruby. Empty lines, lines with leaked Japanese, or
+// lines containing non-ASCII / NUL bytes stay uncached so they re-queue, and
+// the Japanese carries the context window instead.
 void apply_line_result(Cache& cache, std::vector<std::string>& previous_context,
                        const std::string& jp, const std::string& en);
 
@@ -166,8 +172,8 @@ std::map<int, std::string> call_gemini(
 
 // Reject option combinations that would spend money unintentionally, before
 // anything is loaded or deleted.  Returns the reason, or nullopt when the
-// options are usable.  A negative batch cap is the dangerous case: it reads as
-// "no limit" and starts an unbounded run.
+// options are usable.  Negative or non-finite caps (`NaN`, `Inf`) are the
+// dangerous cases: they read as "no limit" and start an unbounded run.
 std::optional<std::string> validate_options(int batch_size, int test_n, int max_batches,
                                             double max_budget_eur = 0.0);
 

@@ -58,7 +58,7 @@ namespace fs = std::filesystem;
 namespace tr = snt::translate;
 
 constexpr std::wstring_view kTempDirPrefix = L"桜ノ刻_st_live_";
-constexpr DWORD kProcessTimeoutMs = 180000U;
+constexpr DWORD kProcessTimeoutMs = 660000U;
 constexpr DWORD kPipeReadChunkBytes = 4096U;
 constexpr UINT kForcedTerminateExitCode = 1U;
 constexpr int kExpectedExitCode = 0;
@@ -67,13 +67,21 @@ constexpr int kProductionBatchSize = vn::llm::kDefaultBatchSize;
 constexpr std::int64_t kFirstEntryOffset = 1;
 constexpr std::int64_t kDecimalRadix = 10;
 constexpr std::ptrdiff_t kExpectedTsvTabs = 1;
-constexpr std::size_t kLiveBatchSize = 8;
-constexpr std::size_t kPreCachedContextAfterCount = 2;
+constexpr std::size_t kLiveBatchSize = static_cast<std::size_t>(kProductionBatchSize);
+constexpr std::size_t kPreCachedContextAfterCount = 4;
+
+static_assert(kLiveBatchSize == 40U,
+              "Tier-2 live SYSTEM test must exercise full production batch size (40)");
+static_assert(kProcessTimeoutMs >
+                  static_cast<DWORD>(snt::gemini::kDefaultTimeoutSec) * 1000U,
+              "Process wait timeout must exceed the 600s Gemini read deadline");
 
 constexpr std::size_t kIdxHekihiRubyBase = 1;
 constexpr std::size_t kIdxTsuburagiRubyBase = 4;
 constexpr std::size_t kIdxButterflyTitle = 6;
 constexpr std::size_t kIdxYumihariIndented = 7;
+constexpr std::size_t kIdxSnowscapeMagpieVase = 9;
+constexpr std::size_t kIdxRuriwoAnagram = 18;
 
 struct ScriptSpec {
     const char* type;
@@ -81,11 +89,15 @@ struct ScriptSpec {
     const char* text;
 };
 
-// Authentic Sakura no Toki (`script\01_01.ast` + cast scene) lines exercising:
+// 40 authentic Sakura no Toki (`script\01_01.ast` + Yumihari / Chimera cast
+// scenes) lines exercising production `--batch 40 --max-batches 1`:
 //   - Artemis 3-part ruby-split glaze compound (`碧緋` -> `Hekihi`, speaker `直哉`)
 //   - Artemis 3-part ruby-split person surname (`円木` -> `Tsuburagi`, speaker `静流`)
-//   - Pinned artwork title (`『蝶を夢む』` -> `'Dreaming of a Butterfly'`, speaker `静流`)
-//   - Core glossary cast (`稟`=`Rin`, `圭`=`Kei`, `藍`=`Ai`), pinned `弓張学園`
+//   - Pinned artwork titles (`『蝶を夢む』` -> `'Dreaming of a Butterfly'`,
+//     `『雪景鵲図花瓶』` -> `'The Snowscape Magpie Vase'`)
+//   - Pinned anagram pen name (`ア・ロウアワーキウイ` -> `A Raw Hour Kiwi`)
+//   - Core glossary cast (`稟`=`Rin`, `圭`=`Kei`, `藍`=`Ai`, `心鈴`=`Misuzu`,
+//     `寧`=`Nei`, `ルリヲ`=`Ruriwo`, `真琴`=`Makoto`), pinned `弓張学園`
 //     (`Yumihari Academy`), and leading U+3000 ideographic paragraph indent (`　`).
 constexpr std::array<ScriptSpec, kLiveBatchSize> kSakuraNoTokiLines = {{
     {"dialogue", "直哉", "「だけど、一番重要なのはこの彩釉ですね。これは"},
@@ -96,19 +108,55 @@ constexpr std::array<ScriptSpec, kLiveBatchSize> kSakuraNoTokiLines = {{
     {"dialogue", "静流", "ちゃんが店長してた時からの常連さんですか？」"},
     {"dialogue", "静流", "「そうでもないよ。君だって大したもんじゃない。『蝶を夢む』なんか相当な名作よ」"},
     {"narrative", nullptr, "　弓張学園の美術室で、稟と圭、それに藍が静かに絵を見つめていた。"},
+    {"dialogue", "稟", "「草薙くん、その花瓶のデッサン、もうすぐ仕上がるの？」"},
+    {"dialogue", "直哉", "「ああ、鳥谷真琴の『雪景鵲図花瓶』をもう一度見直してから決めたいんだ」"},
+    {"dialogue", "圭", "「俺はもっと大胆に筆を入れた方がいいと思うけどな、直哉」"},
+    {"dialogue", "藍", "「こら圭、直哉は今、授業の準備をしてるんだろうが」"},
+    {"narrative", nullptr, "　窓の外では、桜ヶ原の並木が春の風に揺れていた。"},
+    {"dialogue", "心鈴", "「草薙先生、本日の放課後、美術部の鍵をお借りしてもよろしいでしょうか」"},
+    {"dialogue", "直哉", "「構わないよ、本間さん。恩田さんも一緒に残るのかい？」"},
+    {"dialogue", "寧", "「はい、デッサンの課題をもう少しだけ進めたくて」"},
+    {"dialogue", "心鈴", "「寧ちゃんと二人で、日暮れまでには必ず戸締まりをして帰ります」"},
+    {"narrative", nullptr, "　心鈴は丁寧にお辞儀をすると、イーゼルの並ぶ窓際へと歩いていった。"},
+    {"dialogue", "ルリヲ", "「せんせーっ！　ア・ロウアワーキウイの新作、見てくれた！？」"},
+    {"dialogue", "鈴菜", "「もう、ルリヲちゃんったら、廊下を走ったら危ないですよ」"},
+    {"dialogue", "桜子", "「すみません草薙先生、私たちが止めようとしたんですけど……」"},
+    {"dialogue", "直哉", "「はは、相変わらず賑やかだな、君たちは」"},
+    {"narrative", nullptr, "　放課後の美術室には、絵具とテレピンの匂いが柔らかく満ちていた。"},
+    {"dialogue", "真琴", "「直哉、キマイラに届けておいた白磁の試作、もう確認してくれたかしら」"},
+    {"dialogue", "静流", "「ええ、店の奥の棚に大切にしまってあるわよ、真琴ちゃん」"},
+    {"dialogue", "紗希", "「リモージュの工房と比べても、今回の焼き上がりは悪くないわね」"},
+    {"dialogue", "麗華", "「ええ、釉薬の透明感がこれまでとはまるで違っていますわ」"},
+    {"dialogue", "放哉", "「ムーア公募展に出せば、間違いなく審査員の目を引くだろうな」"},
+    {"dialogue", "フリッドマン", "「プラティヌ・エポラールを狙えるだけの格がある作品だよ」"},
+    {"dialogue", "坂本", "「だが芸術というのは、賞のために描くものでもあるまい」"},
+    {"dialogue", "直哉", "「坂本先生の言う通りですね。親父――草薙健一郎もきっとそう言ったはずです」"},
+    {"narrative", nullptr, "　夕暮れの光が夢浮坂を長く染め、遠い海面が静かにきらめいていた。"},
+    {"dialogue", "ノノ未", "「先輩、そろそろ片付けを始めないと、門が閉まっちゃいますよ！」"},
+    {"dialogue", "里奈", "「筆洗の水は私が捨てておくから、キャンバスの布を掛けておいて」"},
+    {"dialogue", "優美", "「じゃあ私は窓の鍵を順番に確かめていくわね」"},
+    {"dialogue", "香奈", "「ふふ、なんだか昔の美術部に戻ったみたいで悪くないわね」"},
+    {"dialogue", "雫", "「藍姉ちゃん、帰りにキマイラで紅茶を飲んでいってもいい？」"},
+    {"dialogue", "藍", "「ああ、静流の淹れる紅茶なら私も一杯付き合おうかな」"},
+    {"dialogue", "直哉", "「それじゃあ、戸締まりを済ませたらみんなで坂を下りようか」"},
+    {"narrative", nullptr, "　春の宵闇が降りる弓張の街へ、彼らは並んで歩き出した。"},
 }};
 
-// Pre-cached trailing lines from `script\01_01.ast` so Pass 1 includes
-// `<context_after>` lookahead while Pass 2 sees `0` remaining uncached lines.
+// Pre-cached trailing lines so Pass 1 includes `<context_after>` lookahead
+// while Pass 2 sees `0` remaining uncached lines.
 constexpr std::array<ScriptSpec, kPreCachedContextAfterCount> kPreCachedContextAfterLines = {{
     {"dialogue", "直哉", "「世界で彼だけがこの独特な彩釉、碧緋を出すことができる。"},
     {"dialogue", "静流", "「そうだね、たしかに吉沢緑寺先生はすごい人ではあるよ」"},
+    {"dialogue", "心鈴", "「いつか私も、そんな光を描けるようになりたいです」"},
+    {"narrative", nullptr, "　静かな夜風が、二人の足元に白い花びらを運んできた。"},
 }};
 
-constexpr const char* kPreCachedContextAfterEn0 =
-    "\"He is the only person in the world capable of producing this distinctive glaze, Hekihi.";
-constexpr const char* kPreCachedContextAfterEn1 =
-    "\"Right, Yoshizawa Ryokuji-sensei really is an incredible person.\"";
+constexpr std::array<const char*, kPreCachedContextAfterCount> kPreCachedContextAfterEn = {{
+    "\"He is the only person in the world capable of producing this distinctive glaze, Hekihi.",
+    "\"Right, Yoshizawa Ryokuji-sensei really is an incredible person.\"",
+    "\"Someday, I would like to become able to paint light like that too.\"",
+    "　A quiet night breeze carried white petals to their feet.",
+}};
 constexpr const char* kPreCachedGreetingJp = "「おはよう」";
 constexpr const char* kPreCachedGreetingEn = "\"Good morning.\"";
 
@@ -358,7 +406,100 @@ std::string ToLowerAscii(std::string s) {
     return s;
 }
 
+// Strict RFC 3629 UTF-8 byte validator rejecting NUL bytes, overlong encodings,
+// UTF-16 surrogate halves (U+D800..U+DFFF), codepoints > U+10FFFF, truncated
+// sequences, and U+FFFD replacement characters.
+bool IsStrictCleanUtf8(std::string_view s) noexcept {
+    constexpr unsigned char kAsciiMax = 0x7FU;
+    constexpr unsigned char kContMask = 0xC0U;
+    constexpr unsigned char kContPrefix = 0x80U;
+    constexpr unsigned char kTwoMin = 0xC2U;
+    constexpr unsigned char kTwoMax = 0xDFU;
+    constexpr unsigned char kThreeMin = 0xE0U;
+    constexpr unsigned char kThreeMax = 0xEFU;
+    constexpr unsigned char kFourMin = 0xF0U;
+    constexpr unsigned char kFourMax = 0xF4U;
+    constexpr char32_t kReplacementCp = 0xFFFDU;
+
+    std::size_t i = 0;
+    while (i < s.size()) {
+        const auto b0 = static_cast<unsigned char>(s[i]);
+        if (b0 == 0U) {
+            return false;
+        }
+        if (b0 <= kAsciiMax) {
+            ++i;
+            continue;
+        }
+        if (b0 >= kTwoMin && b0 <= kTwoMax) {
+            if (i + 1U >= s.size()) {
+                return false;
+            }
+            const auto b1 = static_cast<unsigned char>(s[i + 1U]);
+            if ((b1 & kContMask) != kContPrefix) {
+                return false;
+            }
+            i += 2U;
+            continue;
+        }
+        if (b0 >= kThreeMin && b0 <= kThreeMax) {
+            if (i + 2U >= s.size()) {
+                return false;
+            }
+            const auto b1 = static_cast<unsigned char>(s[i + 1U]);
+            const auto b2 = static_cast<unsigned char>(s[i + 2U]);
+            if ((b1 & kContMask) != kContPrefix || (b2 & kContMask) != kContPrefix) {
+                return false;
+            }
+            if (b0 == 0xE0U && b1 < 0xA0U) {
+                return false;  // overlong
+            }
+            if (b0 == 0xEDU && b1 >= 0xA0U) {
+                return false;  // UTF-16 surrogate
+            }
+            const char32_t cp = (static_cast<char32_t>(b0 & 0x0FU) << 12) |
+                                (static_cast<char32_t>(b1 & 0x3FU) << 6) |
+                                static_cast<char32_t>(b2 & 0x3FU);
+            if (cp == kReplacementCp) {
+                return false;
+            }
+            i += 3U;
+            continue;
+        }
+        if (b0 >= kFourMin && b0 <= kFourMax) {
+            if (i + 3U >= s.size()) {
+                return false;
+            }
+            const auto b1 = static_cast<unsigned char>(s[i + 1U]);
+            const auto b2 = static_cast<unsigned char>(s[i + 2U]);
+            const auto b3 = static_cast<unsigned char>(s[i + 3U]);
+            if ((b1 & kContMask) != kContPrefix ||
+                (b2 & kContMask) != kContPrefix ||
+                (b3 & kContMask) != kContPrefix) {
+                return false;
+            }
+            if (b0 == 0xF0U && b1 < 0x90U) {
+                return false;  // overlong
+            }
+            if (b0 == 0xF4U && b1 > 0x8FU) {
+                return false;  // > U+10FFFF
+            }
+            i += 4U;
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
 std::map<std::string, std::string> ReadTsvRows(const fs::path& tsv_path) {
+    const snt::Bytes raw_bytes = snt::read_file(tsv_path.u8string());
+    const std::string_view raw_view(
+        reinterpret_cast<const char*>(raw_bytes.data()), raw_bytes.size());
+    EXPECT_FALSE(raw_view.empty()) << tsv_path.u8string();
+    EXPECT_TRUE(IsStrictCleanUtf8(raw_view))
+        << "Invalid UTF-8, NUL, or U+FFFD replacement byte in " << tsv_path.u8string();
+
     std::ifstream in(tsv_path, std::ios::binary);
     EXPECT_TRUE(static_cast<bool>(in)) << tsv_path.u8string();
     std::map<std::string, std::string> rows;
@@ -370,6 +511,7 @@ std::map<std::string, std::string> ReadTsvRows(const fs::path& tsv_path) {
         if (line.empty()) {
             continue;
         }
+        EXPECT_TRUE(IsStrictCleanUtf8(line)) << line;
         EXPECT_EQ(std::find(line.begin(), line.end(), '\0'), line.end()) << line;
         EXPECT_EQ(std::count(line.begin(), line.end(), '\t'), kExpectedTsvTabs) << line;
         const std::size_t tab = line.find('\t');
@@ -411,18 +553,20 @@ TEST(GeminiLiveSystemTest,
 
     bj::object seeded_cache;
     seeded_cache[kPreCachedGreetingJp] = kPreCachedGreetingEn;
-    seeded_cache[kPreCachedContextAfterLines[0].text] = kPreCachedContextAfterEn0;
-    seeded_cache[kPreCachedContextAfterLines[1].text] = kPreCachedContextAfterEn1;
+    for (std::size_t i = 0; i < kPreCachedContextAfterLines.size(); ++i) {
+        seeded_cache[kPreCachedContextAfterLines[i].text] = kPreCachedContextAfterEn[i];
+    }
     snt::write_file_text(
         cache_path.u8string(),
         snt::json_pretty(bj::value(std::move(seeded_cache)), kPrettyIndent));
 
-    // Pass 1 translates the uncached Sakura no Toki lines against live Gemini.
+    // Pass 1 translates all 40 uncached Sakura no Toki lines at production
+    // batch size (`--batch 40 --max-batches 1`) against live Gemini.
     const auto pass1_start = std::chrono::steady_clock::now();
     const ProcessResult pass1 = RunProcessCapturingOutput(
         translate_exe,
         {"--dir", sandbox.path().u8string(),
-         "--batch", std::to_string(kLiveBatchSize),
+         "--batch", std::to_string(kProductionBatchSize),
          "--max-batches", "1"});
     const double pass1_sec =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - pass1_start).count();
@@ -444,12 +588,15 @@ TEST(GeminiLiveSystemTest,
         reinterpret_cast<const char*>(raw_log_after_pass1.data()),
         raw_log_after_pass1.size());
 
+    const auto batch_lines_sent = ParseMetricToken(raw_log, "lines=");
     const auto in_tokens = ParseMetricToken(raw_log, " in=");
     const auto out_tokens = ParseMetricToken(raw_log, " out=");
     const auto thought_tokens = ParseMetricToken(raw_log, " thought=");
+    ASSERT_TRUE(batch_lines_sent.has_value()) << raw_log;
     ASSERT_TRUE(in_tokens.has_value()) << raw_log;
     ASSERT_TRUE(out_tokens.has_value()) << raw_log;
     ASSERT_TRUE(thought_tokens.has_value()) << raw_log;
+    EXPECT_EQ(*batch_lines_sent, static_cast<std::int64_t>(kLiveBatchSize)) << raw_log;
 
     GTEST_LOG_(INFO) << "Live gemini-4-carbon Sakura no Toki Pass 1: in=" << *in_tokens
                      << " out=" << *out_tokens
@@ -510,6 +657,17 @@ TEST(GeminiLiveSystemTest,
     EXPECT_NE(en_low[kIdxButterflyTitle].find("dreaming of a butterfly"), std::string::npos)
         << "Artwork title '『蝶を夢む』' missed pinned 'Dreaming of a Butterfly': "
         << en_raw[kIdxButterflyTitle];
+
+    // Pinned artwork title (`『雪景鵲図花瓶』` -> `Snowscape Magpie Vase`)
+    EXPECT_NE(en_low[kIdxSnowscapeMagpieVase].find("snowscape magpie vase"),
+              std::string::npos)
+        << "Artwork title '『雪景鵲図花瓶』' missed pinned 'Snowscape Magpie Vase': "
+        << en_raw[kIdxSnowscapeMagpieVase];
+
+    // Pinned anagram pen name (`ア・ロウアワーキウイ` -> `A Raw Hour Kiwi`)
+    EXPECT_NE(en_low[kIdxRuriwoAnagram].find("a raw hour kiwi"), std::string::npos)
+        << "Pen name 'ア・ロウアワーキウイ' missed pinned 'A Raw Hour Kiwi': "
+        << en_raw[kIdxRuriwoAnagram];
 
     // Glossary cast (`稟`=`Rin`, `圭`=`Kei`, `藍`=`Ai`) + `弓張学園` (`Yumihari`) + U+3000 indent
     EXPECT_NE(en_low[kIdxYumihariIndented].find("yumihari"), std::string::npos)

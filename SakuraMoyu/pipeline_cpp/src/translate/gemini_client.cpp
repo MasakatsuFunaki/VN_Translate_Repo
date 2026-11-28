@@ -212,12 +212,18 @@ public:
                                        int read_timeout_sec) override {
         const std::string model = parse_model_from_target_path(target_path);
         const bj::object wire_req = bj::parse(json_body).as_object();
-        const bj::value wire_res =
-            endpoint_->generate_content(model, wire_req, read_timeout_sec);
-        vn::llm::RawHttpResponse raw;
-        raw.status_code = kHttpOkStatus;
-        raw.body = bj::serialize(wire_res);
-        return raw;
+        try {
+            const bj::value wire_res =
+                endpoint_->generate_content(model, wire_req, read_timeout_sec);
+            vn::llm::RawHttpResponse raw;
+            raw.status_code = kHttpOkStatus;
+            raw.body = bj::serialize(wire_res);
+            return raw;
+        } catch (const RateLimitError& e) {
+            throw vn::llm::LlmRateLimitError(e.what());
+        } catch (const ApiError& e) {
+            throw vn::llm::LlmError(e.what());
+        }
     }
 
 private:
@@ -371,8 +377,8 @@ struct Client::Impl {
                 log_info(std::string(msg));
             };
         }
-        configured_timeout_sec = timeout_sec;
         llm_client = vn::llm::create_llm_client(std::move(opts));
+        configured_timeout_sec = timeout_sec;
     }
 };
 

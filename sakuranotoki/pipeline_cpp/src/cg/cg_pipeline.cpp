@@ -287,7 +287,7 @@ int run_find_narrative_cg(const CgOptions& opt) {
     // makes no request at all.  Resolved here rather than inside the loop:
     // its handlers catch everything, so a missing key would be reported once
     // per image and the run would still end successfully.
-    gemini::LazyClient client;
+    gemini::LazyClient client(opt.raw_transport);
     if (count_left_to_scan(scan_keys, done_keys)) client.get();
 
     auto flush_state = [&] {

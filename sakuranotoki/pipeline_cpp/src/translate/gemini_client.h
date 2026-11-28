@@ -43,17 +43,21 @@ struct ZeroThoughtError : ApiError {
     using ApiError::ApiError;
 };
 
-// Build the Gemini generateContent request body via `vn::llm::build_gemini_request_json`,
-// writing the resolved model ID (`vn::llm::kDefaultModel` by default) to
-// `out_model` when non-null. Throws `ApiError` if `in_obj["model"]` names a
-// disallowed model (such as any `"argon"` model or embedded NUL byte).
+// Build the Gemini generateContent request body via `vn::llm::build_gemini_request_json`
+// (preserving multimodal `"type": "image"` content blocks as Gemini `inlineData`
+// parts alongside `"text"` parts), writing the resolved model ID
+// (`vn::llm::kDefaultModel` by default) to `out_model` when non-null. Throws
+// `ApiError` if `in_obj["model"]` names a disallowed model (such as any
+// `"argon"` model or embedded NUL byte) or if an image content block is
+// malformed.
 boost::json::object build_gemini_request(const boost::json::object& in_obj,
                                          std::string* out_model = nullptr);
 
 // Adapt a raw Gemini generateContent response JSON via
 // `vn::llm::parse_gemini_response_json` into the pipeline's normalized response
 // object (`content`, `stop_reason`, and `usage` including `candidates_tokens`
-// and `thought_tokens`).
+// and `thought_tokens`). Translates `vn::llm::LlmRateLimitError` to
+// `RateLimitError` and `vn::llm::LlmError` to `ApiError`.
 boost::json::value adapt_gemini_response(const boost::json::value& gem_val);
 
 class Client {
@@ -81,13 +85,14 @@ private:
 };
 
 // Side-effect-free key resolver delegating to `vn::llm::resolve_gemini_api_key()`.
-std::string load_api_key();
+[[nodiscard]] std::string load_api_key();
 
 // Builds the Client on first use, so a run whose cache already covers every
-// line makes no request and needs no key.
+// line makes no request and needs no key. Optional `raw_transport` injects an
+// outer HTTP transport seam for deterministic offline component tests.
 class LazyClient {
 public:
-    LazyClient();
+    explicit LazyClient(vn::llm::IRawHttpTransport* raw_transport = nullptr);
     ~LazyClient();
 
     LazyClient(LazyClient&& other) noexcept;

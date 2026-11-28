@@ -12,6 +12,7 @@
 #include "common/util.h"
 #include "glossary.h"
 #include "speaker_gate.h"
+#include "vn/llm/zero_thought_guard.h"
 
 #include <algorithm>
 #include <chrono>
@@ -48,33 +49,51 @@ struct Cache::Impl {
 
 Cache::Cache() : impl_(std::make_unique<Impl>()) {}
 Cache::~Cache() = default;
-Cache::Cache(const Cache& other) : impl_(std::make_unique<Impl>(*other.impl_)) {}
+Cache::Cache(const Cache& other)
+    : impl_(other.impl_ ? std::make_unique<Impl>(*other.impl_)
+                        : std::make_unique<Impl>()) {}
 Cache& Cache::operator=(const Cache& other) {
     if (this != &other) {
-        *impl_ = *other.impl_;
+        auto copy = other.impl_ ? std::make_unique<Impl>(*other.impl_)
+                                : std::make_unique<Impl>();
+        impl_.swap(copy);
     }
     return *this;
 }
 Cache::Cache(Cache&& other) noexcept = default;
 Cache& Cache::operator=(Cache&& other) noexcept = default;
+void Cache::swap(Cache& other) noexcept { impl_.swap(other.impl_); }
 
 bool Cache::contains(const std::string& jp) const {
-    return impl_->index.count(jp) != 0;
+    return impl_ != nullptr && impl_->index.count(jp) != 0;
 }
 
 const std::string* Cache::get(const std::string& jp) const {
+    if (impl_ == nullptr) {
+        return nullptr;
+    }
     const auto it = impl_->index.find(jp);
     return it == impl_->index.end() ? nullptr : &impl_->order[it->second].second;
 }
 
 void Cache::set(const std::string& jp, const std::string& en) {
+    if (impl_ == nullptr) {
+        impl_ = std::make_unique<Impl>();
+    }
     const auto it = impl_->index.find(jp);
     if (it != impl_->index.end()) {
         impl_->order[it->second].second = en;
         return;
     }
-    impl_->index.emplace(jp, impl_->order.size());
-    impl_->order.emplace_back(jp, en);
+    const auto [inserted_it, inserted] =
+        impl_->index.emplace(jp, impl_->order.size());
+    (void)inserted;
+    try {
+        impl_->order.emplace_back(jp, en);
+    } catch (...) {
+        impl_->index.erase(inserted_it);
+        throw;
+    }
 }
 
 void Cache::set_default(const std::string& jp, const std::string& en) {
@@ -83,10 +102,13 @@ void Cache::set_default(const std::string& jp, const std::string& en) {
     }
 }
 
-std::size_t Cache::size() const { return impl_->order.size(); }
+std::size_t Cache::size() const {
+    return impl_ != nullptr ? impl_->order.size() : 0U;
+}
 
 const std::vector<std::pair<std::string, std::string>>& Cache::items() const {
-    return impl_->order;
+    static const std::vector<std::pair<std::string, std::string>> kEmptyItems;
+    return impl_ != nullptr ? impl_->order : kEmptyItems;
 }
 
 bool needs_translation(const std::string& text) {
@@ -992,8 +1014,10 @@ std::map<int, std::string> call_gemini(
     msg["content"] = build_user_prompt(batch_lines, previous_context, context_after);
     body["messages"] = bj::array{std::move(msg)};
 
+    std::string effective_thinking_level;
     switch (reasoning_control(MODEL)) {
     case ReasoningControl::ThinkingLevel:
+        effective_thinking_level = THINKING_LEVEL;
         body["thinking_config"] = bj::object{{"thinking_level", THINKING_LEVEL}};
         break;
     case ReasoningControl::None:
@@ -1032,6 +1056,18 @@ std::map<int, std::string> call_gemini(
         log_info("  [preview cut -- full answer appended to " + raw_answer_log() + "]");
     }
     log_info("=== END RAW ANSWER ===");
+
+    constexpr std::int64_t kZeroThoughtThreshold = 0;
+    if (vn::llm::is_guarded_thinking_mode(MODEL, effective_thinking_level) &&
+        batch_lines.size() >= vn::llm::kMinSubsequentBatchSliceForThoughtCheck &&
+        answer.stop_reason != "refusal" &&
+        usage.thought_tokens <= kZeroThoughtThreshold) {
+        log_info("    WARNING: guarded Gemini 4 batch returned 0 thought tokens "
+                 "(strike 1, lines=" +
+                 std::to_string(batch_lines.size()) +
+                 ") -- refusing to cache non-thinking output so the batch re-queues");
+        return {};
+    }
 
     return usable_translations(answer, batch_lines.size());
 }
@@ -1108,7 +1144,8 @@ int translate_all(const TranslateOptions& opt) {
         return kExitOk;
     }
 
-    if (opt.fresh_run && gemini::load_api_key().empty()) {
+    if (opt.fresh_run && opt.raw_transport == nullptr &&
+        gemini::load_api_key().empty()) {
         log_info("[ERROR] GEMINI_API_KEY not set -- refusing to discard the "
                  "cache for a run that cannot translate.");
         return kExitFailure;
@@ -1138,7 +1175,7 @@ int translate_all(const TranslateOptions& opt) {
     set_raw_answer_log(raw_answer_log_path(opt.output_file));
     log_info("Raw answers: " + raw_answer_log());
 
-    gemini::LazyClient client;
+    gemini::LazyClient client(opt.raw_transport);
 
     log_info("Loading translation cache...");
     Cache cache;
@@ -1204,44 +1241,53 @@ int translate_all(const TranslateOptions& opt) {
         std::int64_t done_scripts = 0;
         const auto start = std::chrono::steady_clock::now();
 
-        for (const auto& [script_name, total_in_script, uncached] : scripts_with_text) {
-            if (uncached == 0) {
+        try {
+            for (const auto& [script_name, total_in_script, uncached] : scripts_with_text) {
+                if (uncached == 0) {
+                    done_lines += total_in_script;
+                    ++done_scripts;
+                    continue;
+                }
+
+                log_info("  [" + std::to_string(done_scripts + 1) + "/" +
+                         std::to_string(scripts_with_text.size()) + "] " + script_name +
+                         "  (" + std::to_string(uncached) + "/" +
+                         std::to_string(total_in_script) + " uncached)");
+
+                const bool stopped = translate_script(
+                    client, all_scripts.at(script_name).get_object(), cache, opt.batch_size,
+                    [&](const Cache& c) { save_cache(c, opt.cache_file); },
+                    opt.test_mode, opt.test_mode ? &batches_remaining : nullptr);
                 done_lines += total_in_script;
                 ++done_scripts;
-                continue;
+
+                const double elapsed =
+                    std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
+                        .count();
+                const double rate =
+                    elapsed > 0.0 ? static_cast<double>(done_lines) / elapsed : 0.0;
+                char buf[kStatsBufChars];
+                std::snprintf(buf, sizeof(buf), "    %.1f lines/s  done=%lld", rate,
+                              static_cast<long long>(done_lines));
+                log_info(buf);
+
+                if (stopped) {
+                    log_info("\n  --test mode: stopping after requested batches");
+                    break;
+                }
             }
 
-            log_info("  [" + std::to_string(done_scripts + 1) + "/" +
-                     std::to_string(scripts_with_text.size()) + "] " + script_name +
-                     "  (" + std::to_string(uncached) + "/" +
-                     std::to_string(total_in_script) + " uncached)");
-
-            const bool stopped = translate_script(
-                client, all_scripts.at(script_name).get_object(), cache, opt.batch_size,
-                [&](const Cache& c) { save_cache(c, opt.cache_file); },
-                opt.test_mode, opt.test_mode ? &batches_remaining : nullptr);
-            done_lines += total_in_script;
-            ++done_scripts;
-
-            const double elapsed =
-                std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
-                    .count();
-            const double rate =
-                elapsed > 0.0 ? static_cast<double>(done_lines) / elapsed : 0.0;
-            char buf[kStatsBufChars];
-            std::snprintf(buf, sizeof(buf), "    %.1f lines/s  done=%lld", rate,
-                          static_cast<long long>(done_lines));
-            log_info(buf);
-
-            if (stopped) {
-                log_info("\n  --test mode: stopping after requested batches");
-                break;
-            }
+            save_cache(cache, opt.cache_file);
+            log_info("\nTranslation pass done. Cache: " + std::to_string(cache.size()) +
+                     " entries");
+        } catch (const gemini::ZeroThoughtError& e) {
+            save_cache(cache, opt.cache_file);
+            log_info(std::string("\n[ERROR] Zero-thought circuit breaker tripped: ") +
+                     e.what());
+            log_info("        Flushed translation cache (" +
+                     std::to_string(cache.size()) + " entries) -> " + opt.cache_file);
+            return kExitFailure;
         }
-
-        save_cache(cache, opt.cache_file);
-        log_info("\nTranslation pass done. Cache: " + std::to_string(cache.size()) +
-                 " entries");
     }
 
     log_info("\nWriting translated_text.json...");

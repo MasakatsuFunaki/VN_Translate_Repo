@@ -645,3 +645,270 @@ TEST(Translate, PurgeRemovesFailedEntriesAndKeepsTheRest) {
     EXPECT_EQ(purge_failed_entries(cache), kZeroPurgedCount);
     EXPECT_EQ(cache.size(), kRemainingCacheCount);
 }
+
+namespace {
+
+constexpr std::size_t kBelowSubsequentGuardSeam = 15u;
+constexpr std::size_t kAtSubsequentGuardSeam = 16u;
+constexpr std::int64_t kPositiveSingleThoughtToken = 1;
+constexpr std::int64_t kExpectedRateLimitBackoffMs = 60000;
+
+enum class ScriptedActionKind {
+    SuccessWithThoughts,
+    ThrowRateLimit,
+    ThrowApiError,
+    ThrowZeroThought,
+};
+
+struct ScriptedBatchAction {
+    ScriptedActionKind kind = ScriptedActionKind::SuccessWithThoughts;
+    std::int64_t thought_tokens = kFakeThoughtTokens;
+    const char* stop_reason = "end_turn";
+};
+
+class ScriptedMessageClient final : public gemini::IMessageClient {
+public:
+    explicit ScriptedMessageClient(std::vector<ScriptedBatchAction> plan)
+        : plan_(std::move(plan)) {}
+
+    bj::value messages(const bj::value& body, int /*timeout_sec*/) override {
+        const std::size_t idx = call_count_++;
+        const ScriptedBatchAction action =
+            idx < plan_.size() ? plan_[idx] : ScriptedBatchAction{};
+        if (action.kind == ScriptedActionKind::ThrowRateLimit) {
+            throw gemini::RateLimitError("HTTP 429 quota exceeded");
+        }
+        if (action.kind == ScriptedActionKind::ThrowApiError) {
+            throw gemini::ApiError("HTTP 502 bad gateway");
+        }
+        if (action.kind == ScriptedActionKind::ThrowZeroThought) {
+            throw gemini::ZeroThoughtError("0 thought tokens on guarded batch");
+        }
+
+        const std::string prompt(
+            body.at("messages").as_array().at(0).at("content").as_string());
+        const std::string open_tag = "<lines_to_translate>\n";
+        const std::string close_tag = "</lines_to_translate>";
+        const std::size_t start = prompt.find(open_tag);
+        const std::size_t content_start =
+            start == std::string::npos ? std::string::npos : start + open_tag.size();
+        const std::size_t end =
+            content_start == std::string::npos ? std::string::npos
+                                               : prompt.find(close_tag, content_start);
+        int line_count = 0;
+        if (content_start != std::string::npos && end != std::string::npos) {
+            const std::string block = prompt.substr(content_start, end - content_start);
+            for (char c : block) {
+                if (c == '\n') {
+                    ++line_count;
+                }
+            }
+        }
+
+        std::string reply;
+        for (int i = 1; i <= line_count; ++i) {
+            reply += std::to_string(i) + ". Scripted_c" +
+                     std::to_string(call_count_) + "_l" + std::to_string(i) + "\n";
+        }
+
+        bj::object resp;
+        resp["content"] =
+            bj::array{bj::object{{"type", "text"}, {"text", std::move(reply)}}};
+        resp["stop_reason"] = action.stop_reason;
+        resp["usage"] = bj::object{
+            {"input_tokens", kFakeInputTokens},
+            {"output_tokens", kFakeOutputTokens},
+            {"thought_tokens", action.thought_tokens},
+            {"cache_read_input_tokens", kFakeZeroTokens},
+            {"cache_creation_input_tokens", kFakeZeroTokens},
+        };
+        return resp;
+    }
+
+    std::size_t call_count() const noexcept { return call_count_; }
+
+private:
+    std::vector<ScriptedBatchAction> plan_;
+    std::size_t call_count_ = 0u;
+};
+
+}  // namespace
+
+// Contract 5: When a rate-limited batch's 60s retry raises `gemini::ZeroThoughtError`,
+// `translate_all` MUST propagate `gemini::ZeroThoughtError` (never swallowing it inside
+// `catch (const std::exception&)`) after flushing prior paid batches to disk; whereas
+// a non-zero-thought `ApiError` on retry keeps originals uncached and continues to
+// translate subsequent valid batches cleanly (`Valid -> Failing -> Valid` seam).
+TEST(Translate, RateLimitRetryPropagatesZeroThoughtErrorAndFlushesPriorBatchCache) {
+    {
+        ScopedTempDir scratch;
+        TranslateOptions opt = make_sandbox_options(scratch);
+        opt.batch_size = kBatchSizeTwo;
+        std::vector<std::int64_t> backoff_ms;
+        opt.sleep_fn = [&backoff_ms](std::chrono::milliseconds d) {
+            backoff_ms.push_back(d.count());
+        };
+
+        bj::object extracted;
+        extracted["seen020"] = scene_of({
+            entry("　第一バッチ一行目。", "narrative"),
+            entry("　第一バッチ二行目。", "narrative"),
+            entry("　第二バッチ一行目。", "narrative"),
+            entry("　第二バッチ二行目。", "narrative"),
+        });
+        write_file_text(opt.input_file, json_pretty(bj::value(std::move(extracted))));
+
+        ScriptedMessageClient client({
+            {ScriptedActionKind::SuccessWithThoughts, kFakeThoughtTokens, "end_turn"},
+            {ScriptedActionKind::ThrowRateLimit, kFakeZeroTokens, "end_turn"},
+            {ScriptedActionKind::ThrowZeroThought, kFakeZeroTokens, "end_turn"},
+        });
+
+        EXPECT_THROW((void)translate_all(opt, client), gemini::ZeroThoughtError);
+        EXPECT_EQ(client.call_count(), 3u);
+        ASSERT_EQ(backoff_ms.size(), kExpectedOneCall);
+        EXPECT_EQ(backoff_ms[kIdx0], kExpectedRateLimitBackoffMs);
+
+        const Cache flushed = load_cache(opt.cache_file);
+        ASSERT_NE(flushed.get("　第一バッチ一行目。"), nullptr);
+        EXPECT_EQ(*flushed.get("　第一バッチ一行目。"), "Scripted_c1_l1");
+        ASSERT_NE(flushed.get("　第一バッチ二行目。"), nullptr);
+        EXPECT_EQ(*flushed.get("　第一バッチ二行目。"), "Scripted_c1_l2");
+        EXPECT_EQ(flushed.get("　第二バッチ一行目。"), nullptr);
+        EXPECT_EQ(flushed.get("　第二バッチ二行目。"), nullptr);
+        EXPECT_FALSE(fs::exists(fs::u8path(opt.output_file)));
+        EXPECT_FALSE(fs::exists(fs::u8path(opt.tsv_file)));
+    }
+
+    // Valid -> Failing (RateLimit + ApiError) -> Valid state seam:
+    {
+        ScopedTempDir scratch;
+        TranslateOptions opt = make_sandbox_options(scratch);
+        opt.batch_size = kBatchSizeTwo;
+        opt.sleep_fn = [](std::chrono::milliseconds) {};
+
+        bj::object extracted;
+        extracted["seen020"] = scene_of({
+            entry("　正常開始の一行目。", "narrative"),
+            entry("　正常開始の二行目。", "narrative"),
+            entry("　失敗中間の一行目。", "narrative"),
+            entry("　失敗中間の二行目。", "narrative"),
+            entry("　正常回復の一行目。", "narrative"),
+            entry("　正常回復の二行目。", "narrative"),
+        });
+        write_file_text(opt.input_file, json_pretty(bj::value(std::move(extracted))));
+
+        ScriptedMessageClient client({
+            {ScriptedActionKind::SuccessWithThoughts, kFakeThoughtTokens, "end_turn"},
+            {ScriptedActionKind::ThrowRateLimit, kFakeZeroTokens, "end_turn"},
+            {ScriptedActionKind::ThrowApiError, kFakeZeroTokens, "end_turn"},
+            {ScriptedActionKind::SuccessWithThoughts, kFakeThoughtTokens, "end_turn"},
+        });
+
+        ASSERT_EQ(translate_all(opt, client), kTranslateExitOk);
+        EXPECT_EQ(client.call_count(), 4u);
+
+        const Cache persisted = load_cache(opt.cache_file);
+        ASSERT_NE(persisted.get("　正常開始の一行目。"), nullptr);
+        EXPECT_EQ(*persisted.get("　正常開始の一行目。"), "Scripted_c1_l1");
+        EXPECT_EQ(persisted.get("　失敗中間の一行目。"), nullptr);
+        EXPECT_EQ(persisted.get("　失敗中間の二行目。"), nullptr);
+        ASSERT_NE(persisted.get("　正常回復の一行目。"), nullptr);
+        EXPECT_EQ(*persisted.get("　正常回復の一行目。"), "Scripted_c4_l1");
+    }
+}
+
+// Contract 6: Top-level Strike-1 0-thought batches with `slice_size >= 16`
+// (`kMinSubsequentBatchSliceForThoughtCheck`) and non-refusal `stop_reason`
+// MUST NOT be cached (both on primary response and on post-429 retry response),
+// whereas a 15-line (`16 - 1`) tail batch or a 16-line batch with `thought_tokens >= 1`
+// IS cached.
+TEST(Translate, ZeroThoughtCachingBoundaryAtFifteenVsSixteenLinesAndRetryPath) {
+    struct ZeroThoughtCacheCase {
+        const char* label;
+        std::size_t line_count;
+        bool via_rate_limit_retry;
+        std::int64_t thought_tokens;
+        const char* stop_reason;
+        std::size_t expected_cached_lines;
+    };
+
+    constexpr ZeroThoughtCacheCase kCases[] = {
+        {"tail_15_lines_zero_thoughts_allowed",
+         kBelowSubsequentGuardSeam,
+         false,
+         kFakeZeroTokens,
+         "end_turn",
+         kBelowSubsequentGuardSeam},
+        {"exact_16_lines_zero_thoughts_refused_direct",
+         kAtSubsequentGuardSeam,
+         false,
+         kFakeZeroTokens,
+         "end_turn",
+         kEmptyCacheSize},
+        {"exact_16_lines_zero_thoughts_refused_after_rate_limit_retry",
+         kAtSubsequentGuardSeam,
+         true,
+         kFakeZeroTokens,
+         "end_turn",
+         kEmptyCacheSize},
+        {"exact_16_lines_one_thought_token_cached",
+         kAtSubsequentGuardSeam,
+         false,
+         kPositiveSingleThoughtToken,
+         "end_turn",
+         kAtSubsequentGuardSeam},
+    };
+
+    for (const auto& tc : kCases) {
+        SCOPED_TRACE(tc.label);
+        ScopedTempDir scratch;
+        TranslateOptions opt = make_sandbox_options(scratch);
+        opt.batch_size = static_cast<int>(tc.line_count);
+        opt.sleep_fn = [](std::chrono::milliseconds) {};
+
+        bj::array arr;
+        std::vector<std::string> batch_jps;
+        batch_jps.reserve(tc.line_count);
+        for (std::size_t i = 0u; i < tc.line_count; ++i) {
+            const std::string jp =
+                "　境界検証用の未訳文その" + std::to_string(i + 1u) + "。";
+            batch_jps.push_back(jp);
+            arr.push_back(entry(jp, "narrative"));
+        }
+        bj::object scene;
+        scene["strings"] = std::move(arr);
+
+        std::vector<ScriptedBatchAction> plan;
+        if (tc.via_rate_limit_retry) {
+            plan.push_back({ScriptedActionKind::ThrowRateLimit, kFakeZeroTokens, "end_turn"});
+        }
+        plan.push_back({ScriptedActionKind::SuccessWithThoughts,
+                        tc.thought_tokens,
+                        tc.stop_reason});
+        ScriptedMessageClient client(std::move(plan));
+
+        Cache cache;
+        int api_batches_done = 0;
+        EXPECT_FALSE(translate_scene(
+            "seen020", scene, cache, opt, client, api_batches_done));
+
+        std::size_t actual_cached = 0u;
+        ASSERT_EQ(batch_jps.size(), tc.line_count);
+        for (const std::string& jp : batch_jps) {
+            if (cache.contains(jp)) {
+                ++actual_cached;
+            }
+        }
+        EXPECT_EQ(actual_cached, tc.expected_cached_lines);
+
+        const Cache disk_cache = load_cache(opt.cache_file);
+        std::size_t disk_cached = 0u;
+        for (const std::string& jp : batch_jps) {
+            if (disk_cache.contains(jp)) {
+                ++disk_cached;
+            }
+        }
+        EXPECT_EQ(disk_cached, tc.expected_cached_lines);
+    }
+}

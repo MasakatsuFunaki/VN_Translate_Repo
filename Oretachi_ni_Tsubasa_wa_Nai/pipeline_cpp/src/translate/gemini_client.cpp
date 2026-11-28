@@ -12,7 +12,6 @@
 #include <boost/regex.hpp>
 
 #include <algorithm>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -21,7 +20,6 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -32,33 +30,114 @@ namespace {
 namespace bj = boost::json;
 namespace fs = std::filesystem;
 
-constexpr int kLiveZeroThoughtMaxRetries = 2;
-constexpr int kZeroThoughtBackoffMultiplier = 2;
 constexpr std::size_t kBinarySplitDivisor = 2U;
 constexpr std::size_t kMaxSubBatchDepth = 2U;
 constexpr int kNoActiveLineNumber = -1;
 constexpr int kLineNumberCaptureGroup = 1;
 constexpr int kLineBodyCaptureGroup = 2;
 
-std::string ReplaceAllSubstring(std::string input,
-                                std::string_view from,
-                                std::string_view to) {
-    if (from.empty()) {
-        return input;
+constexpr std::uint8_t kUtf8AsciiLimit = 0x80U;
+constexpr std::uint8_t kUtf8TwoByteMask = 0xE0U;
+constexpr std::uint8_t kUtf8TwoByteLead = 0xC0U;
+constexpr std::uint8_t kUtf8ThreeByteMask = 0xF0U;
+constexpr std::uint8_t kUtf8ThreeByteLead = 0xE0U;
+constexpr std::uint8_t kUtf8FourByteMask = 0xF8U;
+constexpr std::uint8_t kUtf8FourByteLead = 0xF0U;
+constexpr std::uint8_t kUtf8ContMask = 0xC0U;
+constexpr std::uint8_t kUtf8ContValue = 0x80U;
+constexpr std::uint8_t kUtf8TwoBytePayloadMask = 0x1FU;
+constexpr std::uint8_t kUtf8ThreeBytePayloadMask = 0x0FU;
+constexpr std::uint8_t kUtf8FourBytePayloadMask = 0x07U;
+constexpr std::uint8_t kUtf8ContPayloadMask = 0x3FU;
+constexpr unsigned int kUtf8ContShift = 6U;
+constexpr unsigned int kUtf8DoubleContShift = 12U;
+constexpr unsigned int kUtf8TripleContShift = 18U;
+constexpr char32_t kMinTwoByteCp = 0x80U;
+constexpr char32_t kMinThreeByteCp = 0x800U;
+constexpr char32_t kMinFourByteCp = 0x10000U;
+constexpr char32_t kMaxUnicodeCp = 0x10FFFFU;
+constexpr char32_t kSurrogateMin = 0xD800U;
+constexpr char32_t kSurrogateMax = 0xDFFFU;
+constexpr std::size_t kTwoByteSeqLen = 2U;
+constexpr std::size_t kThreeByteSeqLen = 3U;
+constexpr std::size_t kFourByteSeqLen = 4U;
+
+bool IsUtf8ContinuationByte(std::uint8_t byte_val) noexcept {
+    return (byte_val & kUtf8ContMask) == kUtf8ContValue;
+}
+
+bool TryDecodeStrictUtf8Codepoint(std::string_view text,
+                                  std::size_t& idx,
+                                  char32_t& cp_out) noexcept {
+    const auto b0 = static_cast<std::uint8_t>(text[idx]);
+    if (b0 < kUtf8AsciiLimit) {
+        cp_out = b0;
+        ++idx;
+        return true;
     }
-    std::string out;
-    out.reserve(input.size());
-    std::size_t pos = 0;
-    for (;;) {
-        const std::size_t hit = input.find(from, pos);
-        if (hit == std::string::npos) {
-            out.append(input, pos, std::string::npos);
-            return out;
+    if ((b0 & kUtf8TwoByteMask) == kUtf8TwoByteLead) {
+        if (idx + kTwoByteSeqLen > text.size()) {
+            return false;
         }
-        out.append(input, pos, hit - pos);
-        out.append(to.data(), to.size());
-        pos = hit + from.size();
+        const auto b1 = static_cast<std::uint8_t>(text[idx + 1U]);
+        if (!IsUtf8ContinuationByte(b1)) {
+            return false;
+        }
+        const char32_t cp =
+            (static_cast<char32_t>(b0 & kUtf8TwoBytePayloadMask) << kUtf8ContShift) |
+            static_cast<char32_t>(b1 & kUtf8ContPayloadMask);
+        if (cp < kMinTwoByteCp) {
+            return false;
+        }
+        cp_out = cp;
+        idx += kTwoByteSeqLen;
+        return true;
     }
+    if ((b0 & kUtf8ThreeByteMask) == kUtf8ThreeByteLead) {
+        if (idx + kThreeByteSeqLen > text.size()) {
+            return false;
+        }
+        const auto b1 = static_cast<std::uint8_t>(text[idx + 1U]);
+        const auto b2 = static_cast<std::uint8_t>(text[idx + 2U]);
+        if (!IsUtf8ContinuationByte(b1) || !IsUtf8ContinuationByte(b2)) {
+            return false;
+        }
+        const char32_t cp =
+            (static_cast<char32_t>(b0 & kUtf8ThreeBytePayloadMask) << kUtf8DoubleContShift) |
+            (static_cast<char32_t>(b1 & kUtf8ContPayloadMask) << kUtf8ContShift) |
+            static_cast<char32_t>(b2 & kUtf8ContPayloadMask);
+        if (cp < kMinThreeByteCp || (cp >= kSurrogateMin && cp <= kSurrogateMax)) {
+            return false;
+        }
+        cp_out = cp;
+        idx += kThreeByteSeqLen;
+        return true;
+    }
+    if ((b0 & kUtf8FourByteMask) == kUtf8FourByteLead) {
+        if (idx + kFourByteSeqLen > text.size()) {
+            return false;
+        }
+        const auto b1 = static_cast<std::uint8_t>(text[idx + 1U]);
+        const auto b2 = static_cast<std::uint8_t>(text[idx + 2U]);
+        const auto b3 = static_cast<std::uint8_t>(text[idx + 3U]);
+        if (!IsUtf8ContinuationByte(b1) ||
+            !IsUtf8ContinuationByte(b2) ||
+            !IsUtf8ContinuationByte(b3)) {
+            return false;
+        }
+        const char32_t cp =
+            (static_cast<char32_t>(b0 & kUtf8FourBytePayloadMask) << kUtf8TripleContShift) |
+            (static_cast<char32_t>(b1 & kUtf8ContPayloadMask) << kUtf8DoubleContShift) |
+            (static_cast<char32_t>(b2 & kUtf8ContPayloadMask) << kUtf8ContShift) |
+            static_cast<char32_t>(b3 & kUtf8ContPayloadMask);
+        if (cp < kMinFourByteCp || cp > kMaxUnicodeCp) {
+            return false;
+        }
+        cp_out = cp;
+        idx += kFourByteSeqLen;
+        return true;
+    }
+    return false;
 }
 
 std::string ReadKeyFromSettingsJson(const fs::path& settings_path) {
@@ -357,29 +436,209 @@ std::string LoadGeminiApiKey(const std::string& project_dir) {
 }
 
 std::string SanitizeAscii(std::string_view text) {
-    std::string s(text);
-    s = ReplaceAllSubstring(std::move(s), "—", "--");
-    s = ReplaceAllSubstring(std::move(s), "–", "--");
-    s = ReplaceAllSubstring(std::move(s), "―", "--");
-    s = ReplaceAllSubstring(std::move(s), "─", "--");
-    s = ReplaceAllSubstring(std::move(s), "…", "...");
-    s = ReplaceAllSubstring(std::move(s), "⋯", "...");
-    s = ReplaceAllSubstring(std::move(s), "‘", "'");
-    s = ReplaceAllSubstring(std::move(s), "’", "'");
-    s = ReplaceAllSubstring(std::move(s), "“", "\"");
-    s = ReplaceAllSubstring(std::move(s), "”", "\"");
-    s = ReplaceAllSubstring(std::move(s), "「", "\"");
-    s = ReplaceAllSubstring(std::move(s), "」", "\"");
-    s = ReplaceAllSubstring(std::move(s), "『", "'");
-    s = ReplaceAllSubstring(std::move(s), "』", "'");
-    s = ReplaceAllSubstring(std::move(s), "≪", "\"");
-    s = ReplaceAllSubstring(std::move(s), "≫", "\"");
-    s = ReplaceAllSubstring(std::move(s), "　", " ");
-    s = ReplaceAllSubstring(std::move(s), "〜", "~");
-    s = ReplaceAllSubstring(std::move(s), "～", "~");
-    s = ReplaceAllSubstring(std::move(s), "é", "e");
-    s = ReplaceAllSubstring(std::move(s), "ê", "e");
-    s = ReplaceAllSubstring(std::move(s), "è", "e");
+    std::string s;
+    s.reserve(text.size());
+    std::size_t idx = 0U;
+    while (idx < text.size()) {
+        const std::size_t start = idx;
+        char32_t cp = 0;
+        if (!TryDecodeStrictUtf8Codepoint(text, idx, cp)) {
+            s.push_back(text[idx]);
+            ++idx;
+            continue;
+        }
+        switch (cp) {
+        case U'\u2018':
+        case U'\u2019':
+        case U'\u201A':
+        case U'\u201B':
+        case U'\u2032':
+        case U'\u300E':
+        case U'\u300F':
+        case U'\uFF07':
+            s.push_back('\'');
+            break;
+        case U'\u00AB':
+        case U'\u00BB':
+        case U'\u201C':
+        case U'\u201D':
+        case U'\u201E':
+        case U'\u201F':
+        case U'\u2033':
+        case U'\u226A':
+        case U'\u226B':
+        case U'\u300C':
+        case U'\u300D':
+        case U'\uFF02':
+            s.push_back('"');
+            break;
+        case U'\u2013':
+        case U'\u2014':
+        case U'\u2015':
+        case U'\u2500':
+            s += "--";
+            break;
+        case U'\u2010':
+        case U'\u2011':
+        case U'\u2012':
+        case U'\u2212':
+            s.push_back('-');
+            break;
+        case U'\u2022':
+        case U'\u2023':
+        case U'\u2219':
+            s.push_back('*');
+            break;
+        case U'\u2026':
+        case U'\u22EF':
+            s += "...";
+            break;
+        case U'\u00A0':
+        case U'\u2000':
+        case U'\u2001':
+        case U'\u2002':
+        case U'\u2003':
+        case U'\u2004':
+        case U'\u2005':
+        case U'\u2006':
+        case U'\u2007':
+        case U'\u2008':
+        case U'\u2009':
+        case U'\u200A':
+        case U'\u202F':
+        case U'\u205F':
+        case U'\u3000':
+            s.push_back(' ');
+            break;
+        case U'\u301C':
+        case U'\uFF5E':
+            s.push_back('~');
+            break;
+        case U'\u00AD':
+        case U'\u200B':
+        case U'\u200C':
+        case U'\u200D':
+        case U'\u2060':
+        case U'\uFEFF':
+            break;
+        case U'\u00C0':
+        case U'\u00C1':
+        case U'\u00C2':
+        case U'\u00C3':
+        case U'\u00C4':
+        case U'\u00C5':
+        case U'\u0100':
+            s.push_back('A');
+            break;
+        case U'\u00C6':
+            s += "AE";
+            break;
+        case U'\u00C7':
+            s.push_back('C');
+            break;
+        case U'\u00C8':
+        case U'\u00C9':
+        case U'\u00CA':
+        case U'\u00CB':
+        case U'\u0112':
+            s.push_back('E');
+            break;
+        case U'\u00CC':
+        case U'\u00CD':
+        case U'\u00CE':
+        case U'\u00CF':
+        case U'\u012A':
+            s.push_back('I');
+            break;
+        case U'\u00D1':
+            s.push_back('N');
+            break;
+        case U'\u00D2':
+        case U'\u00D3':
+        case U'\u00D4':
+        case U'\u00D5':
+        case U'\u00D6':
+        case U'\u00D8':
+        case U'\u014C':
+            s.push_back('O');
+            break;
+        case U'\u0152':
+            s += "OE";
+            break;
+        case U'\u00D9':
+        case U'\u00DA':
+        case U'\u00DB':
+        case U'\u00DC':
+        case U'\u016A':
+            s.push_back('U');
+            break;
+        case U'\u00DD':
+        case U'\u0178':
+            s.push_back('Y');
+            break;
+        case U'\u00DF':
+            s += "ss";
+            break;
+        case U'\u00E0':
+        case U'\u00E1':
+        case U'\u00E2':
+        case U'\u00E3':
+        case U'\u00E4':
+        case U'\u00E5':
+        case U'\u0101':
+            s.push_back('a');
+            break;
+        case U'\u00E6':
+            s += "ae";
+            break;
+        case U'\u00E7':
+            s.push_back('c');
+            break;
+        case U'\u00E8':
+        case U'\u00E9':
+        case U'\u00EA':
+        case U'\u00EB':
+        case U'\u0113':
+            s.push_back('e');
+            break;
+        case U'\u00EC':
+        case U'\u00ED':
+        case U'\u00EE':
+        case U'\u00EF':
+        case U'\u012B':
+            s.push_back('i');
+            break;
+        case U'\u00F1':
+            s.push_back('n');
+            break;
+        case U'\u00F2':
+        case U'\u00F3':
+        case U'\u00F4':
+        case U'\u00F5':
+        case U'\u00F6':
+        case U'\u00F8':
+        case U'\u014D':
+            s.push_back('o');
+            break;
+        case U'\u0153':
+            s += "oe";
+            break;
+        case U'\u00F9':
+        case U'\u00FA':
+        case U'\u00FB':
+        case U'\u00FC':
+        case U'\u016B':
+            s.push_back('u');
+            break;
+        case U'\u00FD':
+        case U'\u00FF':
+            s.push_back('y');
+            break;
+        default:
+            s.append(text, start, idx - start);
+            break;
+        }
+    }
 
     static const boost::regex kSquareRubyRe(R"re(\[([^|\]]+)\|([^\]]+)\])re");
     s = boost::regex_replace(s, kSquareRubyRe, "$2");
@@ -503,14 +762,14 @@ std::map<int, std::string> TranslateBatchWithFallback(
 
     auto translations =
         backend.TranslateBatch(prompt_lines, previous_context, context_after, false);
-    if (!translations.empty()) {
+    if (!translations.empty() || backend.WasLastBatchZeroThoughtRefused()) {
         return translations;
     }
 
     if (!previous_context.empty() || !context_after.empty()) {
         LogInfo("    Empty response with context window -- retrying batch without context");
         translations = backend.TranslateBatch(prompt_lines, {}, {}, false);
-        if (!translations.empty()) {
+        if (!translations.empty() || backend.WasLastBatchZeroThoughtRefused()) {
             return translations;
         }
     }
@@ -556,26 +815,24 @@ struct GeminiClient::Impl {
     std::unique_ptr<CallbackRawHttpTransport> transport_adapter;
     std::unique_ptr<vn::llm::ILlmClient> llm_client;
     vn::llm::ZeroThoughtCircuitBreaker thought_guard;
+    bool last_batch_zero_thought_refused = false;
     GeminiUsage last_usage;
     GeminiUsage cumulative_usage;
 
-    Impl(std::string key,
-         std::string mdl,
-         const std::string& project_dir,
-         HttpTransportFn custom_transport = {})
-        : api_key(std::move(key)),
-          model(std::move(mdl)) {
+    explicit Impl(GeminiClientOptions options)
+        : api_key(std::move(options.api_key)),
+          model(std::move(options.model)) {
         try {
             vn::llm::ensure_supported_model(model);
         } catch (const vn::llm::LlmError& ex) {
             throw ApiError(ex.what());
         }
-        if (!project_dir.empty()) {
-            const fs::path tone_path = fs::u8path(project_dir) / "TONE_OF_NOVEL.md";
+        if (!options.project_dir.empty()) {
+            const fs::path tone_path = fs::u8path(options.project_dir) / "TONE_OF_NOVEL.md";
             glossary.LoadFromToneFile(tone_path.u8string());
         }
         if (api_key.empty()) {
-            api_key = LoadGeminiApiKey(project_dir);
+            api_key = LoadGeminiApiKey(options.project_dir);
         }
         if (api_key.empty()) {
             throw ApiError(
@@ -591,10 +848,12 @@ struct GeminiClient::Impl {
         opts.api_key = api_key;
         opts.default_model = model;
         opts.read_timeout_seconds = kDefaultTimeoutSec;
+        opts.zero_thought_max_retries = options.zero_thought_max_retries;
+        opts.sleep_fn = std::move(options.sleep_fn);
         opts.log_fn = [](std::string_view msg) { LogInfo(msg); };
-        if (custom_transport) {
+        if (options.transport_override) {
             transport_adapter =
-                std::make_unique<CallbackRawHttpTransport>(std::move(custom_transport));
+                std::make_unique<CallbackRawHttpTransport>(std::move(options.transport_override));
             opts.raw_transport = transport_adapter.get();
             opts.max_retries = 0;
         }
@@ -611,27 +870,7 @@ struct GeminiClient::Impl {
         try {
             const std::string_view active_model =
                 req.model.empty() ? std::string_view(model) : std::string_view(req.model);
-            const std::string normalized_level =
-                vn::llm::normalize_thinking_level(req.thinking_level);
             vn::llm::LlmResponse resp = llm_client->generate(req);
-            if (is_top_level_batch && !transport_adapter && !resp.content_blocked &&
-                vn::llm::is_guarded_thinking_mode(active_model, req.thinking_level) &&
-                resp.usage.thought_tokens <= 0) {
-                std::chrono::milliseconds backoff = vn::llm::kDefaultInitialBackoff;
-                for (int retry = 0;
-                     retry < kLiveZeroThoughtMaxRetries &&
-                     !resp.content_blocked &&
-                     resp.usage.thought_tokens <= 0;
-                     ++retry) {
-                    LogInfo("    Live " + normalized_level + " request (" +
-                            std::string(active_model) +
-                            ") returned zero thought tokens; retrying in " +
-                            std::to_string(backoff.count()) + "ms...");
-                    std::this_thread::sleep_for(backoff);
-                    backoff *= kZeroThoughtBackoffMultiplier;
-                    resp = llm_client->generate(req);
-                }
-            }
             LogInfo("    Tokens: in=" + std::to_string(resp.usage.prompt_tokens) +
                     " out=" + std::to_string(resp.usage.total_output_tokens()) +
                     " thoughts=" + std::to_string(resp.usage.thought_tokens) +
@@ -645,9 +884,6 @@ struct GeminiClient::Impl {
                 slice_size,
                 resp.content_blocked,
                 resp.usage.thought_tokens);
-            if (is_top_level_batch && !resp.content_blocked) {
-                thought_guard.record_top_level_batch_completed();
-            }
 
             GeminiUsage call_usage;
             ConvertLlmResponseToJson(resp, &call_usage);
@@ -666,7 +902,12 @@ struct GeminiClient::Impl {
     }
 
     bj::value MessagesImpl(const bj::value& body, int /*timeout_sec*/) {
-        const vn::llm::LlmRequest req = BuildLlmRequestFromJson(body, model);
+        vn::llm::LlmRequest req;
+        try {
+            req = BuildLlmRequestFromJson(body, model);
+        } catch (const vn::llm::LlmError& ex) {
+            throw ApiError(ex.what());
+        }
         const vn::llm::LlmResponse resp = ExecuteLlmRequest(req, false, 0U);
         return ConvertLlmResponseToJson(resp, nullptr);
     }
@@ -676,6 +917,9 @@ struct GeminiClient::Impl {
         const std::vector<std::string>& previous_context,
         const std::vector<std::string>& context_after,
         bool use_neutral_prompt) {
+        last_batch_zero_thought_refused = false;
+        const bool is_top_level = !use_neutral_prompt;
+
         vn::llm::LlmRequest req;
         req.model = model;
         req.system_prompt = use_neutral_prompt
@@ -686,33 +930,64 @@ struct GeminiClient::Impl {
         req.thinking_level = std::string(vn::llm::kDefaultThinkingLevel);
         req.enforce_min_output_floor = true;
         req.safety_block_none = true;
+        req.retry_on_zero_thoughts =
+            is_top_level &&
+            prompt_lines.size() >= vn::llm::kMinInitialBatchSliceForThoughtCheck;
 
-        const bool is_top_level = !use_neutral_prompt;
         const vn::llm::LlmResponse resp =
             ExecuteLlmRequest(req, is_top_level, prompt_lines.size());
 
         if (resp.content_blocked) {
             return {};
         }
-        return ParseNumberedResponse(TrimUnicode(resp.text));
+
+        const std::string_view active_model =
+            req.model.empty() ? std::string_view(model) : std::string_view(req.model);
+        if (is_top_level &&
+            prompt_lines.size() >= vn::llm::kMinSubsequentBatchSliceForThoughtCheck &&
+            vn::llm::is_guarded_thinking_mode(active_model, req.thinking_level) &&
+            resp.usage.thought_tokens <= 0) {
+            last_batch_zero_thought_refused = true;
+            LogInfo("    Refusing to cache 0-thought top-level batch (strike " +
+                    std::to_string(thought_guard.consecutive_top_level_zero_thoughts()) +
+                    "/" +
+                    std::to_string(vn::llm::kConsecutiveZeroThoughtBatchLimit) +
+                    ") -- keeping lines uncached");
+            return {};
+        }
+
+        auto parsed = ParseNumberedResponse(TrimUnicode(resp.text));
+        if (is_top_level && !parsed.empty()) {
+            thought_guard.record_top_level_batch_completed();
+        }
+        return parsed;
     }
 };
 
 GeminiClient::GeminiClient(std::string api_key,
                            std::string model,
-                           std::string project_dir)
-    : impl_(std::make_unique<Impl>(std::move(api_key),
-                                   std::move(model),
-                                   project_dir)) {}
+                           std::string project_dir) {
+    GeminiClientOptions opts;
+    opts.api_key = std::move(api_key);
+    opts.model = std::move(model);
+    opts.project_dir = std::move(project_dir);
+    impl_ = std::make_unique<Impl>(std::move(opts));
+}
 
 GeminiClient::GeminiClient(std::string api_key,
                            std::string model,
                            std::string project_dir,
-                           HttpTransportFn transport_override)
-    : impl_(std::make_unique<Impl>(std::move(api_key),
-                                   std::move(model),
-                                   project_dir,
-                                   std::move(transport_override))) {}
+                           HttpTransportFn transport_override) {
+    GeminiClientOptions opts;
+    opts.api_key = std::move(api_key);
+    opts.model = std::move(model);
+    opts.project_dir = std::move(project_dir);
+    opts.transport_override = std::move(transport_override);
+    impl_ = std::make_unique<Impl>(std::move(opts));
+}
+
+GeminiClient::GeminiClient(GeminiClientOptions options)
+    : impl_(std::make_unique<Impl>(std::move(options))) {}
 
 GeminiClient::GeminiClient(GeminiClient&& other) noexcept = default;
 GeminiClient& GeminiClient::operator=(GeminiClient&& other) noexcept = default;
@@ -723,16 +998,27 @@ std::map<int, std::string> GeminiClient::TranslateBatch(
     const std::vector<std::string>& previous_context,
     const std::vector<std::string>& context_after,
     bool use_neutral_prompt) {
+    if (!impl_) {
+        throw ApiError("GeminiClient is moved-from");
+    }
     return impl_->TranslateBatchImpl(
         prompt_lines, previous_context, context_after, use_neutral_prompt);
 }
 
+bool GeminiClient::WasLastBatchZeroThoughtRefused() const noexcept {
+    return impl_ ? impl_->last_batch_zero_thought_refused : false;
+}
+
 boost::json::value GeminiClient::Messages(const boost::json::value& body, int timeout_sec) {
+    if (!impl_) {
+        throw ApiError("GeminiClient is moved-from");
+    }
     return impl_->MessagesImpl(body, timeout_sec);
 }
 
 const std::string& GeminiClient::Model() const {
-    return impl_->model;
+    static const std::string kEmptyModel;
+    return impl_ ? impl_->model : kEmptyModel;
 }
 
 GeminiUsage GeminiClient::LastUsage() const noexcept {

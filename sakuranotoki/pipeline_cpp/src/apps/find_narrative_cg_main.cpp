@@ -37,8 +37,6 @@ int main() {
             return *rc;
         }
 
-        snt::gemini::load_api_key();
-
         snt::cg::CgOptions opt;
         opt.game_dir = game;
         opt.project_dir = project;

@@ -13,9 +13,14 @@ oretsuba_test(ut_translate)
 oretsuba_test(ut_build_tsv)
 oretsuba_test(ut_paths)
 
-add_executable(ct_translate_corpus ct_translate_corpus.cpp)
+add_executable(ct_translate_corpus
+    ct_translate_corpus.cpp
+    ../../proxy_dll/src/translator_logic.cpp
+)
+target_include_directories(ct_translate_corpus PRIVATE ../../proxy_dll/src)
 target_link_libraries(ct_translate_corpus PRIVATE oretsuba_core GTest::gtest GTest::gtest_main)
 target_compile_definitions(ct_translate_corpus PRIVATE
+    NOMINMAX
     ORETSUBA_PROJECT_DIR="${ORETSUBA_PROJECT_DIR}")
 gtest_discover_tests(ct_translate_corpus PROPERTIES LABELS "CT")
 

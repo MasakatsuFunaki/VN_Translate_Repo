@@ -13,7 +13,9 @@
 // `script_output/last_gemini_translate/last_translation.json`.
 #pragma once
 
+#include <chrono>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -116,6 +118,7 @@ struct TranslateOptions {
     std::string output_file;  // translated_text.json
     std::string tsv_file;     // translation_table.tsv
     std::string test_dir;     // <project>/test (optional smoke logs)
+    std::function<void(std::chrono::milliseconds)> sleep_fn;
 };
 
 // Translates a single scene, packing up to `opt.batch_size` uncached unique

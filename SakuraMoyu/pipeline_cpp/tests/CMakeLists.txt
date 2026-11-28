@@ -36,5 +36,16 @@ target_link_libraries(ut_paths PRIVATE fav_core Boost::program_options shell32 G
 gtest_discover_tests(ut_paths PROPERTIES LABELS "UT")
 
 fav_ct_test(ct_extract_corpus)
+
+add_executable(ct_translate_pipeline
+    ct_translate_pipeline.cpp
+    ../../proxy_dll/src/translator_logic.cpp
+)
+target_include_directories(ct_translate_pipeline PRIVATE ../../proxy_dll/src)
+target_link_libraries(ct_translate_pipeline PRIVATE fav_core GTest::gtest GTest::gtest_main)
+target_compile_definitions(ct_translate_pipeline PRIVATE
+    FAV_PROJECT_DIR="${FAV_PROJECT_DIR_ABS}")
+gtest_discover_tests(ct_translate_pipeline PROPERTIES LABELS "CT")
+
 fav_st_test(st_fvp_system)
 add_dependencies(st_fvp_system 01_extract 02_translate)

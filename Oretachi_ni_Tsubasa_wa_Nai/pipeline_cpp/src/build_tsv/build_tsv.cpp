@@ -15,6 +15,7 @@
 #include "translate/gemini_client.h"
 #include "translate/glossary.h"
 #include "translate/speaker_gate.h"
+#include "translate/translate_core.h"
 
 namespace oretsuba::build_tsv {
 
@@ -253,11 +254,15 @@ struct TsvBuilder::Impl {
                         continue;
                     }
                     const std::string raw_k(kv.key());
-                    const std::string raw_v(kv.value().as_string());
-                    cache.emplace(raw_k, raw_v);
+                    const std::string cleaned_v =
+                        SanitizeTsvValue(std::string_view(kv.value().as_string()));
+                    if (cleaned_v.empty() || translate::IsFailedEntry(raw_k, cleaned_v)) {
+                        continue;
+                    }
+                    cache.emplace(raw_k, cleaned_v);
                     const std::string norm_k = NormalizeTsvKey(raw_k);
-                    if (!norm_k.empty()) {
-                        cache.emplace(norm_k, raw_v);
+                    if (!norm_k.empty() && !translate::IsFailedEntry(norm_k, cleaned_v)) {
+                        cache.emplace(norm_k, cleaned_v);
                     }
                 }
             }
@@ -273,6 +278,10 @@ struct TsvBuilder::Impl {
                               const std::string& val,
                               bool is_speaker) {
             if (key.empty() || val.empty() || key == val) {
+                return;
+            }
+            if (!Utf8ToCp932Strict(key).has_value() ||
+                translate::IsFailedEntry(key, val)) {
                 return;
             }
             const auto it = index.find(key);
@@ -374,24 +383,30 @@ struct TsvBuilder::Impl {
                     }
 
                     const std::string stripped_jp = StripInlineControlWrappers(jp);
-                    if (en.empty() || en == jp || NormalizeTsvKey(en) == jp_key) {
+                    const std::string sanitized_en = SanitizeTsvValue(en);
+                    const bool en_unusable =
+                        sanitized_en.empty() ||
+                        en == jp ||
+                        NormalizeTsvKey(sanitized_en) == jp_key ||
+                        translate::IsFailedEntry(jp_key, sanitized_en);
+                    if (en_unusable) {
+                        en.clear();
                         auto cit = cache.find(jp);
-                        if (cit == cache.end() || cit->second == jp) {
+                        if (cit == cache.end()) {
                             cit = cache.find(stripped_jp);
                         }
-                        if (cit == cache.end() || cit->second == stripped_jp) {
+                        if (cit == cache.end()) {
                             cit = cache.find(jp_key);
                         }
                         if (cit != cache.end() &&
-                            cit->second != jp &&
-                            cit->second != stripped_jp &&
-                            cit->second != jp_key) {
+                            !translate::IsFailedEntry(jp_key, cit->second) &&
+                            NormalizeTsvKey(cit->second) != jp_key) {
                             en = cit->second;
                             ++summary.cache_fill_count;
                         }
                     }
 
-                    if (en.empty() || en == jp || NormalizeTsvKey(en) == jp_key) {
+                    if (en.empty()) {
                         continue;
                     }
 
@@ -408,7 +423,9 @@ struct TsvBuilder::Impl {
                             ? WrapEnglishLine(preserved_en, max_wrap_columns)
                             : SanitizeTsvValue(preserved_en);
 
-                    if (final_en.empty() || final_en == jp_key) {
+                    if (final_en.empty() ||
+                        final_en == jp_key ||
+                        translate::IsFailedEntry(jp_key, final_en)) {
                         continue;
                     }
 

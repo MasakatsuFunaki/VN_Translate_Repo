@@ -2,6 +2,7 @@
 // Copyright (C) 2026 MasakatsuFunaki
 
 #include "build_tsv/build_tsv.h"
+#include "common/util.h"
 
 #include <gtest/gtest.h>
 
@@ -204,4 +205,82 @@ TEST(BuildTsvTest, BuildsTsvWithSpeakersCacheFillAndConflictResolution) {
 
     EXPECT_EQ(map.at("アレキサンドリアへ行く"),
               "Head over to Cafe Alexandria for the evening shift right away");
+}
+
+TEST(BuildTsvTest, RejectsStaleFailedNonCp932AndLeakedJapaneseEntriesDuringRebuild) {
+    TempDir tmp("cp932_rebuild_gate");
+    const fs::path tr_path = tmp.path / "translated_text.json";
+    const fs::path cache_path = tmp.path / "translation_cache_gemini.json";
+    const fs::path tsv_path = tmp.path / "translation_table.tsv";
+
+    WriteText(tr_path, R"({
+  "s01_01a.sob": {
+    "file": "s01_01a.sob",
+    "strings": [
+      {
+        "type": "dialogue",
+        "speaker": "春恵",
+        "text": "「焼きたてのクレープだよ！」",
+        "translated": "«Fresh Café crêpe • naïve delight!»"
+      },
+      {
+        "type": "dialogue",
+        "speaker": "鷲介",
+        "text": "「会計はいくらだ？」",
+        "translated": "\"That comes to 500€.\""
+      },
+      {
+        "type": "dialogue",
+        "speaker": "隼人",
+        "text": "「この紋章を見ろ」",
+        "translated": "\"Behold the 🦅 crest.\""
+      },
+      {
+        "type": "dialogue",
+        "speaker": "明日香",
+        "text": "「どこへ行くの？」",
+        "translated": "\"Heading to 柳原駅 right now.\""
+      },
+      {
+        "type": "dialogue",
+        "speaker": "小鳩",
+        "text": "「お兄ちゃん、百円ちょうだい！」",
+        "translated": "\"Give me 100€!\""
+      }
+    ]
+  }
+})");
+
+    WriteText(cache_path, R"({
+  "「会計はいくらだ？」": "\"Still 500€ in stale cache.\"",
+  "「どこへ行くの？」": "\"Still 柳原 in stale cache.\"",
+  "「お兄ちゃん、百円ちょうだい！」": "\"Big Brother, give me a hundred yen!\""
+})");
+
+    const TsvBuilder builder;
+    const TsvBuildSummary summary = builder.Build(
+        tr_path.u8string(), cache_path.u8string(), tsv_path.u8string());
+    EXPECT_EQ(summary.cache_fill_count, 1U);
+
+    const auto lines = ReadLines(tsv_path);
+    ASSERT_GT(lines.size(), kMinExpectedSpeakerEntries);
+    for (const auto& line : lines) {
+        if (line.empty()) {
+            continue;
+        }
+        SCOPED_TRACE(line);
+        ASSERT_TRUE(oretsuba::Utf8ToCp932Strict(line).has_value());
+    }
+
+    const auto map = ParseTsvMap(tsv_path);
+    ASSERT_NE(map.find("「焼きたてのクレープだよ！」"), map.end());
+    EXPECT_EQ(map.at("「焼きたてのクレープだよ！」"), "\"Fresh Cafe crepe * naive delight!\"");
+
+    ASSERT_NE(map.find("「お兄ちゃん、百円ちょうだい！」"), map.end());
+    EXPECT_EQ(map.at("「お兄ちゃん、百円ちょうだい！」"),
+              "\"Big Brother, give me a hundred yen!\"");
+
+    EXPECT_EQ(map.find("「会計はいくらだ？」"), map.end());
+    EXPECT_EQ(map.find("「この紋章を見ろ」"), map.end());
+    EXPECT_EQ(map.find("「どこへ行くの？」"), map.end());
 }

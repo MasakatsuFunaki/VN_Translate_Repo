@@ -72,6 +72,9 @@ target_link_libraries(snt_core PUBLIC
     # for Gemini lives inside vn::llm_client.
     openssl::openssl
     stb::stb
+    PRIVATE
+    crypt32
+    ws2_32
 )
 
 # Pipeline executables.

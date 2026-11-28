@@ -17,7 +17,6 @@
 #include "apps/paths.h"
 #include "build_tsv/build_tsv.h"
 #include "common/util.h"
-#include "translate/gemini_client.h"
 #include "translate/translate_core.h"
 
 #include <exception>
@@ -120,7 +119,6 @@ int main() {
         opt.retranslate = retranslate;
         opt.max_batches = max_batches;
 
-        gemini::load_api_key();
         return translate::translate_all(opt);
     } catch (const std::exception& e) {
         log_info(std::string("[ERROR] ") + e.what());
