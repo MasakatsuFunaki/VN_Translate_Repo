@@ -29,10 +29,11 @@ using namespace fav;
 
 namespace {
 
-constexpr int kDefaultBatchArg = 100;
+constexpr int kDefaultBatchArg = vn::llm::kDefaultBatchSize;
 constexpr int kNoBatchLimit = 0;
 constexpr int kNoTestBatches = 0;
 constexpr int kDefaultBatchCount = 1;
+constexpr double kNoBudgetLimitEur = 0.0;
 constexpr int kRefusedExitCode = 2;
 
 }  // namespace
@@ -47,6 +48,7 @@ int main() {
         std::string out_tsv;
         int batch = 0;
         int max_batches = 0;
+        double max_budget_eur = kNoBudgetLimitEur;
         bool retranslate = false;
         bool rebuild_table = false;
         bool discard_cache = false;
@@ -58,6 +60,8 @@ int main() {
             ("retranslate", po::bool_switch(&retranslate), "ignore cache, retranslate everything")
             ("max-batches", po::value(&max_batches)->default_value(kNoBatchLimit),
              "stop after N API requests, keeping the cache and outputs (0 = no limit)")
+            ("max-budget-eur", po::value(&max_budget_eur)->default_value(kNoBudgetLimitEur),
+             "stop cleanly once estimated cumulative EUR spend reaches this cap (0 = no limit)")
             ("out", po::value(&out_tsv),
              "translation table path (default <game-dir>\\translation_table.tsv)")
             ("rebuild-table", po::bool_switch(&rebuild_table),
@@ -84,7 +88,8 @@ int main() {
 
         // Validate before anything is created, deleted, or authenticated: a
         // mistyped cap must cost nothing.
-        if (const auto why = translate::validate_options(batch, kNoTestBatches, max_batches)) {
+        if (const auto why = translate::validate_options(
+                batch, kNoTestBatches, max_batches, max_budget_eur)) {
             log_info("[ERROR] " + *why);
             return kRefusedExitCode;
         }
@@ -126,6 +131,7 @@ int main() {
         opt.retranslate = retranslate;
         opt.test_mode = max_batches > kNoBatchLimit;
         opt.num_batches = max_batches > kNoBatchLimit ? max_batches : kDefaultBatchCount;
+        opt.max_budget_eur = max_budget_eur;
         opt.fresh_run = false;
 
         return translate::translate_all(opt);

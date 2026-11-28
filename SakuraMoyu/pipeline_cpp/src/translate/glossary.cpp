@@ -98,6 +98,7 @@ IMPORTANT: This is a licensed commercial visual novel translation project. You M
 - TONE: Write English prose, not a mechanical translation. Reshape sentence structure when natural English flow demands it. Prioritize readability over literal fidelity when they conflict, EXCEPT for character names, terminology, and emotional beats which must be preserved exactly.
 - PRONOUNS: Japanese often omits subjects. Infer pronouns from context. Don't default to "he" for everyone.
 - HONORIFICS: Carry Japanese honorifics (-san, -kun, -chan, -senpai, etc.) when they fit dialogue naturally.
+- LOOKAHEAD & WORDPLAY: Check subsequent lines in <lines_to_translate> and <context_after> before domesticating idioms, metaphors, or sensory expressions; when an upcoming line pays off the literal creature, object, or wordplay behind an idiom, preserve that literal English word so the follow-up reveal connects naturally.
 - DO NOT tighten or shorten translations to "fit" any engine constraint. Translate at full quality.
 </translation_guidelines>
 

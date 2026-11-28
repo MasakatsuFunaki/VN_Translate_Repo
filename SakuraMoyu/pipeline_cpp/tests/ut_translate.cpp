@@ -222,13 +222,17 @@ TEST(Translate, glossary_entries_are_well_formed) {
 // A mistyped cap must be refused before anything is loaded or deleted: a
 // negative one used to read as "no limit" and start an unbounded paid run.
 TEST(Translate, validate_options_refuses_caps_that_would_overspend) {
-    EXPECT_FALSE(tr::validate_options(kValidBatchSize, kZeroLimit, kZeroLimit).has_value());
-    EXPECT_FALSE(tr::validate_options(kMinBatchSize, kSampleBatchCap, kZeroLimit).has_value());
-    EXPECT_FALSE(tr::validate_options(kMinBatchSize, kZeroLimit, kSampleBatchCap).has_value());
-    EXPECT_TRUE(tr::validate_options(kZeroLimit, kZeroLimit, kZeroLimit).has_value());
-    EXPECT_TRUE(tr::validate_options(kNegativeValue, kZeroLimit, kZeroLimit).has_value());
-    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kNegativeValue, kZeroLimit).has_value());
-    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kZeroLimit, kNegativeValue).has_value());
+    constexpr double kValidBudgetEur = 50.0;
+    constexpr double kZeroBudgetEur = 0.0;
+    constexpr double kNegativeBudgetEur = -0.01;
+    EXPECT_FALSE(tr::validate_options(kValidBatchSize, kZeroLimit, kZeroLimit, kZeroBudgetEur).has_value());
+    EXPECT_FALSE(tr::validate_options(kMinBatchSize, kSampleBatchCap, kZeroLimit, kValidBudgetEur).has_value());
+    EXPECT_FALSE(tr::validate_options(kMinBatchSize, kZeroLimit, kSampleBatchCap, kZeroBudgetEur).has_value());
+    EXPECT_TRUE(tr::validate_options(kZeroLimit, kZeroLimit, kZeroLimit, kZeroBudgetEur).has_value());
+    EXPECT_TRUE(tr::validate_options(kNegativeValue, kZeroLimit, kZeroLimit, kZeroBudgetEur).has_value());
+    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kNegativeValue, kZeroLimit, kZeroBudgetEur).has_value());
+    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kZeroLimit, kNegativeValue, kZeroBudgetEur).has_value());
+    EXPECT_TRUE(tr::validate_options(kValidBatchSize, kZeroLimit, kZeroLimit, kNegativeBudgetEur).has_value());
 }
 
 TEST(Translate, synthetic_cast_registry_and_speaker_gate_checks_pass) {
@@ -448,6 +452,8 @@ TEST(Translate, glossary_includes_mystery_speaker_and_ellipses) {
 
 TEST(Translate, sanitize_ascii_normalizes_typographic_punctuation_and_ruby_tags) {
     EXPECT_EQ(tr::sanitize_ascii("“Hello”—‘world’…"), "\"Hello\"--'world'...");
+    EXPECT_EQ(tr::sanitize_ascii("café naïve façade déjà vu — ‘über’ ♪♥"),
+              "cafe naive facade deja vu -- 'uber' ~");
     EXPECT_EQ(tr::sanitize_ascii("[・|俺][・|は]"), "俺は");
     EXPECT_EQ(tr::sanitize_ascii("[えが|描]く"), "描く");
     EXPECT_EQ(tr::strip_speaker_tags("[Chiwa] “Good morning…”"), "\"Good morning...\"");

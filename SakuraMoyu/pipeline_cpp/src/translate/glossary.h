@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#include "vn/llm/llm_types.h"
+
 namespace fav::translate {
 
 // Insertion-ordered (JP, EN) pairs.  The order is load-bearing: these entries
@@ -28,7 +30,7 @@ const std::unordered_map<std::string, std::string>& name_translations();
 extern const char* const SYSTEM_PROMPT;
 
 // ── Model ──
-inline const std::string MODEL = "gemini-4-argon";
+inline const std::string MODEL{vn::llm::kDefaultModel};
 
 constexpr int CONTEXT_WINDOW = 40;  // previous EN lines for continuity
 constexpr int CONTEXT_AFTER = 20;   // upcoming JP lines for lookahead

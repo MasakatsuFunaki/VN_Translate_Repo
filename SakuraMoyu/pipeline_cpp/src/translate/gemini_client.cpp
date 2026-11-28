@@ -8,204 +8,335 @@
 #include "gemini_client.h"
 
 #include "common/util.h"
-
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#include <wincrypt.h>
-
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl.hpp>
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/ssl.hpp>
-#include <boost/beast/version.hpp>
+#include "vn/llm/gemini_wire_codec.h"
+#include "vn/llm/llm_client.h"
+#include "vn/llm/llm_types.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <exception>
-#include <filesystem>
-#include <fstream>
-#include <stdexcept>
+#include <limits>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
 namespace fav::gemini {
 
-namespace beast = boost::beast;
-namespace http = beast::http;
-namespace asio = boost::asio;
 namespace bj = boost::json;
-using tcp = asio::ip::tcp;
 
 namespace {
 
-constexpr const char* kApiHost = "generativelanguage.googleapis.com";
-constexpr const char* kApiPort = "443";
-constexpr const char* kDefaultModel = "gemini-4-argon";
-constexpr std::int64_t kThinkingBudget = 2048;
-constexpr std::int64_t kMaxOutputTokens = 16384;
-constexpr std::size_t kMinQuotedValueSize = 2;
-constexpr std::size_t kLeadingQuoteChars = 1;
-constexpr std::size_t kQuotePairCount = 2;
-constexpr int kHttpVersion11 = 11;
-constexpr std::uint64_t kBytesPerKilobyte = 1024ull;
-constexpr std::uint64_t kMaxResponseBodyMegabytes = 64ull;
-constexpr std::uint64_t kMaxResponseBodyBytes =
-    kMaxResponseBodyMegabytes * kBytesPerKilobyte * kBytesPerKilobyte;
-constexpr unsigned int kHttpStatusOkMin = 200u;
-constexpr unsigned int kHttpStatusOkEnd = 300u;
-constexpr unsigned int kHttpStatusTooManyRequests = 429u;
-constexpr std::size_t kFirstCandidateIndex = 0;
 constexpr std::int64_t kZeroTokens = 0;
+constexpr int kHttpOkStatus = 200;
+constexpr std::string_view kModelsPathPrefix = "/v1beta/models/";
+constexpr std::string_view kGenerateActionSuffix = ":generateContent";
 
-std::string wide_to_utf8_strict(std::wstring_view wide) {
-    if (wide.empty()) {
-        return {};
+std::int64_t read_json_int64(const bj::object& obj, const char* key) noexcept {
+    const auto* v = obj.if_contains(key);
+    if (v == nullptr) {
+        return kZeroTokens;
     }
-    const int needed = WideCharToMultiByte(
-        CP_UTF8,
-        WC_ERR_INVALID_CHARS,
-        wide.data(),
-        static_cast<int>(wide.size()),
-        nullptr,
-        0,
-        nullptr,
-        nullptr);
-    if (needed <= 0) {
-        throw std::runtime_error("Invalid UTF-16 sequence in environment variable");
+    if (v->is_int64()) {
+        return v->get_int64();
     }
-    std::string utf8(static_cast<std::size_t>(needed), '\0');
-    const int written = WideCharToMultiByte(
-        CP_UTF8,
-        WC_ERR_INVALID_CHARS,
-        wide.data(),
-        static_cast<int>(wide.size()),
-        utf8.data(),
-        needed,
-        nullptr,
-        nullptr);
-    if (written != needed) {
-        throw std::runtime_error("UTF-16 to UTF-8 conversion failed");
+    if (v->is_uint64()) {
+        const std::uint64_t raw = v->get_uint64();
+        constexpr auto kMaxInt64AsUint =
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+        if (raw > kMaxInt64AsUint) {
+            return std::numeric_limits<std::int64_t>::max();
+        }
+        return static_cast<std::int64_t>(raw);
     }
-    return utf8;
+    return kZeroTokens;
 }
 
-std::wstring utf8_to_wide_strict(std::string_view utf8) {
-    if (utf8.empty()) {
+std::string extract_system_prompt(const bj::object& in) {
+    const auto* sys = in.if_contains("system");
+    if (sys == nullptr) {
         return {};
     }
-    const int needed = MultiByteToWideChar(
-        CP_UTF8,
-        MB_ERR_INVALID_CHARS,
-        utf8.data(),
-        static_cast<int>(utf8.size()),
-        nullptr,
-        0);
-    if (needed <= 0) {
-        throw std::runtime_error("Invalid UTF-8 sequence in environment value");
+    if (sys->is_string()) {
+        return std::string(sys->get_string());
     }
-    std::wstring wide(static_cast<std::size_t>(needed), L'\0');
-    const int written = MultiByteToWideChar(
-        CP_UTF8,
-        MB_ERR_INVALID_CHARS,
-        utf8.data(),
-        static_cast<int>(utf8.size()),
-        wide.data(),
-        needed);
-    if (written != needed) {
-        throw std::runtime_error("UTF-8 to UTF-16 conversion failed");
+    if (!sys->is_array()) {
+        return {};
     }
-    return wide;
+    std::string sys_text;
+    for (const auto& item : sys->get_array()) {
+        if (!item.is_object()) {
+            continue;
+        }
+        const auto* t = item.get_object().if_contains("text");
+        if (t == nullptr || !t->is_string()) {
+            continue;
+        }
+        if (!sys_text.empty()) {
+            sys_text += "\n";
+        }
+        sys_text += std::string(t->get_string());
+    }
+    return sys_text;
 }
 
-// OpenSSL doesn't read the Windows certificate store on its own; import the
-// ROOT store so peer verification of generativelanguage.googleapis.com works.
-void load_windows_root_certs(asio::ssl::context& ctx) {
-    HCERTSTORE store = CertOpenSystemStoreW(0, L"ROOT");
-    if (!store) {
-        return;
+std::string extract_user_prompt(const bj::object& in) {
+    const auto* msgs = in.if_contains("messages");
+    if (msgs == nullptr || !msgs->is_array()) {
+        return {};
     }
-    X509_STORE* x509 = X509_STORE_new();
-    for (PCCERT_CONTEXT cert = CertEnumCertificatesInStore(store, nullptr);
-         cert != nullptr; cert = CertEnumCertificatesInStore(store, cert)) {
-        const unsigned char* p = cert->pbCertEncoded;
-        if (X509* x = d2i_X509(nullptr, &p, static_cast<long>(cert->cbCertEncoded))) {
-            X509_STORE_add_cert(x509, x);
-            X509_free(x);
+    std::string user_text;
+    for (const auto& mv : msgs->get_array()) {
+        if (!mv.is_object()) {
+            continue;
+        }
+        const auto* c = mv.get_object().if_contains("content");
+        if (c == nullptr) {
+            continue;
+        }
+        if (c->is_string()) {
+            if (!user_text.empty()) {
+                user_text += "\n";
+            }
+            user_text += std::string(c->get_string());
+            continue;
+        }
+        if (!c->is_array()) {
+            continue;
+        }
+        for (const auto& bv : c->get_array()) {
+            if (!bv.is_object()) {
+                continue;
+            }
+            const auto& block = bv.get_object();
+            const auto* txt = block.if_contains("text");
+            if (txt != nullptr && txt->is_string()) {
+                if (!user_text.empty()) {
+                    user_text += "\n";
+                }
+                user_text += std::string(txt->get_string());
+            }
         }
     }
-    CertCloseStore(store, 0);
-    SSL_CTX_set_cert_store(ctx.native_handle(), x509);
+    return user_text;
 }
+
+std::int64_t extract_requested_max_tokens(const bj::object& in) noexcept {
+    const auto* mt = in.if_contains("max_tokens");
+    if (mt == nullptr) {
+        return kMinOutputTokens;
+    }
+    if (mt->is_int64()) {
+        return mt->get_int64();
+    }
+    if (mt->is_uint64()) {
+        const std::uint64_t raw = mt->get_uint64();
+        if (raw >= static_cast<std::uint64_t>(kMaxOutputTokens)) {
+            return kMaxOutputTokens;
+        }
+        return static_cast<std::int64_t>(raw);
+    }
+    return kMinOutputTokens;
+}
+
+vn::llm::LlmRequest to_llm_request(const bj::value& body) {
+    const bj::object empty_obj;
+    const bj::object& in = body.is_object() ? body.get_object() : empty_obj;
+
+    vn::llm::LlmRequest req;
+    req.model = resolve_request_model(body);
+    req.system_prompt = extract_system_prompt(in);
+    req.user_prompt = extract_user_prompt(in);
+    req.max_output_tokens = extract_requested_max_tokens(in);
+    req.thinking_level = resolve_thinking_level(body);
+    req.enforce_min_output_floor = true;
+    req.safety_block_none = true;
+    if (const auto* rzt = in.if_contains("retry_on_zero_thoughts");
+        rzt != nullptr && rzt->is_bool()) {
+        req.retry_on_zero_thoughts = rzt->get_bool();
+    }
+    return req;
+}
+
+std::string map_stop_reason(const vn::llm::LlmResponse& parsed) {
+    if (parsed.content_blocked) {
+        return "refusal";
+    }
+    if (parsed.finish_reason.empty() || parsed.finish_reason == "STOP") {
+        return "end_turn";
+    }
+    if (parsed.finish_reason == "MAX_TOKENS") {
+        return "max_tokens";
+    }
+    return parsed.finish_reason;
+}
+
+bj::object to_normalized_response_json(const vn::llm::LlmResponse& parsed) {
+    bj::object out;
+    out["content"] = bj::array{
+        bj::object{{"type", "text"}, {"text", parsed.text}}
+    };
+    out["stop_reason"] = map_stop_reason(parsed);
+    out["usage"] = bj::object{
+        {"input_tokens", parsed.usage.prompt_tokens},
+        {"output_tokens", parsed.usage.total_output_tokens()},
+        {"thought_tokens", parsed.usage.thought_tokens},
+        {"cache_read_input_tokens", parsed.usage.cached_tokens},
+        {"cache_creation_input_tokens", kZeroTokens}
+    };
+    return out;
+}
+
+std::string parse_model_from_target_path(std::string_view target_path) {
+    const std::size_t prefix_pos = target_path.find(kModelsPathPrefix);
+    const std::size_t start =
+        prefix_pos == std::string_view::npos
+            ? 0u
+            : prefix_pos + kModelsPathPrefix.size();
+    const std::size_t end = target_path.find(kGenerateActionSuffix, start);
+    if (end == std::string_view::npos || end <= start) {
+        return std::string(vn::llm::kDefaultModel);
+    }
+    return std::string(target_path.substr(start, end - start));
+}
+
+class EndpointRawTransportAdapter final : public vn::llm::IRawHttpTransport {
+public:
+    explicit EndpointRawTransportAdapter(Endpoint* endpoint) noexcept
+        : endpoint_(endpoint) {}
+
+    vn::llm::RawHttpResponse post_json(std::string_view target_path,
+                                       std::string_view json_body,
+                                       int /*connect_timeout_sec*/,
+                                       int read_timeout_sec) override {
+        const std::string model = parse_model_from_target_path(target_path);
+        const bj::object wire_req = bj::parse(json_body).as_object();
+        const bj::value wire_res =
+            endpoint_->generate_content(model, wire_req, read_timeout_sec);
+        vn::llm::RawHttpResponse raw;
+        raw.status_code = kHttpOkStatus;
+        raw.body = bj::serialize(wire_res);
+        return raw;
+    }
+
+private:
+    Endpoint* endpoint_ = nullptr;
+};
 
 }  // namespace
 
-std::string load_api_key() {
-    if (const wchar_t* env = _wgetenv(L"GEMINI_API_KEY");
-        env != nullptr && *env != L'\0') {
-        return wide_to_utf8_strict(env);
+Endpoint::~Endpoint() = default;
+
+std::string resolve_request_model(const bj::value& body) {
+    if (!body.is_object()) {
+        return std::string(vn::llm::kDefaultModel);
     }
+    const auto* m = body.get_object().if_contains("model");
+    if (m != nullptr && m->is_string()) {
+        const std::string_view raw_model(m->get_string().data(),
+                                         m->get_string().size());
+        try {
+            vn::llm::ensure_supported_model(raw_model);
+        } catch (const vn::llm::LlmError& e) {
+            throw ApiError(e.what());
+        }
+        if (!raw_model.empty()) {
+            return std::string(raw_model);
+        }
+    }
+    return std::string(vn::llm::kDefaultModel);
+}
+
+std::string resolve_thinking_level(const bj::value& body) {
+    if (!body.is_object()) {
+        return std::string(vn::llm::kDefaultThinkingLevel);
+    }
+    const auto* tl = body.get_object().if_contains("thinking_level");
+    if (tl != nullptr && tl->is_string() && !tl->get_string().empty()) {
+        return std::string(tl->get_string());
+    }
+    return std::string(vn::llm::kDefaultThinkingLevel);
+}
+
+bj::object build_generate_content_request(const bj::value& body) {
     try {
-        const wchar_t* whome = _wgetenv(L"USERPROFILE");
-        if (whome == nullptr || *whome == L'\0') {
-            return {};
-        }
-        const std::string home_utf8 = wide_to_utf8_strict(whome);
-        const std::filesystem::path cfg =
-            std::filesystem::u8path(home_utf8) / ".gemini" / ".env";
-        if (!std::filesystem::exists(cfg)) {
-            return {};
-        }
-        std::ifstream f(cfg);
-        if (!f) {
-            return {};
-        }
-        std::string line;
-        constexpr std::string_view kKeyPrefix = "GEMINI_API_KEY=";
-        while (std::getline(f, line)) {
-            line = trim(line);
-            if (line.rfind(kKeyPrefix.data(), 0) != 0) {
-                continue;
-            }
-            std::string key = trim(line.substr(kKeyPrefix.size()));
-            if (key.size() >= kMinQuotedValueSize &&
-                ((key.front() == '"' && key.back() == '"') ||
-                 (key.front() == '\'' && key.back() == '\''))) {
-                key = trim(key.substr(kLeadingQuoteChars, key.size() - kQuotePairCount));
-            }
-            if (!key.empty()) {
-                const std::wstring wkey = utf8_to_wide_strict(key);
-                _wputenv_s(L"GEMINI_API_KEY", wkey.c_str());
-                log_info("[OK] Loaded GEMINI_API_KEY from ~/.gemini/.env");
-                return key;
+        const vn::llm::LlmRequest req = to_llm_request(body);
+        const std::string wire_str = vn::llm::build_gemini_request_json(req);
+        bj::object wire_obj = bj::parse(wire_str).as_object();
+        if (body.is_object()) {
+            if (const auto* temp = body.get_object().if_contains("temperature")) {
+                wire_obj["generationConfig"].as_object()["temperature"] = *temp;
             }
         }
-        return {};
-    } catch (...) {
-        return {};
+        return wire_obj;
+    } catch (const vn::llm::LlmError& e) {
+        throw ApiError(e.what());
     }
 }
 
+bj::object parse_generate_content_response(const bj::value& raw_response) {
+    if (!raw_response.is_object()) {
+        throw ApiError("Gemini response root must be a JSON object");
+    }
+    try {
+        const std::string raw_str = bj::serialize(raw_response);
+        const vn::llm::LlmResponse parsed =
+            vn::llm::parse_gemini_response_json(raw_str, kHttpOkStatus);
+        return to_normalized_response_json(parsed);
+    } catch (const vn::llm::LlmRateLimitError& e) {
+        throw RateLimitError(e.what());
+    } catch (const vn::llm::LlmError& e) {
+        throw ApiError(e.what());
+    }
+}
+
+Usage extract_usage(const bj::value& response) {
+    Usage usage;
+    if (!response.is_object()) {
+        return usage;
+    }
+    const auto* u_val = response.get_object().if_contains("usage");
+    if (u_val == nullptr || !u_val->is_object()) {
+        return usage;
+    }
+    const auto& u = u_val->get_object();
+    usage.input_tokens = read_json_int64(u, "input_tokens");
+    usage.output_tokens = read_json_int64(u, "output_tokens");
+    usage.thought_tokens = read_json_int64(u, "thought_tokens");
+    usage.cache_read_input_tokens = read_json_int64(u, "cache_read_input_tokens");
+    usage.cache_creation_input_tokens =
+        read_json_int64(u, "cache_creation_input_tokens");
+    return usage;
+}
+
+std::string load_api_key() {
+    return vn::llm::resolve_gemini_api_key();
+}
+
+LazyClient::LazyClient(Endpoint* endpoint) noexcept : endpoint_(endpoint) {}
+
 Client& LazyClient::get() {
     if (!client_) {
-        if (load_api_key().empty()) {
+        if (endpoint_ != nullptr) {
+            client_.emplace(endpoint_);
+            return *client_;
+        }
+        const std::string key = load_api_key();
+        if (key.empty()) {
             throw ApiError("GEMINI_API_KEY not set -- this run has work "
                            "left to do and needs the API");
         }
-        client_.emplace();
+        client_.emplace(key);
     }
     return *client_;
 }
 
 struct Client::Impl {
     std::string api_key;
+    std::unique_ptr<EndpointRawTransportAdapter> endpoint_adapter;
+    int configured_timeout_sec = vn::llm::kDefaultReadTimeoutSeconds;
+    std::unique_ptr<vn::llm::ILlmClient> llm_client;
 
     explicit Impl(std::string key) : api_key(std::move(key)) {
         if (api_key.empty()) {
@@ -214,277 +345,63 @@ struct Client::Impl {
         if (api_key.empty()) {
             throw ApiError("GEMINI_API_KEY not set");
         }
+        rebuild_client(vn::llm::kDefaultReadTimeoutSeconds);
+    }
+
+    explicit Impl(Endpoint* endpoint) {
+        if (endpoint == nullptr) {
+            throw ApiError("Gemini Endpoint must not be null");
+        }
+        api_key = "offline-endpoint";
+        endpoint_adapter = std::make_unique<EndpointRawTransportAdapter>(endpoint);
+        rebuild_client(vn::llm::kDefaultReadTimeoutSeconds);
+    }
+
+    void rebuild_client(int timeout_sec) {
+        vn::llm::LlmClientOptions opts;
+        opts.provider = vn::llm::LlmProvider::Gemini;
+        opts.api_key = api_key;
+        opts.default_model = std::string(vn::llm::kDefaultModel);
+        opts.read_timeout_seconds = timeout_sec;
+        if (endpoint_adapter != nullptr) {
+            opts.max_retries = 0;
+            opts.raw_transport = endpoint_adapter.get();
+        } else {
+            opts.log_fn = [](std::string_view msg) {
+                log_info(std::string(msg));
+            };
+        }
+        configured_timeout_sec = timeout_sec;
+        llm_client = vn::llm::create_llm_client(std::move(opts));
     }
 };
 
 Client::Client(std::string api_key)
     : impl_(std::make_unique<Impl>(std::move(api_key))) {}
 
+Client::Client(Endpoint* endpoint)
+    : impl_(std::make_unique<Impl>(endpoint)) {}
+
 Client::~Client() = default;
 Client::Client(Client&& other) noexcept = default;
 Client& Client::operator=(Client&& other) noexcept = default;
 
-boost::json::value Client::messages(const bj::value& body, int timeout_sec) {
+bj::value Client::messages(const bj::value& body, int timeout_sec) {
     try {
-        const bj::object empty_obj;
-        const bj::object& in = body.is_object() ? body.get_object() : empty_obj;
-
-        const std::string model = kDefaultModel;
-
-        bj::object req_json;
-
-        if (const auto* sys = in.if_contains("system")) {
-            std::string sys_text;
-            if (sys->is_string()) {
-                sys_text = std::string(sys->get_string());
-            } else if (sys->is_array()) {
-                for (const auto& item : sys->get_array()) {
-                    if (!item.is_object()) {
-                        continue;
-                    }
-                    if (const auto* t = item.get_object().if_contains("text");
-                        t && t->is_string()) {
-                        if (!sys_text.empty()) {
-                            sys_text += "\n";
-                        }
-                        sys_text += std::string(t->get_string());
-                    }
-                }
-            }
-            if (!sys_text.empty()) {
-                req_json["systemInstruction"] = bj::object{
-                    {"parts", bj::array{bj::object{{"text", sys_text}}}}
-                };
-            }
+        if (timeout_sec != impl_->configured_timeout_sec) {
+            impl_->rebuild_client(timeout_sec);
         }
-
-        bj::array contents;
-        if (const auto* msgs = in.if_contains("messages"); msgs && msgs->is_array()) {
-            for (const auto& mv : msgs->get_array()) {
-                if (!mv.is_object()) {
-                    continue;
-                }
-                const auto& mobj = mv.get_object();
-                std::string role = "user";
-                if (const auto* r = mobj.if_contains("role");
-                    r && r->is_string() && r->get_string() == "assistant") {
-                    role = "model";
-                }
-
-                bj::array parts;
-                if (const auto* c = mobj.if_contains("content")) {
-                    if (c->is_string()) {
-                        parts.push_back(bj::object{{"text", std::string(c->get_string())}});
-                    } else if (c->is_array()) {
-                        for (const auto& bv : c->get_array()) {
-                            if (!bv.is_object()) {
-                                continue;
-                            }
-                            const auto& block = bv.get_object();
-                            std::string btype;
-                            if (const auto* bt = block.if_contains("type");
-                                bt && bt->is_string()) {
-                                btype = std::string(bt->get_string());
-                            }
-                            if (btype == "text") {
-                                if (const auto* txt = block.if_contains("text");
-                                    txt && txt->is_string()) {
-                                    parts.push_back(
-                                        bj::object{{"text", std::string(txt->get_string())}});
-                                }
-                            } else if (btype == "image") {
-                                if (const auto* src = block.if_contains("source");
-                                    src && src->is_object()) {
-                                    const auto& src_obj = src->get_object();
-                                    const auto* mt = src_obj.if_contains("media_type");
-                                    const auto* dt = src_obj.if_contains("data");
-                                    if (mt && mt->is_string() && dt && dt->is_string()) {
-                                        parts.push_back(bj::object{
-                                            {"inlineData",
-                                             bj::object{
-                                                 {"mimeType", std::string(mt->get_string())},
-                                                 {"data", std::string(dt->get_string())}
-                                             }}
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                contents.push_back(bj::object{
-                    {"role", role},
-                    {"parts", std::move(parts)}
-                });
-            }
-        }
-        req_json["contents"] = std::move(contents);
-
-        bj::object gen_cfg;
-        std::int64_t max_tokens = kMaxOutputTokens;
-        if (const auto* mt = in.if_contains("max_tokens")) {
-            if (mt->is_int64()) {
-                max_tokens = mt->get_int64();
-            } else if (mt->is_uint64()) {
-                max_tokens = static_cast<std::int64_t>(mt->get_uint64());
-            }
-        }
-        max_tokens = std::min<std::int64_t>(max_tokens, kMaxOutputTokens);
-        gen_cfg["maxOutputTokens"] = max_tokens;
-        if (const auto* temp = in.if_contains("temperature")) {
-            gen_cfg["temperature"] = *temp;
-        }
-        gen_cfg["thinkingConfig"] = bj::object{{"thinkingBudget", kThinkingBudget}};
-        req_json["generationConfig"] = std::move(gen_cfg);
-
-        bj::array safety_settings;
-        for (const char* cat : {"HARM_CATEGORY_HARASSMENT",
-                                "HARM_CATEGORY_HATE_SPEECH",
-                                "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                                "HARM_CATEGORY_DANGEROUS_CONTENT",
-                                "HARM_CATEGORY_CIVIC_INTEGRITY"}) {
-            safety_settings.push_back(bj::object{
-                {"category", cat},
-                {"threshold", "BLOCK_NONE"}
-            });
-        }
-        req_json["safetySettings"] = std::move(safety_settings);
-
-        asio::io_context ioc;
-        asio::ssl::context ssl_ctx(asio::ssl::context::tls_client);
-        ssl_ctx.set_verify_mode(asio::ssl::verify_peer);
-        load_windows_root_certs(ssl_ctx);
-
-        beast::ssl_stream<beast::tcp_stream> stream(ioc, ssl_ctx);
-        if (!SSL_set_tlsext_host_name(stream.native_handle(), kApiHost)) {
-            throw ApiError("SNI setup failed");
-        }
-        SSL_set1_host(stream.native_handle(), kApiHost);
-
-        tcp::resolver resolver(ioc);
-        auto endpoints = resolver.resolve(kApiHost, kApiPort);
-        beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(timeout_sec));
-        beast::get_lowest_layer(stream).connect(endpoints);
-        stream.handshake(asio::ssl::stream_base::client);
-
-        const std::string target =
-            "/v1beta/models/" + model + ":generateContent?key=" + impl_->api_key;
-        http::request<http::string_body> req{http::verb::post, target, kHttpVersion11};
-        req.set(http::field::host, kApiHost);
-        req.set(http::field::user_agent, "fav-pipeline-cpp/1.0");
-        req.set(http::field::content_type, "application/json");
-        req.body() = bj::serialize(req_json);
-        req.prepare_payload();
-
-        http::write(stream, req);
-
-        beast::flat_buffer buffer;
-        http::response_parser<http::string_body> parser;
-        parser.body_limit(kMaxResponseBodyBytes);
-        http::read(stream, buffer, parser);
-        http::response<http::string_body> res = parser.release();
-
-        beast::error_code ec;
-        stream.shutdown(ec);  // best-effort; many servers just close
-
-        const unsigned int status = res.result_int();
-        if (status == kHttpStatusTooManyRequests) {
-            throw RateLimitError("HTTP 429: " + res.body());
-        }
-        if (status < kHttpStatusOkMin || status >= kHttpStatusOkEnd) {
-            throw ApiError("HTTP " + std::to_string(status) + ": " + res.body());
-        }
-
-        bj::value gem_val = bj::parse(res.body());
-        const bj::object& gem = gem_val.as_object();
-
-        std::string text_out;
-        std::string stop_reason = "end_turn";
-        if (const auto* cands = gem.if_contains("candidates");
-            cands && cands->is_array() && !cands->get_array().empty()) {
-            const auto& cand0 = cands->get_array()[kFirstCandidateIndex].as_object();
-            if (const auto* content = cand0.if_contains("content");
-                content && content->is_object()) {
-                if (const auto* parts = content->get_object().if_contains("parts");
-                    parts && parts->is_array()) {
-                    for (const auto& pv : parts->get_array()) {
-                        if (!pv.is_object()) {
-                            continue;
-                        }
-                        const auto& part = pv.get_object();
-                        if (const auto* th = part.if_contains("thought");
-                            th && th->is_bool() && th->get_bool()) {
-                            continue;
-                        }
-                        if (const auto* txt = part.if_contains("text");
-                            txt && txt->is_string()) {
-                            text_out += std::string(txt->get_string());
-                        }
-                    }
-                }
-            }
-            if (const auto* fr = cand0.if_contains("finishReason");
-                fr && fr->is_string()) {
-                std::string r(fr->get_string());
-                if (r == "STOP") {
-                    stop_reason = "end_turn";
-                } else if (r == "MAX_TOKENS") {
-                    stop_reason = "max_tokens";
-                } else if (r == "SAFETY" || r == "RECITATION" ||
-                           r == "PROHIBITED_CONTENT" || r == "BLOCKLIST" ||
-                           r == "SPII") {
-                    stop_reason = "refusal";
-                } else {
-                    stop_reason = std::move(r);
-                }
-            }
-        } else if (const auto* pf = gem.if_contains("promptFeedback");
-                   pf && pf->is_object()) {
-            if (pf->get_object().if_contains("blockReason")) {
-                stop_reason = "refusal";
-            }
-        }
-
-        std::int64_t prompt_tok = kZeroTokens;
-        std::int64_t cand_tok = kZeroTokens;
-        std::int64_t thought_tok = kZeroTokens;
-        std::int64_t cached_tok = kZeroTokens;
-        if (const auto* um = gem.if_contains("usageMetadata");
-            um && um->is_object()) {
-            const auto& u = um->get_object();
-            auto geti = [&](const char* k) -> std::int64_t {
-                if (const auto* v = u.if_contains(k)) {
-                    if (v->is_int64()) {
-                        return v->get_int64();
-                    }
-                    if (v->is_uint64()) {
-                        return static_cast<std::int64_t>(v->get_uint64());
-                    }
-                }
-                return kZeroTokens;
-            };
-            prompt_tok = geti("promptTokenCount");
-            cand_tok = geti("candidatesTokenCount");
-            thought_tok = geti("thoughtsTokenCount");
-            cached_tok = geti("cachedContentTokenCount");
-        }
-
-        bj::object out;
-        out["content"] = bj::array{
-            bj::object{{"type", "text"}, {"text", std::move(text_out)}}
-        };
-        out["stop_reason"] = std::move(stop_reason);
-        out["usage"] = bj::object{
-            {"input_tokens", prompt_tok},
-            {"output_tokens", cand_tok + thought_tok},
-            {"cache_read_input_tokens", cached_tok},
-            {"cache_creation_input_tokens", kZeroTokens}
-        };
-        return out;
+        const vn::llm::LlmRequest req = to_llm_request(body);
+        const vn::llm::LlmResponse parsed = impl_->llm_client->generate(req);
+        return to_normalized_response_json(parsed);
+    } catch (const vn::llm::LlmRateLimitError& e) {
+        throw RateLimitError(e.what());
     } catch (const RateLimitError&) {
         throw;
     } catch (const ApiError&) {
         throw;
+    } catch (const vn::llm::LlmError& e) {
+        throw ApiError(e.what());
     } catch (const std::exception& e) {
         throw ApiError(std::string("transport error: ") + e.what());
     }

@@ -20,6 +20,12 @@ find_package(ZLIB REQUIRED)
 find_package(freetype REQUIRED)
 find_package(stb REQUIRED)
 
+if(NOT TARGET vn::llm_client)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../tools/llm_client
+                     ${CMAKE_CURRENT_BINARY_DIR}/vn_llm_client
+                     EXCLUDE_FROM_ALL)
+endif()
+
 # The tests -- and only the tests -- need an absolute anchor for the real
 # game-data fixtures.  The apps must NOT get one: a compiled-in path ships
 # this machine's directory layout inside every installed binary, so they find
@@ -59,16 +65,10 @@ target_compile_definitions(fav_core PUBLIC
 target_link_libraries(fav_core PUBLIC
     Boost::json
     Boost::regex
-    # Beast/Asio only.  NOT the boost::boost aggregate -- that pulls in every
-    # compiled Boost lib, including test_exec_monitor, whose main() wants a
-    # test_main symbol the GoogleTest suites don't define.
-    Boost::headers
-    openssl::openssl
+    vn::llm_client
     ZLIB::ZLIB
     Freetype::Freetype
     stb::stb
-    ws2_32
-    crypt32
 )
 
 # --------------------------------------------------------------------
