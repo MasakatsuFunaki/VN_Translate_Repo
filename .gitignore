@@ -168,6 +168,8 @@ Adieu/**/contact_sheets/
 **/TONE_OF_NOVEL.md
 **/TONE.md
 !Oretachi_ni_Tsubasa_wa_Nai/TONE_OF_NOVEL.md
-!spot_checker/tests/**/tone_of_novel.md
-!spot_checker/tests/**/*tone_of_novel.md
+!TOOLS/spot_checker/tests/**/tone_of_novel.md
+!TOOLS/spot_checker/tests/**/*tone_of_novel.md
+!tools/spot_checker/tests/**/tone_of_novel.md
+!tools/spot_checker/tests/**/*tone_of_novel.md
 
