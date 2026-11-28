@@ -61,7 +61,7 @@ constexpr int kRepeatedHiraCount = 200;
 constexpr std::size_t kContextLineCharCap = 120;
 constexpr std::size_t kExpectedCutBytes = 360;
 constexpr std::size_t kExpectedCacheEntries = 2;
-constexpr int kDefaultBatchSize = 150;
+constexpr int kDefaultBatchSize = vn::llm::kDefaultBatchSize;
 constexpr int kMinBatchSize = 1;
 constexpr int kNoLimit = 0;
 constexpr int kZeroBatchSize = 0;
@@ -83,6 +83,10 @@ constexpr std::size_t kExpectedOneCall = 1;
 constexpr std::size_t kExpectedZeroCalls = 0;
 constexpr std::size_t kExpectedSnapshotItemsTwo = 2;
 constexpr std::size_t kExpectedSnapshotItemsThree = 3;
+constexpr std::int64_t kFakeInputTokens = 100;
+constexpr std::int64_t kFakeOutputTokens = 350;
+constexpr std::int64_t kFakeThoughtTokens = 250;
+constexpr std::int64_t kFakeZeroTokens = 0;
 
 class ScopedTempDir {
 public:
@@ -159,6 +163,13 @@ public:
         content_arr.push_back(std::move(text_block));
         bj::object resp;
         resp["content"] = std::move(content_arr);
+        resp["usage"] = bj::object{
+            {"input_tokens", kFakeInputTokens},
+            {"output_tokens", kFakeOutputTokens},
+            {"thought_tokens", kFakeThoughtTokens},
+            {"cache_read_input_tokens", kFakeZeroTokens},
+            {"cache_creation_input_tokens", kFakeZeroTokens},
+        };
         return resp;
     }
 
@@ -309,6 +320,7 @@ TEST(Translate, BuildUserPromptShape) {
     const std::string bare = build_user_prompt(batch, {});
     EXPECT_EQ(bare.rfind("<lines_to_translate>\n", kIdx0), kIdx0);
     EXPECT_EQ(bare.find("</previous_context>"), std::string::npos);
+    EXPECT_EQ(bare.find("</context_after>"), std::string::npos);
     EXPECT_NE(bare.find("1. [NAME] " + std::string(kMutsukiPlate) + "\n"), std::string::npos);
     EXPECT_NE(bare.find("2. [Hitomi] line\\r\\nbreak\n"), std::string::npos);
     EXPECT_NE(bare.find("Translate the 2 lines inside <lines_to_translate>"),
@@ -319,9 +331,16 @@ TEST(Translate, BuildUserPromptShape) {
     for (int i = 0; i < CONTEXT_WINDOW + kExtraContextLines; ++i) {
         ctx.emplace_back("NARRATION", "ctx" + std::to_string(i));
     }
-    const std::string with_ctx = build_user_prompt(batch, ctx);
+    std::vector<std::pair<std::string, std::string>> after;
+    for (int i = 0; i < CONTEXT_AFTER_WINDOW + kExtraContextLines; ++i) {
+        after.emplace_back("NARRATION", "after" + std::to_string(i));
+    }
+    const std::string with_ctx = build_user_prompt(batch, ctx, after);
     EXPECT_NE(with_ctx.find("<previous_context>\n[NARRATION] ctx5\n"), std::string::npos);
     EXPECT_EQ(with_ctx.find("ctx4\n"), std::string::npos);
+    EXPECT_NE(with_ctx.find("<context_after>\n[NARRATION] after0\n"), std::string::npos);
+    EXPECT_NE(with_ctx.find("[NARRATION] after14\n"), std::string::npos);
+    EXPECT_EQ(with_ctx.find("after15\n"), std::string::npos);
 }
 
 TEST(Translate, FlattenForLogTruncatesCodepointsNotUtf8Bytes) {

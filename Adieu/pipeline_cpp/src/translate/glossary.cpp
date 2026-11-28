@@ -266,7 +266,7 @@ IMPORTANT: This is a licensed commercial denpa / psychological-horror visual nov
 - NVL FULL-SCREEN CONCISENESS (640x480, 19-ROW PAGE): Every scene renders in a full-screen NVL text window (#MWND.002) that accumulates multiple narration and dialogue statements onto a single 19-row page before clearing. Keep English prose crisp, taut, and economical -- avoid wordy padding or explanatory expansion so accumulated pages never overflow the 19-row budget.
 - DIALOGUE QUOTATION FRAMING: Render spoken 「...」 dialogue wrapped in straight double quotes "..." and 『...』 quoted speech / recalled voices / titles in '...' (or "..." when standalone spoken voice). NEVER prepend speaker names or [Speaker] labels inside the translated line -- the engine prepends the speaker nameplate separately.
 - JAPANESE NAME ORDER & HONORIFICS: Keep Japanese surname-first order (Hitomi Kousuke, Sugamo Mutsuki, Tamachi Mahiru, Meguro Miyuki, Oomori Tonae, Takashima Semina). Retain natural Japanese honorifics (-sensei, -san, -chan, Onii-chan, Senpai) where characters use them. Never Westernize Japanese cultural terms, school rooms, or idioms.
-- PRONOUNS: Infer omitted subjects accurately from the [SPEAKER] tag and <previous_context>.
+- PRONOUNS & LOOKAHEAD: Infer omitted subjects, wordplay, and foreshadowed reveals accurately from the [SPEAKER] tag, <previous_context>, and <context_after> (upcoming scene lines provided strictly for lookahead -- never translate <context_after>).
 </translation_guidelines>
 
 <character_dossier>

@@ -8,6 +8,8 @@
 // Adieu character glossary, Gemini system prompt, and chronological story order.
 #pragma once
 
+#include "vn/llm/llm_types.h"
+
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -35,8 +37,8 @@ extern const char* const SYSTEM_PROMPT;
 // `seen900`, `seen020`, ...); unlisted scenes follow deterministically.
 const std::vector<std::string>& story_order();
 
-inline const std::string MODEL = "gemini-4-argon";
-inline const std::string EFFORT = "high";
+inline const std::string MODEL{vn::llm::kDefaultModel};
+inline const std::string EFFORT{vn::llm::kDefaultThinkingLevel};
 
 inline bool is_effort_model(const std::string& m) {
     return m == MODEL;
@@ -44,5 +46,8 @@ inline bool is_effort_model(const std::string& m) {
 
 // Sliding context window of preceding translated lines per scene.
 constexpr int CONTEXT_WINDOW = 50;
+
+// Lookahead window of upcoming scene lines appended after <lines_to_translate>.
+constexpr int CONTEXT_AFTER_WINDOW = 15;
 
 }  // namespace adi::translate
