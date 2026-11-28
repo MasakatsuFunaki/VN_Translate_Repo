@@ -8,7 +8,10 @@
 // AGEHA ~EXTRAVAGANZA~ CE character glossary and Gemini system prompt.
 #pragma once
 
+#include "vn/llm/llm_types.h"
+
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -23,7 +26,8 @@ const std::string& glossary_prompt();
 
 const std::vector<std::string>& story_order();
 
-inline const std::string MODEL = "gemini-4-argon";
+inline const std::string MODEL{vn::llm::kDefaultModel};
+inline constexpr std::string_view kDefaultThinkingLevel = vn::llm::kDefaultThinkingLevel;
 
 constexpr int CONTEXT_WINDOW = 40;
 constexpr int CONTEXT_AFTER = 20;

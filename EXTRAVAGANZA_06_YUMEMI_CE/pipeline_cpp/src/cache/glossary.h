@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "vn/llm/llm_types.h"
+
 namespace exm::translate {
 
 const std::vector<std::pair<std::string, std::string>>& name_translations_ordered();
@@ -23,7 +25,7 @@ const std::string& glossary_prompt();
 
 const std::vector<std::string>& story_order();
 
-inline const std::string MODEL = "gemini-4-argon";
+inline const std::string MODEL{vn::llm::kDefaultModel};
 
 constexpr int CONTEXT_WINDOW = 40;
 constexpr int CONTEXT_AFTER = 20;

@@ -26,7 +26,7 @@ using namespace exm;
 
 namespace {
 
-constexpr int kDefaultBatchArg = 150;
+constexpr int kDefaultBatchArg = vn::llm::kDefaultBatchSize;
 constexpr int kNoBatchLimit = 0;
 constexpr int kNoTestBatches = 0;
 constexpr int kRefusedExitCode = 2;

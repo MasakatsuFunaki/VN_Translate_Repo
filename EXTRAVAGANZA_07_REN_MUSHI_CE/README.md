@@ -35,9 +35,9 @@ build\install\bin\04_patch_menus.exe --game-dir <install>
 
 ## CLI Options
 
-- `00_run_all.exe`: `--help` (`-h`), `--dir <project>` (auto-detected by walking up from the executable), `--game-dir <install>` (required), `--batch <n>` (default `150`), `--max-batches <n>` (default `0`), `--clean`, `--discard-cache` (`--clean` refuses to delete a cache holding paid work unless `--discard-cache` is also passed).
+- `00_run_all.exe`: `--help` (`-h`), `--dir <project>` (auto-detected by walking up from the executable), `--game-dir <install>` (required), `--batch <n>` (default `40`), `--max-batches <n>` (default `0`), `--clean`, `--discard-cache` (`--clean` refuses to delete a cache holding paid work unless `--discard-cache` is also passed).
 - `01_extract.exe`: `--help` (`-h`), `--dir <project>`, `--game-dir <install>` (required).
-- `02_build_tsv.exe`: `--help` (`-h`), `--dir <project>`, `--game-dir <install>` (required), `--batch <n>` (default `150`), `--retranslate`, `--max-batches <n>` (default `0`), `--out <path>`, `--rebuild-table`, `--discard-cache` (`--retranslate` refuses a non-empty cache unless `--discard-cache` is also passed).
+- `02_build_tsv.exe`: `--help` (`-h`), `--dir <project>`, `--game-dir <install>` (required), `--batch <n>` (default `40`), `--retranslate`, `--max-batches <n>` (default `0`), `--out <path>`, `--rebuild-table`, `--discard-cache` (`--retranslate` refuses a non-empty cache unless `--discard-cache` is also passed).
 - `03_build_xtx.exe`: `--help` (`-h`), `--game-dir <install>` (required).
 - `04_patch_menus.exe`: `--help` (`-h`), `--game-dir <install>` (required).
 

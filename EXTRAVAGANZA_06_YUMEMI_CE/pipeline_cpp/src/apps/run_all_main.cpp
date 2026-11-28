@@ -25,7 +25,7 @@ using namespace exm;
 
 namespace {
 
-constexpr int kDefaultBatchArg = 150;
+constexpr int kDefaultBatchArg = translate::kDefaultBatchSize;
 constexpr int kNoTestBatches = 0;
 constexpr int kDefaultMaxBatches = 0;
 constexpr int kRefusedExitCode = 2;

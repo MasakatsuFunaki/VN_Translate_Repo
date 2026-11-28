@@ -7,19 +7,26 @@
 
 #include "cache/cache_core.h"
 
+#include "build_tsv/build_tsv.h"
+#include "cache/glossary.h"
+#include "cache/speaker_gate.h"
+#include "common/util.h"
+#include "vn/llm/gemini_wire_codec.h"
+#include "vn/llm/llm_types.h"
+#include "vn/llm/zero_thought_guard.h"
+
+#include <boost/regex.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <stdexcept>
-#include <thread>
-
-#include <boost/regex.hpp>
-
-#include "build_tsv/build_tsv.h"
-#include "cache/glossary.h"
-#include "cache/speaker_gate.h"
-#include "common/util.h"
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 namespace exm::translate {
 
@@ -46,10 +53,8 @@ constexpr unsigned char kNonAsciiMin = 0x80;
 constexpr std::size_t kContextLogLimit = 120;
 constexpr std::size_t kPromptContextLimit = 100;
 constexpr std::size_t kBatchLogPreviewLimit = 60;
-constexpr std::int64_t kTokensPerLineEstimate = 300;
-constexpr std::int64_t kMaxOutputTokensCap = 16384;
-constexpr std::int64_t kThinkingBudgetTokens = 2048;
-constexpr int kRateLimitRetrySleepSec = 60;
+constexpr std::size_t kFirstCandidateIndex = 0;
+constexpr int kHttpOkStatus = 200;
 constexpr int kCacheJsonIndent = 2;
 constexpr int kTranslatedJsonIndent = 1;
 constexpr int kRefusedExitCode = 2;
@@ -60,6 +65,7 @@ constexpr std::size_t kPercentScale = 100;
 constexpr std::size_t kFallbackSubBatchSize = 25;
 constexpr std::size_t kBinarySplitDivisor = 2;
 constexpr std::size_t kMaxSubBatchDepth = 2;
+constexpr std::size_t kContextRetentionMultiplier = 2;
 
 std::size_t char_len(const std::string& utf8) {
     std::size_t n = 0;
@@ -71,8 +77,12 @@ std::size_t char_len(const std::string& utf8) {
     return n;
 }
 
-std::string replace_all(std::string s, const std::string& from, const std::string& to) {
-    if (from.empty()) return s;
+std::string replace_all(std::string s,
+                        const std::string& from,
+                        const std::string& to) {
+    if (from.empty()) {
+        return s;
+    }
     std::string out;
     out.reserve(s.size());
     std::size_t pos = 0;
@@ -120,58 +130,121 @@ void print_context_window(
 }
 
 struct Pending {
-    std::size_t str_idx;
+    std::size_t str_idx = 0;
     std::string type;
     std::string speaker;
     std::string text;
 };
 
-std::string extract_candidate_text(const bj::value& response) {
-    if (!response.is_object()) return {};
-    const auto* candidates = response.get_object().if_contains("candidates");
-    if (!candidates || !candidates->is_array() || candidates->get_array().empty()) {
-        return {};
-    }
-    const auto& first_cand = candidates->get_array()[0];
-    if (!first_cand.is_object()) return {};
-    const auto* content = first_cand.get_object().if_contains("content");
-    if (!content || !content->is_object()) return {};
-    const auto* parts = content->get_object().if_contains("parts");
-    if (!parts || !parts->is_array()) return {};
+struct BatchSlot {
+    std::size_t str_idx = 0;
+    std::string type;
+    std::string speaker;
+    std::string text;
+    std::optional<std::string> cached_en;
+    std::size_t api_pos = 0;
+};
 
-    std::string out;
-    for (const auto& part : parts->get_array()) {
-        if (!part.is_object()) continue;
-        const auto& po = part.get_object();
-        const auto* th = po.if_contains("thought");
-        if (th && th->is_bool() && th->get_bool()) continue;
-        const auto* txt = po.if_contains("text");
-        if (!txt || !txt->is_string()) continue;
-        out += std::string(txt->get_string());
-    }
+vn::llm::LlmRequest make_llm_request(
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after,
+    std::string_view model,
+    std::string_view thinking_level) {
+    vn::llm::LlmRequest req;
+    req.model = std::string(model);
+    req.system_prompt = SYSTEM_PROMPT;
+    req.user_prompt =
+        build_user_prompt(batch_lines, previous_context, context_after);
+    req.max_output_tokens = compute_max_output_tokens(batch_lines.size());
+    req.thinking_level = std::string(thinking_level);
+    req.enforce_min_output_floor = true;
+    req.safety_block_none = true;
+    return req;
+}
+
+UsageTelemetry map_usage(const vn::llm::LlmTokenUsage& u) noexcept {
+    UsageTelemetry out;
+    out.input_tokens = u.prompt_tokens;
+    out.output_tokens = u.candidate_tokens;
+    out.thought_tokens = u.thought_tokens;
+    out.cached_tokens = u.cached_tokens;
     return out;
 }
 
-std::int64_t extract_usage_token_count(const bj::value& response, const char* key) {
-    if (!response.is_object()) return 0;
-    const auto* usage = response.get_object().if_contains("usageMetadata");
-    if (!usage || !usage->is_object()) return 0;
-    const auto* v = usage->get_object().if_contains(key);
-    if (!v || !v->is_int64()) return 0;
-    return v->get_int64();
+bool is_extra_block_finish_reason(std::string_view reason) noexcept {
+    return reason == "LANGUAGE" || reason == "OTHER";
 }
 
-std::map<int, std::string> translate_sub_batches_recursive(
+void accumulate_usage(UsageTelemetry& dst, const UsageTelemetry& src) noexcept {
+    dst.input_tokens += src.input_tokens;
+    dst.output_tokens += src.output_tokens;
+    dst.thought_tokens += src.thought_tokens;
+    dst.cached_tokens += src.cached_tokens;
+}
+
+GeminiBatchResult invoke_gemini_slice(
+    gemini::Client& client,
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after,
+    std::string_view model,
+    std::string_view thinking_level,
+    bool is_top_level,
+    vn::llm::ZeroThoughtCircuitBreaker& breaker) {
+    vn::llm::ensure_supported_model(model);
+    const vn::llm::LlmRequest req = make_llm_request(
+        batch_lines, previous_context, context_after, model, thinking_level);
+    const vn::llm::LlmResponse llm_resp = client.generate_llm(req);
+
+    const UsageTelemetry usage = map_usage(llm_resp.usage);
+    const bool blocked =
+        (llm_resp.content_blocked &&
+         llm_resp.finish_reason != "BLOCK_REASON_UNSPECIFIED") ||
+        is_extra_block_finish_reason(llm_resp.finish_reason);
+
+    log_info("    Tokens: in=" + std::to_string(usage.input_tokens) +
+             " out=" + std::to_string(usage.output_tokens) +
+             " thoughts=" + std::to_string(usage.thought_tokens) +
+             " cached=" + std::to_string(usage.cached_tokens));
+
+    breaker.check_response(model, thinking_level, is_top_level,
+                           batch_lines.size(), blocked, usage.thought_tokens);
+
+    std::string response_text = trim(llm_resp.text);
+    if (!response_text.empty() && response_text.rfind("1.", 0) != 0 &&
+        response_text.rfind("1)", 0) != 0 && response_text.rfind("1:", 0) != 0) {
+        response_text = "1. " + response_text;
+    }
+
+    log_info("\n--- GEMINI'S RAW ANSWER ---");
+    log_info(response_text);
+    log_info("---------------------------\n");
+
+    GeminiBatchResult result;
+    result.translations = parse_numbered_response(response_text);
+    result.usage = usage;
+    result.blocked = blocked;
+    return result;
+}
+
+GeminiBatchResult translate_sub_batches_recursive(
     gemini::Client& api,
     const std::vector<std::pair<std::string, std::string>>& lines,
-    std::size_t depth) {
-    std::map<int, std::string> combined;
-    if (lines.empty()) return combined;
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after,
+    std::size_t depth,
+    vn::llm::ZeroThoughtCircuitBreaker& breaker) {
+    GeminiBatchResult combined;
+    if (lines.empty()) {
+        return combined;
+    }
 
     const std::size_t chunk_size =
         (lines.size() > kFallbackSubBatchSize)
             ? kFallbackSubBatchSize
-            : std::max<std::size_t>(1, lines.size() / kBinarySplitDivisor);
+            : std::max<std::size_t>(1u, lines.size() / kBinarySplitDivisor);
+    const std::size_t max_after = static_cast<std::size_t>(CONTEXT_AFTER);
 
     for (std::size_t start = 0; start < lines.size(); start += chunk_size) {
         const std::size_t end = std::min(lines.size(), start + chunk_size);
@@ -179,51 +252,119 @@ std::map<int, std::string> translate_sub_batches_recursive(
             lines.begin() + static_cast<std::ptrdiff_t>(start),
             lines.begin() + static_cast<std::ptrdiff_t>(end));
 
-        auto sub_res = call_gemini(api, sub_lines, {}, {});
-        if (sub_res.empty() && sub_lines.size() > 1 && depth < kMaxSubBatchDepth) {
-            sub_res = translate_sub_batches_recursive(api, sub_lines, depth + 1);
+        std::vector<std::pair<std::string, std::string>> sub_prev = previous_context;
+        sub_prev.reserve(previous_context.size() + start);
+        for (std::size_t i = 0; i < start; ++i) {
+            const auto tr_it = combined.translations.find(static_cast<int>(i) + 1);
+            if (tr_it != combined.translations.end() && !tr_it->second.empty()) {
+                sub_prev.emplace_back(lines[i].first, tr_it->second);
+                continue;
+            }
+            sub_prev.push_back(lines[i]);
         }
-        for (const auto& [sub_idx, text] : sub_res) {
+
+        std::vector<std::pair<std::string, std::string>> sub_after;
+        sub_after.reserve(max_after);
+        for (std::size_t i = end; i < lines.size() && sub_after.size() < max_after; ++i) {
+            sub_after.push_back(lines[i]);
+        }
+        for (std::size_t i = 0;
+             i < context_after.size() && sub_after.size() < max_after; ++i) {
+            sub_after.push_back(context_after[i]);
+        }
+
+        GeminiBatchResult sub_res = invoke_gemini_slice(
+            api, sub_lines, sub_prev, sub_after, MODEL, kDefaultThinkingLevel,
+            /*is_top_level=*/false, breaker);
+        accumulate_usage(combined.usage, sub_res.usage);
+
+        if (sub_res.translations.empty() && (!sub_prev.empty() || !sub_after.empty())) {
+            GeminiBatchResult retry_no_ctx = invoke_gemini_slice(
+                api, sub_lines, {}, {}, MODEL, kDefaultThinkingLevel,
+                /*is_top_level=*/false, breaker);
+            accumulate_usage(combined.usage, retry_no_ctx.usage);
+            sub_res.translations = std::move(retry_no_ctx.translations);
+        }
+
+        if (sub_res.translations.empty() && sub_lines.size() > 1u &&
+            depth < kMaxSubBatchDepth) {
+            GeminiBatchResult nested = translate_sub_batches_recursive(
+                api, sub_lines, sub_prev, sub_after, depth + 1u, breaker);
+            accumulate_usage(combined.usage, nested.usage);
+            sub_res.translations = std::move(nested.translations);
+        }
+
+        for (const auto& [sub_idx, text] : sub_res.translations) {
             if (sub_idx >= 1 && static_cast<std::size_t>(sub_idx) <= sub_lines.size()) {
-                combined[static_cast<int>(start) + sub_idx] = text;
+                combined.translations[static_cast<int>(start) + sub_idx] = text;
             }
         }
     }
     return combined;
 }
 
-std::map<int, std::string> call_gemini_with_fallback(
+GeminiBatchResult call_gemini_with_fallback(
     gemini::Client& api,
     const std::vector<std::pair<std::string, std::string>>& api_lines,
     const std::vector<std::pair<std::string, std::string>>& previous_context,
-    const std::vector<std::pair<std::string, std::string>>& context_after) {
-    if (api_lines.empty()) return {};
-
-    auto translations = call_gemini(api, api_lines, previous_context, context_after);
-    if (!translations.empty()) return translations;
-
-    if (!previous_context.empty() || !context_after.empty()) {
-        log_info("    Empty response with context window -- retrying batch without context");
-        translations = call_gemini(api, api_lines, {}, {});
-        if (!translations.empty()) return translations;
+    const std::vector<std::pair<std::string, std::string>>& context_after,
+    vn::llm::ZeroThoughtCircuitBreaker& breaker) {
+    if (api_lines.empty()) {
+        return {};
     }
 
-    if (api_lines.size() <= 1) return translations;
+    GeminiBatchResult primary = invoke_gemini_slice(
+        api, api_lines, previous_context, context_after, MODEL,
+        kDefaultThinkingLevel, /*is_top_level=*/true, breaker);
+    if (!primary.translations.empty()) {
+        breaker.record_top_level_batch_completed();
+        return primary;
+    }
+
+    UsageTelemetry accumulated = primary.usage;
+    if (!previous_context.empty() || !context_after.empty()) {
+        log_info("    Empty response with context window -- retrying batch without context");
+        GeminiBatchResult no_ctx = invoke_gemini_slice(
+            api, api_lines, {}, {}, MODEL, kDefaultThinkingLevel,
+            /*is_top_level=*/true, breaker);
+        accumulate_usage(accumulated, no_ctx.usage);
+        if (!no_ctx.translations.empty()) {
+            breaker.record_top_level_batch_completed();
+            no_ctx.usage = accumulated;
+            return no_ctx;
+        }
+    }
+
+    if (api_lines.size() <= 1u) {
+        primary.usage = accumulated;
+        return primary;
+    }
     log_info("    Batch empty/refused -- splitting into sub-batches...");
-    return translate_sub_batches_recursive(api, api_lines, 0);
+    GeminiBatchResult split = translate_sub_batches_recursive(
+        api, api_lines, previous_context, context_after, 0u, breaker);
+    accumulate_usage(accumulated, split.usage);
+    split.usage = accumulated;
+    if (!split.translations.empty()) {
+        breaker.record_top_level_batch_completed();
+    }
+    return split;
 }
 
-std::pair<long long, bool> translate_file(gemini::LazyClient& client,
-                                          const std::string& fname,
-                                          const bj::object& fdata,
-                                          Cache& cache,
-                                          int batch_size,
-                                          const std::string& cache_file,
-                                          int batch_cap,
-                                          int& api_batches_done,
-                                          bj::array* log_entries) {
+std::pair<long long, bool> translate_file(
+    gemini::LazyClient& client,
+    const std::string& fname,
+    const bj::object& fdata,
+    Cache& cache,
+    int batch_size,
+    const std::string& cache_file,
+    int batch_cap,
+    int& api_batches_done,
+    vn::llm::ZeroThoughtCircuitBreaker& breaker,
+    bj::array* log_entries) {
     const std::vector<std::size_t> translatable = translatable_indices(fdata);
-    if (translatable.empty()) return {0, false};
+    if (translatable.empty()) {
+        return {0, false};
+    }
 
     const auto& strings = fdata.at("strings").get_array();
     std::vector<std::pair<std::string, std::string>> previous_context;
@@ -235,26 +376,56 @@ std::pair<long long, bool> translate_file(gemini::LazyClient& client,
         const std::size_t batch_end = std::min(
             translatable.size(), batch_start + static_cast<std::size_t>(batch_size));
 
+        std::vector<BatchSlot> slots;
+        slots.reserve(batch_end - batch_start);
         std::vector<Pending> needs_api;
+        std::size_t first_uncached_slot = batch_end - batch_start;
+        std::size_t last_uncached_slot = 0;
+
         for (std::size_t k = batch_start; k < batch_end; ++k) {
             const std::size_t idx = translatable[k];
             const auto& s = strings[idx].get_object();
             const std::string text(s.at("text").get_string());
             std::string type;
             if (const auto* t = s.if_contains("type")) {
-                if (t->is_string()) type = std::string(t->get_string());
+                if (t->is_string()) {
+                    type = std::string(t->get_string());
+                }
             }
             const std::string speaker =
                 type == "dialogue" ? extract_speaker(text) : std::string("NARRATION");
+            BatchSlot slot;
+            slot.str_idx = idx;
+            slot.type = type;
+            slot.speaker = speaker;
+            slot.text = text;
             if (const std::string* en = cache.get(text)) {
-                previous_context.emplace_back(speaker, *en);
-                ++translated_count;
+                slot.cached_en = *en;
+                slots.push_back(std::move(slot));
                 continue;
             }
+            const std::size_t slot_pos = slots.size();
+            if (needs_api.empty()) {
+                first_uncached_slot = slot_pos;
+            }
+            last_uncached_slot = slot_pos;
             needs_api.push_back(Pending{idx, type, speaker, text});
+            slot.api_pos = needs_api.size();
+            slots.push_back(std::move(slot));
         }
 
-        if (needs_api.empty()) continue;
+        if (needs_api.empty()) {
+            for (const auto& slot : slots) {
+                previous_context.emplace_back(slot.speaker, *slot.cached_en);
+                ++translated_count;
+            }
+            continue;
+        }
+
+        for (std::size_t i = 0; i < first_uncached_slot; ++i) {
+            previous_context.emplace_back(slots[i].speaker, *slots[i].cached_en);
+            ++translated_count;
+        }
 
         gemini::Client& api = client.get();
 
@@ -265,85 +436,96 @@ std::pair<long long, bool> translate_file(gemini::LazyClient& client,
 
         std::vector<std::pair<std::string, std::string>> api_lines;
         api_lines.reserve(needs_api.size());
-        for (const auto& p : needs_api) api_lines.emplace_back(p.speaker, p.text);
+        for (const auto& p : needs_api) {
+            api_lines.emplace_back(p.speaker, p.text);
+        }
 
+        const std::size_t max_after = static_cast<std::size_t>(CONTEXT_AFTER);
         std::vector<std::pair<std::string, std::string>> context_after;
-        const std::size_t after_end = std::min(
-            translatable.size(), batch_end + static_cast<std::size_t>(CONTEXT_AFTER));
-        for (std::size_t k = batch_end; k < after_end; ++k) {
+        context_after.reserve(max_after);
+        for (std::size_t i = last_uncached_slot + 1u;
+             i < slots.size() && context_after.size() < max_after; ++i) {
+            context_after.emplace_back(
+                slots[i].speaker,
+                slots[i].cached_en ? *slots[i].cached_en : slots[i].text);
+        }
+        for (std::size_t k = batch_end;
+             k < translatable.size() && context_after.size() < max_after; ++k) {
             const std::size_t idx = translatable[k];
             const auto& s = strings[idx].get_object();
             const std::string text(s.at("text").get_string());
             std::string type;
             if (const auto* t = s.if_contains("type")) {
-                if (t->is_string()) type = std::string(t->get_string());
+                if (t->is_string()) {
+                    type = std::string(t->get_string());
+                }
             }
             const std::string speaker =
                 type == "dialogue" ? extract_speaker(text) : std::string("NARRATION");
             if (const std::string* en = cache.get(text)) {
                 context_after.emplace_back(speaker, *en);
-            } else {
-                context_after.emplace_back(speaker, text);
+                continue;
             }
+            context_after.emplace_back(speaker, text);
         }
 
         auto apply = [&](const std::map<int, std::string>& translations, bool verbose) {
-            for (std::size_t i = 0; i < needs_api.size(); ++i) {
-                const auto& p = needs_api[i];
-                const auto it = translations.find(static_cast<int>(i) + 1);
+            for (std::size_t i = first_uncached_slot; i < slots.size(); ++i) {
+                const auto& slot = slots[i];
+                if (slot.cached_en) {
+                    previous_context.emplace_back(slot.speaker, *slot.cached_en);
+                    ++translated_count;
+                    continue;
+                }
+                const auto it = translations.find(static_cast<int>(slot.api_pos));
                 if (it != translations.end() && !it->second.empty()) {
-                    const std::string tr = postprocess(p.text, it->second);
-                    cache.set(p.text, tr);
-                    previous_context.emplace_back(p.speaker, tr);
+                    const std::string tr = postprocess(slot.text, it->second);
+                    cache.set(slot.text, tr);
+                    previous_context.emplace_back(slot.speaker, tr);
                     ++translated_count;
                     if (verbose) {
-                        log_info("  JP: " + flatten_for_log(p.text, kBatchLogPreviewLimit));
+                        log_info("  JP: " + flatten_for_log(slot.text, kBatchLogPreviewLimit));
                         log_info("  EN: " + flatten_for_log(tr, kBatchLogPreviewLimit));
                     }
-                    if (log_entries) {
+                    if (log_entries != nullptr) {
                         bj::object e;
                         e["script"] = fname;
-                        e["line_idx"] = static_cast<std::int64_t>(p.str_idx);
-                        e["type"] = p.type;
-                        e["speaker"] = p.speaker;
-                        e["japanese"] = p.text;
+                        e["line_idx"] = static_cast<std::int64_t>(slot.str_idx);
+                        e["type"] = slot.type;
+                        e["speaker"] = slot.speaker;
+                        e["japanese"] = slot.text;
                         e["translated"] = tr;
                         log_entries->push_back(std::move(e));
                     }
                     continue;
                 }
                 if (verbose) {
-                    log_info("    Missing translation for line " + std::to_string(i + 1) +
-                             ", keeping original");
+                    log_info("    Missing translation for line " +
+                             std::to_string(slot.api_pos) + ", keeping original");
                 }
-                previous_context.emplace_back(p.speaker, p.text);
+                previous_context.emplace_back(slot.speaker, slot.text);
             }
         };
 
+        UsageTelemetry batch_usage;
         try {
-            const auto translations =
-                call_gemini_with_fallback(api, api_lines, previous_context, context_after);
-            if (translations.size() < needs_api.size()) {
-                log_info("    WARNING: got " + std::to_string(translations.size()) + "/" +
-                         std::to_string(needs_api.size()) + " translations");
+            const GeminiBatchResult batch_res = call_gemini_with_fallback(
+                api, api_lines, previous_context, context_after, breaker);
+            batch_usage = batch_res.usage;
+            if (batch_res.translations.size() < needs_api.size()) {
+                log_info("    WARNING: got " + std::to_string(batch_res.translations.size()) +
+                         "/" + std::to_string(needs_api.size()) + " translations");
             }
-            apply(translations, true);
-        } catch (const gemini::RateLimitError&) {
-            log_info("    Rate limited, waiting 60s...");
-            std::this_thread::sleep_for(std::chrono::seconds(kRateLimitRetrySleepSec));
-            try {
-                apply(call_gemini_with_fallback(api, api_lines, previous_context, context_after),
-                      false);
-            } catch (const std::exception& e2) {
-                log_info(std::string("    Retry failed: ") + e2.what() + ", keeping originals");
-                for (const auto& p : needs_api) previous_context.emplace_back(p.speaker, p.text);
-            }
+            apply(batch_res.translations, true);
+        } catch (const ZeroThoughtError&) {
+            throw;
         } catch (const std::exception& e) {
             log_info(std::string("    Batch error: ") + e.what());
-            for (const auto& p : needs_api) previous_context.emplace_back(p.speaker, p.text);
+            apply({}, false);
         }
 
-        const std::size_t max_context_keep = static_cast<std::size_t>(CONTEXT_WINDOW) * 2;
+        const std::size_t max_context_keep =
+            static_cast<std::size_t>(CONTEXT_WINDOW) * kContextRetentionMultiplier;
         if (previous_context.size() > max_context_keep) {
             previous_context.erase(
                 previous_context.begin(),
@@ -357,8 +539,7 @@ std::pair<long long, bool> translate_file(gemini::LazyClient& client,
                 fs::u8path(cache_file).parent_path() / "last_gemini_translate";
             fs::create_directories(last_dir);
             bj::array batch_arr;
-            for (std::size_t i = 0; i < needs_api.size(); ++i) {
-                const auto& p = needs_api[i];
+            for (const auto& p : needs_api) {
                 bj::object row;
                 row["script"] = fname;
                 row["line_idx"] = static_cast<std::int64_t>(p.str_idx);
@@ -373,8 +554,14 @@ std::pair<long long, bool> translate_file(gemini::LazyClient& client,
             }
             bj::object last_doc;
             last_doc["batch_number"] = api_batches_done;
+            last_doc["model"] = MODEL;
+            last_doc["thinking_level"] = std::string(kDefaultThinkingLevel);
             last_doc["script"] = fname;
             last_doc["line_count"] = static_cast<std::int64_t>(needs_api.size());
+            last_doc["input_tokens"] = batch_usage.input_tokens;
+            last_doc["output_tokens"] = batch_usage.output_tokens;
+            last_doc["thought_tokens"] = batch_usage.thought_tokens;
+            last_doc["cached_tokens"] = batch_usage.cached_tokens;
             last_doc["lines"] = std::move(batch_arr);
             write_file_atomic_text(
                 (last_dir / "last_translation.json").u8string(),
@@ -402,7 +589,9 @@ Cache::Cache() : impl_(std::make_unique<Impl>()) {}
 Cache::~Cache() = default;
 Cache::Cache(const Cache& other) : impl_(std::make_unique<Impl>(*other.impl_)) {}
 Cache& Cache::operator=(const Cache& other) {
-    if (this != &other) *impl_ = *other.impl_;
+    if (this != &other) {
+        *impl_ = *other.impl_;
+    }
     return *this;
 }
 Cache::Cache(Cache&& other) noexcept = default;
@@ -468,25 +657,35 @@ bool has_real_japanese(const std::string& text) {
 }
 
 bool needs_translation(const std::string& text) {
-    if (text.empty() || trim(text).empty()) return false;
-    if (char_len(text) <= kMinNonJpTranslatableLen && !has_real_japanese(text)) return false;
+    if (text.empty() || trim(text).empty()) {
+        return false;
+    }
+    if (char_len(text) <= kMinNonJpTranslatableLen && !has_real_japanese(text)) {
+        return false;
+    }
     return has_real_japanese(text);
 }
 
 std::vector<std::size_t> translatable_indices(const bj::object& fdata) {
     std::vector<std::size_t> out;
     const auto* strings = fdata.if_contains("strings");
-    if (!strings || !strings->is_array()) return out;
+    if (!strings || !strings->is_array()) {
+        return out;
+    }
     const auto& arr = strings->get_array();
     for (std::size_t i = 0; i < arr.size(); ++i) {
         const auto& s = arr[i].get_object();
         std::string text;
         std::string type;
         if (const auto* t = s.if_contains("text")) {
-            if (t->is_string()) text = std::string(t->get_string());
+            if (t->is_string()) {
+                text = std::string(t->get_string());
+            }
         }
         if (const auto* t = s.if_contains("type")) {
-            if (t->is_string()) type = std::string(t->get_string());
+            if (t->is_string()) {
+                type = std::string(t->get_string());
+            }
         }
         if (needs_translation(text) &&
             (type == "dialogue" || type == "narrative" || type == "menu")) {
@@ -498,7 +697,9 @@ std::vector<std::size_t> translatable_indices(const bj::object& fdata) {
 
 std::string extract_speaker(const std::string& text) {
     const std::size_t crlf = text.find("\r\n");
-    if (crlf == std::string::npos) return "NARRATION";
+    if (crlf == std::string::npos) {
+        return "NARRATION";
+    }
     const std::string name = trim(text.substr(0, crlf));
     const std::string rest = trim_left(text.substr(crlf + kCrlfLen));
     if (name.empty() || char_len(name) > kMaxSpeakerExtractLen || rest.empty()) {
@@ -526,7 +727,9 @@ std::string sanitize_ascii(const std::string& text) {
 }
 
 std::string postprocess(const std::string& original, const std::string& translated) {
-    if (translated.empty() || translated == original) return translated;
+    if (translated.empty() || translated == original) {
+        return translated;
+    }
     std::string t = sanitize_ascii(translated);
 
     const std::size_t crlf = original.find("\r\n");
@@ -551,13 +754,17 @@ std::string postprocess(const std::string& original, const std::string& translat
         original.compare(original.size() - kCrlfLen, kCrlfLen, "\r\n") == 0;
     const bool tr_crlf_end =
         t.size() >= kCrlfLen && t.compare(t.size() - kCrlfLen, kCrlfLen, "\r\n") == 0;
-    if (orig_crlf_end && !tr_crlf_end) t = trim_right(t) + "\r\n";
+    if (orig_crlf_end && !tr_crlf_end) {
+        t = trim_right(t) + "\r\n";
+    }
     return t;
 }
 
 Cache load_cache(const std::string& cache_file) {
     Cache cache;
-    if (!fs::exists(fs::u8path(cache_file))) return cache;
+    if (!fs::exists(fs::u8path(cache_file))) {
+        return cache;
+    }
     const bj::value root = json_parse_file(cache_file);
     if (!root.is_object()) {
         throw std::runtime_error("cannot parse " + cache_file +
@@ -578,7 +785,9 @@ std::size_t cache_entry_count(const std::string& cache_file) {
 std::optional<std::string> refuse_cache_discard(std::size_t cache_entries,
                                                 const std::string& flag,
                                                 bool discard_cache) {
-    if (discard_cache || cache_entries <= CACHE_DISCARD_THRESHOLD) return std::nullopt;
+    if (discard_cache || cache_entries <= CACHE_DISCARD_THRESHOLD) {
+        return std::nullopt;
+    }
     return flag + " discards the translation cache, which holds " +
            std::to_string(cache_entries) +
            " lines that were paid for. Nothing in this pipeline can rebuild "
@@ -589,16 +798,19 @@ std::optional<std::string> refuse_cache_discard(std::size_t cache_entries,
 
 void save_cache(const Cache& cache, const std::string& cache_file) {
     bj::object o;
-    for (const auto& [jp, en] : cache.items()) o[jp] = en;
+    for (const auto& [jp, en] : cache.items()) {
+        o[jp] = en;
+    }
     write_file_atomic_text(cache_file, json_pretty(bj::value(std::move(o)), kCacheJsonIndent));
 }
 
 bool is_failed_entry(const std::string& jp, const std::string& en) {
-    if (jp != en) return false;
-    for (char c : jp) {
-        if (static_cast<unsigned char>(c) >= kNonAsciiMin) return true;
+    if (jp != en) {
+        return false;
     }
-    return false;
+    return std::any_of(jp.begin(), jp.end(), [](char c) {
+        return static_cast<unsigned char>(c) >= kNonAsciiMin;
+    });
 }
 
 std::size_t purge_failed_entries(Cache& cache) {
@@ -611,7 +823,9 @@ std::size_t purge_failed_entries(Cache& cache) {
         }
         kept.set(jp, en);
     }
-    if (removed) cache = std::move(kept);
+    if (removed) {
+        cache = std::move(kept);
+    }
     return removed;
 }
 
@@ -652,9 +866,21 @@ std::string build_user_prompt(
     }
     user_prompt +=
         "Translate the " + std::to_string(batch_lines.size()) +
-        " lines inside <lines_to_translate> to English. "
-        "Use the <previous_context> and <context_after> (if present) for scene continuity "
-        "but do NOT translate them. "
+        " lines inside <lines_to_translate> to English. ";
+    if (!previous_context.empty() && !context_after.empty()) {
+        user_prompt +=
+            "Use <previous_context> and <context_after> for scene continuity "
+            "but do NOT translate them. ";
+    } else if (!previous_context.empty()) {
+        user_prompt +=
+            "Use <previous_context> for scene continuity "
+            "but do NOT translate it. ";
+    } else if (!context_after.empty()) {
+        user_prompt +=
+            "Use <context_after> for scene continuity "
+            "but do NOT translate it. ";
+    }
+    user_prompt +=
         "Output EXACTLY " + std::to_string(batch_lines.size()) +
         " numbered translations, one per line. "
         "Do NOT include [SPEAKER] tags in your output.";
@@ -674,7 +900,9 @@ std::map<int, std::string> parse_numbered_response(const std::string& response_t
         pos = nl == std::string::npos ? response_text.size() + 1 : nl + 1;
 
         line = trim(line);
-        if (line.empty()) continue;
+        if (line.empty()) {
+            continue;
+        }
         line = boost::regex_replace(line, tag_re, "");
         boost::smatch m;
         if (boost::regex_match(line, m, num_re)) {
@@ -687,66 +915,128 @@ std::map<int, std::string> parse_numbered_response(const std::string& response_t
     return translations;
 }
 
+std::int64_t compute_max_output_tokens(std::size_t batch_line_count) noexcept {
+    return vn::llm::compute_batch_max_output_tokens(
+        batch_line_count, kTokensPerLineEstimate);
+}
+
+bj::object build_gemini_request(
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after,
+    std::string_view thinking_level) {
+    const vn::llm::LlmRequest req = make_llm_request(
+        batch_lines, previous_context, context_after, MODEL, thinking_level);
+    return bj::parse(vn::llm::build_gemini_request_json(req)).as_object();
+}
+
+ParsedGeminiResponse parse_gemini_response(const bj::value& response) {
+    ParsedGeminiResponse out;
+    if (!response.is_object()) {
+        return out;
+    }
+    const auto& root = response.as_object();
+
+    std::string prompt_block_reason;
+    if (const auto* pf = root.if_contains("promptFeedback");
+        pf != nullptr && pf->is_object()) {
+        if (const auto* br = pf->as_object().if_contains("blockReason");
+            br != nullptr && br->is_string()) {
+            const std::string_view sv(br->as_string().data(),
+                                      br->as_string().size());
+            if (!sv.empty() && sv != "BLOCK_REASON_UNSPECIFIED") {
+                prompt_block_reason = std::string(sv);
+            }
+        }
+    }
+
+    try {
+        const vn::llm::LlmResponse llm = vn::llm::parse_gemini_response_json(
+            bj::serialize(response), kHttpOkStatus);
+        out.candidate_text = llm.text;
+        out.usage = map_usage(llm.usage);
+        if (!prompt_block_reason.empty()) {
+            out.blocked = true;
+            out.block_reason = std::move(prompt_block_reason);
+        } else if (llm.content_blocked &&
+                   llm.finish_reason != "BLOCK_REASON_UNSPECIFIED") {
+            out.blocked = true;
+            out.block_reason = llm.finish_reason;
+        } else if (is_extra_block_finish_reason(llm.finish_reason)) {
+            out.blocked = true;
+            out.block_reason = llm.finish_reason;
+        }
+        return out;
+    } catch (const vn::llm::LlmError&) {
+        bj::object placeholder = root;
+        placeholder["candidates"] = bj::array{
+            bj::object{
+                {"content",
+                 bj::object{
+                     {"parts", bj::array{bj::object{{"text", "x"}}}},
+                 }},
+            },
+        };
+        try {
+            out.usage = map_usage(vn::llm::parse_gemini_response_json(
+                                      bj::serialize(placeholder), kHttpOkStatus)
+                                      .usage);
+        } catch (const vn::llm::LlmError&) {
+        }
+        if (!prompt_block_reason.empty()) {
+            out.blocked = true;
+            out.block_reason = std::move(prompt_block_reason);
+        } else if (const auto* cands = root.if_contains("candidates");
+                   cands != nullptr && cands->is_array() &&
+                   !cands->as_array().empty() &&
+                   cands->as_array()[kFirstCandidateIndex].is_object()) {
+            const auto& c0 = cands->as_array()[kFirstCandidateIndex].as_object();
+            if (const auto* fr = c0.if_contains("finishReason");
+                fr != nullptr && fr->is_string()) {
+                const std::string_view reason(fr->as_string().data(),
+                                              fr->as_string().size());
+                if (is_extra_block_finish_reason(reason)) {
+                    out.blocked = true;
+                    out.block_reason = std::string(reason);
+                }
+            }
+        }
+        return out;
+    }
+}
+
+void enforce_zero_thought_guard(std::string_view model,
+                                std::string_view thinking_level,
+                                bool blocked,
+                                std::size_t batch_line_count,
+                                std::int64_t thought_tokens) {
+    vn::llm::ZeroThoughtCircuitBreaker breaker;
+    breaker.check_response(model, thinking_level, /*is_top_level=*/true,
+                           batch_line_count, blocked, thought_tokens);
+}
+
+GeminiBatchResult call_gemini_detailed(
+    gemini::Client& client,
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after,
+    std::string_view model,
+    std::string_view thinking_level) {
+    vn::llm::ZeroThoughtCircuitBreaker breaker;
+    return invoke_gemini_slice(client, batch_lines, previous_context,
+                               context_after, model, thinking_level,
+                               /*is_top_level=*/true, breaker);
+}
+
 std::map<int, std::string> call_gemini(
     gemini::Client& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
     const std::vector<std::pair<std::string, std::string>>& previous_context,
     const std::vector<std::pair<std::string, std::string>>& context_after) {
-    bj::object body;
-
-    bj::object sys_part;
-    sys_part["text"] = SYSTEM_PROMPT;
-    bj::object sys_inst;
-    sys_inst["parts"] = bj::array{std::move(sys_part)};
-    body["systemInstruction"] = std::move(sys_inst);
-
-    bj::object user_part;
-    user_part["text"] =
-        build_user_prompt(batch_lines, previous_context, context_after);
-    bj::object user_msg;
-    user_msg["role"] = "user";
-    user_msg["parts"] = bj::array{std::move(user_part)};
-
-    body["contents"] = bj::array{std::move(user_msg)};
-
-    bj::object gen_cfg;
-    gen_cfg["maxOutputTokens"] = std::min<std::int64_t>(
-        static_cast<std::int64_t>(batch_lines.size()) * kTokensPerLineEstimate,
-        kMaxOutputTokensCap);
-    gen_cfg["thinkingConfig"] = bj::object{{"thinkingBudget", kThinkingBudgetTokens}};
-    body["generationConfig"] = std::move(gen_cfg);
-
-    bj::array safety;
-    for (const char* cat : {"HARM_CATEGORY_HATE_SPEECH",
-                            "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            "HARM_CATEGORY_DANGEROUS_CONTENT",
-                            "HARM_CATEGORY_HARASSMENT",
-                            "HARM_CATEGORY_CIVIC_INTEGRITY"}) {
-        safety.push_back(bj::object{{"category", cat}, {"threshold", "BLOCK_NONE"}});
-    }
-    body["safetySettings"] = std::move(safety);
-
-    const bj::value response =
-        client.generate_content(MODEL, bj::value(std::move(body)));
-
-    std::string response_text = trim(extract_candidate_text(response));
-    if (!response_text.empty() && response_text.rfind("1.", 0) != 0 &&
-        response_text.rfind("1)", 0) != 0 && response_text.rfind("1:", 0) != 0) {
-        response_text = "1. " + response_text;
-    }
-
-    log_info("\n--- GEMINI'S RAW ANSWER ---");
-    log_info(response_text);
-    log_info("---------------------------\n");
-
-    const std::int64_t in_tok = extract_usage_token_count(response, "promptTokenCount");
-    const std::int64_t out_tok = extract_usage_token_count(response, "candidatesTokenCount");
-    const std::int64_t cache_read = extract_usage_token_count(response, "cachedContentTokenCount");
-    log_info("    Tokens: in=" + std::to_string(in_tok) +
-             " out=" + std::to_string(out_tok) +
-             " cached=" + std::to_string(cache_read));
-
-    return parse_numbered_response(response_text);
+    return call_gemini_detailed(
+               client, batch_lines, previous_context, context_after, MODEL,
+               kDefaultThinkingLevel)
+        .translations;
 }
 
 int translate_all(const TranslateOptions& opt) {
@@ -768,7 +1058,9 @@ int translate_all(const TranslateOptions& opt) {
         return kRefusedExitCode;
     }
 
-    gemini::LazyClient client;
+    gemini::LazyClient client = opt.client_factory
+                                    ? gemini::LazyClient(opt.client_factory)
+                                    : gemini::LazyClient{};
 
     log_info("Loading translation cache...");
     Cache cache = load_cache(opt.cache_file);
@@ -782,11 +1074,15 @@ int translate_all(const TranslateOptions& opt) {
                  (purged ? "  (those lines re-queue)" : ""));
     }
 
-    for (const auto& [jp, en] : name_translations_ordered()) cache.set(jp, en);
+    for (const auto& [jp, en] : name_translations_ordered()) {
+        cache.set(jp, en);
+    }
 
     std::vector<std::string> file_order;
     for (const auto& f : story_order()) {
-        if (all_data.if_contains(f)) file_order.push_back(f);
+        if (all_data.if_contains(f)) {
+            file_order.push_back(f);
+        }
     }
     for (const auto& kv : all_data) {
         const std::string name(kv.key());
@@ -799,7 +1095,9 @@ int translate_all(const TranslateOptions& opt) {
     std::size_t total_translatable = 0;
     std::size_t total_uncached = 0;
     for (const auto& fname : file_order) {
-        if (opt.only_file && fname != *opt.only_file) continue;
+        if (opt.only_file && fname != *opt.only_file) {
+            continue;
+        }
         const auto& fdata = all_data.at(fname).get_object();
         const auto idxs = translatable_indices(fdata);
         const auto& strings = fdata.at("strings").get_array();
@@ -830,6 +1128,7 @@ int translate_all(const TranslateOptions& opt) {
         const int batch_cap = opt.test_batches > 0 ? opt.test_batches : opt.max_batches;
         const char* cap_flag = opt.test_batches > 0 ? "--test " : "--max-batches ";
         int api_batches_done = 0;
+        vn::llm::ZeroThoughtCircuitBreaker circuit_breaker;
 
         for (const auto& [fname, line_count, uncached_count] : file_stats) {
             if (uncached_count == 0) {
@@ -843,7 +1142,7 @@ int translate_all(const TranslateOptions& opt) {
             bj::array log_entries;
             const auto [count, stopped] = translate_file(
                 client, fname, all_data.at(fname).get_object(), cache, opt.batch_size,
-                opt.cache_file, batch_cap, api_batches_done,
+                opt.cache_file, batch_cap, api_batches_done, circuit_breaker,
                 opt.test_batches ? &log_entries : nullptr);
             (void)count;
             done_lines += line_count;
@@ -886,7 +1185,9 @@ int translate_all(const TranslateOptions& opt) {
     log_info("\nBuilding translated text...");
     for (auto& kv : all_data) {
         auto* strings = kv.value().get_object().if_contains("strings");
-        if (!strings || !strings->is_array()) continue;
+        if (!strings || !strings->is_array()) {
+            continue;
+        }
         for (auto& sv : strings->get_array()) {
             auto& s = sv.get_object();
             const std::string text(s.at("text").get_string());

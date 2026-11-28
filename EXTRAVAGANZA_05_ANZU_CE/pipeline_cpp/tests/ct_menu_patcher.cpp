@@ -219,10 +219,10 @@ TEST(MenuPatcherComponent, CommittedAnzMenu1PatchBinHeaderAndAbsenceOfRawHeaders
 
     const auto parsed = parse_patch_bin(patch_bytes);
     EXPECT_EQ(parsed.version, kPatchFormatVersion);
-    EXPECT_EQ(parsed.standalone_file_count, kExpectedStandaloneFileCount);
-    EXPECT_EQ(parsed.gpk_entry_count, kExpectedModifiedGpkEntryCount);
-    EXPECT_EQ(parsed.standalone_records.size(), kExpectedStandaloneFileCount);
-    EXPECT_EQ(parsed.gpk_records.size(), kExpectedModifiedGpkEntryCount);
+    ASSERT_EQ(parsed.standalone_file_count, kExpectedStandaloneFileCount);
+    ASSERT_EQ(parsed.gpk_entry_count, kExpectedModifiedGpkEntryCount);
+    ASSERT_EQ(parsed.standalone_records.size(), kExpectedStandaloneFileCount);
+    ASSERT_EQ(parsed.gpk_records.size(), kExpectedModifiedGpkEntryCount);
 
     for (const auto& rec : parsed.standalone_records) {
         EXPECT_FALSE(rec.rel_path.empty());

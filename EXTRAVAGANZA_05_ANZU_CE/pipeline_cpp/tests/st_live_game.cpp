@@ -8,10 +8,14 @@
 // System tests for WelcomeToAnzU!_CE requiring a live game installation via
 // VN_GAME_DIR. All write/patch tests copy input files into a ScopedTempDir
 // under temp_directory_path() and never mutate VN_GAME_DIR.
+#include "apps/paths.h"
+#include "build_tsv/build_tsv.h"
+#include "cache/cache_core.h"
 #include "cache/speaker_gate.h"
 #include "common/util.h"
 #include "extract/extractor.h"
 #include "menu/menu_patcher.h"
+#include "translator_logic.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -102,14 +106,15 @@ fs::path ResolveLiveGameDir() {
     return fs::u8path(utf8);
 }
 
-fs::path FindCommittedPatchBin() {
+fs::path FindRepoProjectDir() {
     fs::path cur = fs::current_path();
     for (int i = 0; i < kMaxWalkLevels; ++i) {
-        if (fs::exists(cur / "menu_patch.bin")) {
-            return cur / "menu_patch.bin";
+        if (fs::exists(cur / "menu_patch.bin") && fs::exists(cur / "build.py")) {
+            return cur;
         }
-        if (fs::exists(cur / "EXTRAVAGANZA_05_ANZU_CE" / "menu_patch.bin")) {
-            return cur / "EXTRAVAGANZA_05_ANZU_CE" / "menu_patch.bin";
+        const fs::path child = cur / "EXTRAVAGANZA_05_ANZU_CE";
+        if (fs::exists(child / "menu_patch.bin") && fs::exists(child / "build.py")) {
+            return child;
         }
         if (!cur.has_parent_path() || cur.parent_path() == cur) {
             break;
@@ -117,6 +122,40 @@ fs::path FindCommittedPatchBin() {
         cur = cur.parent_path();
     }
     return {};
+}
+
+fs::path FindCommittedPatchBin() {
+    const fs::path proj = FindRepoProjectDir();
+    return proj.empty() ? fs::path{} : (proj / "menu_patch.bin");
+}
+
+fs::path ResolvePipelineBinary(const fs::path& proj_dir, std::string_view exe_name) {
+    const fs::path test_exe_dir = fs::u8path(apps::exe_dir());
+    std::vector<fs::path> candidates = {
+        test_exe_dir / fs::u8path(exe_name),
+        test_exe_dir.parent_path().parent_path() / "Release" / fs::u8path(exe_name),
+        test_exe_dir.parent_path() / fs::u8path(exe_name),
+    };
+    if (!proj_dir.empty()) {
+        candidates.push_back(proj_dir / "build" / "install" / "bin" / fs::u8path(exe_name));
+        candidates.push_back(proj_dir / "build" / "pipeline" / "Release" / fs::u8path(exe_name));
+    }
+    for (const fs::path& cand : candidates) {
+        std::error_code ec;
+        if (fs::is_regular_file(cand, ec)) {
+            return fs::weakly_canonical(cand, ec);
+        }
+    }
+    return {};
+}
+
+bool HasUnexpectedHostControlChar(const std::string& utf8) {
+    for (unsigned char c : utf8) {
+        if (c < 0x20u && c != '\r' && c != '\n' && c != '\t') {
+            return true;
+        }
+    }
+    return false;
 }
 
 fs::path ResolveMatchingUnpatchedFile(const fs::path& game_dir,
@@ -213,6 +252,180 @@ TEST(LiveGameSystem, LiveGameExtractionProducesCompleteCorpusAndSpeakers) {
     EXPECT_EQ(static_cast<std::int64_t>(speakers.size()), kExpectedDistinctSpeakers);
     EXPECT_TRUE(speakers.count("夢美") != 0);
     EXPECT_TRUE(speakers.count("アゲハ") != 0);
+
+    const bj::object& tokuten_obj = root.at("tokuten.spt").as_object();
+    const bj::array& tokuten_strings = tokuten_obj.at("strings").as_array();
+    std::set<std::string> translatable_texts;
+    for (std::size_t idx : translate::translatable_indices(tokuten_obj)) {
+        translatable_texts.emplace(tokuten_strings.at(idx).as_object().at("text").as_string());
+    }
+    for (const char* must_translate : {
+             "夢美を呼ぶ",
+             "アゲハを呼ぶ",
+             "だが――――\r\n",
+             "――と、\r\n",
+             "高まる官能。\r\n",
+             "俺は、限界までスピードを上げて夢美を突き続け、\r\nそして――――\r\n",
+         }) {
+        EXPECT_TRUE(translatable_texts.count(must_translate) != 0)
+            << "Missing from translatable corpus: " << must_translate;
+    }
+}
+
+TEST(LiveGameSystem, LiveExtractedCorpusRoundTripsThroughPackagedBinariesAndProxyLookup) {
+    const fs::path game_dir = ResolveLiveGameDir();
+    if (game_dir.empty()) {
+        GTEST_SKIP() << "VN_GAME_DIR not set; skipping live runtime TSV parity check.";
+    }
+    const fs::path spt_dir = fs::u8path(extract::resolve_spt_dir(game_dir.u8string()));
+    if (!fs::is_directory(spt_dir)) {
+        GTEST_SKIP() << "Live WelcomeToAnzU!_CE directory not present: " << spt_dir.u8string();
+    }
+
+    const fs::path proj_dir = FindRepoProjectDir();
+    ASSERT_FALSE(proj_dir.empty()) << "EXTRAVAGANZA_05_ANZU_CE project directory not found";
+    const fs::path translated_json = proj_dir / "script_output" / "translated_text.json";
+    ASSERT_TRUE(fs::is_regular_file(translated_json))
+        << "Missing decrypted script_output/translated_text.json (run build.py or decrypt_translations.bat)";
+
+    const fs::path extract_exe = ResolvePipelineBinary(proj_dir, "01_extract.exe");
+    ASSERT_FALSE(extract_exe.empty()) << "Compiled 01_extract.exe not found";
+    const fs::path build_tsv_exe = ResolvePipelineBinary(proj_dir, "02_build_tsv.exe");
+    ASSERT_FALSE(build_tsv_exe.empty()) << "Compiled 02_build_tsv.exe not found";
+
+    const ScopedTempDir tmp("anzu_ce_st_tsv_parity");
+    const fs::path staged_proj = tmp.path() / "proj";
+    const fs::path staged_game = tmp.path() / "game";
+    fs::create_directories(staged_proj / "script_output");
+    fs::create_directories(staged_game);
+
+    // 1. Execute packaged 01_extract.exe against read-only live VN_GAME_DIR.
+    const int rc_extract = apps::run_child_process(
+        extract_exe.u8string(),
+        {"--dir", staged_proj.u8string(), "--game-dir", game_dir.u8string()});
+    ASSERT_EQ(rc_extract, apps::kExitOk) << "01_extract.exe exited with " << rc_extract;
+    const fs::path extracted_json = staged_proj / "script_output" / "extracted_text.json";
+    ASSERT_TRUE(fs::is_regular_file(extracted_json));
+
+    // 2. Execute packaged 02_build_tsv.exe --rebuild-table against repo translated_text.json.
+    const fs::path built_tsv = staged_game / "translation_table.tsv";
+    const int rc_tsv = apps::run_child_process(
+        build_tsv_exe.u8string(),
+        {"--rebuild-table", "--dir", proj_dir.u8string(),
+         "--game-dir", staged_game.u8string(), "--out", built_tsv.u8string()});
+    ASSERT_EQ(rc_tsv, apps::kExitOk) << "02_build_tsv.exe --rebuild-table exited with " << rc_tsv;
+    ASSERT_TRUE(fs::is_regular_file(built_tsv));
+
+    const Bytes tsv_bytes = exm::read_file(built_tsv.u8string());
+    ASSERT_FALSE(tsv_bytes.empty());
+
+    // When build/install/game/translation_table.tsv has been staged by build.py,
+    // assert exact byte-for-byte parity so stale packaged TSVs fail loudly.
+    const fs::path staged_artifact_tsv =
+        proj_dir / "build" / "install" / "game" / "translation_table.tsv";
+    if (fs::is_regular_file(staged_artifact_tsv)) {
+        EXPECT_EQ(exm::read_file(staged_artifact_tsv.u8string()), tsv_bytes)
+            << "Staged build/install/game/translation_table.tsv is stale vs translated_text.json";
+    }
+
+    // 3. Load CP932 TSV through real proxy_dll parser and verify 100% live corpus lookup parity.
+    translator_logic::TranslationMap runtime_map;
+    const int loaded = translator_logic::ParseTsvBuffer(
+        reinterpret_cast<const char*>(tsv_bytes.data()), tsv_bytes.size(), runtime_map);
+    ASSERT_GT(loaded, 0);
+
+    const bj::value extracted_val = json_parse_file(extracted_json.u8string());
+    ASSERT_TRUE(extracted_val.is_object());
+
+    std::size_t checked_count = 0;
+    std::vector<std::string> missed_keys;
+    std::vector<std::string> jp_leaks;
+    std::vector<std::string> unexpected_controls;
+
+    for (const auto& kv : extracted_val.as_object()) {
+        const bj::object& fdata = kv.value().as_object();
+        const bj::array& strings = fdata.at("strings").as_array();
+        for (std::size_t idx : translate::translatable_indices(fdata)) {
+            const std::string jp_utf8(strings.at(idx).as_object().at("text").as_string());
+            if (HasUnexpectedHostControlChar(jp_utf8)) {
+                unexpected_controls.push_back(jp_utf8);
+            }
+            const auto jp_cp932_bytes = utf8_to_cp932_strict(jp_utf8);
+            ASSERT_TRUE(jp_cp932_bytes.has_value())
+                << "Extracted SPT string failed CP932 re-encode: " << jp_utf8;
+
+            const std::string jp_cp932(
+                reinterpret_cast<const char*>(jp_cp932_bytes->data()),
+                jp_cp932_bytes->size());
+            std::string en_cp932;
+            ++checked_count;
+            if (!translator_logic::LookupTranslation(
+                    runtime_map, jp_cp932.c_str(), false, en_cp932)) {
+                missed_keys.push_back(jp_utf8);
+                continue;
+            }
+            const std::string en_utf8 = cp932_to_utf8_replace(
+                reinterpret_cast<const std::uint8_t*>(en_cp932.data()), en_cp932.size());
+            if (translate::has_real_japanese(en_utf8)) {
+                jp_leaks.push_back(jp_utf8 + " => " + en_utf8);
+            }
+        }
+    }
+
+    EXPECT_GT(checked_count, 0u);
+    EXPECT_TRUE(unexpected_controls.empty())
+        << "Found " << unexpected_controls.size()
+        << " translatable lines with unexpected ASCII control chars";
+    EXPECT_TRUE(missed_keys.empty())
+        << "Runtime lookup missed " << missed_keys.size()
+        << " translatable lines; first miss: " << (missed_keys.empty() ? "" : missed_keys.front());
+    EXPECT_TRUE(jp_leaks.empty())
+        << "Resolved English contained Japanese in " << jp_leaks.size()
+        << " lines; first leak: " << (jp_leaks.empty() ? "" : jp_leaks.front());
+
+    // 4. Verify decrypted translation_cache_gemini.json hygiene (0 failed entries,
+    //    0 Japanese leaks, 100% strict CP932-encodable English values).
+    const fs::path cache_json = proj_dir / "script_output" / "translation_cache_gemini.json";
+    ASSERT_TRUE(fs::is_regular_file(cache_json))
+        << "Missing decrypted script_output/translation_cache_gemini.json";
+    const translate::Cache cache = translate::load_cache(cache_json.u8string());
+    ASSERT_GT(cache.size(), 0u);
+    std::size_t cache_failed = 0;
+    std::size_t cache_jp_leak = 0;
+    std::size_t cache_non_cp932 = 0;
+    for (const auto& [jp, en] : cache.items()) {
+        if (translate::is_failed_entry(jp, en)) {
+            ++cache_failed;
+        }
+        if (en != jp && translate::has_real_japanese(en)) {
+            ++cache_jp_leak;
+        }
+        if (!utf8_to_cp932_strict(en).has_value()) {
+            ++cache_non_cp932;
+        }
+    }
+    EXPECT_EQ(cache_failed, 0u) << "Failed/untranslated entries in translation_cache_gemini.json";
+    EXPECT_EQ(cache_jp_leak, 0u) << "Japanese kana/kanji leaked into cached English values";
+    EXPECT_EQ(cache_non_cp932, 0u) << "Non-CP932 characters in cached English values";
+
+    for (const char* regression_jp : {
+             "夢美を呼ぶ",
+             "アゲハを呼ぶ",
+             "だが――――\r\n",
+             "――と、\r\n",
+             "高まる官能。\r\n",
+             "俺は、限界までスピードを上げて夢美を突き続け、\r\nそして――――\r\n",
+             "まるで犬のように小刻みに――――\r\n",
+             "さらに強い刺激を――――\r\n",
+         }) {
+        const auto cp932 = utf8_to_cp932_strict(regression_jp);
+        ASSERT_TRUE(cp932.has_value());
+        const std::string key(reinterpret_cast<const char*>(cp932->data()), cp932->size());
+        std::string en_cp932;
+        EXPECT_TRUE(translator_logic::LookupTranslation(runtime_map, key.c_str(), false, en_cp932))
+            << "Regression key missed runtime lookup: " << regression_jp;
+        EXPECT_FALSE(en_cp932.empty());
+    }
 }
 
 TEST(LiveGameSystem, LiveSys0GpkDecodesAndReencodes24BitAnd2ASprites) {
@@ -237,6 +450,9 @@ TEST(LiveGameSystem, LiveSys0GpkDecodesAndReencodes24BitAnd2ASprites) {
         const auto img = patcher.decode_entry_rgba(idx);
         EXPECT_GT(img.width, 0u) << "entry " << idx;
         EXPECT_GT(img.height, 0u) << "entry " << idx;
+        EXPECT_EQ(img.pixels.size(),
+                  static_cast<std::size_t>(img.width) * img.height * 4u)
+            << "entry " << idx;
         if (idx == kIdxBgMinigame601 || idx == kIdxChartBack41 ||
             idx == kIdxTaChartmapBt71 || idx == kIdxTaXtgCgcur02 ||
             idx == kIdxTaXtgMeswin02 || idx == kIdxTaXtgTitbt04) {

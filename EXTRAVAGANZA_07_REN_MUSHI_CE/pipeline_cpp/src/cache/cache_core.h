@@ -5,24 +5,57 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Batch translation driver and cache management for AGEHA_CE.
+// Batch translation driver, thin `vn::llm` wire adapter, and cache management
+// for Ren_mushi_CE.
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include <boost/json.hpp>
 
 #include "cache/gemini_client.h"
+#include "cache/glossary.h"
+#include "vn/llm/llm_types.h"
+#include "vn/llm/zero_thought_guard.h"
 
 namespace exm::translate {
 
-constexpr int kDefaultBatchSize = 150;
+inline constexpr int kDefaultBatchSize = vn::llm::kDefaultBatchSize;
 inline constexpr std::size_t CACHE_DISCARD_THRESHOLD = 100;
+inline constexpr std::int64_t kTokensPerLineEstimate = vn::llm::kDefaultTokensPerBatchLine;
+inline constexpr std::int64_t kMinOutputTokens = vn::llm::kMinOutputTokensFloor;
+inline constexpr std::int64_t kMaxOutputTokens = vn::llm::kMaxOutputTokensCeiling;
+inline constexpr std::size_t kZeroThoughtGuardMinLines =
+    vn::llm::kMinInitialBatchSliceForThoughtCheck;
+inline constexpr std::string_view kDefaultThinkingLevel = vn::llm::kDefaultThinkingLevel;
+
+using ZeroThoughtError = vn::llm::LlmZeroThoughtError;
+
+struct GeminiUsageTelemetry {
+    std::int64_t prompt_tokens = 0;
+    std::int64_t candidate_tokens = 0;
+    std::int64_t cached_tokens = 0;
+    std::int64_t thought_tokens = 0;
+    bool blocked = false;
+};
+
+struct ParsedGeminiResponse {
+    std::string candidate_text;
+    GeminiUsageTelemetry telemetry;
+};
+
+struct GeminiBatchResult {
+    std::map<int, std::string> translations;
+    GeminiUsageTelemetry telemetry;
+};
 
 // Insertion-ordered jp -> en cache hiding private data via PIMPL.
 class Cache {
@@ -75,6 +108,42 @@ std::string build_user_prompt(
 
 std::map<int, std::string> parse_numbered_response(const std::string& response_text);
 
+// Builds a Gemini generateContent request payload via `vn::llm`:
+//   - rejects disallowed models (e.g. any "argon" identifier) via
+//     `vn::llm::ensure_supported_model(model)`
+//   - generationConfig.maxOutputTokens = clamp(batch_lines.size() * 300, 16384, 65536)
+//   - generationConfig.thinkingConfig = {"thinkingLevel": thinking_level} (no thinkingBudget)
+//   - safetySettings = 5 BLOCK_NONE categories (HARASSMENT, HATE_SPEECH,
+//     SEXUALLY_EXPLICIT, DANGEROUS_CONTENT, CIVIC_INTEGRITY)
+boost::json::object build_gemini_request(
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context = {},
+    const std::vector<std::pair<std::string, std::string>>& context_after = {},
+    std::string_view thinking_level = kDefaultThinkingLevel,
+    std::string_view model = MODEL);
+
+// Extracts concatenated non-thought candidate text (skipping parts with
+// thought == true) and usageMetadata token counts (including thoughtsTokenCount)
+// via `vn::llm::parse_gemini_response_json`.
+ParsedGeminiResponse parse_gemini_response(const boost::json::value& response);
+
+// Throws ZeroThoughtError when `vn::llm::is_guarded_thinking_mode(model, thinking_level)`
+// holds (supported Gemini 4 reasoning family `carbon`/`neon`/`hydrogen` at
+// `"MEDIUM"` or `"HIGH"`), !telemetry.blocked, batch_line_count >= 4, and
+// telemetry.thought_tokens <= 0.
+void enforce_thought_telemetry_guard(std::string_view model,
+                                     std::string_view thinking_level,
+                                     std::size_t batch_line_count,
+                                     const GeminiUsageTelemetry& telemetry);
+
+GeminiBatchResult call_gemini_detailed(
+    gemini::Client& client,
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context = {},
+    const std::vector<std::pair<std::string, std::string>>& context_after = {},
+    const std::string& model = MODEL,
+    std::string_view thinking_level = kDefaultThinkingLevel);
+
 std::map<int, std::string> call_gemini(
     gemini::Client& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
@@ -92,8 +161,13 @@ struct TranslateOptions {
     std::string output_file;
     std::string test_dir;
     std::string tsv_file;
+    gemini::LazyClient::Factory client_factory{};
 };
 
+// Runs speaker gate, merges name_translations_ordered() plus newly translated
+// batches into cache_file, writes output_file (translated_text.json), and
+// builds tsv_file (CP932 translation_table.tsv). Propagates ZeroThoughtError
+// before writing cache_file, output_file, or tsv_file.
 int translate_all(const TranslateOptions& opt);
 
 }  // namespace exm::translate

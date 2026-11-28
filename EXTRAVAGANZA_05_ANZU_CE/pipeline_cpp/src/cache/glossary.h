@@ -8,6 +8,8 @@
 // Welcome to AnzU! CE character glossary and Gemini system prompt.
 #pragma once
 
+#include "vn/llm/llm_types.h"
+
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -25,7 +27,7 @@ const std::string& glossary_prompt();
 
 const std::vector<std::string>& story_order();
 
-inline const std::string MODEL = "gemini-4-argon";
+inline const std::string MODEL{vn::llm::kDefaultModel};
 
 constexpr int CONTEXT_WINDOW = 40;
 constexpr int CONTEXT_AFTER = 20;

@@ -32,3 +32,5 @@ exm_test(ut_cp932_fuzz)
 
 exm_ct_test(ct_menu_and_corpus)
 exm_st_test(st_menu_patcher)
+exm_st_test(st_gemini_argon ../src/apps/paths.cpp)
+target_link_libraries(st_gemini_argon PRIVATE shell32)

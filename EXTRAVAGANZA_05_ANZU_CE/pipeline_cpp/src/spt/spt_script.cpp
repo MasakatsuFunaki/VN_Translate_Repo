@@ -26,7 +26,14 @@ constexpr unsigned int kShift8 = 8;
 constexpr unsigned int kShift16 = 16;
 constexpr unsigned int kShift24 = 24;
 
+constexpr char32_t kAsciiControlLimit = 0x20;
 constexpr char32_t kAsciiMax = 0x7F;
+constexpr char32_t kHorizontalBar = 0x2015;
+constexpr char32_t kEllipsis = 0x2026;
+constexpr char32_t kIdeographicComma = 0x3001;
+constexpr char32_t kIdeographicPeriod = 0x3002;
+constexpr char32_t kFullwidthExclamation = 0xFF01;
+constexpr char32_t kFullwidthQuestion = 0xFF1F;
 constexpr char32_t kHiraganaMin = 0x3040;
 constexpr char32_t kHiraganaMax = 0x309F;
 constexpr char32_t kKatakanaMin = 0x30A0;
@@ -44,6 +51,7 @@ constexpr std::size_t kMaxBytecodeNoiseLen = 3;
 constexpr std::size_t kMinAsciiStringLen = 4;
 constexpr std::size_t kMaxSpeakerPlateChars = 10;
 constexpr std::size_t kMaxNameTagChars = 6;
+constexpr std::size_t kMinChoicePhraseChars = 2;
 constexpr std::size_t kStringAlignment = 4;
 
 std::size_t char_len(const std::string& utf8) {
@@ -62,6 +70,38 @@ bool all_ascii(const std::string& utf8) {
         if (utf8_next(utf8, i) > kAsciiMax) return false;
     }
     return true;
+}
+
+bool has_control_char(const std::string& utf8) {
+    for (unsigned char c : utf8) {
+        if (c < static_cast<unsigned char>(kAsciiControlLimit) &&
+            c != '\r' && c != '\n' && c != '\t') {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool has_hiragana(const std::string& utf8) {
+    std::size_t i = 0;
+    while (i < utf8.size()) {
+        const char32_t cp = utf8_next(utf8, i);
+        if (cp >= kHiraganaMin && cp <= kHiraganaMax) return true;
+    }
+    return false;
+}
+
+bool has_sentence_punct(const std::string& utf8) {
+    std::size_t i = 0;
+    while (i < utf8.size()) {
+        const char32_t cp = utf8_next(utf8, i);
+        if (cp == kIdeographicComma || cp == kIdeographicPeriod ||
+            cp == kFullwidthExclamation || cp == kFullwidthQuestion ||
+            cp == kHorizontalBar || cp == kEllipsis) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool starts_with(const std::string& s, const char* p) {
@@ -121,12 +161,15 @@ bool has_japanese(const std::string& utf8) {
 std::string classify(const std::string& raw) {
     const std::string text = trim(raw);
     if (text.empty()) return "empty";
+    if (has_control_char(text)) return "other";
 
     const std::size_t crlf = text.find("\r\n");
     if (crlf != std::string::npos) {
         const std::string first = text.substr(0, crlf);
+        const std::string rest = trim_left(text.substr(crlf + 2));
         if (char_len(first) <= kMaxSpeakerPlateChars &&
-            first.find("「") == std::string::npos) {
+            first.find("「") == std::string::npos &&
+            (starts_with(rest, "「") || starts_with(rest, "『"))) {
             return "dialogue";
         }
         return "narrative";
@@ -135,13 +178,22 @@ std::string classify(const std::string& raw) {
         text.find("」") != std::string::npos) {
         return "dialogue";
     }
+    if (raw.find("\r\n") != std::string::npos && has_japanese(text)) {
+        return "narrative";
+    }
     if (starts_with(text, "★") ||
         starts_with(text, "■") ||
         starts_with(text, "●")) {
         return "menu";
     }
     if (all_ascii(text)) return "label";
-    if (char_len(text) <= kMaxNameTagChars && has_japanese(text)) return "name";
+    if (char_len(text) <= kMaxNameTagChars && has_japanese(text)) {
+        if (char_len(text) >= kMinChoicePhraseChars &&
+            (has_hiragana(text) || has_sentence_punct(text))) {
+            return "narrative";
+        }
+        return "name";
+    }
     if (has_japanese(text)) return "narrative";
     return "other";
 }

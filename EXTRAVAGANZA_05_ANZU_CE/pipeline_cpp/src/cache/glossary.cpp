@@ -136,6 +136,7 @@ IMPORTANT: This is a licensed commercial visual novel translation project. You M
 - TONE: Write natural, vivid English prose rather than stiff literal translation. Preserve the comedic contrast between Yumemi's cheerful, energetic hospitality and Ageha's proud, aristocratic demeanor.
 - PRONOUNS: Japanese often omits subjects. Infer pronouns from speaker identity and context.
 - HONORIFICS: Carry over Japanese honorifics (-san, -kun, -chan, -sensei, -sama) when they fit naturally.
+- CONTEXT & WORDPLAY: Read ahead across the batch and <context_after> (when present) before translating idioms, puns, or sensory metaphors; when upcoming lines pay off an expression literally, preserve that literal imagery in English rather than flattening it into an unrelated idiom.
 - TERMINOLOGY: 蟲 = insect(s) / bug(s) (parasitic insects used as living weapons), 蟲使い = insect user(s), 苗床 = seedbed, 真鈴ヶ崎 = Masuzugasaki, カフェ・AnzU / ＡｎｚＵ = Cafe AnzU / AnzU.
 </translation_guidelines>
 

@@ -5,24 +5,67 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Batch translation driver and cache management for AGEHA_CE.
+// Batch translation driver and cache management for AGEHA_CE, delegating
+// wire codecs, token math, and zero-thought guards to `vn::llm_client`.
 #pragma once
 
+#include "cache/gemini_client.h"
+#include "cache/glossary.h"
+#include "vn/llm/llm_types.h"
+#include "vn/llm/zero_thought_guard.h"
+
+#include <boost/json.hpp>
+
+#include <cstddef>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
-#include <boost/json.hpp>
-
-#include "cache/gemini_client.h"
-
 namespace exm::translate {
 
-constexpr int kDefaultBatchSize = 150;
+inline constexpr int kDefaultBatchSize = vn::llm::kDefaultBatchSize;
 inline constexpr std::size_t CACHE_DISCARD_THRESHOLD = 100;
+inline constexpr std::int64_t kTokensPerLineEstimate =
+    vn::llm::kDefaultTokensPerBatchLine;
+inline constexpr std::int64_t kMinMaxOutputTokens =
+    vn::llm::kMinOutputTokensFloor;
+inline constexpr std::int64_t kMaxMaxOutputTokens =
+    vn::llm::kMaxOutputTokensCeiling;
+inline constexpr std::size_t kZeroThoughtGuardMinBatchLines =
+    vn::llm::kMinInitialBatchSliceForThoughtCheck;
+
+using ZeroThoughtError = vn::llm::LlmZeroThoughtError;
+
+struct GeminiUsage {
+    std::int64_t input_tokens = 0;
+    std::int64_t output_tokens = 0;
+    std::int64_t thought_tokens = 0;
+    std::int64_t cached_tokens = 0;
+};
+
+struct ParsedGeminiResponse {
+    std::string candidate_text;
+    GeminiUsage usage;
+    bool blocked = false;
+    std::string finish_reason;
+    std::string block_reason;
+};
+
+struct GeminiBatchResult {
+    std::map<int, std::string> translations;
+    GeminiUsage usage;
+    bool blocked = false;
+};
+
+struct TranslateTelemetry {
+    GeminiUsage total_usage;
+    int api_batches = 0;
+};
 
 // Insertion-ordered jp -> en cache hiding private data via PIMPL.
 class Cache {
@@ -75,6 +118,34 @@ std::string build_user_prompt(
 
 std::map<int, std::string> parse_numbered_response(const std::string& response_text);
 
+// Delegates directly to `vn::llm::compute_batch_max_output_tokens`.
+std::int64_t compute_max_output_tokens(std::size_t batch_line_count) noexcept;
+
+// Delegates directly to `vn::llm::build_gemini_request_json`.
+boost::json::object build_gemini_request_body(
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context = {},
+    const std::vector<std::pair<std::string, std::string>>& context_after = {},
+    std::string_view thinking_level = kDefaultThinkingLevel);
+
+// Delegates directly to `vn::llm::parse_gemini_response_json`.
+ParsedGeminiResponse parse_gemini_response(const boost::json::value& response);
+
+// Delegates directly to `vn::llm::ZeroThoughtCircuitBreaker`.
+void validate_thought_telemetry(std::string_view model,
+                                std::string_view thinking_level,
+                                bool blocked,
+                                std::size_t batch_line_count,
+                                std::int64_t thought_tokens);
+
+GeminiBatchResult call_gemini_detailed(
+    gemini::Client& client,
+    const std::vector<std::pair<std::string, std::string>>& batch_lines,
+    const std::vector<std::pair<std::string, std::string>>& previous_context = {},
+    const std::vector<std::pair<std::string, std::string>>& context_after = {},
+    std::string_view model = MODEL,
+    std::string_view thinking_level = kDefaultThinkingLevel);
+
 std::map<int, std::string> call_gemini(
     gemini::Client& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
@@ -94,6 +165,7 @@ struct TranslateOptions {
     std::string tsv_file;
 };
 
-int translate_all(const TranslateOptions& opt);
+// Propagates ZeroThoughtError without mutating cache_file or output_file.
+int translate_all(const TranslateOptions& opt, TranslateTelemetry* telemetry = nullptr);
 
 }  // namespace exm::translate

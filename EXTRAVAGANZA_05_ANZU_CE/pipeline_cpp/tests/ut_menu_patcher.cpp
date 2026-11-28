@@ -5,14 +5,16 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Pure standalone unit tests for FXF bitwise-NOT, MurmurHash2 + XOR-delta
-// masking, RLE-XOR mask round-trip, and FXF text patching for WelcomeToAnzU!_CE.
+// Pure unit tests for FXF bitwise-NOT, canonical MurmurHash2 + XOR-delta
+// masking, crop-margin calculation, RLE-XOR mask round-trip, FXF text patching,
+// and DWQ PNG validation for WelcomeToAnzU!_CE.
 #include "menu/menu_patcher.h"
 
 #include "common/util.h"
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -24,6 +26,7 @@ namespace {
 
 using exm::menu::ComputeMurmurHash2;
 using exm::menu::XorMaskPayload;
+using exm::menu::compute_crop_margins;
 using exm::menu::decode_rle_xor_mask;
 using exm::menu::decrypt_fxf;
 using exm::menu::encode_rle_xor_mask;
@@ -31,60 +34,115 @@ using exm::menu::encrypt_fxf;
 using exm::menu::patch_backlog_fxf;
 using exm::menu::patch_main_control_fxf;
 
-constexpr int kMaskTestWidth = 16;
-constexpr int kMaskTestHeight = 12;
-constexpr std::size_t kMaskZeroModulus = 3;
-constexpr std::uint32_t kMaskPatternMul = 37u;
-constexpr std::uint32_t kMaskPatternAdd = 11u;
 constexpr std::size_t kBacklogSpacesCount = 8;
 
-constexpr std::uint8_t kOrigByte0 = 0x10;
-constexpr std::uint8_t kOrigByte1 = 0x20;
-constexpr std::uint8_t kOrigByte2 = 0x30;
-constexpr std::uint8_t kOrigByte3 = 0x40;
-constexpr std::uint8_t kOrigByte4 = 0x55;
-constexpr std::uint8_t kOrigByte5 = 0xAA;
+constexpr std::uint32_t kMurmurEmpty = 0x00000000u;
+constexpr std::uint32_t kMurmurOne = 0x00000000u;
+constexpr std::uint32_t kMurmurSign80 = 0x9B891BB0u;
+constexpr std::uint32_t kMurmurHello = 0xE56129CBu;
+constexpr std::uint32_t kMurmurSign4 = 0x26824341u;
+constexpr std::uint32_t kMurmurTail3 = 0x3AA63325u;
 
-constexpr std::uint8_t kPatchedByte0 = 0xFE;
-constexpr std::uint8_t kPatchedByte1 = 0xDC;
-constexpr std::uint8_t kPatchedByte2 = 0xBA;
-constexpr std::uint8_t kPatchedByte3 = 0x98;
-constexpr std::uint8_t kPatchedByte4 = 0x76;
-constexpr std::uint8_t kPatchedByte5 = 0x54;
-constexpr std::uint8_t kPatchedByte6 = 0x32;
+TEST(MenuPatcherContract, FxfMurmurHash2XorMaskCropMarginsAndRleMaskPinnedVectors) {
+    // 1. Pinned bitwise-NOT FXF bytes across sign-bit seam (prevents symmetric-bug pass).
+    const std::string fxf_seam("\x00\x41\x7F\x80\xFF", 5);
+    const std::vector<std::uint8_t> expected_fxf_enc = {0xFFu, 0xBEu, 0x80u, 0x7Fu, 0x00u};
+    const std::vector<std::uint8_t> actual_fxf_enc = encrypt_fxf(fxf_seam);
+    EXPECT_EQ(actual_fxf_enc, expected_fxf_enc);
+    EXPECT_EQ(decrypt_fxf(actual_fxf_enc), fxf_seam);
 
-TEST(MenuPatcherContract, FxfAndXorMaskAndRleXorMaskRoundTrips) {
-    const std::string fxf_src = "name mainControl\r\nwindowTitle Welcome to AnzU! CE\r\n";
-    EXPECT_EQ(decrypt_fxf(encrypt_fxf(fxf_src)), fxf_src);
+    // 2. Canonical Austin Appleby MurmurHash2 (m=0x5BD1E995, r=24, seed=0) vectors
+    //    covering empty, 1-byte sign-bit (0x80), 3-byte tail, 4-byte sign-bit, and 5-byte word+tail.
+    const std::uint8_t one_byte[] = {0x01u};
+    const std::uint8_t sign80[] = {0x80u};
+    const std::uint8_t hello[] = {'h', 'e', 'l', 'l', 'o'};
+    const std::uint8_t sign4[] = {0x00u, 0x7Fu, 0x80u, 0xFFu};
+    const std::uint8_t tail3[] = {0x01u, 0x02u, 0x03u};
+    EXPECT_EQ(ComputeMurmurHash2(nullptr, 0), kMurmurEmpty);
+    EXPECT_EQ(ComputeMurmurHash2(one_byte, sizeof(one_byte)), kMurmurOne);
+    EXPECT_EQ(ComputeMurmurHash2(sign80, sizeof(sign80)), kMurmurSign80);
+    EXPECT_EQ(ComputeMurmurHash2(hello, sizeof(hello)), kMurmurHello);
+    EXPECT_EQ(ComputeMurmurHash2(sign4, sizeof(sign4)), kMurmurSign4);
+    EXPECT_EQ(ComputeMurmurHash2(tail3, sizeof(tail3)), kMurmurTail3);
 
-    const std::vector<std::uint8_t> orig = {
-        kOrigByte0, kOrigByte1, kOrigByte2, kOrigByte3, kOrigByte4, kOrigByte5
-    };
-    const std::vector<std::uint8_t> patched = {
-        kPatchedByte0, kPatchedByte1, kPatchedByte2, kPatchedByte3,
-        kPatchedByte4, kPatchedByte5, kPatchedByte6
-    };
-    const std::uint32_t orig_hash = ComputeMurmurHash2(orig.data(), orig.size());
-    std::vector<std::uint8_t> masked = patched;
-    XorMaskPayload(masked.data(), masked.size(), orig.data(), orig.size(), orig_hash);
-    EXPECT_NE(masked, patched);
-    XorMaskPayload(masked.data(), masked.size(), orig.data(), orig.size(), orig_hash);
-    EXPECT_EQ(masked, patched);
+    // 3. Pinned 4-byte repeating XOR mask + pinned 5-arg keyless delta XOR vector
+    //    (matching proxy_dll ANZMENU1 consumer spec across i >= orig_len wraparound).
+    std::vector<std::uint8_t> key_buf = {0x10u, 0x20u, 0x30u, 0x40u, 0x50u};
+    XorMaskPayload(key_buf.data(), key_buf.size(), 0x04030201u);
+    const std::vector<std::uint8_t> expected_key_xor = {0x11u, 0x22u, 0x33u, 0x44u, 0x51u};
+    EXPECT_EQ(key_buf, expected_key_xor);
 
-    std::vector<std::uint8_t> alpha(
-        static_cast<std::size_t>(kMaskTestWidth) * kMaskTestHeight, 0);
-    for (std::size_t i = 0; i < alpha.size(); ++i) {
-        alpha[i] = (i % kMaskZeroModulus == 0)
-                       ? 0u
-                       : static_cast<std::uint8_t>(i * kMaskPatternMul + kMaskPatternAdd);
+    const std::vector<std::uint8_t> orig_wrap = {0x10u, 0x80u, 0xFFu};
+    const std::vector<std::uint8_t> patched_wrap = {0xAAu, 0xBBu, 0xCCu, 0xDDu, 0xEEu};
+    const std::vector<std::uint8_t> expected_keyless_masked = {
+        0x8Cu, 0xECu, 0x43u, 0xD8u, 0xC0u};
+    std::vector<std::uint8_t> masked = patched_wrap;
+    XorMaskPayload(masked.data(), masked.size(), orig_wrap.data(), orig_wrap.size(), 0x04030201u);
+    EXPECT_EQ(masked, expected_keyless_masked);
+    XorMaskPayload(masked.data(), masked.size(), orig_wrap.data(), orig_wrap.size(), 0x04030201u);
+    EXPECT_EQ(masked, patched_wrap);
+
+    // 4. Crop margin calculation: opaque island x in [1..3], y in [2..3] inside 6x5 RGBA.
+    constexpr std::uint16_t kCropW = 6u;
+    constexpr std::uint16_t kCropH = 5u;
+    constexpr std::size_t kRgbaStride = 4u;
+    exm::menu::RgbaImage crop_img;
+    crop_img.width = kCropW;
+    crop_img.height = kCropH;
+    crop_img.bpp = 32u;
+    crop_img.has_alpha = true;
+    crop_img.pixels.assign(static_cast<std::size_t>(kCropW) * kCropH * kRgbaStride, 0u);
+    for (int y = 2; y <= 3; ++y) {
+        for (int x = 1; x <= 3; ++x) {
+            const std::size_t idx =
+                (static_cast<std::size_t>(y) * kCropW + static_cast<std::size_t>(x)) * kRgbaStride;
+            crop_img.pixels[idx + 3u] = 0xFFu;
+        }
     }
-    const auto rle = encode_rle_xor_mask(alpha.data(), kMaskTestWidth, kMaskTestHeight);
-    const auto dec_alpha =
-        decode_rle_xor_mask(rle.data(), rle.size(), kMaskTestWidth, kMaskTestHeight);
-    EXPECT_EQ(dec_alpha, alpha);
+    EXPECT_EQ(compute_crop_margins(crop_img), (std::array<std::int32_t, 4>{2, 1, 2, 1}));
+
+    // 5. Pinned RLE-XOR wire bytes (4x2 delta bitmap + uniform zero mask) and error bounds.
+    constexpr int kSmallMaskW = 4;
+    constexpr int kSmallMaskH = 2;
+    const std::vector<std::uint8_t> small_alpha = {
+        0x00u, 0x00u, 0xFFu, 0x80u,
+        0x00u, 0x00u, 0xFFu, 0x00u,
+    };
+    const std::vector<std::uint8_t> expected_small_rle = {
+        0x00u, 0x02u, 0xFFu, 0x80u,
+        0x00u, 0x03u, 0x80u,
+    };
+    const auto small_rle = encode_rle_xor_mask(small_alpha.data(), kSmallMaskW, kSmallMaskH);
+    EXPECT_EQ(small_rle, expected_small_rle);
+    EXPECT_EQ(decode_rle_xor_mask(small_rle.data(), small_rle.size(), kSmallMaskW, kSmallMaskH),
+              small_alpha);
+
+    const std::vector<std::uint8_t> zero_alpha(
+        static_cast<std::size_t>(kSmallMaskW) * kSmallMaskH, 0u);
+    const std::vector<std::uint8_t> expected_zero_rle = {0x00u, 0x04u, 0x00u, 0x04u};
+    const auto zero_rle = encode_rle_xor_mask(zero_alpha.data(), kSmallMaskW, kSmallMaskH);
+    EXPECT_EQ(zero_rle, expected_zero_rle);
+    EXPECT_EQ(decode_rle_xor_mask(zero_rle.data(), zero_rle.size(), kSmallMaskW, kSmallMaskH),
+              zero_alpha);
+
+    const std::vector<std::uint8_t> truncated_stream = {0x00u, 0x02u, 0xFFu};
+    const std::vector<std::uint8_t> truncated_zero_run = {0x00u};
+    const std::vector<std::uint8_t> overflow_zero_run = {0x00u, 0x05u};
+    EXPECT_THROW(
+        decode_rle_xor_mask(truncated_stream.data(), truncated_stream.size(),
+                            kSmallMaskW, kSmallMaskH),
+        std::runtime_error);
+    EXPECT_THROW(
+        decode_rle_xor_mask(truncated_zero_run.data(), truncated_zero_run.size(),
+                            kSmallMaskW, 1),
+        std::runtime_error);
+    EXPECT_THROW(
+        decode_rle_xor_mask(overflow_zero_run.data(), overflow_zero_run.size(),
+                            kSmallMaskW, 1),
+        std::runtime_error);
 }
 
-TEST(MenuPatcherContract, PatchMainControlAndBacklogFxfForAnzU) {
+TEST(MenuPatcherContract, PatchMainControlAndBacklogFxfProduceExactOutput) {
     const std::string src_main = exm::utf8_to_cp932(
         "windowTitle うぇるかむとぅＡｎｚＵ！_CE版\r\n"
         "windowTitleTaiken うぇるかむとぅＡｎｚＵ！_CE版\r\n"
@@ -94,32 +152,34 @@ TEST(MenuPatcherContract, PatchMainControlAndBacklogFxfForAnzU) {
         "className bcycWELCOMETOANZU_CE\r\n"
         "bppErrorMessage 16bitカラー以上に設定してください\r\n"
         "bppErrorTitle Error\r\n");
-    const std::string patched_main = patch_main_control_fxf(src_main);
-    EXPECT_NE(patched_main.find("windowTitle Welcome to AnzU! CE\r\n"), std::string::npos);
-    EXPECT_NE(patched_main.find("windowTitleTaiken Welcome to AnzU! CE Trial\r\n"),
-              std::string::npos);
-    EXPECT_NE(patched_main.find("mutexErrorMessage The game is already running.\r\n"),
-              std::string::npos);
-    EXPECT_NE(patched_main.find("mutexErrorTitle Already Running\r\n"),
-              std::string::npos);
-    EXPECT_NE(patched_main.find(
-                  "bppErrorMessage Please set display to 16-bit color or higher.\r\n"),
-              std::string::npos);
+    const std::string expected_main = exm::utf8_to_cp932(
+        "windowTitle Welcome to AnzU! CE\r\n"
+        "windowTitleTaiken Welcome to AnzU! CE Trial\r\n"
+        "mutexName BCYCWELCOMETOANZU_CE\r\n"
+        "mutexErrorMessage The game is already running.\r\n"
+        "mutexErrorTitle Already Running\r\n"
+        "className bcycWELCOMETOANZU_CE\r\n"
+        "bppErrorMessage Please set display to 16-bit color or higher.\r\n"
+        "bppErrorTitle Error\r\n");
+    EXPECT_EQ(patch_main_control_fxf(src_main), expected_main);
 
     const std::string src_backlog = exm::utf8_to_cp932(
         "modename backlog\r\n"
         "barMessage #青――――――――――――――――――――――――\r\n"
         "firstMessageNumber 1\r\n"
         "firstMessage1 #青　　　　　　　　　　育成記録\r\n");
-    const std::string patched_backlog = patch_backlog_fxf(src_backlog);
     std::string spaces;
     for (std::size_t i = 0; i < kBacklogSpacesCount; ++i) {
         spaces += exm::utf8_to_cp932("　");
     }
     const std::string expected_backlog =
-        exm::utf8_to_cp932("firstMessage1 #青") + spaces +
-        exm::utf8_to_cp932("Ｂａｃｋｌｏｇ\r\n");
-    EXPECT_NE(patched_backlog.find(expected_backlog), std::string::npos);
+        exm::utf8_to_cp932(
+            "modename backlog\r\n"
+            "barMessage #青――――――――――――――――――――――――\r\n"
+            "firstMessageNumber 1\r\n"
+            "firstMessage1 #青") +
+        spaces + exm::utf8_to_cp932("Ｂａｃｋｌｏｇ\r\n");
+    EXPECT_EQ(patch_backlog_fxf(src_backlog), expected_backlog);
 }
 
 TEST(MenuPatcherContract, EncodeDwqFromPngBytesValidatesColorTypeAndSignature) {

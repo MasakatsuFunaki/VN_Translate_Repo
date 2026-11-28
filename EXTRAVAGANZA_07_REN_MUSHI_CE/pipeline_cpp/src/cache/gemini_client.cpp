@@ -5,212 +5,209 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// HTTPS POST /v1beta/models/...:generateContent over Boost.Beast + OpenSSL.
-//
-// OpenSSL on Windows does not read the Windows root certificate store by
-// default, so SSL_CTX_set_default_verify_paths leaves an empty trust list and
-// every handshake fails. load_windows_root_certs walks the system "ROOT" store
-// via CryptoAPI and feeds each DER certificate into OpenSSL's X509_STORE.
+// Thin Ren_mushi_CE adapter around shared `vn::llm::ILlmClient` and
+// `vn::llm::resolve_gemini_api_key`.
 #include "cache/gemini_client.h"
 
 #include "common/util.h"
+#include "vn/llm/llm_client.h"
+#include "vn/llm/llm_types.h"
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl/error.hpp>
-#include <boost/asio/ssl/stream.hpp>
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/ssl.hpp>
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <wincrypt.h>
-#include <openssl/ssl.h>
-#include <openssl/x509.h>
-
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <fstream>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
 namespace exm::gemini {
 
-namespace beast = boost::beast;
-namespace http = beast::http;
-namespace net = boost::asio;
-namespace ssl = boost::asio::ssl;
 namespace bj = boost::json;
 namespace fs = std::filesystem;
-using tcp = boost::asio::ip::tcp;
 
 namespace {
 
-constexpr const char* kGeminiHost = "generativelanguage.googleapis.com";
-constexpr const char* kGeminiPort = "443";
-constexpr int kHttpVersion11 = 11;
-constexpr int kHttpOkStatus = 200;
-constexpr int kHttpRateLimitStatus = 429;
-constexpr std::size_t kGeminiEnvPrefixLen = 15;
-constexpr std::size_t kSurroundingQuotePairLen = 2;
-constexpr std::size_t kInnerQuoteStartOffset = 1;
-
-class ScopedCertStore {
-public:
-    explicit ScopedCertStore(HCERTSTORE h) noexcept : handle_(h) {}
-    ~ScopedCertStore() {
-        if (handle_ != nullptr) {
-            CertCloseStore(handle_, 0);
-        }
+std::int64_t extract_json_int64(const bj::value& v, std::int64_t fallback) noexcept {
+    if (v.is_int64()) {
+        return v.get_int64();
     }
-
-    ScopedCertStore(const ScopedCertStore&) = delete;
-    ScopedCertStore& operator=(const ScopedCertStore&) = delete;
-
-    HCERTSTORE get() const noexcept { return handle_; }
-    explicit operator bool() const noexcept { return handle_ != nullptr; }
-
-private:
-    HCERTSTORE handle_;
-};
-
-struct X509Deleter {
-    void operator()(X509* p) const noexcept {
-        if (p != nullptr) {
-            X509_free(p);
-        }
+    constexpr auto kMaxInt64 =
+        static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)());
+    if (v.is_uint64() && v.get_uint64() <= kMaxInt64) {
+        return static_cast<std::int64_t>(v.get_uint64());
     }
-};
-using ScopedX509 = std::unique_ptr<X509, X509Deleter>;
-
-std::optional<std::string> wide_env_to_utf8(const wchar_t* name) {
-    const wchar_t* val = _wgetenv(name);
-    if (val == nullptr || *val == L'\0') {
-        return std::nullopt;
-    }
-    const std::wstring_view wide(val);
-    const int byte_len = WideCharToMultiByte(
-        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(),
-        static_cast<int>(wide.size()), nullptr, 0, nullptr, nullptr);
-    if (byte_len <= 0) {
-        return std::nullopt;
-    }
-    std::string out(static_cast<std::size_t>(byte_len), '\0');
-    const int written = WideCharToMultiByte(
-        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(),
-        static_cast<int>(wide.size()), out.data(), byte_len, nullptr, nullptr);
-    if (written != byte_len) {
-        return std::nullopt;
-    }
-    return out;
+    return fallback;
 }
 
-void load_windows_root_certs(ssl::context& ctx) {
-    const ScopedCertStore store(CertOpenSystemStoreW(0, L"ROOT"));
-    if (!store) {
-        return;
+vn::llm::LlmRequest json_body_to_llm_request(const std::string& model,
+                                             const bj::value& body) {
+    vn::llm::ensure_supported_model(model);
+    vn::llm::LlmRequest req;
+    req.model = model;
+    if (!body.is_object()) {
+        return req;
     }
 
-    X509_STORE* x509_store = SSL_CTX_get_cert_store(ctx.native_handle());
-    if (x509_store == nullptr) {
-        return;
-    }
-
-    PCCERT_CONTEXT cert = nullptr;
-    while ((cert = CertEnumCertificatesInStore(store.get(), cert)) != nullptr) {
-        const unsigned char* der = cert->pbCertEncoded;
-        ScopedX509 x509(
-            d2i_X509(nullptr, &der, static_cast<long>(cert->cbCertEncoded)));
-        if (x509) {
-            X509_STORE_add_cert(x509_store, x509.get());
-        }
-    }
-}
-
-class HttpsClient final : public Client {
-public:
-    explicit HttpsClient(std::string api_key) : key_(std::move(api_key)) {
-        if (key_.empty()) {
-            if (const char* env = std::getenv("GEMINI_API_KEY")) {
-                key_ = env;
+    const auto& root = body.get_object();
+    if (const auto* sys = root.if_contains("systemInstruction");
+        sys && sys->is_object()) {
+        if (const auto* parts = sys->get_object().if_contains("parts");
+            parts && parts->is_array() && !parts->get_array().empty()) {
+            const auto& first = parts->get_array()[0];
+            if (first.is_object()) {
+                if (const auto* txt = first.get_object().if_contains("text");
+                    txt && txt->is_string()) {
+                    req.system_prompt = std::string(txt->get_string());
+                }
             }
         }
-        if (key_.empty()) {
-            throw std::runtime_error(
-                "GEMINI_API_KEY is not set (checked environment, .claude/settings.json, and ~/.gemini/.env)");
+    }
+
+    if (const auto* contents = root.if_contains("contents");
+        contents && contents->is_array() && !contents->get_array().empty()) {
+        const auto& msg = contents->get_array()[0];
+        if (msg.is_object()) {
+            if (const auto* parts = msg.get_object().if_contains("parts");
+                parts && parts->is_array() && !parts->get_array().empty()) {
+                const auto& first = parts->get_array()[0];
+                if (first.is_object()) {
+                    if (const auto* txt = first.get_object().if_contains("text");
+                        txt && txt->is_string()) {
+                        req.user_prompt = std::string(txt->get_string());
+                    }
+                }
+            }
         }
+    }
+
+    if (const auto* gen = root.if_contains("generationConfig");
+        gen && gen->is_object()) {
+        const auto& go = gen->get_object();
+        if (const auto* max_out = go.if_contains("maxOutputTokens")) {
+            req.max_output_tokens = extract_json_int64(*max_out, req.max_output_tokens);
+        }
+        if (const auto* tc = go.if_contains("thinkingConfig"); tc && tc->is_object()) {
+            const auto& tco = tc->get_object();
+            if (const auto* lvl = tco.if_contains("thinkingLevel");
+                lvl && lvl->is_string()) {
+                req.thinking_level = std::string(lvl->get_string());
+            } else if (const auto* bud = tco.if_contains("thinkingBudget")) {
+                req.thinking_level.clear();
+                req.thinking_budget = extract_json_int64(*bud, req.thinking_budget);
+            }
+        }
+    }
+
+    if (const auto* safety = root.if_contains("safetySettings");
+        safety && safety->is_array()) {
+        req.safety_block_none = !safety->get_array().empty();
+    }
+
+    return req;
+}
+
+bj::value llm_response_to_json(const vn::llm::LlmResponse& resp) {
+    bj::object usage{
+        {"promptTokenCount", resp.usage.prompt_tokens},
+        {"cachedContentTokenCount", resp.usage.cached_tokens},
+        {"candidatesTokenCount", resp.usage.candidate_tokens},
+        {"thoughtsTokenCount", resp.usage.thought_tokens},
+    };
+
+    if (resp.content_blocked && resp.text.empty() && resp.finish_reason.empty()) {
+        return bj::object{
+            {"promptFeedback", bj::object{{"blockReason", "SAFETY"}}},
+            {"usageMetadata", std::move(usage)},
+        };
+    }
+
+    const std::string finish =
+        resp.finish_reason.empty() ? std::string("STOP") : resp.finish_reason;
+    bj::object candidate{
+        {"finishReason", finish},
+        {"content", bj::object{{"parts", bj::array{bj::object{{"text", resp.text}}}}}},
+    };
+    return bj::object{
+        {"candidates", bj::array{std::move(candidate)}},
+        {"usageMetadata", std::move(usage)},
+    };
+}
+
+std::string resolve_key_from_settings_fallback(const std::string& project_dir) {
+    std::vector<fs::path> candidates;
+    if (!project_dir.empty()) {
+        candidates.push_back(
+            fs::u8path(project_dir).parent_path() / ".claude" / "settings.json");
+    }
+    if (const char* home = std::getenv("USERPROFILE"); home && *home != '\0') {
+        candidates.push_back(fs::u8path(home) / ".claude_vn" / "settings.json");
+    } else if (const char* posix_home = std::getenv("HOME");
+               posix_home && *posix_home != '\0') {
+        candidates.push_back(fs::u8path(posix_home) / ".claude_vn" / "settings.json");
+    }
+
+    for (const auto& p : candidates) {
+        if (!fs::exists(p)) {
+            continue;
+        }
+        try {
+            const bj::value v = json_parse_file(p.u8string());
+            if (!v.is_object()) {
+                continue;
+            }
+            const auto* env = v.get_object().if_contains("env");
+            if (!env || !env->is_object()) {
+                continue;
+            }
+            const auto* key = env->get_object().if_contains("GEMINI_API_KEY");
+            if (key && key->is_string() && !key->get_string().empty()) {
+                return std::string(key->get_string());
+            }
+        } catch (const std::exception&) {
+        }
+    }
+    return {};
+}
+
+class SharedLlmClientAdapter final : public Client {
+public:
+    explicit SharedLlmClientAdapter(std::string api_key) {
+        if (api_key.empty()) {
+            api_key = vn::llm::resolve_gemini_api_key();
+        }
+        if (api_key.empty()) {
+            throw std::runtime_error(
+                "GEMINI_API_KEY is not set (checked environment, ~/.gemini/.env, HKCU\\Environment, and .claude/settings.json)");
+        }
+        vn::llm::LlmClientOptions opts;
+        opts.provider = vn::llm::LlmProvider::Gemini;
+        opts.api_key = std::move(api_key);
+        opts.default_model = std::string(vn::llm::kDefaultModel);
+        opts.log_fn = [](std::string_view msg) { log_info(std::string(msg)); };
+        inner_ = vn::llm::create_llm_client(std::move(opts));
     }
 
     bj::value generate_content(const std::string& model, const bj::value& body) override {
-        net::io_context ioc;
-        ssl::context sctx(ssl::context::tls_client);
-        load_windows_root_certs(sctx);
-        sctx.set_verify_mode(ssl::verify_peer);
-
-        tcp::resolver resolver(ioc);
-        beast::ssl_stream<beast::tcp_stream> stream(ioc, sctx);
-
-        if (!SSL_set_tlsext_host_name(stream.native_handle(), kGeminiHost)) {
-            beast::error_code ec{static_cast<int>(::ERR_get_error()),
-                                 net::error::get_ssl_category()};
-            throw beast::system_error{ec};
+        const vn::llm::LlmRequest req = json_body_to_llm_request(model, body);
+        try {
+            const vn::llm::LlmResponse resp = inner_->generate(req);
+            return llm_response_to_json(resp);
+        } catch (const vn::llm::LlmRateLimitError& e) {
+            throw RateLimitError(e.what());
+        } catch (const vn::llm::LlmError& e) {
+            if (e.http_status() != 0) {
+                throw ApiError(e.http_status(), e.what());
+            }
+            throw;
         }
-        SSL_set1_host(stream.native_handle(), kGeminiHost);
-
-        const auto results = resolver.resolve(kGeminiHost, kGeminiPort);
-        beast::get_lowest_layer(stream).connect(results);
-        stream.handshake(ssl::stream_base::client);
-
-        const std::string payload = bj::serialize(body);
-        const std::string target =
-            "/v1beta/models/" + model + ":generateContent?key=" + key_;
-
-        http::request<http::string_body> req{http::verb::post, target, kHttpVersion11};
-        req.set(http::field::host, kGeminiHost);
-        req.set(http::field::user_agent, "ageha_ce_pipeline_cpp/1.0");
-        req.set(http::field::content_type, "application/json");
-        req.body() = payload;
-        req.prepare_payload();
-
-        http::write(stream, req);
-
-        beast::flat_buffer buffer;
-        http::response_parser<http::string_body> parser;
-        parser.body_limit((std::numeric_limits<std::uint64_t>::max)());
-        http::read(stream, buffer, parser);
-        auto res = parser.release();
-
-        beast::error_code ec;
-        stream.shutdown(ec);
-
-        const int status = static_cast<int>(res.result_int());
-        if (status == kHttpRateLimitStatus) {
-            throw RateLimitError(res.body());
-        }
-        if (status != kHttpOkStatus) {
-            throw ApiError(status, res.body());
-        }
-
-        return bj::parse(res.body());
     }
 
 private:
-    std::string key_;
+    std::unique_ptr<vn::llm::ILlmClient> inner_;
 };
 
 }  // namespace
@@ -218,7 +215,7 @@ private:
 Client::~Client() = default;
 
 std::unique_ptr<Client> make_https_client(std::string api_key) {
-    return std::make_unique<HttpsClient>(std::move(api_key));
+    return std::make_unique<SharedLlmClientAdapter>(std::move(api_key));
 }
 
 struct LazyClient::Impl {
@@ -243,65 +240,16 @@ Client& LazyClient::get() {
 }
 
 void load_api_key(const std::string& project_dir) {
-    if (const char* existing = std::getenv("GEMINI_API_KEY")) {
-        if (*existing != '\0') {
-            return;
-        }
+    if (const char* existing = std::getenv("GEMINI_API_KEY");
+        existing != nullptr && *existing != '\0') {
+        return;
     }
-    std::vector<fs::path> candidates = {
-        fs::u8path(project_dir).parent_path() / ".claude" / "settings.json",
-    };
-    std::optional<std::string> home = wide_env_to_utf8(L"USERPROFILE");
-    if (!home) {
-        home = wide_env_to_utf8(L"HOME");
+    std::string resolved = vn::llm::resolve_gemini_api_key();
+    if (resolved.empty()) {
+        resolved = resolve_key_from_settings_fallback(project_dir);
     }
-    if (home) {
-        const fs::path home_path = fs::u8path(*home);
-        candidates.push_back(home_path / ".claude_vn" / "settings.json");
-        candidates.push_back(home_path / ".gemini" / ".env");
-    }
-
-    for (const auto& p : candidates) {
-        if (!fs::exists(p)) {
-            continue;
-        }
-        try {
-            if (p.filename() == ".env") {
-                std::ifstream f(p);
-                std::string line;
-                while (std::getline(f, line)) {
-                    line = trim(line);
-                    if (line.rfind("GEMINI_API_KEY=", 0) == 0) {
-                        std::string k = trim(line.substr(kGeminiEnvPrefixLen));
-                        if (k.size() >= kSurroundingQuotePairLen &&
-                            ((k.front() == '"' && k.back() == '"') ||
-                             (k.front() == '\'' && k.back() == '\''))) {
-                            k = k.substr(kInnerQuoteStartOffset,
-                                         k.size() - kSurroundingQuotePairLen);
-                        }
-                        if (!k.empty()) {
-                            _putenv_s("GEMINI_API_KEY", k.c_str());
-                            return;
-                        }
-                    }
-                }
-                continue;
-            }
-            const bj::value v = json_parse_file(p.u8string());
-            if (!v.is_object()) {
-                continue;
-            }
-            const auto* env = v.get_object().if_contains("env");
-            if (!env || !env->is_object()) {
-                continue;
-            }
-            const auto* key = env->get_object().if_contains("GEMINI_API_KEY");
-            if (key && key->is_string() && !key->get_string().empty()) {
-                _putenv_s("GEMINI_API_KEY", std::string(key->get_string()).c_str());
-                return;
-            }
-        } catch (const std::exception&) {
-        }
+    if (!resolved.empty()) {
+        _putenv_s("GEMINI_API_KEY", resolved.c_str());
     }
 }
 
