@@ -36,7 +36,7 @@ namespace {
 namespace fs = std::filesystem;
 using namespace snt;
 
-constexpr int kDefaultBatchSize = 150;
+constexpr int kDefaultBatchSize = vn::llm::kDefaultBatchSize;
 constexpr int kUnlimitedBatches = 0;
 constexpr int kUnusedTestBatches = 0;
 constexpr std::size_t kBannerWidth = 60;

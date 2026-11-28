@@ -41,6 +41,54 @@ namespace snt::translate {
 namespace bj = boost::json;
 namespace fs = std::filesystem;
 
+struct Cache::Impl {
+    std::vector<std::pair<std::string, std::string>> order;
+    std::map<std::string, std::size_t> index;
+};
+
+Cache::Cache() : impl_(std::make_unique<Impl>()) {}
+Cache::~Cache() = default;
+Cache::Cache(const Cache& other) : impl_(std::make_unique<Impl>(*other.impl_)) {}
+Cache& Cache::operator=(const Cache& other) {
+    if (this != &other) {
+        *impl_ = *other.impl_;
+    }
+    return *this;
+}
+Cache::Cache(Cache&& other) noexcept = default;
+Cache& Cache::operator=(Cache&& other) noexcept = default;
+
+bool Cache::contains(const std::string& jp) const {
+    return impl_->index.count(jp) != 0;
+}
+
+const std::string* Cache::get(const std::string& jp) const {
+    const auto it = impl_->index.find(jp);
+    return it == impl_->index.end() ? nullptr : &impl_->order[it->second].second;
+}
+
+void Cache::set(const std::string& jp, const std::string& en) {
+    const auto it = impl_->index.find(jp);
+    if (it != impl_->index.end()) {
+        impl_->order[it->second].second = en;
+        return;
+    }
+    impl_->index.emplace(jp, impl_->order.size());
+    impl_->order.emplace_back(jp, en);
+}
+
+void Cache::set_default(const std::string& jp, const std::string& en) {
+    if (!contains(jp)) {
+        set(jp, en);
+    }
+}
+
+std::size_t Cache::size() const { return impl_->order.size(); }
+
+const std::vector<std::pair<std::string, std::string>>& Cache::items() const {
+    return impl_->order;
+}
+
 bool needs_translation(const std::string& text) {
     if (text.empty()) {
         return false;
@@ -425,11 +473,25 @@ bool translate_script(gemini::LazyClient& client, const bj::object& script,
             continue;
         }
 
+        std::vector<std::pair<std::string, std::string>> context_after;
+        const std::size_t after_end = std::min(
+            annotated.size(), batch_end + static_cast<std::size_t>(CONTEXT_AFTER));
+        context_after.reserve(after_end - batch_end);
+        for (std::size_t i = batch_end; i < after_end; ++i) {
+            const auto& [speaker, entry_ptr] = annotated[i];
+            const std::string jp(entry_ptr->at("text").get_string());
+            if (const std::string* en = cache.get(jp)) {
+                context_after.emplace_back(speaker, *en);
+            } else {
+                context_after.emplace_back(speaker, jp);
+            }
+        }
+
         gemini::Client& api = client.get();
         print_context_window(previous_context);
 
         translate_batch(cache, previous_context, needs_api, [&] {
-            return call_gemini(api, needs_api, previous_context);
+            return call_gemini(api, needs_api, previous_context, context_after);
         });
 
         const std::size_t max_retained_context =
@@ -646,7 +708,8 @@ std::string raw_answer_log_path(const std::string& sibling_file) {
 
 std::string build_user_prompt(
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context) {
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after) {
     std::string user_prompt;
     if (!previous_context.empty()) {
         user_prompt += "<previous_context>\n";
@@ -665,10 +728,22 @@ std::string build_user_prompt(
                        batch_lines[i].second + "\n";
     }
     user_prompt += "</lines_to_translate>\n\n";
+    if (!context_after.empty()) {
+        user_prompt += "<context_after>\n";
+        const std::size_t take = std::min<std::size_t>(
+            context_after.size(), static_cast<std::size_t>(CONTEXT_AFTER));
+        for (std::size_t i = 0; i < take; ++i) {
+            user_prompt += "[" + context_after[i].first + "] " +
+                           context_after[i].second + "\n";
+        }
+        user_prompt += "</context_after>\n\n";
+    }
     user_prompt +=
         "Translate the " + std::to_string(batch_lines.size()) +
         " numbered lines inside <lines_to_translate>. "
-        "Use <previous_context> (if present) for scene continuity but do NOT translate it. "
+        "Use <previous_context> (if present) for scene continuity, and "
+        "<context_after> (if present) for lookahead context (such as upcoming "
+        "wordplay, puns, or literal-vs-figurative reveals), but do NOT translate them. "
         "Output EXACTLY " + std::to_string(batch_lines.size()) +
         " numbered translations, one per line, "
         "following the formatting rules in the system prompt.";
@@ -817,6 +892,35 @@ Answer read_answer(const bj::value& response) {
     return answer;
 }
 
+UsageStats read_usage(const bj::value& response) {
+    UsageStats stats;
+    if (!response.is_object()) {
+        return stats;
+    }
+    const auto* usage_v = response.get_object().if_contains("usage");
+    if (usage_v == nullptr || !usage_v->is_object()) {
+        return stats;
+    }
+    const auto& u = usage_v->get_object();
+    auto geti = [&](const char* k) -> std::int64_t {
+        if (const auto* v = u.if_contains(k)) {
+            if (v->is_int64()) {
+                return v->get_int64();
+            }
+            if (v->is_uint64()) {
+                return static_cast<std::int64_t>(v->get_uint64());
+            }
+        }
+        return 0;
+    };
+    stats.input_tokens = geti("input_tokens");
+    stats.candidates_tokens = geti("candidates_tokens");
+    stats.thought_tokens = geti("thought_tokens");
+    stats.output_tokens = geti("output_tokens");
+    stats.cache_read_input_tokens = geti("cache_read_input_tokens");
+    return stats;
+}
+
 std::map<int, std::string> usable_translations(const Answer& answer, std::size_t requested) {
     int rejected = 0;
     std::string final_tail;
@@ -871,10 +975,13 @@ std::map<int, std::string> usable_translations(const Answer& answer, std::size_t
 std::map<int, std::string> call_gemini(
     gemini::Client& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context) {
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after,
+    UsageStats* out_usage) {
     bj::object body;
     body["model"] = MODEL;
     body["max_tokens"] = compute_max_tokens(static_cast<int>(batch_lines.size()));
+    body["slice_size"] = static_cast<std::int64_t>(batch_lines.size());
     bj::object sys_block;
     sys_block["type"] = "text";
     sys_block["text"] = system_prompt();
@@ -882,15 +989,12 @@ std::map<int, std::string> call_gemini(
     body["system"] = bj::array{std::move(sys_block)};
     bj::object msg;
     msg["role"] = "user";
-    msg["content"] = build_user_prompt(batch_lines, previous_context);
+    msg["content"] = build_user_prompt(batch_lines, previous_context, context_after);
     body["messages"] = bj::array{std::move(msg)};
 
     switch (reasoning_control(MODEL)) {
-    case ReasoningControl::AdaptiveThinking:
-        body["thinking"] = bj::object{{"type", "adaptive"}};
-        break;
-    case ReasoningControl::Effort:
-        body["output_config"] = bj::object{{"effort", EFFORT}};
+    case ReasoningControl::ThinkingLevel:
+        body["thinking_config"] = bj::object{{"thinking_level", THINKING_LEVEL}};
         break;
     case ReasoningControl::None:
         break;
@@ -898,31 +1002,27 @@ std::map<int, std::string> call_gemini(
 
     const bj::value response = client.messages(bj::value(std::move(body)));
     const Answer answer = read_answer(response);
+    const UsageStats usage = read_usage(response);
+    if (out_usage != nullptr) {
+        *out_usage = usage;
+    }
 
-    std::int64_t in_tok = 0;
-    std::int64_t out_tok = 0;
-    std::int64_t cache_read = 0;
     std::int64_t cache_create = 0;
-    if (const auto* usage = response.get_object().if_contains("usage");
-        usage != nullptr && usage->is_object()) {
-        const auto& u = usage->get_object();
-        auto geti = [&](const char* k) -> std::int64_t {
-            if (const auto* v = u.if_contains(k); v != nullptr && v->is_int64()) {
-                return v->get_int64();
-            }
-            return 0;
-        };
-        in_tok = geti("input_tokens");
-        out_tok = geti("output_tokens");
-        cache_read = geti("cache_read_input_tokens");
-        cache_create = geti("cache_creation_input_tokens");
+    if (const auto* u_v = response.get_object().if_contains("usage");
+        u_v != nullptr && u_v->is_object()) {
+        if (const auto* cc = u_v->get_object().if_contains("cache_creation_input_tokens");
+            cc != nullptr && cc->is_int64()) {
+            cache_create = cc->get_int64();
+        }
     }
 
     const std::string summary =
         "lines=" + std::to_string(batch_lines.size()) + " stop_reason=" +
         (answer.stop_reason.empty() ? std::string("(absent)") : answer.stop_reason) +
-        " in=" + std::to_string(in_tok) + " out=" + std::to_string(out_tok) +
-        " cache_read=" + std::to_string(cache_read) +
+        " in=" + std::to_string(usage.input_tokens) +
+        " out=" + std::to_string(usage.output_tokens) +
+        " thought=" + std::to_string(usage.thought_tokens) +
+        " cache_read=" + std::to_string(usage.cache_read_input_tokens) +
         " cache_create=" + std::to_string(cache_create);
 
     append_raw_answer(summary, answer.text);
@@ -963,11 +1063,15 @@ void translate_batch(Cache& cache,
                      std::to_string(batch.size()) + " translations");
         }
         apply(translations, true);
+    } catch (const gemini::ZeroThoughtError&) {
+        throw;
     } catch (const gemini::RateLimitError&) {
         log_info("    Rate limited, waiting " + std::to_string(retry_wait.count()) + "s...");
         std::this_thread::sleep_for(retry_wait);
         try {
             apply(ask(), false);
+        } catch (const gemini::ZeroThoughtError&) {
+            throw;
         } catch (const std::exception& e2) {
             log_info(std::string("    Retry failed: ") + e2.what());
             apply({}, false);

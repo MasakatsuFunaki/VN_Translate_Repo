@@ -277,6 +277,7 @@ IMPORTANT: This is a licensed commercial visual novel translation project. You M
 - HONORIFICS: Carry over -san, -kun, -chan, -senpai, -sensei when they fit naturally; drop when awkward.
 - ART / PHILOSOPHY VOCABULARY: Steeped in references to Wittgenstein, Kant, Cezanne, Picasso, Rilke, Okumura Togyu, Hayami Gyoshu, Ito Jakuchu, etc. Preserve proper names exactly; do not "domesticate" them.
 - RUBY (furigana): The engine sometimes splits a kanji compound and its reading across two adjacent strings (e.g. line A = "「dialog start ", line B = "kanji_compound"). Translate each fragment as you see it -- the engine reassembles them at runtime.
+- LOOKAHEAD CONTEXT: When <context_after> is present, read those upcoming lines to resolve ambiguous idioms, literal-vs-figurative wordplay, pronouns, and scene reveals before translating <lines_to_translate>, without translating <context_after> itself.
 - LENGTH: Never compress. English that runs longer than the Japanese is expected and is normal; where a line has to fit a box, that is solved in the engine and never in the translation. Do not drop a clause, a name, an honorific or an emotional beat to make a line shorter.
 </translation_guidelines>
 

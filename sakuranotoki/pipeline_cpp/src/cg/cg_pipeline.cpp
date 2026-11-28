@@ -7,7 +7,17 @@
 
 #include "cg_pipeline.h"
 
+#include "artemis/pfs_archive.h"
+#include "common/util.h"
+#include "image.h"
+#include "translate/gemini_client.h"
+#include "vn/llm/llm_types.h"
+
+#include <boost/json.hpp>
+#include <boost/regex.hpp>
+
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -17,14 +27,6 @@
 #include <string>
 #include <vector>
 
-#include <boost/json.hpp>
-#include <boost/regex.hpp>
-
-#include "artemis/pfs_archive.h"
-#include "common/util.h"
-#include "image.h"
-#include "translate/gemini_client.h"
-
 namespace snt::cg {
 
 namespace bj = boost::json;
@@ -32,7 +34,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr const char* MODEL = "gemini-4-argon";
+constexpr const char* MODEL = vn::llm::kDefaultModel.data();
+constexpr int kCgVisionTimeoutSec = 60;
 
 // Minimum image dimensions to bother scanning (cheap pre-filter).
 constexpr int MIN_WIDTH = 800;
@@ -121,10 +124,10 @@ std::string vision(gemini::Client& client, const std::string& prompt, const Imag
 
     bj::object body;
     body["model"] = MODEL;
-    body["max_tokens"] = 1024;
+    body["max_tokens"] = vn::llm::kMinOutputTokensFloor;
     body["messages"] = bj::array{std::move(msg)};
 
-    bj::value resp = client.messages(bj::value(std::move(body)), 60);
+    bj::value resp = client.messages(bj::value(std::move(body)), kCgVisionTimeoutSec);
     return std::string(resp.get_object().at("content").get_array()[0].get_object()
                            .at("text").get_string());
 }

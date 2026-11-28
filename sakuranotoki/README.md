@@ -83,25 +83,25 @@ Run these three first.  None of them sends a request or reads the key:
 ```bat
 python build.py --test --install                              :: build both halves, run tests
 build\install\bin\01_extract.exe --game-dir <G>               :: decrypt + extract from .pfs
-python analysys\spend_predict_run.py --batch 150              :: requests, lines, post-run cache
+python analysys\spend_predict_run.py --batch 40               :: requests, lines, post-run cache
 ```
 
 The speaker gate inside `02_translate.exe` has to exit 0 before anything is
-bought.  The projection states what the run will send: **723 requests carrying
-53,733 lines**, ending on a cache of 53,653 entries.
+bought.  The projection states what the run will send, ending on a cache of
+53,653 entries.
 
 Then buy one request and read its `in=` and `out=` off the `GEMINI RAW ANSWER`
 line, which is the only honest measurement of what the run costs:
 
 ```bat
-build\install\bin\02_translate.exe --max-batches 1 --batch 150
-python analysys\spend_extrapolate.py --batch 150 --in-tok <in> --out-tok <out>
+build\install\bin\02_translate.exe --max-batches 1 --batch 40
+python analysys\spend_extrapolate.py --batch 40 --in-tok <in> --out-tok <out>
 ```
 
 The full run, and the deploy after it:
 
 ```bat
-build\install\bin\02_translate.exe --batch 150
+build\install\bin\02_translate.exe --batch 40
 python build.py --deploy --game-dir <G>
 ```
 

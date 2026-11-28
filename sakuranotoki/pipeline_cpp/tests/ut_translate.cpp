@@ -11,22 +11,26 @@
 #include "apps/pipeline_steps.h"
 #include "common/coverage.h"
 #include "common/util.h"
+#include "translate/gemini_client.h"
 #include "translate/glossary.h"
 #include "translate/speaker_gate.h"
 #include "translate/translate_core.h"
+#include "vn/llm/llm_client.h"
+
+#include <boost/json.hpp>
+#include <gtest/gtest.h>
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <map>
+#include <set>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
-
-#include <boost/json.hpp>
-#include <gtest/gtest.h>
 
 namespace {
 
@@ -42,9 +46,21 @@ constexpr const char* kFullwidthStop = "．";
 constexpr const char* kSpokenLine = "「あ」";
 
 constexpr int kContextOverflowLines = 25;
+constexpr int kLookaheadOverflowLines = 5;
 constexpr std::size_t kPaidCacheLines = 56103;
+constexpr int kBelowCeilingBatchSize = 218;
+constexpr int kAboveCeilingBatchSize = 219;
 constexpr int kLargeBatchSize = 500;
-constexpr int kModelOutputCeiling = 128000;
+constexpr std::int64_t kModelOutputCeiling = 65536;
+constexpr std::int64_t kExpectedMinOutputTokens = 16384;
+constexpr std::size_t kExpectedSafetyCategoryCount = 5;
+constexpr std::int64_t kSamplePromptTokenCount = 1420;
+constexpr std::int64_t kSampleCandidatesTokenCount = 6;
+constexpr std::int64_t kSampleThoughtsTokenCount = 648;
+constexpr std::int64_t kSampleExpectedOutputTokenCount = 654;
+constexpr std::int64_t kSampleCachedTokenCount = 1100;
+constexpr std::int64_t kNoThoughtPromptTokens = 50;
+constexpr std::int64_t kNoThoughtCandidatesTokens = 10;
 constexpr int kStandardBatchSize = 150;
 constexpr int kNegativeBatchSize = -5;
 constexpr int kSmokeTestCount = 3;
@@ -319,6 +335,33 @@ TEST(Translate, context_window_is_capped) {
     EXPECT_NE(p.find("[S] line74\n"), std::string::npos) << "newest line missing";
 }
 
+TEST(Translate, user_prompt_includes_and_caps_lookahead_context_after) {
+    const std::string without_after = tr::build_user_prompt({{"NARRATION", "あ"}}, {});
+    EXPECT_EQ(without_after.find("<context_after>\n"), std::string::npos);
+    EXPECT_EQ(without_after.find("</context_after>"), std::string::npos);
+
+    const std::string with_after = tr::build_user_prompt(
+        {{"NARRATION", "ひどいサメ肌。"}},
+        {},
+        {{"NARRATION", "目の前に巨大なサメが横たわっていた。"}});
+    const std::size_t lines_end = with_after.find("</lines_to_translate>");
+    const std::size_t after_pos = with_after.find(
+        "<context_after>\n[NARRATION] 目の前に巨大なサメが横たわっていた。\n</context_after>");
+    ASSERT_NE(lines_end, std::string::npos);
+    ASSERT_NE(after_pos, std::string::npos);
+    EXPECT_GT(after_pos, lines_end);
+
+    std::vector<std::pair<std::string, std::string>> after_many;
+    for (int i = 0; i < tr::CONTEXT_AFTER + kLookaheadOverflowLines; ++i) {
+        after_many.emplace_back("S", "after" + std::to_string(i));
+    }
+    const std::string capped = tr::build_user_prompt({{"S", "x"}}, {}, after_many);
+    EXPECT_NE(capped.find("[S] after0\n"), std::string::npos);
+    EXPECT_NE(capped.find("[S] after19\n"), std::string::npos);
+    EXPECT_EQ(capped.find("[S] after20\n"), std::string::npos)
+        << "lookahead past CONTEXT_AFTER leaked in";
+}
+
 TEST(Translate, parses_numbered_response) {
     auto t = tr::parse_numbered_response("1. First.\n2) Second.\n3: Third.\n");
     ASSERT_EQ(t.size(), 3U);
@@ -491,15 +534,27 @@ TEST(Translate, an_answer_that_never_arrived_is_not_cached) {
 // A request asking for more output than the model can emit is rejected
 // outright, so a batch big enough to compute past the ceiling has to clamp.
 TEST(Translate, max_tokens_stays_inside_the_model_ceiling) {
-    EXPECT_EQ(tr::compute_max_tokens(kLargeBatchSize), tr::MAX_OUTPUT_TOKENS);
-    EXPECT_LE(tr::compute_max_tokens(kLargeBatchSize), kModelOutputCeiling);
+    constexpr int kMinValidBatchSize = 1;
+    constexpr int kMediumBatchSize = 50;
+    constexpr int kThousandBatchSize = 1000;
+    constexpr int kExtremeBatchSize = 100000;
+
+    EXPECT_LT(tr::compute_max_tokens(kBelowCeilingBatchSize), kModelOutputCeiling);
+    EXPECT_EQ(tr::compute_max_tokens(kAboveCeilingBatchSize), kModelOutputCeiling);
+    EXPECT_EQ(tr::compute_max_tokens(kLargeBatchSize), kModelOutputCeiling);
     EXPECT_EQ(tr::compute_max_tokens(kStandardBatchSize),
               kStandardBatchSize * tr::OUTPUT_TOKENS_PER_LINE);
-    EXPECT_EQ(tr::compute_max_tokens(1), tr::MIN_OUTPUT_TOKENS);
+    EXPECT_EQ(tr::compute_max_tokens(vn::llm::kDefaultBatchSize),
+              kExpectedMinOutputTokens);
+    EXPECT_GE(tr::compute_max_tokens(kMinValidBatchSize), kExpectedMinOutputTokens);
+    EXPECT_EQ(tr::compute_max_tokens(kMinValidBatchSize), tr::MIN_OUTPUT_TOKENS);
     EXPECT_EQ(tr::compute_max_tokens(0), tr::MIN_OUTPUT_TOKENS);
     EXPECT_EQ(tr::compute_max_tokens(kNegativeBatchSize), tr::MIN_OUTPUT_TOKENS);
-    for (int batch : {1, 50, 150, 426, 427, 1000, 100000}) {
-        EXPECT_LE(tr::compute_max_tokens(batch), tr::MAX_OUTPUT_TOKENS) << batch;
+    for (int batch : {kMinValidBatchSize, kMediumBatchSize, kStandardBatchSize,
+                      kBelowCeilingBatchSize, kAboveCeilingBatchSize,
+                      kThousandBatchSize, kExtremeBatchSize}) {
+        EXPECT_GE(tr::compute_max_tokens(batch), kExpectedMinOutputTokens) << batch;
+        EXPECT_LE(tr::compute_max_tokens(batch), kModelOutputCeiling) << batch;
     }
 }
 
@@ -521,15 +576,133 @@ TEST(Translate, option_validation_refuses_values_that_would_overspend) {
     EXPECT_NE(tr::validate_options(0, 0, 0)->find("--batch"), std::string::npos);
 }
 
+TEST(Translate, gemini_request_uses_carbon_medium_thinking_safety_block_none_and_token_bounds) {
+    constexpr std::int64_t kSubFloorRequestedTokens = 1024;
+    constexpr std::int64_t kMidRangeRequestedTokens = 45000;
+
+    std::string resolved_model;
+    const bj::object req = snt::gemini::build_gemini_request(bj::object{}, &resolved_model);
+    EXPECT_EQ(resolved_model, "gemini-4-carbon");
+
+    ASSERT_NE(req.if_contains("generationConfig"), nullptr);
+    const bj::object& gen_cfg = req.at("generationConfig").as_object();
+    EXPECT_EQ(gen_cfg.at("maxOutputTokens").as_int64(), kExpectedMinOutputTokens);
+
+    ASSERT_NE(gen_cfg.if_contains("thinkingConfig"), nullptr);
+    const bj::object& thinking_cfg = gen_cfg.at("thinkingConfig").as_object();
+    EXPECT_EQ(thinking_cfg.if_contains("thinkingBudget"), nullptr)
+        << "thinkingBudget disables gemini-4-carbon reasoning (thought=0 bug)";
+    ASSERT_NE(thinking_cfg.if_contains("thinkingLevel"), nullptr);
+    EXPECT_EQ(thinking_cfg.at("thinkingLevel").as_string(), "MEDIUM");
+
+    ASSERT_NE(req.if_contains("safetySettings"), nullptr);
+    const bj::array& safety = req.at("safetySettings").as_array();
+    ASSERT_EQ(safety.size(), kExpectedSafetyCategoryCount);
+
+    std::set<std::string> categories;
+    for (const auto& item : safety) {
+        const bj::object& obj = item.as_object();
+        EXPECT_EQ(obj.at("threshold").as_string(), "BLOCK_NONE");
+        categories.emplace(obj.at("category").as_string());
+    }
+    const std::set<std::string> expected_categories = {
+        "HARM_CATEGORY_HARASSMENT",
+        "HARM_CATEGORY_HATE_SPEECH",
+        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "HARM_CATEGORY_CIVIC_INTEGRITY",
+    };
+    EXPECT_EQ(categories, expected_categories);
+
+    struct TokenCase {
+        std::int64_t requested;
+        std::int64_t expected;
+    };
+    constexpr TokenCase kCases[] = {
+        {kSubFloorRequestedTokens, kExpectedMinOutputTokens},
+        {kExpectedMinOutputTokens - 1, kExpectedMinOutputTokens},
+        {kExpectedMinOutputTokens, kExpectedMinOutputTokens},
+        {kMidRangeRequestedTokens, kMidRangeRequestedTokens},
+        {kModelOutputCeiling, kModelOutputCeiling},
+        {kModelOutputCeiling + 1, kModelOutputCeiling},
+    };
+    for (const auto& tc : kCases) {
+        SCOPED_TRACE(tc.requested);
+        bj::object in;
+        in["max_tokens"] = tc.requested;
+        const bj::object r = snt::gemini::build_gemini_request(in);
+        EXPECT_EQ(r.at("generationConfig").as_object().at("maxOutputTokens").as_int64(),
+                  tc.expected);
+    }
+}
+
+TEST(Translate, gemini_response_separates_thoughts_from_text_and_parses_thought_tokens) {
+    const bj::value raw_gem = bj::parse(R"json({
+        "candidates": [{
+            "content": {
+                "role": "model",
+                "parts": [
+                    {"thought": true, "text": "Lookahead mentions 巨大なサメ, so サメ肌 is sharkskin."},
+                    {"text": "1. Terrible sharkskin.\n"}
+                ]
+            },
+            "finishReason": "STOP"
+        }],
+        "usageMetadata": {
+            "promptTokenCount": 1420,
+            "candidatesTokenCount": 6,
+            "thoughtsTokenCount": 648,
+            "cachedContentTokenCount": 1100
+        }
+    })json");
+
+    const bj::value adapted = snt::gemini::adapt_gemini_response(raw_gem);
+    const tr::Answer answer = tr::read_answer(adapted);
+    const tr::UsageStats usage = tr::read_usage(adapted);
+
+    EXPECT_EQ(answer.text, "1. Terrible sharkskin.");
+    EXPECT_EQ(answer.stop_reason, "end_turn");
+    EXPECT_EQ(usage.input_tokens, kSamplePromptTokenCount);
+    EXPECT_EQ(usage.candidates_tokens, kSampleCandidatesTokenCount);
+    EXPECT_EQ(usage.thought_tokens, kSampleThoughtsTokenCount);
+    EXPECT_EQ(usage.output_tokens, kSampleExpectedOutputTokenCount);
+    EXPECT_EQ(usage.cache_read_input_tokens, kSampleCachedTokenCount);
+
+    const bj::value no_thoughts_gem = bj::parse(R"json({
+        "candidates": [{
+            "content": {"parts": [{"text": "1. Morning came.\n"}]},
+            "finishReason": "STOP"
+        }],
+        "usageMetadata": {
+            "promptTokenCount": 50,
+            "candidatesTokenCount": 10
+        }
+    })json");
+    const tr::UsageStats zero_thought_usage =
+        tr::read_usage(snt::gemini::adapt_gemini_response(no_thoughts_gem));
+    EXPECT_EQ(zero_thought_usage.input_tokens, kNoThoughtPromptTokens);
+    EXPECT_EQ(zero_thought_usage.candidates_tokens, kNoThoughtCandidatesTokens);
+    EXPECT_EQ(zero_thought_usage.thought_tokens, 0);
+    EXPECT_EQ(zero_thought_usage.output_tokens, kNoThoughtCandidatesTokens);
+}
+
 // The banner must describe the request that is actually built.
 TEST(Translate, reasoning_banner_matches_the_transmitted_field) {
     EXPECT_EQ(tr::reasoning_control(tr::MODEL),
-              tr::ReasoningControl::AdaptiveThinking);
+              tr::ReasoningControl::ThinkingLevel);
+    EXPECT_EQ(tr::reasoning_control("other-model"),
+              tr::ReasoningControl::None);
 
-    const std::string label = tr::reasoning_control_label(tr::MODEL);
-    const bool mentions_effort = label.find("effort") != std::string::npos;
-    EXPECT_EQ(mentions_effort,
-              tr::reasoning_control(tr::MODEL) == tr::ReasoningControl::Effort);
+    const bj::object req = snt::gemini::build_gemini_request(bj::object{});
+    const std::string wire_level(
+        req.at("generationConfig")
+            .as_object()
+            .at("thinkingConfig")
+            .as_object()
+            .at("thinkingLevel")
+            .as_string());
+    EXPECT_EQ(tr::reasoning_control_label(tr::MODEL),
+              "thinkingConfig.thinkingLevel: " + wire_level);
 }
 
 // A backward-pointing number on a continuation line would silently replace an
@@ -1175,4 +1348,152 @@ TEST(Translate, the_pipeline_runs_three_entries_in_order) {
     EXPECT_TRUE(tr::validate_options(kStandardBatchSize, 0, -1).has_value()) << "--max-batches -1";
     EXPECT_TRUE(tr::validate_options(kStandardBatchSize, -1, 0).has_value()) << "--test -1";
     EXPECT_FALSE(tr::validate_options(kStandardBatchSize, 0, 0).has_value());
+}
+
+TEST(Translate, client_adapter_delegates_to_vn_llm_and_trips_zero_thought_breaker) {
+    constexpr int kHttpStatusOk = 200;
+    constexpr std::size_t kGuardBatchLines = 4;
+    constexpr int kFirstLineIndex = 1;
+    constexpr int kFourthLineIndex = 4;
+    constexpr std::int64_t kExpectedThoughtTokens = 310;
+    constexpr std::size_t kEmptyCacheCount = 0;
+
+    class FakeTransport final : public vn::llm::IRawHttpTransport {
+    public:
+        std::string last_target;
+        std::string last_body;
+        std::string canned_body;
+
+        vn::llm::RawHttpResponse post_json(std::string_view target_path,
+                                           std::string_view json_body,
+                                           int /*connect_timeout_sec*/,
+                                           int /*read_timeout_sec*/) override {
+            last_target.assign(target_path.data(), target_path.size());
+            last_body.assign(json_body.data(), json_body.size());
+            return vn::llm::RawHttpResponse{kHttpStatusOk, canned_body};
+        }
+    };
+
+    FakeTransport transport;
+    transport.canned_body = R"json({
+        "candidates": [{
+            "content": {"parts": [
+                {"thought": true, "text": "Checking glossary..."},
+                {"text": "1. Alpha\n2. Bravo\n3. Charlie\n4. Delta\n"}
+            ]},
+            "finishReason": "STOP"
+        }],
+        "usageMetadata": {
+            "promptTokenCount": 120,
+            "candidatesTokenCount": 16,
+            "thoughtsTokenCount": 310
+        }
+    })json";
+
+    snt::gemini::Client ok_client("fake-test-key", &transport);
+    const auto four_lines = batch_of(kGuardBatchLines);
+    tr::UsageStats usage;
+    const auto translated = tr::call_gemini(ok_client, four_lines, {}, {}, &usage);
+    EXPECT_EQ(transport.last_target,
+              "/v1beta/models/gemini-4-carbon:generateContent?key=fake-test-key");
+    ASSERT_EQ(translated.size(), kGuardBatchLines);
+    EXPECT_EQ(translated.at(kFirstLineIndex), "Alpha");
+    EXPECT_EQ(translated.at(kFourthLineIndex), "Delta");
+    EXPECT_EQ(usage.thought_tokens, kExpectedThoughtTokens);
+
+    // On a fresh client (Batch 0 with slice_size >= 4), thought_tokens == 0 on
+    // gemini-4-carbon MEDIUM must trip ZeroThoughtCircuitBreaker immediately and
+    // propagate out of translate_batch rather than silently continuing.
+    transport.canned_body = R"json({
+        "candidates": [{
+            "content": {"parts": [
+                {"text": "1. Alpha\n2. Bravo\n3. Charlie\n4. Delta\n"}
+            ]},
+            "finishReason": "STOP"
+        }],
+        "usageMetadata": {
+            "promptTokenCount": 120,
+            "candidatesTokenCount": 16,
+            "thoughtsTokenCount": 0
+        }
+    })json";
+
+    snt::gemini::Client broken_client("fake-test-key", &transport);
+    tr::Cache cache;
+    std::vector<std::pair<std::string, std::string>> ctx;
+    EXPECT_THROW(
+        tr::translate_batch(cache, ctx, four_lines, [&] {
+            return tr::call_gemini(broken_client, four_lines, ctx);
+        }),
+        snt::gemini::ZeroThoughtError);
+    EXPECT_EQ(cache.size(), kEmptyCacheCount);
+}
+
+TEST(Translate, gemini_client_and_request_builder_reject_disallowed_argon_models) {
+    constexpr int kHttpStatusOk = 200;
+    constexpr std::size_t kZeroTransportCalls = 0U;
+    constexpr std::size_t kOneTransportCall = 1U;
+
+    class CountingTransport final : public vn::llm::IRawHttpTransport {
+    public:
+        std::size_t call_count = 0U;
+
+        vn::llm::RawHttpResponse post_json(std::string_view /*target_path*/,
+                                           std::string_view /*json_body*/,
+                                           int /*connect_timeout_sec*/,
+                                           int /*read_timeout_sec*/) override {
+            ++call_count;
+            return vn::llm::RawHttpResponse{
+                kHttpStatusOk,
+                R"json({
+                    "candidates": [{
+                        "content": {"parts": [{"text": "1. Alpha\n"}]},
+                        "finishReason": "STOP"
+                    }],
+                    "usageMetadata": {
+                        "promptTokenCount": 20,
+                        "candidatesTokenCount": 4,
+                        "thoughtsTokenCount": 180
+                    }
+                })json"};
+        }
+    };
+
+    struct DisallowedCase {
+        const char* label;
+        std::string_view model;
+    };
+
+    static constexpr char kEmbeddedNulModel[] = "gemini-4-carbon\0extra";
+    constexpr DisallowedCase kCases[] = {
+        {"canonical_gemini_4_argon", "gemini-4-argon"},
+        {"uppercase_argon_not_silently_rewritten", "GEMINI-4-ARGON"},
+        {"prefixed_argon_not_silently_rewritten", "models/gemini-4-argon-preview"},
+        {"embedded_nul_byte_seam",
+         std::string_view(kEmbeddedNulModel, sizeof(kEmbeddedNulModel) - 1U)},
+    };
+
+    CountingTransport transport;
+    snt::gemini::Client client("fake-test-key", &transport);
+
+    for (const auto& tc : kCases) {
+        SCOPED_TRACE(tc.label);
+        bj::object in_obj;
+        in_obj["model"] = bj::string(tc.model.data(), tc.model.size());
+        std::string out_model = "untouched";
+        EXPECT_THROW(snt::gemini::build_gemini_request(in_obj, &out_model),
+                     snt::gemini::ApiError);
+        EXPECT_THROW(client.messages(in_obj), snt::gemini::ApiError);
+        EXPECT_EQ(transport.call_count, kZeroTransportCalls);
+    }
+
+    // Valid -> Failing -> Valid seam: client remains usable for gemini-4-carbon
+    // after rejecting disallowed argon requests.
+    bj::object valid_req;
+    valid_req["model"] = "gemini-4-carbon";
+    valid_req["messages"] = bj::array{
+        bj::object{{"role", "user"}, {"content", "1. 朝が来た。"}}};
+    const bj::value ok_resp = client.messages(valid_req);
+    EXPECT_EQ(transport.call_count, kOneTransportCall);
+    EXPECT_EQ(tr::read_answer(ok_resp).text, "1. Alpha");
 }
