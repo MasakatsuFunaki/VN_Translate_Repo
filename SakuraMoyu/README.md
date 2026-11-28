@@ -57,12 +57,12 @@ The pipeline is four steps, and `00_run_all.exe` performs all four:
 
 ```batch
 00_run_all.exe --max-batches 4       :: 4 requests, keeping cache and outputs
-00_run_all.exe --batch N             :: lines per API call (default 100)
+00_run_all.exe --batch N             :: lines per API call (default 40)
 00_run_all.exe --clean               :: delete cached JSON, then full run
 00_run_all.exe --discard-cache       :: let --clean delete a cache holding paid work
 00_run_all.exe --dir <p> --game-dir <p>  :: project folder / game folder (--game-dir required)
 
-02_translate.exe --batch N           :: lines per API call (default 100)
+02_translate.exe --batch N           :: lines per API call (default 40)
 02_translate.exe --max-batches N     :: cap API requests, keeping cache and outputs
 02_translate.exe --rebuild-table     :: rebuild translation_table.tsv from translated_text.json
 02_translate.exe --retranslate       :: ignore cache, redo all
@@ -72,5 +72,5 @@ The pipeline is four steps, and `00_run_all.exe` performs all four:
 
 `--max-batches N` caps the work without costing what has already been paid for.
 
-Model: `gemini-4-argon` (`MODEL` in
-`pipeline_cpp/src/translate/glossary.h`.
+Model: `gemini-4-carbon` (`thinkingLevel: MEDIUM`, `MODEL` in
+`pipeline_cpp/src/translate/glossary.h`).
