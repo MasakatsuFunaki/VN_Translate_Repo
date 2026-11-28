@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -25,36 +26,34 @@
 #include <boost/json.hpp>
 
 #include "gemini_client.h"
+#include "vn/llm/llm_types.h"
 
 namespace snt::translate {
 
-// jp -> en cache.  Insertion order is load-bearing: it decides the key order
-// of translation_cache_gemini.json, so a resumed run appends to the file
-// instead of rewriting it in a different order.
+// jp -> en cache hiding private data via PIMPL.  Insertion order is
+// load-bearing: it decides the key order of translation_cache_gemini.json, so
+// a resumed run appends to the file instead of rewriting it in a different
+// order.
 class Cache {
 public:
-    bool contains(const std::string& jp) const { return index_.count(jp) != 0; }
-    const std::string* get(const std::string& jp) const {
-        auto it = index_.find(jp);
-        return it == index_.end() ? nullptr : &order_[it->second].second;
-    }
-    void set(const std::string& jp, const std::string& en) {
-        auto it = index_.find(jp);
-        if (it != index_.end()) order_[it->second].second = en;
-        else {
-            index_.emplace(jp, order_.size());
-            order_.emplace_back(jp, en);
-        }
-    }
-    void set_default(const std::string& jp, const std::string& en) {
-        if (!contains(jp)) set(jp, en);
-    }
-    std::size_t size() const { return order_.size(); }
-    const std::vector<std::pair<std::string, std::string>>& items() const { return order_; }
+    Cache();
+    ~Cache();
+
+    Cache(const Cache& other);
+    Cache& operator=(const Cache& other);
+    Cache(Cache&& other) noexcept;
+    Cache& operator=(Cache&& other) noexcept;
+
+    bool contains(const std::string& jp) const;
+    const std::string* get(const std::string& jp) const;
+    void set(const std::string& jp, const std::string& en);
+    void set_default(const std::string& jp, const std::string& en);
+    std::size_t size() const;
+    const std::vector<std::pair<std::string, std::string>>& items() const;
 
 private:
-    std::vector<std::pair<std::string, std::string>> order_;
-    std::map<std::string, std::size_t> index_;
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 // True when the text contains hiragana / katakana / CJK.
@@ -147,10 +146,11 @@ void apply_line_result(Cache& cache,
                        const std::string& speaker, const std::string& jp,
                        const std::string& en);
 
-// The user prompt sent per batch -- exposed for the speaker gate.
+// The user prompt sent per batch -- exposed for the speaker gate and tests.
 std::string build_user_prompt(
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context);
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after = {});
 
 // Parse the model's "1. ... 2. ..." answer into {line_no -> translation}.
 // A line number is read as one only when it is strictly greater than the last
@@ -190,7 +190,16 @@ struct Answer {
     std::string stop_reason;  // empty when the response carries none
 };
 
+struct UsageStats {
+    std::int64_t input_tokens = 0;
+    std::int64_t candidates_tokens = 0;
+    std::int64_t thought_tokens = 0;
+    std::int64_t output_tokens = 0;
+    std::int64_t cache_read_input_tokens = 0;
+};
+
 Answer read_answer(const boost::json::value& response);
+UsageStats read_usage(const boost::json::value& response);
 
 // The translations one answer can be trusted to hold, after the guards above.
 // An answer that fails them yields an empty map and the batch re-queues.
@@ -207,11 +216,14 @@ const std::string& raw_answer_log();
 std::string raw_answer_log_path(const std::string& sibling_file);
 
 // One API round trip.  batch_lines: (speaker, jp).  previous_context:
-// (speaker, en).  Throws gemini::RateLimitError / ApiError.
+// (speaker, en).  context_after: upcoming (speaker, jp/en) lookahead.
+// Throws gemini::RateLimitError / ApiError.
 std::map<int, std::string> call_gemini(
     gemini::Client& client,
     const std::vector<std::pair<std::string, std::string>>& batch_lines,
-    const std::vector<std::pair<std::string, std::string>>& previous_context);
+    const std::vector<std::pair<std::string, std::string>>& previous_context,
+    const std::vector<std::pair<std::string, std::string>>& context_after = {},
+    UsageStats* out_usage = nullptr);
 
 // How long a rate-limited batch waits before its one retry.
 inline constexpr std::chrono::seconds RATE_LIMIT_WAIT{60};
@@ -239,7 +251,7 @@ void translate_batch(Cache& cache,
 std::optional<std::string> validate_options(int batch_size, int test_n, int max_batches);
 
 struct TranslateOptions {
-    int batch_size = 150;
+    int batch_size = vn::llm::kDefaultBatchSize;
     bool retranslate = false;
     std::optional<std::string> only_script;
     bool test_mode = false;  // cap the run at num_batches API requests

@@ -50,3 +50,18 @@ target_compile_definitions(st_corpus PRIVATE
     SNT_PROJECT_DIR="${SNT_PROJECT_DIR_ABS}"
 )
 snt_st_test(st_pfs_archive)
+
+add_executable(st_gemini_live st_gemini_live.cpp ../src/apps/paths.cpp)
+target_link_libraries(st_gemini_live PRIVATE
+    snt_core
+    Boost::program_options
+    GTest::gtest
+    GTest::gtest_main
+    shell32
+)
+target_compile_definitions(st_gemini_live PRIVATE
+    SNT_PROJECT_DIR="${SNT_PROJECT_DIR_ABS}"
+    SNT_TRANSLATE_EXE="$<TARGET_FILE:02_translate>"
+)
+add_dependencies(st_gemini_live 02_translate)
+gtest_discover_tests(st_gemini_live PROPERTIES LABELS "SYSTEM")

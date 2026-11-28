@@ -13,6 +13,8 @@
 // lines afterwards.
 #pragma once
 
+#include "vn/llm/llm_types.h"
+
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -57,25 +59,28 @@ const std::vector<std::pair<std::string, std::string>>& superseded_name_renderin
 const std::string& system_prompt();
 
 // ── Model ──
-inline const std::string MODEL = "gemini-4-argon";
+inline const std::string MODEL{vn::llm::kDefaultModel};
 
-// Effort level: controls token spend.
-inline const std::string EFFORT = "high";
+// Thinking level sent in generationConfig.thinkingConfig.thinkingLevel.
+inline const std::string THINKING_LEVEL{vn::llm::kDefaultThinkingLevel};
 
 // The reasoning knob a model accepts.
-enum class ReasoningControl { None, AdaptiveThinking, Effort };
+enum class ReasoningControl { None, ThinkingLevel };
 
 inline ReasoningControl reasoning_control(const std::string& m) {
-    if (m == MODEL) return ReasoningControl::AdaptiveThinking;
+    if (m.rfind("gemini-3", 0) == 0 || m.rfind("gemini-4", 0) == 0) {
+        return ReasoningControl::ThinkingLevel;
+    }
     return ReasoningControl::None;
 }
 
 // The banner wording names the field that goes on the wire.
 inline std::string reasoning_control_label(const std::string& m) {
     switch (reasoning_control(m)) {
-    case ReasoningControl::AdaptiveThinking: return "thinking: adaptive";
-    case ReasoningControl::Effort:           return "output_config.effort: " + EFFORT;
-    case ReasoningControl::None:             break;
+    case ReasoningControl::ThinkingLevel:
+        return "thinkingConfig.thinkingLevel: " + THINKING_LEVEL;
+    case ReasoningControl::None:
+        break;
     }
     return "none";
 }
@@ -83,17 +88,18 @@ inline std::string reasoning_control_label(const std::string& m) {
 // Sliding context window: how many previous translations to include.
 constexpr int CONTEXT_WINDOW = 50;
 
-// Per-request output ceiling the models above accept.  max_tokens is a cap
-// rather than an allocation, but a request asking for more than the model can
-// emit is rejected outright, so the computed value is clamped to this.
-constexpr std::int64_t MAX_OUTPUT_TOKENS = 128000;
+// Lookahead context window: how many upcoming script lines to include.
+constexpr int CONTEXT_AFTER = 20;
+
+// Per-request output ceiling Gemini accepts (65,536 tokens).
+constexpr std::int64_t MAX_OUTPUT_TOKENS = vn::llm::kMaxOutputTokensCeiling;
 
 // Floor for the same computation: a small batch still needs room for a whole
 // answer and the thinking that precedes it.
-constexpr std::int64_t MIN_OUTPUT_TOKENS = 16384;
+constexpr std::int64_t MIN_OUTPUT_TOKENS = vn::llm::kMinOutputTokensFloor;
 
 // Output tokens allowed per line of a batch.  The margin absorbs long lines
 // and the retry after a rate limit.
-constexpr std::int64_t OUTPUT_TOKENS_PER_LINE = 300;
+constexpr std::int64_t OUTPUT_TOKENS_PER_LINE = vn::llm::kDefaultTokensPerBatchLine;
 
 }  // namespace snt::translate
