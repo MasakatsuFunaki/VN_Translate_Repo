@@ -7,8 +7,7 @@
 
 // Unit tests for src/apps/paths.{h,cpp}: UTF-8 project root discovery across
 // repository checkouts and staged layouts (including Japanese directory names),
-// UTF-8 CLI argument parsing, process_utf8_args(), and Windows
-// CommandLineToArgvW quoting round-trips.
+// UTF-8 CLI argument parsing, and Windows CommandLineToArgvW quoting round-trips.
 #include "apps/paths.h"
 
 #include <gtest/gtest.h>
@@ -73,46 +72,32 @@ void write_dummy_file(const fs::path& file_path) {
 
 }  // namespace
 
-TEST(Paths, ReleaseZipLayoutResolvesRootWithoutScriptOutput) {
+TEST(Paths, FindProjectDirResolvesReleaseCheckoutLegacyJapaneseAndRejectsUnrelated) {
     const ScopedTempDir temp(kTempRootName);
-    const fs::path root =
-        append_empty_levels(temp.path(), kNestedEmptyLevels) / "release_root";
-    fs::create_directories(root / "bin");
-    fs::create_directories(root / "game");
+    const fs::path pad_base = append_empty_levels(temp.path(), kNestedEmptyLevels);
 
-    const std::string found = apps::find_project_dir_from(root / "bin");
-    EXPECT_EQ(found, root.u8string());
-}
+    // 1. Release zip layout (bin + game without script_output).
+    const fs::path release_root = pad_base / "release_root";
+    fs::create_directories(release_root / "bin");
+    fs::create_directories(release_root / "game");
+    EXPECT_EQ(apps::find_project_dir_from(release_root / "bin"), release_root.u8string());
 
-TEST(Paths, CheckoutPriorityBeatsNestedBuildInstallStaging) {
-    const ScopedTempDir temp(kTempRootName);
-    const fs::path checkout =
-        append_empty_levels(temp.path(), kNestedEmptyLevels) / "checkout";
+    // 2. Repo checkout priority beats nested build/install/{bin,game}.
+    const fs::path checkout = pad_base / "checkout";
     fs::create_directories(checkout / "pipeline_cpp");
     write_dummy_file(checkout / "build.py");
     fs::create_directories(checkout / "build" / "install" / "bin");
     fs::create_directories(checkout / "build" / "install" / "game");
+    EXPECT_EQ(apps::find_project_dir_from(checkout / "build" / "install" / "bin"),
+              checkout.u8string());
 
-    const std::string found =
-        apps::find_project_dir_from(checkout / "build" / "install" / "bin");
-    EXPECT_EQ(found, checkout.u8string());
-}
+    // 3. Legacy staged layout (bin + script_output).
+    const fs::path legacy_root = pad_base / "legacy_root";
+    fs::create_directories(legacy_root / "bin");
+    fs::create_directories(legacy_root / "script_output");
+    EXPECT_EQ(apps::find_project_dir_from(legacy_root / "bin"), legacy_root.u8string());
 
-TEST(Paths, LegacyStagedLayoutWithScriptOutputResolvesRoot) {
-    const ScopedTempDir temp(kTempRootName);
-    const fs::path root =
-        append_empty_levels(temp.path(), kNestedEmptyLevels) / "legacy_root";
-    fs::create_directories(root / "bin");
-    fs::create_directories(root / "script_output");
-
-    const std::string found = apps::find_project_dir_from(root / "bin");
-    EXPECT_EQ(found, root.u8string());
-}
-
-TEST(Paths, JapaneseDirectoryCheckoutAndStagedLayoutsReturnUtf8Root) {
-    const ScopedTempDir temp(kTempRootName);
-    const fs::path pad_base = append_empty_levels(temp.path(), kNestedEmptyLevels);
-
+    // 4. Japanese UTF-8 directory names in both checkout and staged layouts.
     const fs::path jp_checkout = pad_base / fs::u8path("蟲愛ずる少女_CE");
     fs::create_directories(jp_checkout / "pipeline_cpp");
     write_dummy_file(jp_checkout / "build.py");
@@ -123,15 +108,10 @@ TEST(Paths, JapaneseDirectoryCheckoutAndStagedLayoutsReturnUtf8Root) {
     const fs::path jp_staged = pad_base / fs::u8path("EXTRAVAGANZA～蟲愛編～");
     fs::create_directories(jp_staged / "bin");
     fs::create_directories(jp_staged / "game");
-    EXPECT_EQ(apps::find_project_dir_from(jp_staged / "bin"),
-              jp_staged.u8string());
-}
+    EXPECT_EQ(apps::find_project_dir_from(jp_staged / "bin"), jp_staged.u8string());
 
-TEST(Paths, UnrelatedDeepDirectoryReturnsEmpty) {
-    const ScopedTempDir temp(kTempRootName);
-    const fs::path deep = append_empty_levels(temp.path(), kNestedEmptyLevels);
-
-    EXPECT_TRUE(apps::find_project_dir_from(deep).empty());
+    // 5. Unrelated deep directory and empty path return empty.
+    EXPECT_TRUE(apps::find_project_dir_from(pad_base).empty());
     EXPECT_TRUE(apps::find_project_dir_from(fs::path{}).empty());
 }
 
@@ -190,13 +170,6 @@ TEST(Paths, ParseCommandLineHandlesCommonGameOnlyAndJapaneseUtf8Options) {
             const_cast<char**>(argv_reject_dir), desc, vm_reject_dir);
         ASSERT_TRUE(rc_reject_dir.has_value());
         EXPECT_EQ(*rc_reject_dir, kExitError);
-    }
-}
-
-TEST(Paths, ProcessUtf8ArgsDecodesWideProcessCommandLine) {
-    const std::vector<std::string> args = apps::process_utf8_args();
-    for (const std::string& arg : args) {
-        EXPECT_NE(arg.find("ut_paths.exe"), 0u);
     }
 }
 

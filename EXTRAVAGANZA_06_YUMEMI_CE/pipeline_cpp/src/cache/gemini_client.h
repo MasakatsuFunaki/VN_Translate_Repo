@@ -5,11 +5,8 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Gemini API client interface (POST /v1beta/models/...:generateContent).
-//
-// LazyClient defers API key lookup and client construction until the first
-// uncached batch actually needs an API call, so a fully-cached run succeeds
-// without GEMINI_API_KEY set.
+// Thin Gemini client adapter delegating transport, TLS, retries, wire JSON,
+// and credential resolution to `vn::llm_client`.
 #pragma once
 
 #include <functional>
@@ -18,6 +15,9 @@
 #include <string>
 
 #include <boost/json.hpp>
+
+#include "vn/llm/llm_client.h"
+#include "vn/llm/llm_types.h"
 
 namespace exm::gemini {
 
@@ -41,8 +41,16 @@ private:
 class Client {
 public:
     virtual ~Client();
+
     virtual boost::json::value generate_content(const std::string& model,
                                                 const boost::json::value& body) = 0;
+
+    // Structured LLM invocation seam. Production `make_https_client()`
+    // delegates directly to `vn::llm::ILlmClient::generate`; the default
+    // implementation bridges `vn::llm::build_gemini_request_json` ->
+    // `generate_content` -> `vn::llm::parse_gemini_response_json` for JSON
+    // test doubles.
+    virtual vn::llm::LlmResponse generate_llm(const vn::llm::LlmRequest& request);
 
 protected:
     Client() = default;

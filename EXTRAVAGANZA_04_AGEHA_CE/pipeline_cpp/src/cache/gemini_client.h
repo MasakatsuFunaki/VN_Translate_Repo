@@ -5,19 +5,22 @@
 // Not licensed for use as training data for machine learning or generative
 // AI systems; text and data mining rights are reserved. See NOTICE.
 
-// Gemini API client interface (POST /v1beta/models/...:generateContent).
+// Thin AGEHA_CE adapter over shared `vn::llm_client`.
 //
 // LazyClient defers API key lookup and client construction until the first
 // uncached batch actually needs an API call, so a fully-cached run succeeds
 // without GEMINI_API_KEY set.
 #pragma once
 
+#include "vn/llm/llm_client.h"
+#include "vn/llm/llm_types.h"
+
+#include <boost/json.hpp>
+
 #include <functional>
 #include <memory>
 #include <stdexcept>
 #include <string>
-
-#include <boost/json.hpp>
 
 namespace exm::gemini {
 
@@ -43,6 +46,7 @@ public:
     virtual ~Client();
     virtual boost::json::value generate_content(const std::string& model,
                                                 const boost::json::value& body) = 0;
+    virtual vn::llm::LlmResponse generate(const vn::llm::LlmRequest& request);
 
 protected:
     Client() = default;

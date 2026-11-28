@@ -114,6 +114,8 @@ constexpr std::uint8_t kRelCallOpcode = 0xE8;
 constexpr std::uint8_t kRelJmpOpcode = 0xE9;
 constexpr std::size_t kRelBranchInstructionSize = 5;
 
+// True iff `val` holds >= 3 printable ASCII bytes (0x20..0x7E) and any remaining
+// byte in the 4-byte little-endian DWORD is 0x00 (e.g. a 3- or 4-char ASCII tag).
 bool LooksLikeAscii(std::uint32_t val);
 
 bool BytesMatch(const std::uint8_t* addr,

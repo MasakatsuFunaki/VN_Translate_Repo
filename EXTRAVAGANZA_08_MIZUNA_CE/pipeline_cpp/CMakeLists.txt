@@ -14,6 +14,12 @@ option(ENABLE_TESTS "Build the GoogleTest suite" ON)
 find_package(Boost REQUIRED COMPONENTS json regex program_options)
 find_package(OpenSSL REQUIRED)
 
+if(NOT TARGET vn::llm_client)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../tools/llm_client
+                     ${CMAKE_CURRENT_BINARY_DIR}/vn_llm_client
+                     EXCLUDE_FROM_ALL)
+endif()
+
 add_library(exm_core STATIC
     src/common/util.cpp
     src/common/util.h
@@ -42,14 +48,12 @@ target_compile_definitions(exm_core PUBLIC
     _WIN32_WINNT=0x0601
 )
 target_link_libraries(exm_core PUBLIC
+    vn::llm_client
     Boost::json
     Boost::regex
     Boost::headers
-    openssl::openssl
     windowscodecs
     ole32
-    ws2_32
-    crypt32
 )
 
 function(exm_app target main)

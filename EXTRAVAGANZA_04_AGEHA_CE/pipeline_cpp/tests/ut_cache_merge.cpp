@@ -171,14 +171,14 @@ TEST(CacheMerge, build_user_prompt_includes_previous_context_and_context_after) 
     EXPECT_NE(prompt.find("1. [Shumi] シュミ\\r\\n「現在の行」"), std::string::npos);
 }
 
-TEST(CacheMerge, call_gemini_sends_gemini_4_argon_payload_and_parses_candidates) {
+TEST(CacheMerge, call_gemini_sends_gemini_4_carbon_payload_and_parses_candidates) {
     FakeGeminiClient fake;
     const std::vector<std::pair<std::string, std::string>> batch = {
         {"Ageha", "アゲハ\r\n「あ……」"},
         {"NARRATION", "朝が来た。"},
     };
     const auto result = tr::call_gemini(fake, batch, {}, {});
-    EXPECT_EQ(fake.last_model, "gemini-4-argon");
+    EXPECT_EQ(fake.last_model, "gemini-4-carbon");
     ASSERT_TRUE(fake.last_body.is_object());
     EXPECT_TRUE(fake.last_body.get_object().if_contains("systemInstruction"));
     EXPECT_TRUE(fake.last_body.get_object().if_contains("contents"));

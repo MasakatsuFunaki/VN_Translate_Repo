@@ -15,6 +15,15 @@ constexpr std::size_t kUtf8BomByteLen = 3;
 constexpr unsigned char kUtf8BomByte0 = 0xEF;
 constexpr unsigned char kUtf8BomByte1 = 0xBB;
 constexpr unsigned char kUtf8BomByte2 = 0xBF;
+constexpr unsigned char kCp932Lead1Min = 0x81;
+constexpr unsigned char kCp932Lead1Max = 0x9F;
+constexpr unsigned char kCp932Lead2Min = 0xE0;
+constexpr unsigned char kCp932Lead2Max = 0xFC;
+
+bool IsCp932LeadByte(unsigned char c) noexcept {
+    return (c >= kCp932Lead1Min && c <= kCp932Lead1Max) ||
+           (c >= kCp932Lead2Min && c <= kCp932Lead2Max);
+}
 
 }  // namespace
 
@@ -32,6 +41,15 @@ void UnescapeInPlace(std::string& s) {
     std::string out;
     out.reserve(s.size());
     for (std::size_t i = 0; i < s.size(); ++i) {
+        // Preserve 2-byte CP932 characters whose trail byte is 0x5C ('\\')
+        // (e.g., '―' = 0x81 0x5C, 'ソ' = 0x83 0x5C, '表' = 0x95 0x5C).
+        const auto c = static_cast<unsigned char>(s[i]);
+        if (IsCp932LeadByte(c) && i + 1 < s.size()) {
+            out += s[i];
+            out += s[i + 1];
+            ++i;
+            continue;
+        }
         if (s[i] != '\\' || i + 1 >= s.size()) {
             out += s[i];
             continue;
@@ -105,10 +123,6 @@ int ParseTsvBuffer(const char* buf, std::size_t len, TranslationMap& out) {
 
 namespace {
 
-constexpr unsigned char kCp932Lead1Min = 0x81;
-constexpr unsigned char kCp932Lead1Max = 0x9F;
-constexpr unsigned char kCp932Lead2Min = 0xE0;
-constexpr unsigned char kCp932Lead2Max = 0xFC;
 constexpr std::size_t kColorPrefixByteLen = 3;
 constexpr std::size_t kMinAsciiLettersForWords = 2;
 constexpr unsigned char kFxfEncryptedHighBit = 0x80;
@@ -116,13 +130,8 @@ constexpr std::uint8_t kFxfXorMask = 0xFF;
 constexpr char kWindowTitleKey[] = "windowTitle";
 constexpr std::size_t kWindowTitleKeyLen = sizeof(kWindowTitleKey) - 1;
 
-bool IsCp932LeadByte(unsigned char c) noexcept {
-    return (c >= kCp932Lead1Min && c <= kCp932Lead1Max) ||
-           (c >= kCp932Lead2Min && c <= kCp932Lead2Max);
-}
-
 bool HasCp932ColorPrefix(const char* s) noexcept {
-    if (!s || s[0] != '#') {
+    if (!s || s[0] != '#' || s[1] == '\0') {
         return false;
     }
     const auto lead = static_cast<unsigned char>(s[1]);

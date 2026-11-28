@@ -6,7 +6,11 @@
 /.ghidra_smoke/
 /.vscode/
 /docs/
-/TOOLS/
+/TOOLS/*
+!/TOOLS/llm_client/
+!/tools/llm_client/
+!/TOOLS/spot_checker/
+!/tools/spot_checker/
 
 # The aggregate install tree the root build.py stages -- build output, and the
 # release artifact is built from it rather than committed.
@@ -74,7 +78,8 @@ EXTRAVAGANZA_06_YUMEMI_CE/build/
 EXTRAVAGANZA_07_REN_MUSHI_CE/build/
 EXTRAVAGANZA_08_MIZUNA_CE/build/
 Oretachi_ni_Tsubasa_wa_Nai/build/
-spot_checker/build/
+tools/spot_checker/build/
+tools/llm_client/build/
 **/build/
 **/pipeline_cpp/build/
 **/proxy_dll/build/
